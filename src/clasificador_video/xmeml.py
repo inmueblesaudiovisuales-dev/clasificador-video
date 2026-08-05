@@ -60,7 +60,32 @@ def _file_xml(clip: ClipSpec, file_id: str) -> str:
     )
 
 
+# Signo SIN VALIDAR en Premiere todavia: ffprobe reporta "rotation" como los
+# grados que hay que girar el frame para desplegarlo derecho. Se usa el mismo
+# signo tal cual para el parametro Rotation de Basic Motion; si en Premiere
+# el clip queda girado al reves, invertir este signo (cambiar el "-" de abajo).
+def _rotation_filter_xml(rotation_degrees: int) -> str:
+    degrees = -rotation_degrees
+    return (
+        "<filter>"
+        "<effect>"
+        "<name>Basic Motion</name>"
+        "<effectid>basic</effectid>"
+        "<effectcategory>motion</effectcategory>"
+        "<effecttype>motion</effecttype>"
+        "<mediatype>video</mediatype>"
+        "<parameter>"
+        "<parameterid>rotation</parameterid>"
+        "<name>Rotation</name>"
+        f"<value>{degrees}</value>"
+        "</parameter>"
+        "</effect>"
+        "</filter>"
+    )
+
+
 def _clipitem_xml(clip: ClipSpec, clipitem_id: str, masterclip_id: str, file_xml: str) -> str:
+    filter_xml = _rotation_filter_xml(clip.rotation) if clip.rotation % 360 != 0 else ""
     return (
         f'<clipitem id="{clipitem_id}">'
         f"<masterclipid>{masterclip_id}</masterclipid>"
@@ -72,6 +97,7 @@ def _clipitem_xml(clip: ClipSpec, clipitem_id: str, masterclip_id: str, file_xml
         "<pixelaspectratio>square</pixelaspectratio>"
         "<anamorphic>FALSE</anamorphic>"
         f"{file_xml}"
+        f"{filter_xml}"
         "</clipitem>"
     )
 

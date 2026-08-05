@@ -47,6 +47,7 @@ def main() -> None:
                 in_frame=in_frame,
                 out_frame=out_frame,
                 flag=flag,
+                rotation=metadata["rotation"],
             )
         )
 

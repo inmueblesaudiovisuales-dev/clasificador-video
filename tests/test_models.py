@@ -32,3 +32,8 @@ def test_con_in_out_usa_los_valores_marcados():
 def test_flag_por_defecto_es_none():
     clip = _clip()
     assert clip.flag == "none"
+
+
+def test_rotation_por_defecto_es_cero():
+    clip = _clip()
+    assert clip.rotation == 0

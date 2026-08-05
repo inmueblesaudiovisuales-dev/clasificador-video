@@ -53,9 +53,11 @@ def probe_clip(path: Path, runner: Callable[[Path], str] = _run_ffprobe) -> dict
 
     has_audio = any(int(s.get("channels", 0)) > 0 for s in audio_streams)
 
+    rotation = _rotation_degrees(video_stream) % 360
+
     width = int(video_stream["width"])
     height = int(video_stream["height"])
-    if _rotation_degrees(video_stream) % 180 == 90:
+    if rotation % 180 == 90:
         width, height = height, width
 
     return {
@@ -64,4 +66,5 @@ def probe_clip(path: Path, runner: Callable[[Path], str] = _run_ffprobe) -> dict
         "fps": fps,
         "has_audio": has_audio,
         "duration_frames": round(duration_seconds * fps),
+        "rotation": rotation,
     }

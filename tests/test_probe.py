@@ -81,15 +81,18 @@ def test_probe_clip_vertical_intercambia_width_height_por_rotacion_90():
     result = probe_clip(Path("/shooting/vertical.MP4"), runner=lambda path: FFPROBE_JSON_VERTICAL_SIDE_DATA)
     assert result["width"] == 2160
     assert result["height"] == 3840
+    assert result["rotation"] == 90
 
 
 def test_probe_clip_vertical_por_tag_rotate_viejo():
     result = probe_clip(Path("/shooting/vertical_viejo.MP4"), runner=lambda path: FFPROBE_JSON_VERTICAL_TAG_VIEJO)
     assert result["width"] == 1080
     assert result["height"] == 1920
+    assert result["rotation"] == 270
 
 
 def test_probe_clip_horizontal_sin_rotacion_no_intercambia():
     result = probe_clip(Path("/shooting/horizontal.MP4"), runner=lambda path: FFPROBE_JSON_HORIZONTAL_SIN_ROTACION)
     assert result["width"] == 1920
     assert result["height"] == 1080
+    assert result["rotation"] == 0
