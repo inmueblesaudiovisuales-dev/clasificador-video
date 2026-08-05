@@ -22,9 +22,9 @@ from clasificador_video.xmeml import generate_xmeml
 # in_frame/out_frame: None para usar el clip completo, o un entero de frame.
 # flag: "none", "pick" o "reject".
 MANIFEST = [
-    ("/ruta/completa/al/clip/con/audio.MP4", ["Cocina"], 30, 500, "pick"),
-    ("/ruta/completa/al/clip/sin/audio/dron.MP4", ["Dron Aerea"], None, None, "none"),
-    ("/ruta/completa/al/clip/recamara.MP4", ["Recamara 2", "Bano"], 0, 300, "reject"),
+    ("/Users/brunogutierrez/Documents/CLAUDE CODE/ORGANIZADOR VIDEO/TEST/20260804_PIB0587.MP4", ["Cocina"], None, None, "pick"),
+    ("/Users/brunogutierrez/Documents/CLAUDE CODE/ORGANIZADOR VIDEO/TEST/20260804_PIB0588.MP4", ["Recamara 2", "Bano"], None, None, "reject"),
+    ("/Users/brunogutierrez/Documents/CLAUDE CODE/ORGANIZADOR VIDEO/TEST/20260804_PIB0589.MP4", ["Sala"], 30, 200, "none"),
 ]
 
 
