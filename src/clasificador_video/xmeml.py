@@ -115,3 +115,15 @@ def _group_by_category(clips: list[ClipSpec]) -> OrderedDict:
             node = node.setdefault(part, OrderedDict())
         node.setdefault("__clips__", []).append(clip)
     return tree
+
+
+def _bin_xml(name: str, node: OrderedDict, counter: list[int]) -> str:
+    children = []
+    for key, value in node.items():
+        if key == "__clips__":
+            for clip in value:
+                counter[0] += 1
+                children.append(_clip_xml(clip, counter[0]))
+        else:
+            children.append(_bin_xml(key, value, counter))
+    return f"<bin><name>{_xml_text(name)}</name><children>{''.join(children)}</children></bin>"
