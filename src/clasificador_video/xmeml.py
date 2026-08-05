@@ -1,4 +1,5 @@
 import uuid
+from collections import OrderedDict
 from pathlib import Path
 from urllib.parse import quote
 from xml.sax.saxutils import escape
@@ -102,3 +103,13 @@ def _clip_xml(clip: ClipSpec, index: int) -> str:
         f"{label_xml}"
         "</clip>"
     )
+
+
+def _group_by_category(clips: list[ClipSpec]) -> OrderedDict:
+    tree: OrderedDict = OrderedDict()
+    for clip in clips:
+        node = tree
+        for part in clip.category_path:
+            node = node.setdefault(part, OrderedDict())
+        node.setdefault("__clips__", []).append(clip)
+    return tree
