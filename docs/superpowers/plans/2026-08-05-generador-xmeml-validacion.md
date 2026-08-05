@@ -636,7 +636,7 @@ def _clipitem_xml(clip: ClipSpec, clipitem_id: str, masterclip_id: str, file_xml
     return (
         f'<clipitem id="{clipitem_id}">'
         f"<masterclipid>{masterclip_id}</masterclipid>"
-        f"<name>{clip.file_path.stem}</name>"
+        f"<name>{_xml_text(clip.file_path.stem)}</name>"
         f"{_rate_xml(clip.fps)}"
         f"<in>{clip.effective_in()}</in>"
         f"<out>{clip.effective_out()}</out>"
@@ -752,7 +752,7 @@ def _clip_xml(clip: ClipSpec, index: int) -> str:
         "<ismasterclip>TRUE</ismasterclip>"
         f"<duration>{clip.duration_frames}</duration>"
         f"{_rate_xml(clip.fps)}"
-        f"<name>{clip.file_path.stem}</name>"
+        f"<name>{_xml_text(clip.file_path.stem)}</name>"
         f"<media><video><track>{clipitem_xml}</track></video></media>"
         f"{label_xml}"
         "</clip>"
@@ -944,7 +944,7 @@ def _bin_xml(name: str, node: OrderedDict, counter: list[int]) -> str:
                 children.append(_clip_xml(clip, counter[0]))
         else:
             children.append(_bin_xml(key, value, counter))
-    return f"<bin><name>{name}</name><children>{''.join(children)}</children></bin>"
+    return f"<bin><name>{_xml_text(name)}</name><children>{''.join(children)}</children></bin>"
 ```
 
 - [ ] **Step 4: Correr la prueba y confirmar que pasa**
@@ -1063,7 +1063,7 @@ def _sequence_xml(project_name: str, clips: list[ClipSpec]) -> str:
         f"<uuid>{uuid.uuid4()}</uuid>"
         "<duration>0</duration>"
         f"{rate_xml}"
-        f"<name>{project_name}</name>"
+        f"<name>{_xml_text(project_name)}</name>"
         "<media><video><format><samplecharacteristics>"
         f"{rate_xml}"
         f"<width>{width}</width><height>{height}</height>"
@@ -1096,7 +1096,7 @@ def generate_xmeml(project_name: str, clips: list[ClipSpec]) -> str:
 
     root_bin = (
         "<bin>"
-        f"<name>{project_name}</name>"
+        f"<name>{_xml_text(project_name)}</name>"
         f"<children>{''.join(bin_children)}{sequence_xml}</children>"
         "</bin>"
     )
