@@ -58,3 +58,11 @@ def test_documento_con_lista_vacia_no_truena():
     xml_str = generate_xmeml("Vacio", [])
     root = ET.fromstring(xml_str)
     assert root.find("bin/children/sequence") is not None
+
+
+def test_clip_sin_nivel_de_categoria_no_se_envuelve_en_bin_extra():
+    xml_str = generate_xmeml("Casa Jardin", [_clip([], "C0009.MP4")])
+    root = ET.fromstring(xml_str)
+    children = root.find("bin/children")
+    assert children.find("clip") is not None
+    assert children.find("bin") is None

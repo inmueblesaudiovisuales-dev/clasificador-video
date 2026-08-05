@@ -117,7 +117,14 @@ def _group_by_category(clips: list[ClipSpec]) -> OrderedDict:
     return tree
 
 
-def _bin_xml(name: str, node: OrderedDict, counter: list[int]) -> str:
+def _tree_children_xml(node: OrderedDict, counter: list[int]) -> list[str]:
+    """Recorre un nivel del arbol de _group_by_category y arma el XML de sus hijos.
+
+    Clips bajo "__clips__" se convierten en <clip> directos (via _clip_xml);
+    cualquier otra clave es un subcuarto y se convierte en un <bin> anidado
+    (via _bin_xml). Usado tanto por _bin_xml como por generate_xmeml, que
+    comparten exactamente esta misma logica de recorrido.
+    """
     children = []
     for key, value in node.items():
         if key == "__clips__":
@@ -126,6 +133,11 @@ def _bin_xml(name: str, node: OrderedDict, counter: list[int]) -> str:
                 children.append(_clip_xml(clip, counter[0]))
         else:
             children.append(_bin_xml(key, value, counter))
+    return children
+
+
+def _bin_xml(name: str, node: OrderedDict, counter: list[int]) -> str:
+    children = _tree_children_xml(node, counter)
     return f"<bin><name>{_xml_text(name)}</name><children>{''.join(children)}</children></bin>"
 
 
@@ -167,14 +179,7 @@ def _sequence_xml(project_name: str, clips: list[ClipSpec]) -> str:
 def generate_xmeml(project_name: str, clips: list[ClipSpec]) -> str:
     tree = _group_by_category(clips)
     counter = [0]
-    bin_children = []
-    for key, value in tree.items():
-        if key == "__clips__":
-            for clip in value:
-                counter[0] += 1
-                bin_children.append(_clip_xml(clip, counter[0]))
-        else:
-            bin_children.append(_bin_xml(key, value, counter))
+    bin_children = _tree_children_xml(tree, counter)
 
     sequence_xml = _sequence_xml(project_name, clips)
 
