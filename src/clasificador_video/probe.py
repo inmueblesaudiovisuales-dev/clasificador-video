@@ -23,7 +23,9 @@ def probe_clip(path: Path, runner: Callable[[Path], str] = _run_ffprobe) -> dict
     stdout de ffprobe (JSON) como string.
     """
     data = json.loads(runner(path))
-    video_stream = next(s for s in data["streams"] if s["codec_type"] == "video")
+    video_stream = next((s for s in data["streams"] if s["codec_type"] == "video"), None)
+    if video_stream is None:
+        raise ValueError(f"ffprobe no encontro pista de video en: {path}")
     audio_streams = [s for s in data["streams"] if s["codec_type"] == "audio"]
 
     num, den = video_stream["r_frame_rate"].split("/")
