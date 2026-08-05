@@ -106,6 +106,8 @@ def _clip_xml(clip: ClipSpec, index: int) -> str:
 
 
 def _group_by_category(clips: list[ClipSpec]) -> OrderedDict:
+    # "__clips__" es una clave centinela para los clips de un nodo; asume que
+    # ningun cuarto/subcuarto se llama literalmente asi (nombre no expuesto al usuario).
     tree: OrderedDict = OrderedDict()
     for clip in clips:
         node = tree
