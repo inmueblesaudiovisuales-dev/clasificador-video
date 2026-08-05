@@ -1,8 +1,19 @@
 from pathlib import Path
 from urllib.parse import quote
+from xml.sax.saxutils import escape
 
 from clasificador_video.models import ClipSpec
 from clasificador_video.rate import rate_for_fps
+
+
+def _xml_text(value: str) -> str:
+    """Escapa texto para insertarlo como contenido de un elemento XML.
+
+    Necesario porque nombres de cuarto, de propiedad o de archivo pueden
+    venir de texto libre del usuario y contener &, < o >, lo que rompe
+    el XML si se inserta tal cual.
+    """
+    return escape(value)
 
 
 def _rate_xml(fps: float) -> str:
@@ -33,7 +44,7 @@ def _file_xml(clip: ClipSpec, file_id: str) -> str:
 
     return (
         f'<file id="{file_id}">'
-        f"<name>{clip.file_path.name}</name>"
+        f"<name>{_xml_text(clip.file_path.name)}</name>"
         f"<pathurl>{_pathurl(clip.file_path)}</pathurl>"
         f"{_rate_xml(clip.fps)}"
         f"<duration>{clip.duration_frames}</duration>"

@@ -43,3 +43,18 @@ def test_file_pathurl_y_duracion():
     file_el = root.find("file")
     assert file_el.find("pathurl").text == "file://localhost/shooting/C0012.MP4"
     assert file_el.find("duration").text == "900"
+
+
+def test_file_con_nombre_conflictivo_produce_xml_valido():
+    clip = ClipSpec(
+        file_path=Path("/shooting/Casa & Jardin < 2026.MP4"),
+        category_path=["Cocina"],
+        width=3840,
+        height=2160,
+        fps=29.97,
+        has_audio=False,
+        duration_frames=900,
+    )
+    xml_str = _file_xml(clip, file_id="file-3")
+    root = ET.fromstring(f"<root>{xml_str}</root>")
+    assert root.find("file/name").text == "Casa & Jardin < 2026.MP4"
