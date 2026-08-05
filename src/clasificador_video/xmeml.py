@@ -56,3 +56,19 @@ def _file_xml(clip: ClipSpec, file_id: str) -> str:
         f"</samplecharacteristics></video>{audio_xml}</media>"
         "</file>"
     )
+
+
+def _clipitem_xml(clip: ClipSpec, clipitem_id: str, masterclip_id: str, file_xml: str) -> str:
+    return (
+        f'<clipitem id="{clipitem_id}">'
+        f"<masterclipid>{masterclip_id}</masterclipid>"
+        f"<name>{_xml_text(clip.file_path.stem)}</name>"
+        f"{_rate_xml(clip.fps)}"
+        f"<in>{clip.effective_in()}</in>"
+        f"<out>{clip.effective_out()}</out>"
+        "<alphatype>none</alphatype>"
+        "<pixelaspectratio>square</pixelaspectratio>"
+        "<anamorphic>FALSE</anamorphic>"
+        f"{file_xml}"
+        "</clipitem>"
+    )
