@@ -1,3 +1,4 @@
+import uuid
 from pathlib import Path
 from urllib.parse import quote
 from xml.sax.saxutils import escape
@@ -71,4 +72,33 @@ def _clipitem_xml(clip: ClipSpec, clipitem_id: str, masterclip_id: str, file_xml
         "<anamorphic>FALSE</anamorphic>"
         f"{file_xml}"
         "</clipitem>"
+    )
+
+
+LABEL_BY_FLAG = {"pick": "Forest", "reject": "Rose"}
+
+
+def _clip_xml(clip: ClipSpec, index: int) -> str:
+    masterclip_id = f"masterclip-{index}"
+    clipitem_id = f"clipitem-{index}"
+    file_id = f"file-{index}"
+
+    file_xml = _file_xml(clip, file_id)
+    clipitem_xml = _clipitem_xml(clip, clipitem_id, masterclip_id, file_xml)
+
+    label_xml = ""
+    if clip.flag in LABEL_BY_FLAG:
+        label_xml = f"<labels><label2>{LABEL_BY_FLAG[clip.flag]}</label2></labels>"
+
+    return (
+        f'<clip id="{masterclip_id}" explodedTracks="true">'
+        f"<uuid>{uuid.uuid4()}</uuid>"
+        f"<masterclipid>{masterclip_id}</masterclipid>"
+        "<ismasterclip>TRUE</ismasterclip>"
+        f"<duration>{clip.duration_frames}</duration>"
+        f"{_rate_xml(clip.fps)}"
+        f"<name>{_xml_text(clip.file_path.stem)}</name>"
+        f"<media><video><track>{clipitem_xml}</track></video></media>"
+        f"{label_xml}"
+        "</clip>"
     )
