@@ -127,3 +127,68 @@ def _bin_xml(name: str, node: OrderedDict, counter: list[int]) -> str:
         else:
             children.append(_bin_xml(key, value, counter))
     return f"<bin><name>{_xml_text(name)}</name><children>{''.join(children)}</children></bin>"
+
+
+def _sequence_xml(project_name: str, clips: list[ClipSpec]) -> str:
+    fps = clips[0].fps if clips else 30.0
+    width = clips[0].width if clips else 1920
+    height = clips[0].height if clips else 1080
+    rate_xml = _rate_xml(fps)
+
+    timecode_xml = (
+        "<timecode>"
+        f"{rate_xml}"
+        "<string>00;00;00;00</string><frame>0</frame><displayformat>DF</displayformat>"
+        "</timecode>"
+    )
+
+    return (
+        '<sequence id="sequence-1">'
+        f"<uuid>{uuid.uuid4()}</uuid>"
+        "<duration>0</duration>"
+        f"{rate_xml}"
+        f"<name>{_xml_text(project_name)}</name>"
+        "<media><video><format><samplecharacteristics>"
+        f"{rate_xml}"
+        f"<width>{width}</width><height>{height}</height>"
+        "<anamorphic>FALSE</anamorphic><pixelaspectratio>square</pixelaspectratio>"
+        "<fielddominance>none</fielddominance><colordepth>24</colordepth>"
+        "</samplecharacteristics></format>"
+        "<track><enabled>TRUE</enabled><locked>FALSE</locked></track>"
+        "</video><audio><numOutputChannels>2</numOutputChannels>"
+        "<format><samplecharacteristics><depth>16</depth><samplerate>48000</samplerate></samplecharacteristics></format>"
+        "<track><enabled>TRUE</enabled><locked>FALSE</locked></track>"
+        "</audio></media>"
+        f"{timecode_xml}"
+        "</sequence>"
+    )
+
+
+def generate_xmeml(project_name: str, clips: list[ClipSpec]) -> str:
+    tree = _group_by_category(clips)
+    counter = [0]
+    bin_children = []
+    for key, value in tree.items():
+        if key == "__clips__":
+            for clip in value:
+                counter[0] += 1
+                bin_children.append(_clip_xml(clip, counter[0]))
+        else:
+            bin_children.append(_bin_xml(key, value, counter))
+
+    sequence_xml = _sequence_xml(project_name, clips)
+
+    root_bin = (
+        "<bin>"
+        f"<name>{_xml_text(project_name)}</name>"
+        f"<children>{''.join(bin_children)}{sequence_xml}</children>"
+        "</bin>"
+    )
+
+    return (
+        '<?xml version="1.0" encoding="UTF-8"?>\n'
+        "<!DOCTYPE xmeml>\n"
+        '<xmeml version="4">'
+        f"{root_bin}"
+        "</xmeml>"
+    )
