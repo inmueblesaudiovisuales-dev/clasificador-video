@@ -1,0 +1,18 @@
+{
+    "plugin": {
+        "sessions": [
+            {
+                "app": {
+                    "id": "premierepro",
+                    "version": "26.3.0",
+                    "name": "Premiere Pro"
+                },
+                "pluginSessionId": "e950565a-b270-4d3c-aa04-c04b682780e9"
+            }
+        ],
+        "info": {
+            "id": "com.iav.clasificadorvideo",
+            "name": "Clasificador de Video IAV"
+        }
+    }
+}

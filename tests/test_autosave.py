@@ -32,3 +32,15 @@ def test_load_session_lee_lo_que_guardo_save_session(tmp_path):
     path = tmp_path / "sesion.json"
     save_session(path, {"proyecto": "Casa Jardin"})
     assert load_session(path) == {"proyecto": "Casa Jardin"}
+
+
+def test_load_session_de_json_mal_formado_devuelve_none(tmp_path):
+    path = tmp_path / "roto.json"
+    path.write_text("{no es json valido<<<")
+    assert load_session(path) is None
+
+
+def test_load_session_de_json_vacio_devuelve_none(tmp_path):
+    path = tmp_path / "vacio.json"
+    path.write_text("")
+    assert load_session(path) is None

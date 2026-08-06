@@ -22,4 +22,7 @@ def save_session(path: Path, data: dict) -> None:
 def load_session(path: Path) -> dict | None:
     if not path.exists():
         return None
-    return json.loads(path.read_text())
+    try:
+        return json.loads(path.read_text())
+    except (json.JSONDecodeError, ValueError):
+        return None
