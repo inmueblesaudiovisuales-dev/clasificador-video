@@ -1,6 +1,7 @@
 # tests/ui/test_filmstrip.py
 from pathlib import Path
 
+from PySide6.QtCore import Qt
 from PySide6.QtGui import QPixmap
 
 from clasificador_video.ui.filmstrip import ClipThumbnail, Filmstrip
@@ -103,6 +104,25 @@ def test_miniatura_grande_se_escala_a_altura_fija(qtbot):
     shown = strip.item_widgets[0]._image_label.pixmap()
     assert shown.height() == 80
     assert shown.width() < 2160
+
+
+def test_click_en_un_item_emite_clip_clicked_con_su_indice(qtbot, qapp):
+    strip = Filmstrip()
+    qtbot.addWidget(strip)
+    strip.set_clips([
+        ClipThumbnail(path=Path("/a.MP4"), thumbnail_path=None, room_label="X", flag="none"),
+        ClipThumbnail(path=Path("/b.MP4"), thumbnail_path=None, room_label="Y", flag="none"),
+    ])
+    with qtbot.waitSignal(strip.clip_clicked, timeout=1000) as blocker:
+        qtbot.mouseClick(strip.item_widgets[1], Qt.LeftButton)
+    assert blocker.args == [1]
+
+
+def test_item_del_filmstrip_muestra_cursor_de_mano(qtbot):
+    strip = Filmstrip()
+    qtbot.addWidget(strip)
+    strip.set_clips([ClipThumbnail(path=Path("/a.MP4"), thumbnail_path=None, room_label="X", flag="none")])
+    assert strip.item_widgets[0].cursor().shape() == Qt.PointingHandCursor
 
 
 def test_miniatura_horizontal_tambien_respeta_la_altura_fija(qtbot):

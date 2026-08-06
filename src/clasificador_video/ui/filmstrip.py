@@ -4,7 +4,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import QHBoxLayout, QLabel, QVBoxLayout, QWidget
 
 PICK_COLOR = "#3bb273"
@@ -24,6 +24,8 @@ class ClipThumbnail:
 
 
 class _ClipItemWidget(QWidget):
+    clicked = Signal()
+
     def __init__(self, clip: ClipThumbnail):
         super().__init__()
         self._flag = clip.flag
@@ -33,6 +35,7 @@ class _ClipItemWidget(QWidget):
         # uno por separado (bug real de v1: dos cajas en vez de una sola
         # envolviendo miniatura + nombre de cuarto).
         self.setAttribute(Qt.WA_StyledBackground, True)
+        self.setCursor(Qt.PointingHandCursor)
         layout = QVBoxLayout(self)
         self._image_label = QLabel()
         self._image_label.setFixedHeight(THUMB_HEIGHT)
@@ -55,6 +58,11 @@ class _ClipItemWidget(QWidget):
 
     def has_pixmap(self) -> bool:
         return self._image_label.pixmap() is not None
+
+    def mousePressEvent(self, event) -> None:
+        if event.button() == Qt.LeftButton:
+            self.clicked.emit()
+        super().mousePressEvent(event)
 
     def set_visual_state(self, is_current: bool) -> None:
         parts = []
@@ -84,6 +92,8 @@ class Filmstrip(QWidget):
     pick/reject, borde azul para el clip actual, nombre del cuarto debajo.
     """
 
+    clip_clicked = Signal(int)  # indice del clip en la lista
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self._layout = QHBoxLayout(self)
@@ -93,8 +103,9 @@ class Filmstrip(QWidget):
         for widget in self.item_widgets:
             widget.setParent(None)
         self.item_widgets = []
-        for clip in clips:
+        for index, clip in enumerate(clips):
             item = _ClipItemWidget(clip)
+            item.clicked.connect(lambda checked=False, i=index: self.clip_clicked.emit(i))
             self._layout.addWidget(item)
             self.item_widgets.append(item)
         self.set_current(-1)

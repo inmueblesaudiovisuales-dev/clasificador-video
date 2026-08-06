@@ -282,6 +282,92 @@ def test_flecha_derecha_avanza_al_siguiente_clip_y_lo_carga_en_el_player(qtbot):
     assert window.video_widget.player._mpv.loaded_path == "/b.MP4"
 
 
+def test_click_en_un_thumbnail_del_filmstrip_carga_ese_clip(qtbot):
+    window = _window_with_video(qtbot)
+    window.show()
+    qtbot.waitExposed(window)
+    clips = [
+        Clip(orden=1, ruta=Path("/a.MP4"), categoria_path=[], fps=30.0),
+        Clip(orden=2, ruta=Path("/b.MP4"), categoria_path=[], fps=30.0),
+        Clip(orden=3, ruta=Path("/c.MP4"), categoria_path=[], fps=30.0),
+    ]
+    window.load_clips(clips)
+    window.filmstrip.clip_clicked.emit(2)
+    assert window.current_index == 2
+    assert window.video_widget.player._mpv.loaded_path == "/c.MP4"
+
+
+def test_click_real_en_thumbnail_no_crasha_al_reconstruir_filmstrip(qtbot):
+    """Bug real de uso (crash SIGSEGV reportado en vivo, 2026-08-06, ver
+    docs/superpowers/HANDOFF-2026-08-06-crash-al-importar.md):
+
+    Click real con el mouse sobre una miniatura del filmstrip dispara
+    `select_clip` -> `_refresh_filmstrip` -> `Filmstrip.set_clips`, que
+    destruye (setParent(None) + reemplaza) TODOS los `_ClipItemWidget`
+    --incluyendo el propio widget que esta dentro de su `mousePressEvent`
+    mientras Qt todavia lo referencia internamente en `sendMouseEvent`.
+    En el run loop nativo de cocoa (Bruno lo reproduce en vivo) esto
+    termina en SIGSEGV (KERN_INVALID_ADDRESS 0xc) al volver del despacho
+    anidado del evento de mouse.
+
+    El QPA offscreen de los tests no reproduce el crash nativo (no pasa
+    por processMouseEvent/sendMouseEvent anidado de cocoa), asi que este
+    test verifica la propiedad estructural que lo imposibilita: el click
+    solo cambia el clip actual (bordes) SIN destruir/recrear los widgets
+    del filmstrip. Si los widgets se preservan, Qt nunca regresa a un
+    widget ya destruido y la condicion de carrera desaparece.
+
+    Bonus de bug confirmado por la misma cadena: `_refresh_filmstrip`
+    recrea los widgets con thumbnail_path=None, perdiendo los pixmaps
+    ya cargados por los _ThumbnailJob -- hacer click en un clip borraba
+    las miniaturas de todos. Preservar los widgets tambien lo arregla.
+    """
+    from PySide6.QtCore import Qt
+    from PySide6.QtGui import QPixmap
+    from PySide6.QtTest import QTest
+    from PySide6.QtCore import QPoint
+
+    window = _window_with_video(qtbot)
+    window.show()
+    qtbot.waitExposed(window)
+    clips = [
+        Clip(orden=1, ruta=Path("/a.MP4"), categoria_path=[], fps=30.0),
+        Clip(orden=2, ruta=Path("/b.MP4"), categoria_path=[], fps=30.0),
+        Clip(orden=3, ruta=Path("/c.MP4"), categoria_path=[], fps=30.0),
+    ]
+    window.load_clips(clips)
+    # simula miniaturas ya cargadas en background por los _ThumbnailJob
+    pixmap_widths = []
+    for w in window.filmstrip.item_widgets:
+        pm = QPixmap(50, 50)
+        pm.fill()
+        w.set_pixmap(pm)
+        pixmap_widths.append(w._image_label.pixmap().width())
+    ids_antes = [id(w) for w in window.filmstrip.item_widgets]
+    assert all(pw > 0 for pw in pixmap_widths)
+
+    # click real con QTest (mecanismo interno de qtbot.mouseClick) sobre
+    # la tercera miniatura, sin mantener ref python sostenida aparte.
+    QTest.mouseClick(
+        window.filmstrip.item_widgets[2], Qt.LeftButton, Qt.NoModifier, QPoint(5, 5)
+    )
+
+    # la seleccion cambio y el reproductor cargo el clip correcto
+    assert window.current_index == 2
+    assert window.video_widget.player._mpv.loaded_path == "/c.MP4"
+    # no se reconstruyo el filmstrip: mismos widgets (mismos ids) y pixmaps
+    # preservados -> imposibilita el crash y la perdida de miniaturas.
+    ids_despues = [id(w) for w in window.filmstrip.item_widgets]
+    assert ids_despues == ids_antes, (
+        "el filmstrip se reconstruyo durante el click -> los widgets se "
+        "destruyen dentro de su propio mousePressEvent (crash nativo real)"
+    )
+    widths_despues = [w._image_label.pixmap().width() for w in window.filmstrip.item_widgets]
+    assert widths_despues == pixmap_widths, (
+        "los pixmaps ya cargados se perdieron al reconstruir el filmstrip"
+    )
+
+
 def test_tecla_i_marca_in_en_el_clip_actual_con_el_fps_del_clip(qtbot):
     window = _window_with_video(qtbot)
     window.show()

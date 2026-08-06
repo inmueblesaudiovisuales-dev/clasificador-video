@@ -123,6 +123,7 @@ class MainWindow(QWidget):
 
         self.filmstrip = Filmstrip()
         self.filmstrip.setObjectName("filmstripPanel")
+        self.filmstrip.clip_clicked.connect(self.select_clip)
 
         self.video_widget = VideoWidget(mpv_factory=video_factory) if video_factory else VideoWidget()
         self.video_widget.setObjectName("videoWidget")
@@ -335,6 +336,26 @@ class MainWindow(QWidget):
         if clip is not None:
             self.video_widget.open_clip(clip.ruta)
         self._refresh_filmstrip()
+        self._autosave()
+
+    def select_clip(self, index: int) -> None:
+        if not (0 <= index < len(self.clips)):
+            return
+        self.current_index = index
+        clip = self.current_clip
+        if clip is not None:
+            self.video_widget.open_clip(clip.ruta)
+        # No reconstruir el filmstrip aqui (no llamar a _refresh_filmstrip):
+        # la seleccion solo cambia el clip actual (borde azul), no los datos
+        # de ningun clip, asi que basta con set_current. Reconstruir llamaba
+        # a Filmstrip.set_clips, que destruye (setParent None) y reemplaza a
+        # TODOS los _ClipItemWidget --incluyendo el propio widget que esta
+        # dentro de su propio mousePressEvent (el click que origino esta
+        # llamada). Qt aun lo referencia internamente en sendMouseEvent al
+        # volver del despacho anidado, y en el run loop nativo de cocoa eso
+        # termina en SIGSEGV (KERN_INVALID_ADDRESS 0xc). Reconstruir ademas
+        # borraba todos los pixmaps ya cargados por los _ThumbnailJob.
+        self.filmstrip.set_current(self.current_index)
         self._autosave()
 
     def attach_subroom_or_resolve(self, subroom: str) -> list[str] | None:
