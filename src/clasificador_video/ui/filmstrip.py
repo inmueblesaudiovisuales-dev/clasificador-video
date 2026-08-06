@@ -4,11 +4,15 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QHBoxLayout, QLabel, QVBoxLayout, QWidget
 
 PICK_COLOR = "#3bb273"
 REJECT_COLOR = "#e0556f"
 CURRENT_COLOR = "#2b7fff"
+
+THUMB_HEIGHT = 80
+THUMB_MAX_WIDTH = 140
 
 
 @dataclass
@@ -25,16 +29,23 @@ class _ClipItemWidget(QWidget):
         self._flag = clip.flag
         layout = QVBoxLayout(self)
         self._image_label = QLabel()
+        self._image_label.setFixedHeight(THUMB_HEIGHT)
+        self._image_label.setObjectName("clipThumbnail")
         if clip.thumbnail_path is not None:
             self._image_label.setText("")
         else:
             self._image_label.setText("(sin miniatura)")
         layout.addWidget(self._image_label)
         self._room_label = QLabel(clip.room_label)
+        self._room_label.setObjectName("clipRoomLabel")
         layout.addWidget(self._room_label)
 
     def set_pixmap(self, pixmap) -> None:
-        self._image_label.setPixmap(pixmap)
+        scaled = pixmap.scaled(
+            THUMB_MAX_WIDTH, THUMB_HEIGHT, Qt.KeepAspectRatio, Qt.SmoothTransformation
+        )
+        self._image_label.setPixmap(scaled)
+        self._image_label.setFixedWidth(scaled.width())
 
     def has_pixmap(self) -> bool:
         return self._image_label.pixmap() is not None

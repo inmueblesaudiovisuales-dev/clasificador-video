@@ -1,6 +1,8 @@
 # tests/ui/test_filmstrip.py
 from pathlib import Path
 
+from PySide6.QtGui import QPixmap
+
 from clasificador_video.ui.filmstrip import ClipThumbnail, Filmstrip
 
 
@@ -43,7 +45,6 @@ def test_item_puede_recibir_un_pixmap(qtbot):
     strip = Filmstrip()
     qtbot.addWidget(strip)
     strip.set_clips([ClipThumbnail(path=Path("/a.MP4"), thumbnail_path=None, room_label="X", flag="none")])
-    from PySide6.QtGui import QPixmap
     pm = QPixmap(10, 10)
     pm.fill()
     strip.item_widgets[0].set_pixmap(pm)
@@ -65,3 +66,29 @@ def test_pick_sobre_borde_azul_mantiene_ambos_colores(qtbot):
     strip.set_current(0)
     assert "border: 2px solid #3bb273" in strip.item_widgets[0].styleSheet()
     assert "outline: 2px solid #2b7fff" in strip.item_widgets[0].styleSheet()
+
+
+def test_miniatura_grande_se_escala_a_altura_fija(qtbot):
+    strip = Filmstrip()
+    qtbot.addWidget(strip)
+    strip.set_clips([ClipThumbnail(path=Path("/a.MP4"), thumbnail_path=None, room_label="X", flag="none")])
+
+    pixmap_vertical_4k = QPixmap(2160, 3840)
+    strip.item_widgets[0].set_pixmap(pixmap_vertical_4k)
+
+    shown = strip.item_widgets[0]._image_label.pixmap()
+    assert shown.height() == 80
+    assert shown.width() < 2160
+
+
+def test_miniatura_horizontal_tambien_respeta_la_altura_fija(qtbot):
+    strip = Filmstrip()
+    qtbot.addWidget(strip)
+    strip.set_clips([ClipThumbnail(path=Path("/a.MP4"), thumbnail_path=None, room_label="X", flag="none")])
+
+    pixmap_horizontal_4k = QPixmap(3840, 2160)
+    strip.item_widgets[0].set_pixmap(pixmap_horizontal_4k)
+
+    shown = strip.item_widgets[0]._image_label.pixmap()
+    assert shown.height() <= 80
+    assert shown.width() <= 140
