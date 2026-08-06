@@ -274,6 +274,91 @@ registrarPrueba("applyInOut: con null/null no toca el in/out existente", async (
   };
 });
 
+const PROXY_587 = RUTA_TEST_DIR + "/20260804_PIB0587S03.MP4";
+
+registrarPrueba("attachProxyIfPresent: adjunta el proxy y hasProxy()/getProxyPath() lo confirman", async (project) => {
+  const premierepro = require("premierepro");
+  const rootItem = await project.getRootItem();
+  const rootFolder = premierepro.FolderItem.cast(rootItem);
+
+  const folder = await resolveBinChain(project, rootFolder, ["PruebaTask6"]);
+  const clip = await importOrReuseClip(project, folder, CLIP_587);
+  const clipProjectItem = premierepro.ClipProjectItem.cast(clip);
+
+  const tieneAntes = await clipProjectItem.hasProxy();
+
+  const ok = await attachProxyIfPresent(clip, PROXY_587);
+  const tieneDespues = await clipProjectItem.hasProxy();
+  const rutaProxy = await clipProjectItem.getProxyPath();
+
+  const okFinal = ok === true && tieneDespues === true && rutaProxy === PROXY_587;
+  return {
+    ok: okFinal,
+    detalle:
+      "attachProxyIfPresent devolvio=" + ok +
+      " | hasProxy() antes=" + tieneAntes + ", despues=" + tieneDespues +
+      " | getProxyPath()=" + rutaProxy + " (esperado " + PROXY_587 + ")",
+  };
+});
+
+registrarPrueba("attachProxyIfPresent: readjuntar el mismo proxy sigue devolviendo true sin error", async (project) => {
+  const premierepro = require("premierepro");
+  const rootItem = await project.getRootItem();
+  const rootFolder = premierepro.FolderItem.cast(rootItem);
+
+  const folder = await resolveBinChain(project, rootFolder, ["PruebaTask6"]);
+  const clip = await importOrReuseClip(project, folder, CLIP_587);
+  const clipProjectItem = premierepro.ClipProjectItem.cast(clip);
+
+  let noTronoException = true;
+  let ok2 = false;
+  try {
+    ok2 = await attachProxyIfPresent(clip, PROXY_587);
+  } catch (e) {
+    noTronoException = false;
+  }
+
+  const tieneDespues = await clipProjectItem.hasProxy();
+  const rutaProxy = await clipProjectItem.getProxyPath();
+
+  const okFinal = noTronoException && ok2 === true && tieneDespues === true && rutaProxy === PROXY_587;
+  return {
+    ok: okFinal,
+    detalle:
+      "no lanzo excepcion=" + noTronoException +
+      " | attachProxyIfPresent (segunda vez) devolvio=" + ok2 +
+      " | hasProxy() sigue=" + tieneDespues +
+      " | getProxyPath() sigue=" + rutaProxy,
+  };
+});
+
+registrarPrueba("attachProxyIfPresent: con proxyPath null devuelve false y no toca el clip", async (project) => {
+  const premierepro = require("premierepro");
+  const rootItem = await project.getRootItem();
+  const rootFolder = premierepro.FolderItem.cast(rootItem);
+
+  const folder = await resolveBinChain(project, rootFolder, ["PruebaTask6"]);
+  const clip = await importOrReuseClip(project, folder, CLIP_587);
+  const clipProjectItem = premierepro.ClipProjectItem.cast(clip);
+
+  // Este clip ya tiene el proxy adjunto por la prueba anterior; si
+  // attachProxyIfPresent(null) tocara algo, hasProxy()/getProxyPath()
+  // dejarian de coincidir con lo ya adjuntado.
+  const resultado = await attachProxyIfPresent(clip, null);
+
+  const tieneDespues = await clipProjectItem.hasProxy();
+  const rutaProxy = await clipProjectItem.getProxyPath();
+
+  const ok = resultado === false && tieneDespues === true && rutaProxy === PROXY_587;
+  return {
+    ok: ok,
+    detalle:
+      "attachProxyIfPresent(clip, null) devolvio=" + resultado + " (esperado false)" +
+      " | hasProxy() sin cambios=" + tieneDespues +
+      " | getProxyPath() sin cambios=" + rutaProxy,
+  };
+});
+
 // Helper solo para las pruebas: cuenta cuantos clips con esa ruta hay
 // directamente dentro de una carpeta (sin bajar a subcarpetas), para poder
 // afirmar "vacio" o "exactamente uno" con evidencia real, no solo "no truena".
