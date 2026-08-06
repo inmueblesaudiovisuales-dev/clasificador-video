@@ -82,6 +82,7 @@ def _restore_session(window: MainWindow, session_path: Path) -> None:
         subrooms=dict(tree_data),
     )
     window.load_clips([_clip_from_dict(d) for d in data.get("clips", [])])
+    window._schedule_thumbnails()
 
 
 def arrancar(

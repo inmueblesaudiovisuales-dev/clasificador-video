@@ -64,6 +64,26 @@ def test_arrancar_restaura_sesion_si_existe_y_el_usuario_acepta(qtbot, monkeypat
     assert window.clips[0].ruta.name == "a.MP4"
 
 
+def test_arrancar_restaura_sesion_tambien_programa_miniaturas(qtbot, monkeypatch, tmp_path):
+    """Bug real encontrado en uso: restaurar sesion cargaba los clips pero
+    nunca llamaba a _schedule_thumbnails, dejando el filmstrip sin
+    miniaturas hasta la siguiente importacion manual."""
+    session = tmp_path / "sesion.json"
+    session.write_text(json.dumps({
+        "proyecto": "Casa",
+        "rooms": ["Sala"],
+        "clips": [{"orden": 1, "ruta": "/a.MP4", "categoria_path": [], "fps": 30.0,
+                   "in_frame": None, "out_frame": None, "flag": "none", "ruta_proxy": None}],
+        "category_tree": {},
+    }))
+    monkeypatch.setattr(RoomConfigDialog, "exec", lambda self: QDialog.Accepted)
+    monkeypatch.setattr(QMessageBox, "question", lambda *a, **k: QMessageBox.Yes)
+    window = app_module.arrancar(video_factory=_FakeMpv, session_path=session)
+    assert window is not None
+    assert window._thumb_generation == 1
+    assert window._thumb_dir is not None
+
+
 def test_main_aplica_el_stylesheet_global(qtbot, monkeypatch):
     from PySide6.QtWidgets import QApplication
 
