@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Callable
 
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QPainter
 from PySide6.QtWidgets import QWidget
 
 from clasificador_video.player import MpvPlayer
@@ -26,10 +27,13 @@ class VideoWidget(QWidget):
         super().__init__(parent)
         self.setObjectName("videoWidget")
         self.setAttribute(Qt.WA_NativeWindow, True)
-        self.setAttribute(Qt.WA_OpaquePaintEvent, True)
-        self.setAutoFillBackground(True)
         self._mpv_factory = mpv_factory
         self._player: MpvPlayer | None = None
+
+    def paintEvent(self, event) -> None:
+        painter = QPainter(self)
+        painter.fillRect(self.rect(), Qt.black)
+        painter.end()
 
     def showEvent(self, event) -> None:
         super().showEvent(event)
