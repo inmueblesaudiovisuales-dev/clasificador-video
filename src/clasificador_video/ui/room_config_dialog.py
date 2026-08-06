@@ -46,6 +46,7 @@ class RoomConfigDialog(QDialog):
         layout.addLayout(custom_row)
 
         self.start_button = QPushButton("Empezar a clasificar →")
+        self.start_button.setObjectName("startButton")
         self.start_button.clicked.connect(self.accept)
         layout.addWidget(self.start_button)
 
