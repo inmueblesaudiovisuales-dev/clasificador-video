@@ -8,6 +8,7 @@
 <script src="js/autocheck.js"></script>
 <script src="js/premiereActions.js"></script>
 <script src="js/bins.js"></script>
+<script src="js/importClip.js"></script>
 <script>
   logToPanel("Plugin cargado.");
 
@@ -47,6 +48,141 @@
         ", cantidad de bins 'Sub' dentro de PruebaTask2=" + cuantosSub,
     };
   });
+
+  const RUTA_TEST_DIR = "/Users/brunogutierrez/Documents/CLAUDE CODE/ORGANIZADOR VIDEO/TEST";
+  const CLIP_588 = RUTA_TEST_DIR + "/20260804_PIB0588.MP4";
+  const CLIP_589 = RUTA_TEST_DIR + "/20260804_PIB0589.MP4";
+
+  registrarPrueba("diagnostico: metodos disponibles en FolderItem/ClipProjectItem cast", async (project) => {
+    const premierepro = require("premierepro");
+    const rootItem = await project.getRootItem();
+    const rootFolder = premierepro.FolderItem.cast(rootItem);
+    let propioFolder = Object.getOwnPropertyNames(Object.getPrototypeOf(rootFolder));
+
+    const folder = await resolveBinChain(project, rootFolder, ["PruebaTask3Diag"]);
+    // ver metodos de ClipProjectItem tambien
+    const items = await folder.getItems();
+    let propioClip = "sin items para probar";
+    if (items.length) {
+      const c = premierepro.ClipProjectItem.cast(items[0]);
+      if (c) propioClip = Object.getOwnPropertyNames(Object.getPrototypeOf(c));
+    }
+
+    // ¿la misma carpeta obtenida por dos caminos distintos es === ?
+    const itemsA = await rootFolder.getItems();
+    const itemsB = await rootFolder.getItems();
+    const pruebaTask3A = itemsA.find((i) => i.name === "PruebaTask3Diag");
+    const pruebaTask3B = itemsB.find((i) => i.name === "PruebaTask3Diag");
+    const mismaReferencia = pruebaTask3A === pruebaTask3B;
+    const castA = premierepro.FolderItem.cast(pruebaTask3A);
+    const castB = premierepro.FolderItem.cast(pruebaTask3B);
+    const castEsIgualAlCrudo = castA === pruebaTask3A;
+    const dosCastsSonIguales = castA === castB;
+
+    return {
+      ok: true,
+      detalle:
+        "FolderItem prototipo: " + JSON.stringify(propioFolder) +
+        " | ClipProjectItem prototipo: " + JSON.stringify(propioClip) +
+        " | dos llamadas a getItems() devuelven el mismo objeto (===) para la misma carpeta: " + mismaReferencia +
+        " | cast(item) === item: " + castEsIgualAlCrudo +
+        " | cast(itemA) === cast(itemB) (mismo item, dos casts): " + dosCastsSonIguales,
+    };
+  });
+
+  registrarPrueba("importOrReuseClip: importa el clip dentro del bin destino", async (project) => {
+    const premierepro = require("premierepro");
+    const rootItem = await project.getRootItem();
+    const rootFolder = premierepro.FolderItem.cast(rootItem);
+
+    const folder = await resolveBinChain(project, rootFolder, ["PruebaTask3"]);
+    const clip = await importOrReuseClip(project, folder, CLIP_588);
+
+    if (!clip) {
+      return { ok: false, detalle: "importOrReuseClip devolvio null" };
+    }
+    const mediaPath = await clip.getMediaFilePath();
+    const clipsEnDestino = await findClipsConRuta(folder, CLIP_588);
+
+    const ok = mediaPath === CLIP_588 && clipsEnDestino.length === 1;
+    return {
+      ok: ok,
+      detalle:
+        "mediaPath devuelto=" + mediaPath +
+        ", clips con esa ruta dentro de PruebaTask3=" + clipsEnDestino.length,
+    };
+  });
+
+  registrarPrueba("importOrReuseClip: llamar dos veces no duplica el clip", async (project) => {
+    const premierepro = require("premierepro");
+    const rootItem = await project.getRootItem();
+    const rootFolder = premierepro.FolderItem.cast(rootItem);
+
+    const folder = await resolveBinChain(project, rootFolder, ["PruebaTask3"]);
+    await importOrReuseClip(project, folder, CLIP_588);
+    await importOrReuseClip(project, folder, CLIP_588);
+
+    const clipsEnDestino = await findClipsConRuta(folder, CLIP_588);
+    const ok = clipsEnDestino.length === 1;
+    return {
+      ok: ok,
+      detalle: "clips con ruta " + CLIP_588 + " dentro de PruebaTask3 tras dos llamadas=" + clipsEnDestino.length,
+    };
+  });
+
+  registrarPrueba(
+    "importOrReuseClip: LA CORRECCION - mover entre dos bins homonimos 'Bano' se detecta y muda el clip",
+    async (project) => {
+      const premierepro = require("premierepro");
+      const rootItem = await project.getRootItem();
+      const rootFolder = premierepro.FolderItem.cast(rootItem);
+
+      const banoUno = await resolveBinChain(project, rootFolder, ["Recamara 1", "Bano"]);
+      const banoDos = await resolveBinChain(project, rootFolder, ["Recamara 2", "Bano"]);
+
+      await importOrReuseClip(project, banoUno, CLIP_589);
+      const clip = await importOrReuseClip(project, banoDos, CLIP_589);
+
+      const enBanoUno = await findClipsConRuta(banoUno, CLIP_589);
+      const enBanoDos = await findClipsConRuta(banoDos, CLIP_589);
+      // La API de esta version de Premiere no expone getParentBin() ni un id
+      // propio en los objetos de runtime (confirmado en la prueba de
+      // diagnostico de este mismo archivo), asi que la evidencia de "se
+      // movio" viene de contar directamente el contenido real de cada bin
+      // homonimo con getItems(), no de preguntarle al clip quien es su padre.
+      const mismoClipQueSeDevolvio = clip && enBanoDos.length === 1 && enBanoDos[0] === clip;
+
+      const ok = enBanoUno.length === 0 && enBanoDos.length === 1 && mismoClipQueSeDevolvio;
+      return {
+        ok: ok,
+        detalle:
+          "Recamara 1 > Bano tiene " + enBanoUno.length + " clip(s) con esa ruta (debe ser 0), " +
+          "Recamara 2 > Bano tiene " + enBanoDos.length + " clip(s) con esa ruta (debe ser 1), " +
+          "el clip devuelto por importOrReuseClip es exactamente el que quedo dentro de Recamara 2 > Bano=" + mismoClipQueSeDevolvio,
+      };
+    }
+  );
+
+  // Helper solo para las pruebas: cuenta cuantos clips con esa ruta hay
+  // directamente dentro de una carpeta (sin bajar a subcarpetas), para poder
+  // afirmar "vacio" o "exactamente uno" con evidencia real, no solo "no truena".
+  async function findClipsConRuta(folder, filePath) {
+    const premierepro = require("premierepro");
+    const items = await folder.getItems();
+    const encontrados = [];
+    for (const item of items) {
+      const clipItem = premierepro.ClipProjectItem.cast(item);
+      if (clipItem) {
+        try {
+          const mediaPath = await clipItem.getMediaFilePath();
+          if (mediaPath === filePath) encontrados.push(clipItem);
+        } catch (e) {
+          // no es un clip con archivo de medios; ignorar.
+        }
+      }
+    }
+    return encontrados;
+  }
 
   correrAutocheck();
 </script>
