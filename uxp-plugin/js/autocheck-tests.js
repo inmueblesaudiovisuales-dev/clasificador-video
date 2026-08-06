@@ -785,3 +785,279 @@ async function findClipsConRuta(folder, filePath) {
   }
   return encontrados;
 }
+
+// Variante recursiva de findClipsConRuta: baja por TODO el arbol de bins (no
+// solo un nivel) y junta TODAS las coincidencias, no solo la primera (a
+// diferencia de findClipByPath en js/importClip.js, que se detiene en la
+// primera). Se usa en Task 11 para la prueba "no hay duplicados en ningun
+// lado del arbol" tras una reexportacion -- una pregunta que ni
+// findClipsConRuta (un solo nivel) ni findClipByPath (se detiene temprano)
+// pueden responder por si solas.
+async function findClipsConRutaEnArbol(folder, filePath) {
+  const premierepro = require("premierepro");
+  const items = await folder.getItems();
+  let encontrados = [];
+  for (const item of items) {
+    const clipItem = premierepro.ClipProjectItem.cast(item);
+    if (clipItem) {
+      try {
+        const mediaPath = await clipItem.getMediaFilePath();
+        if (mediaPath === filePath) encontrados.push(clipItem);
+      } catch (e) {
+        // no es un clip con archivo de medios; ignorar.
+      }
+      continue;
+    }
+    const subFolder = premierepro.FolderItem.cast(item);
+    if (subFolder) {
+      const anidados = await findClipsConRutaEnArbol(subFolder, filePath);
+      encontrados = encontrados.concat(anidados);
+    }
+  }
+  return encontrados;
+}
+
+// ---------------------------------------------------------------------------
+// Task 11: prueba de punta a punta con material real.
+//
+// Todo lo anterior (Tasks 1-9) se verifico pieza por pieza sobre manifests de
+// un solo caso. Esta prueba junta los cinco casos que importan en un mismo
+// manifest, tal como pasaria en un dia de trabajo real:
+//   1. Dos bins homonimos ("Bano") en ramas distintas del arbol.
+//   2. Un clip sin clasificar (categoria_path: []).
+//   3. Un clip sin proxy.
+//   4. Un clip con proxy.
+//   5. Dos archivos DISTINTOS en disco que comparten el mismo nombre de
+//      archivo (misma tarjeta de memoria reusada en otra sesion).
+//
+// La rotacion se difiere a Task 13 -- la API de premierepro no la expone
+// (ver nota en el plan).
+const RUTA_TARJETA2_587 = RUTA_TEST_DIR + "/tarjeta2/20260804_PIB0587.MP4";
+
+const manifestE2E = {
+  proyecto: "Prueba E2E",
+  orientacion: "vertical",
+  clips: [
+    {
+      orden: 1,
+      ruta: CLIP_587,
+      categoria_path: ["PruebaTask11_Recamara1", "Bano"],
+      fps: FPS_CLIP_588,
+      in_frame: 10,
+      out_frame: 90,
+      flag: "pick",
+      ruta_proxy: PROXY_587,
+    },
+    {
+      orden: 2,
+      ruta: RUTA_TARJETA2_587,
+      categoria_path: ["PruebaTask11_Recamara2", "Bano"],
+      fps: FPS_CLIP_588,
+      in_frame: null,
+      out_frame: null,
+      flag: "reject",
+      ruta_proxy: null,
+    },
+    {
+      orden: 3,
+      ruta: CLIP_589,
+      categoria_path: [],
+      fps: FPS_CLIP_588,
+      in_frame: 30,
+      out_frame: 200,
+      flag: "none",
+      ruta_proxy: null,
+    },
+  ],
+};
+
+registrarPrueba(
+  "Task 11 (E2E): bins homonimos por identidad, nombres repetidos por ruta, sin clasificar, colores, in/out y proxy",
+  async (project) => {
+    const premierepro = require("premierepro");
+    const rootItem = await project.getRootItem();
+    const rootFolder = premierepro.FolderItem.cast(rootItem);
+
+    // Linea base: importar el clip de "tarjeta2" (mismo nombre de archivo
+    // que CLIP_587, ruta distinta) en un bin de paso, ANTES de correr
+    // processManifest, para capturar como quedan in/out en un import fresco
+    // sin ninguna llamada a applyInOut. processManifest, al encontrar esta
+    // misma ruta ya importada en otro bin, la movera (no la reimportara) --
+    // exactamente el mismo camino de codigo que un clip real "reject" sin
+    // marcas. Esto nos deja un "antes" real contra el cual comparar el
+    // "despues", en vez de adivinar cual es el valor por defecto de la API.
+    const baselineFolder = await resolveBinChain(project, rootFolder, ["PruebaTask11_Baseline"]);
+    const baselineClip = await importOrReuseClip(project, baselineFolder, RUTA_TARJETA2_587);
+    const baselineClipItem = premierepro.ClipProjectItem.cast(baselineClip);
+    const inBaseline = await baselineClipItem.getInPoint(premierepro.Constants.MediaType.ANY);
+    const outBaseline = await baselineClipItem.getOutPoint(premierepro.Constants.MediaType.ANY);
+
+    const resultado = await processManifest(project, manifestE2E);
+
+    // --- Punto 6: 3 importados, 0 con error. ---
+    const okEsperado = ["20260804_PIB0587.MP4", "20260804_PIB0587.MP4", "20260804_PIB0589.MP4"];
+    const okCoincide =
+      resultado.ok.length === okEsperado.length &&
+      resultado.ok.every((nombre, i) => nombre === okEsperado[i]);
+    const sinErrores = resultado.errores.length === 0;
+
+    // --- Punto 1: Recamara1>Bano y Recamara2>Bano, cada uno con SU clip. ---
+    const banoR1 = await resolveBinChain(project, rootFolder, ["PruebaTask11_Recamara1", "Bano"]);
+    const banoR2 = await resolveBinChain(project, rootFolder, ["PruebaTask11_Recamara2", "Bano"]);
+
+    const clip587EnBanoR1 = await findClipsConRuta(banoR1, CLIP_587);
+    const tarjeta2EnBanoR1 = await findClipsConRuta(banoR1, RUTA_TARJETA2_587);
+    const clip587EnBanoR2 = await findClipsConRuta(banoR2, CLIP_587);
+    const tarjeta2EnBanoR2 = await findClipsConRuta(banoR2, RUTA_TARJETA2_587);
+
+    const binsPorIdentidadCorrecto =
+      clip587EnBanoR1.length === 1 && tarjeta2EnBanoR1.length === 0 &&
+      clip587EnBanoR2.length === 0 && tarjeta2EnBanoR2.length === 1;
+
+    // --- Punto 2: dos archivos con el mismo nombre entraron como dos clips
+    // distintos, cada uno con su propio getMediaFilePath(). ---
+    let identidadPorRutaCorrecta = false;
+    let clip1 = null;
+    let clip2 = null;
+    if (binsPorIdentidadCorrecto) {
+      clip1 = clip587EnBanoR1[0];
+      clip2 = tarjeta2EnBanoR2[0];
+      const ruta1 = await premierepro.ClipProjectItem.cast(clip1).getMediaFilePath();
+      const ruta2 = await premierepro.ClipProjectItem.cast(clip2).getMediaFilePath();
+      identidadPorRutaCorrecta = ruta1 === CLIP_587 && ruta2 === RUTA_TARJETA2_587 && ruta1 !== ruta2;
+    }
+
+    // --- Punto 3: el tercer clip (categoria_path: []) cayo en "Sin
+    // clasificar" (nombre real usado por processManifest.js, no el del
+    // texto del plan de memoria). ---
+    const sinClasificarFolder = await resolveBinChain(project, rootFolder, ["Sin clasificar"]);
+    const clip589EnSinClasificar = await findClipsConRuta(sinClasificarFolder, CLIP_589);
+    const sinClasificarCorrecto = clip589EnSinClasificar.length === 1;
+
+    // --- Punto 4: primer clip -- FOREST, proxy correcto, in/out 10/90. ---
+    let clip1Correcto = false;
+    if (identidadPorRutaCorrecta) {
+      const c1 = premierepro.ClipProjectItem.cast(clip1);
+      const indice1 = await c1.getColorLabelIndex();
+      const esForest = indice1 === premierepro.Constants.ProjectItemColorLabel.FOREST;
+
+      const tieneProxy1 = await c1.hasProxy();
+      const rutaProxy1 = await c1.getProxyPath();
+      const proxyOk = tieneProxy1 === true && rutaProxy1 === PROXY_587;
+
+      const frameRate = premierepro.FrameRate.createWithValue(FPS_CLIP_588);
+      const inEsperado = premierepro.TickTime.createWithFrameAndFrameRate(10, frameRate);
+      const outEsperado = premierepro.TickTime.createWithFrameAndFrameRate(90, frameRate);
+      const in1 = await c1.getInPoint(premierepro.Constants.MediaType.ANY);
+      const out1 = await c1.getOutPoint(premierepro.Constants.MediaType.ANY);
+      const inOutOk = in1.equals(inEsperado) && out1.equals(outEsperado);
+
+      clip1Correcto = esForest && proxyOk && inOutOk;
+    }
+
+    // --- Punto 5: segundo clip -- ROSE, sin proxy, sin marcas de in/out
+    // (el in/out se quedo igual al import fresco de la linea base). ---
+    let clip2Correcto = false;
+    if (identidadPorRutaCorrecta) {
+      const c2 = premierepro.ClipProjectItem.cast(clip2);
+      const indice2 = await c2.getColorLabelIndex();
+      const esRose = indice2 === premierepro.Constants.ProjectItemColorLabel.ROSE;
+
+      const tieneProxy2 = await c2.hasProxy();
+      const sinProxyOk = tieneProxy2 === false;
+
+      const in2 = await c2.getInPoint(premierepro.Constants.MediaType.ANY);
+      const out2 = await c2.getOutPoint(premierepro.Constants.MediaType.ANY);
+      const inOutSinTocarOk = in2.equals(inBaseline) && out2.equals(outBaseline);
+
+      clip2Correcto = esRose && sinProxyOk && inOutSinTocarOk;
+    }
+
+    const ok =
+      okCoincide && sinErrores && binsPorIdentidadCorrecto && identidadPorRutaCorrecta &&
+      sinClasificarCorrecto && clip1Correcto && clip2Correcto;
+
+    return {
+      ok: ok,
+      detalle:
+        "[6] resultado.ok=" + JSON.stringify(resultado.ok) + " (esperado " + JSON.stringify(okEsperado) + ")" +
+        ", errores=" + JSON.stringify(resultado.errores) +
+        " | [1] bins homonimos por identidad (Recamara1>Bano y Recamara2>Bano, cada uno con su clip)=" + binsPorIdentidadCorrecto +
+        " | [2] identidad por ruta de los dos '20260804_PIB0587.MP4'=" + identidadPorRutaCorrecta +
+        " | [3] tercer clip en 'Sin clasificar'=" + sinClasificarCorrecto +
+        " | [4] primer clip (FOREST, proxy, in/out 10/90)=" + clip1Correcto +
+        " | [5] segundo clip (ROSE, sin proxy, sin marcas de in/out)=" + clip2Correcto,
+    };
+  }
+);
+
+registrarPrueba(
+  "Task 11 (E2E - reexportacion): mover el primer clip a otra categoria lo muda sin duplicar y conserva proxy/color/in-out",
+  async (project) => {
+    const premierepro = require("premierepro");
+    const rootItem = await project.getRootItem();
+    const rootFolder = premierepro.FolderItem.cast(rootItem);
+
+    // Edita el manifest en memoria: el primer clip se reclasifica, tal cual
+    // pasa cuando alguien corrige el checklist despues de haber importado ya
+    // una vez. Todo lo demas (proxy, in/out, flag) se queda igual -- es la
+    // misma correccion de todos los dias, no una reimportacion desde cero.
+    const manifestReexportado = {
+      proyecto: manifestE2E.proyecto,
+      orientacion: manifestE2E.orientacion,
+      clips: manifestE2E.clips.map((c) => Object.assign({}, c)),
+    };
+    manifestReexportado.clips[0].categoria_path = ["PruebaTask11_Cocina"];
+
+    const resultado = await processManifest(project, manifestReexportado);
+    const sinErrores = resultado.errores.length === 0;
+
+    // El clip se mudo a Cocina.
+    const cocinaFolder = await resolveBinChain(project, rootFolder, ["PruebaTask11_Cocina"]);
+    const enCocina = await findClipsConRuta(cocinaFolder, CLIP_587);
+    const seMudoACocina = enCocina.length === 1;
+
+    // Recamara1>Bano quedo vacio de este clip.
+    const banoR1 = await resolveBinChain(project, rootFolder, ["PruebaTask11_Recamara1", "Bano"]);
+    const banoR1QuedoVacio = (await findClipsConRuta(banoR1, CLIP_587)).length === 0;
+
+    // No hay duplicados de este clip en NINGUNA parte del arbol (busqueda
+    // recursiva desde la raiz, no solo en los bins que tocamos nosotros).
+    const todasLasCoincidencias = await findClipsConRutaEnArbol(rootFolder, CLIP_587);
+    const sinDuplicados = todasLasCoincidencias.length === 1;
+
+    // El clip mudado conserva proxy, color y marcas de in/out.
+    let conservaTodo = false;
+    if (seMudoACocina) {
+      const c1 = premierepro.ClipProjectItem.cast(enCocina[0]);
+
+      const tieneProxy = await c1.hasProxy();
+      const rutaProxy = await c1.getProxyPath();
+      const proxyOk = tieneProxy === true && rutaProxy === PROXY_587;
+
+      const indice = await c1.getColorLabelIndex();
+      const colorOk = indice === premierepro.Constants.ProjectItemColorLabel.FOREST;
+
+      const frameRate = premierepro.FrameRate.createWithValue(FPS_CLIP_588);
+      const inEsperado = premierepro.TickTime.createWithFrameAndFrameRate(10, frameRate);
+      const outEsperado = premierepro.TickTime.createWithFrameAndFrameRate(90, frameRate);
+      const inReal = await c1.getInPoint(premierepro.Constants.MediaType.ANY);
+      const outReal = await c1.getOutPoint(premierepro.Constants.MediaType.ANY);
+      const inOutOk = inReal.equals(inEsperado) && outReal.equals(outEsperado);
+
+      conservaTodo = proxyOk && colorOk && inOutOk;
+    }
+
+    const ok = sinErrores && seMudoACocina && banoR1QuedoVacio && sinDuplicados && conservaTodo;
+
+    return {
+      ok: ok,
+      detalle:
+        "sin errores=" + sinErrores +
+        " | se mudo a PruebaTask11_Cocina=" + seMudoACocina +
+        " | PruebaTask11_Recamara1>Bano quedo vacio=" + banoR1QuedoVacio +
+        " | coincidencias de " + CLIP_587 + " en todo el arbol=" + todasLasCoincidencias.length + " (esperado 1)" +
+        " | conserva proxy/color/in-out tras la mudanza=" + conservaTodo,
+    };
+  }
+);
