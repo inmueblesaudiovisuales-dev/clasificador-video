@@ -67,11 +67,16 @@ class _ClipItemWidget(QWidget):
             parts.append(f"outline: 2px solid {CURRENT_COLOR};")
         if not parts:
             parts.append("border: none;")
-        # el borde (o su ausencia) es SOLO del contenedor -- sin esta regla
-        # explicita, QSS lo hereda a los QLabel hijos y cada uno lo pinta
-        # por su cuenta, dando dos cajas visibles en vez de una.
-        parts.append("QLabel { border: none; }")
-        self.setStyleSheet(" ".join(parts))
+        # Mezclar una regla "sin selector" (implicita para self) con una
+        # regla "QLabel {...}" en la misma cadena no se parsea como cabria
+        # esperar -- Qt sigue pintando el borde en los QLabel hijos pese a
+        # la regla explicita. Usar selectores explicitos por objectName
+        # para ambos (contenedor y descendientes) evita la ambiguedad y
+        # es la unica forma que produce UNA sola caja verificada con
+        # grab() en vez de dos.
+        own_rule = "#clipItem { " + " ".join(parts) + " }"
+        children_rule = "#clipItem QLabel { border: none; }"
+        self.setStyleSheet(f"{own_rule} {children_rule}")
 
 
 class Filmstrip(QWidget):
