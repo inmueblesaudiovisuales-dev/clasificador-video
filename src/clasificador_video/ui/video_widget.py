@@ -24,6 +24,7 @@ class VideoWidget(QWidget):
 
     def __init__(self, mpv_factory: Callable[..., object] = _default_mpv_factory, parent=None):
         super().__init__(parent)
+        self.setObjectName("videoWidget")
         self.setAttribute(Qt.WA_NativeWindow, True)
         self.setAttribute(Qt.WA_OpaquePaintEvent, True)
         self.setAutoFillBackground(True)

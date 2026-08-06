@@ -47,3 +47,9 @@ def test_play_pause_toggle_se_reenvia_al_player(qtbot):
     assert widget.player._mpv.pause is False
     widget.toggle_play()
     assert widget.player._mpv.pause is True
+
+
+def test_video_widget_tiene_objectname_para_fondo_negro(qtbot):
+    widget = VideoWidget(mpv_factory=FakeMpv)
+    qtbot.addWidget(widget)
+    assert widget.objectName() == "videoWidget"
