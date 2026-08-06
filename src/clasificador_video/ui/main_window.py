@@ -1,11 +1,22 @@
 # src/clasificador_video/ui/main_window.py
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Callable
 
-from PySide6.QtWidgets import QComboBox, QHBoxLayout, QLabel, QListWidget, QVBoxLayout, QWidget
+from PySide6.QtWidgets import (
+    QComboBox,
+    QFileDialog,
+    QHBoxLayout,
+    QLabel,
+    QListWidget,
+    QPushButton,
+    QVBoxLayout,
+    QWidget,
+)
 
 from clasificador_video.category_path import CategoryTree
+from clasificador_video.ingest import IngestTree
 from clasificador_video.keyboard import KeyboardRouter
 from clasificador_video.manifest import Clip
 from clasificador_video.player import QUALITY_PROFILES
@@ -46,6 +57,11 @@ class MainWindow(QWidget):
         self.room_list_widget = QListWidget()
         self.room_list_widget.addItems(room_selection.active_rooms())
 
+        self.ingest_tree = IngestTree()
+        self.import_button = QPushButton("Importar carpetas…")
+        self.import_button.clicked.connect(self._on_import_folders)
+        self.ingest_list = QListWidget()
+
         self.filmstrip = Filmstrip()
 
         self.video_widget = VideoWidget(mpv_factory=video_factory) if video_factory else VideoWidget()
@@ -59,8 +75,14 @@ class MainWindow(QWidget):
         top_bar.addWidget(self.quality_combo)
         top_bar.addStretch(1)
 
+        column = QVBoxLayout()
+        column.addWidget(QLabel("Cuartos"))
+        column.addWidget(self.room_list_widget, stretch=1)
+        column.addWidget(self.import_button)
+        column.addWidget(self.ingest_list, stretch=1)
+
         center = QHBoxLayout()
-        center.addWidget(self.room_list_widget, stretch=0)
+        center.addLayout(column, stretch=0)
         center.addWidget(self.video_widget, stretch=1)
 
         root = QVBoxLayout(self)
@@ -98,6 +120,18 @@ class MainWindow(QWidget):
             self.video_widget.player.set_quality(profile_name)
         except RuntimeError:
             pass  # el player aun no se creo (widget no mostrado); se aplica al abrir
+
+    def _on_import_folders(self) -> None:
+        folder = QFileDialog.getExistingDirectory(self, "Elegir carpeta de material")
+        if not folder:
+            return
+        self.ingest_tree.import_folder(Path(folder))
+        self._refresh_ingest_list()
+
+    def _refresh_ingest_list(self) -> None:
+        self.ingest_list.clear()
+        for f in self.ingest_tree.top_level_folders():
+            self.ingest_list.addItem(f.display_name)
 
     def _refresh_filmstrip(self) -> None:
         self.filmstrip.set_clips([

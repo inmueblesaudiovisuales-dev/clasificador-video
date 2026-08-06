@@ -93,3 +93,22 @@ def test_ventana_muestra_leyenda_de_teclado(qtbot):
     window = _window_with_video(qtbot)
     assert "Espacio" in window.legend_label.text()
     assert "P/X/U" in window.legend_label.text()
+
+
+def test_boton_importar_carpetas_existe(qtbot):
+    window = _window_with_video(qtbot)
+    assert window.import_button.text() == "Importar carpetas…"
+
+
+def test_importar_carpetas_puebla_el_ingest_list(qtbot, monkeypatch, tmp_path):
+    window = _window_with_video(qtbot)
+    carpeta_a = tmp_path / "FX30"
+    carpeta_a.mkdir()
+    (carpeta_a / "C0001.MP4").touch()
+    monkeypatch.setattr(
+        "clasificador_video.ui.main_window.QFileDialog.getExistingDirectory",
+        lambda *a, **k: str(carpeta_a),
+    )
+    window.import_button.click()
+    assert window.ingest_list.count() == 1
+    assert window.ingest_list.item(0).text() == "FX30"
