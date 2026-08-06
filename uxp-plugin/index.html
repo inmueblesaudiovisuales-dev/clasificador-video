@@ -6,7 +6,15 @@
 </div>
 <script src="js/log.js"></script>
 <script src="js/autocheck.js"></script>
+<script src="js/premiereActions.js"></script>
 <script>
   logToPanel("Plugin cargado.");
+
+  registrarPrueba("runTransaction crea bin", async (project) => {
+    const rootItem = await project.getRootItem();
+    const ok = runTransaction(project, () => rootItem.createBinAction("PruebaTask1", true), "Prueba Task 1");
+    return { ok: !!ok, detalle: "runTransaction devolvio " + ok };
+  });
+
   correrAutocheck();
 </script>
