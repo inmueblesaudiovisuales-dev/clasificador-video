@@ -189,6 +189,91 @@ registrarPrueba("applyFlagLabel: 'pick' pone el label FOREST en el clip", async 
   };
 });
 
+// fps del clip de prueba CLIP_588 (dron 4K/60p real, ver Task 5). Se
+// reutiliza tal cual porque el manifest real (Task 8) todavia no exporta
+// fps por clip.
+const FPS_CLIP_588 = 59.94005994005994;
+
+registrarPrueba("applyInOut: pone el in/out del clip en los frames pedidos", async (project) => {
+  const premierepro = require("premierepro");
+  const rootItem = await project.getRootItem();
+  const rootFolder = premierepro.FolderItem.cast(rootItem);
+
+  const folder = await resolveBinChain(project, rootFolder, ["PruebaTask5"]);
+  const clip = await importOrReuseClip(project, folder, CLIP_588);
+  const clipProjectItem = premierepro.ClipProjectItem.cast(clip);
+
+  applyInOut(project, clip, FPS_CLIP_588, 20, 150);
+
+  // Lectura real de vuelta: ClipProjectItem.getInPoint()/getOutPoint() SI
+  // existen, pero (a diferencia de lo que sugiere el .d.ts revisado antes de
+  // probar en vivo) exigen un argumento Constants.MediaType — sin el, tiran
+  // "Illegal Parameter type" (confirmado en vivo). Con MediaType.ANY
+  // funcionan. Comparamos el TickTime devuelto contra el TickTime "esperado"
+  // construido con el mismo constructor createWithFrameAndFrameRate, usando
+  // TickTime.equals(): verificacion genuina de que el in/out quedo en los
+  // frames pedidos, no solo "no truena".
+  const frameRate = premierepro.FrameRate.createWithValue(FPS_CLIP_588);
+  const inEsperado = premierepro.TickTime.createWithFrameAndFrameRate(20, frameRate);
+  const outEsperado = premierepro.TickTime.createWithFrameAndFrameRate(150, frameRate);
+
+  const inReal = await clipProjectItem.getInPoint(premierepro.Constants.MediaType.ANY);
+  const outReal = await clipProjectItem.getOutPoint(premierepro.Constants.MediaType.ANY);
+
+  const inCoincide = inReal.equals(inEsperado);
+  const outCoincide = outReal.equals(outEsperado);
+
+  const ok = inCoincide && outCoincide;
+  return {
+    ok: ok,
+    detalle:
+      "inPoint.ticks esperado=" + inEsperado.ticks + ", real=" + inReal.ticks + ", equals=" + inCoincide +
+      " | outPoint.ticks esperado=" + outEsperado.ticks + ", real=" + outReal.ticks + ", equals=" + outCoincide,
+  };
+});
+
+registrarPrueba("applyInOut: con null/null no toca el in/out existente", async (project) => {
+  const premierepro = require("premierepro");
+  const rootItem = await project.getRootItem();
+  const rootFolder = premierepro.FolderItem.cast(rootItem);
+
+  // Reusa el mismo clip de la prueba anterior, ya con in/out en 20/150 por
+  // esa prueba (importOrReuseClip reusa, no reimporta). Si applyInOut(...,
+  // null, null) tocara algo, el in/out dejaria de coincidir con 20/150.
+  const folder = await resolveBinChain(project, rootFolder, ["PruebaTask5"]);
+  const clip = await importOrReuseClip(project, folder, CLIP_588);
+  const clipProjectItem = premierepro.ClipProjectItem.cast(clip);
+
+  const inAntes = await clipProjectItem.getInPoint(premierepro.Constants.MediaType.ANY);
+  const outAntes = await clipProjectItem.getOutPoint(premierepro.Constants.MediaType.ANY);
+
+  let noTronoException = true;
+  try {
+    applyInOut(project, clip, FPS_CLIP_588, null, null);
+  } catch (e) {
+    noTronoException = false;
+  }
+
+  const inDespues = await clipProjectItem.getInPoint(premierepro.Constants.MediaType.ANY);
+  const outDespues = await clipProjectItem.getOutPoint(premierepro.Constants.MediaType.ANY);
+
+  const frameRate = premierepro.FrameRate.createWithValue(FPS_CLIP_588);
+  const inEsperado = premierepro.TickTime.createWithFrameAndFrameRate(20, frameRate);
+  const outEsperado = premierepro.TickTime.createWithFrameAndFrameRate(150, frameRate);
+
+  const noCambio = inDespues.equals(inAntes) && outDespues.equals(outAntes);
+  const siguenEnLosFramesPedidos = inDespues.equals(inEsperado) && outDespues.equals(outEsperado);
+
+  const ok = noTronoException && noCambio && siguenEnLosFramesPedidos;
+  return {
+    ok: ok,
+    detalle:
+      "no lanzo excepcion=" + noTronoException +
+      " | in/out antes y despues de null/null son iguales=" + noCambio +
+      " | siguen en frame 20/150=" + siguenEnLosFramesPedidos,
+  };
+});
+
 // Helper solo para las pruebas: cuenta cuantos clips con esa ruta hay
 // directamente dentro de una carpeta (sin bajar a subcarpetas), para poder
 // afirmar "vacio" o "exactamente uno" con evidencia real, no solo "no truena".
