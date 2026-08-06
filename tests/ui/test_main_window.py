@@ -805,3 +805,23 @@ def test_scrub_time_label_sin_in_ni_out_no_muestra_esos_segmentos(qtbot):
     text = window.scrub_time_label.text()
     assert "IN " not in text
     assert "OUT " not in text
+
+
+def test_scrub_bar_seek_started_pausa_el_player(qtbot):
+    window = _window_with_video(qtbot)
+    clips = [Clip(orden=1, ruta=Path("/a.MP4"), categoria_path=[], fps=30.0)]
+    window.load_clips(clips)
+    window.video_widget.player.play()
+    assert window.video_widget.player.is_paused is False
+    window.scrub_bar.seek_started.emit()
+    assert window.video_widget.player.is_paused is True
+
+
+def test_scrub_bar_seek_requested_mueve_el_player_y_la_barra(qtbot):
+    window = _window_with_video(qtbot)
+    clips = [Clip(orden=1, ruta=Path("/a.MP4"), categoria_path=[], fps=30.0)]
+    window.load_clips(clips)
+    window.video_widget.player._mpv.duration = 60.0
+    window.scrub_bar.seek_requested.emit(15.0)
+    assert window.video_widget.player._mpv.time_pos == 15.0
+    assert window.scrub_bar._position == 15.0

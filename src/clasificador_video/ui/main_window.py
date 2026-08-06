@@ -218,6 +218,8 @@ class MainWindow(QWidget):
         self.video_widget = VideoWidget(mpv_factory=video_factory) if video_factory else VideoWidget()
         self.video_widget.setObjectName("videoWidget")
         self.scrub_bar = ScrubBar()
+        self.scrub_bar.seek_started.connect(self._on_scrub_seek_started)
+        self.scrub_bar.seek_requested.connect(self._on_scrub_seek)
         self.scrub_time_label = QLabel("")
         self.scrub_time_label.setObjectName("scrubTimeLabel")
         self._playhead_timer = QTimer(self)
@@ -439,6 +441,14 @@ class MainWindow(QWidget):
         if self.current_clip is None:
             return
         self.scrub_bar.set_position(self.video_widget.player.position)
+        self._update_scrub_time_label()
+
+    def _on_scrub_seek_started(self) -> None:
+        self.video_widget.player.pause()
+
+    def _on_scrub_seek(self, seconds: float) -> None:
+        self.video_widget.player.seek(seconds)
+        self.scrub_bar.set_position(seconds)
         self._update_scrub_time_label()
 
     def load_clips(self, clips: list[Clip]) -> None:
