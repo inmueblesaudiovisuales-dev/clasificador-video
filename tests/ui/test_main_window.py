@@ -207,3 +207,13 @@ def test_subcuarto_desconocido_pide_padre_y_se_cuelga(qtbot, monkeypatch):
     window.attach_subroom_or_resolve("Baño")
     assert window.category_tree.path_for("Recámara 1", subroom="Baño") == ["Recámara 1", "Baño"]
     assert window.current_clip.categoria_path == ["Recámara 1", "Baño"]
+
+
+def test_columna_de_cuartos_muestra_contador_de_clips(qtbot):
+    window = _window_with_video(qtbot)
+    clips = [
+        Clip(orden=1, ruta=Path("/a.MP4"), categoria_path=["Sala"], fps=30.0),
+        Clip(orden=2, ruta=Path("/b.MP4"), categoria_path=["Sala"], fps=30.0),
+    ]
+    window.load_clips(clips)
+    assert window.room_list_widget.item(0).text() == "Sala (2)"

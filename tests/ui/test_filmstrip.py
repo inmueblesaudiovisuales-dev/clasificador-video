@@ -48,3 +48,20 @@ def test_item_puede_recibir_un_pixmap(qtbot):
     pm.fill()
     strip.item_widgets[0].set_pixmap(pm)
     assert strip.item_widgets[0].has_pixmap()
+
+
+def test_clip_actual_tiene_borde_azul(qtbot):
+    strip = Filmstrip()
+    qtbot.addWidget(strip)
+    strip.set_clips([ClipThumbnail(path=Path("/a.MP4"), thumbnail_path=None, room_label="X", flag="none")])
+    strip.set_current(0)
+    assert "border-color: #2b7fff" in strip.item_widgets[0].styleSheet()
+
+
+def test_pick_sobre_borde_azul_mantiene_ambos_colores(qtbot):
+    strip = Filmstrip()
+    qtbot.addWidget(strip)
+    strip.set_clips([ClipThumbnail(path=Path("/a.MP4"), thumbnail_path=None, room_label="X", flag="pick")])
+    strip.set_current(0)
+    assert "border-color: #3bb273" in strip.item_widgets[0].styleSheet()
+    assert "border-color: #2b7fff" in strip.item_widgets[0].styleSheet()

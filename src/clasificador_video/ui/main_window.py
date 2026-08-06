@@ -326,3 +326,16 @@ class MainWindow(QWidget):
             )
             for clip in self.clips
         ])
+        self.filmstrip.set_current(self.current_index)
+        self._refresh_room_counts()
+
+    def _refresh_room_counts(self) -> None:
+        from collections import Counter
+
+        counts: Counter[str] = Counter()
+        for clip in self.clips:
+            if clip.categoria_path:
+                counts[clip.categoria_path[0]] += 1
+        self.room_list_widget.clear()
+        for room in self.room_selection.active_rooms():
+            self.room_list_widget.addItem(f"{room} ({counts[room]})")
