@@ -42,3 +42,26 @@ def test_arrancar_restaura_sesion_si_existe_y_el_usuario_acepta(qtbot, monkeypat
     window = app_module.arrancar(video_factory=None, session_path=session)
     assert window is not None
     assert window.clips[0].ruta.name == "a.MP4"
+
+
+def test_main_aplica_el_stylesheet_global(qtbot, monkeypatch):
+    from PySide6.QtWidgets import QApplication
+
+    QApplication.instance().setStyleSheet("")
+
+    class _Window:
+        clips: list = []
+        video_widget = None
+
+        def show(self):
+            pass
+
+    mock_window = _Window()
+    monkeypatch.setattr(app_module, "arrancar", lambda **kw: mock_window)
+    monkeypatch.setattr(app_module.QApplication, "exec", lambda self: 0)
+    monkeypatch.setattr(app_module.sys, "exit", lambda code=0: None)
+
+    app_module.main()
+
+    app = QApplication.instance()
+    assert "background-color: #1a1a1e" in app.styleSheet()

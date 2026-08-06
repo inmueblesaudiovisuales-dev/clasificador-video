@@ -14,6 +14,7 @@ from clasificador_video.manifest import Clip
 from clasificador_video.rooms import RoomSelection
 from clasificador_video.ui.main_window import MainWindow
 from clasificador_video.ui.room_config_dialog import RoomConfigDialog
+from clasificador_video.ui.theme import build_stylesheet
 
 SESSION_PATH = Path.home() / ".clasificador_video" / "sesion.json"
 
@@ -89,7 +90,8 @@ def arrancar(
 
 
 def main() -> None:
-    app = QApplication(sys.argv)
+    app = QApplication.instance() or QApplication(sys.argv)
+    app.setStyleSheet(build_stylesheet())
     window = arrancar()
     if window is None:
         sys.exit(0)
