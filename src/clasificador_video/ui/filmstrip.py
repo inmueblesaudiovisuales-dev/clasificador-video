@@ -16,7 +16,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from clasificador_video.ui.theme import CURRENT_COLOR, PICK_COLOR, REJECT_COLOR
+from clasificador_video.ui.theme import CURRENT_COLOR, PICK_COLOR, REJECT_COLOR, TRIM_COLOR
 
 THUMB_HEIGHT = 80
 THUMB_MAX_WIDTH = 140
@@ -39,25 +39,27 @@ class ClipThumbnail:
     duration_frames: int | None = None  # solo para la barra de rango -- no se persiste
 
 
+_RANGE_TRACK_COLOR = "#45454c"  # visible contra el fondo del panel, no se confunde con "sin marca"
+
+
 def _range_bar_style(in_frame: int | None, out_frame: int | None, duration_frames: int | None) -> str:
     """Gradiente lineal que pinta el rango in/out marcado sobre una barra
-    delgada -- si no hay marca (o no se conoce la duracion del clip) queda
-    un color neutro parejo."""
-    base = "#232327"
+    -- siempre visible como una linea (como el rango de Premiere/FCP en
+    el visor de clip), con el tramo marcado resaltado en TRIM_COLOR."""
     if not duration_frames or in_frame is None or out_frame is None:
-        return f"background-color: {base};"
+        return f"background-color: {_RANGE_TRACK_COLOR};"
     p1 = max(0.0, min(1.0, in_frame / duration_frames))
     p2 = max(0.0, min(1.0, out_frame / duration_frames))
     if p2 < p1:
         p1, p2 = p2, p1
     eps = 0.002
     stops = [
-        (0.0, base),
-        (max(p1 - eps, 0.0), base),
-        (p1, CURRENT_COLOR),
-        (p2, CURRENT_COLOR),
-        (min(p2 + eps, 1.0), base),
-        (1.0, base),
+        (0.0, _RANGE_TRACK_COLOR),
+        (max(p1 - eps, 0.0), _RANGE_TRACK_COLOR),
+        (p1, TRIM_COLOR),
+        (p2, TRIM_COLOR),
+        (min(p2 + eps, 1.0), _RANGE_TRACK_COLOR),
+        (1.0, _RANGE_TRACK_COLOR),
     ]
     stop_str = ", ".join(f"stop:{pos:.4f} {color}" for pos, color in stops)
     return f"background: qlineargradient(x1:0, y1:0, x2:1, y2:0, {stop_str});"
@@ -92,7 +94,7 @@ class _ClipItemWidget(QWidget):
         layout.addWidget(self._image_label)
         self._range_bar = QLabel()
         self._range_bar.setObjectName("clipRangeBar")
-        self._range_bar.setFixedHeight(4)
+        self._range_bar.setFixedHeight(6)
         self._range_bar.setStyleSheet(
             _range_bar_style(clip.in_frame, clip.out_frame, clip.duration_frames)
         )

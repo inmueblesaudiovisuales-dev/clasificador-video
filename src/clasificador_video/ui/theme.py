@@ -1,16 +1,18 @@
 from __future__ import annotations
 
-# Paleta "Console": fondos casi negros, un solo acento vivido reservado
-# para foco/acciones, tipografia monoespaciada para metadata tecnica.
-BG_WINDOW = "#08080a"
-BG_PANEL = "#0d0d0f"
-BG_RAIL = "#0a0a0c"
-BG_HOVER = "#17171a"
-BG_ACTIVE = "#17130a"
+# Paleta "Console": fondos oscuros (no negro puro -- un gris muy oscuro
+# se ve mas "pantalla de post-produccion real" y menos "vacio"), un solo
+# acento vivido reservado para foco/acciones, tipografia monoespaciada
+# para metadata tecnica.
+BG_WINDOW = "#1c1c20"
+BG_PANEL = "#232327"
+BG_RAIL = "#1f1f23"
+BG_HOVER = "#2c2c31"
+BG_ACTIVE = "#2e2416"
 ACCENT = "#ff8a3d"
 TEXT = "#e4e4e4"
-TEXT_MUTED = "#8a8a8a"
-BORDER = "#1e1e21"
+TEXT_MUTED = "#9a9aa0"
+BORDER = "#333338"
 
 MONO_FONT = '"SF Mono", "JetBrains Mono", Menlo, monospace'
 
@@ -21,6 +23,10 @@ MONO_FONT = '"SF Mono", "JetBrains Mono", Menlo, monospace'
 PICK_COLOR = "#3ddc84"
 REJECT_COLOR = "#ff5566"
 CURRENT_COLOR = ACCENT
+# color propio para el rango in/out marcado -- distinto del acento de
+# "clip actual" para que un thumbnail con ambos (actual + rango marcado)
+# no confunda las dos cosas.
+TRIM_COLOR = "#4fd1e8"
 
 # Paleta de IDENTIDAD DE CUARTO: apagada/pastel a proposito (nunca verde,
 # rojo ni naranja) para no competir visualmente con los colores de estado
