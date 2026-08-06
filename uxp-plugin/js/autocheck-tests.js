@@ -359,6 +359,118 @@ registrarPrueba("attachProxyIfPresent: con proxyPath null devuelve false y no to
   };
 });
 
+const manifestPrueba = {
+  proyecto: "Prueba Task 7",
+  clips: [
+    {
+      ruta: CLIP_587,
+      categoria_path: ["PruebaTask7", "Bano"],
+      in_frame: 10,
+      out_frame: 90,
+      flag: "pick",
+      ruta_proxy: PROXY_587,
+    },
+    {
+      ruta: RUTA_TEST_DIR + "/no-existe.MP4",
+      categoria_path: ["PruebaTask7"],
+      in_frame: null,
+      out_frame: null,
+      flag: "none",
+      ruta_proxy: null,
+    },
+  ],
+};
+
+registrarPrueba(
+  "processManifest: organiza el clip valido, registra el error del clip inexistente, y uno no afecta al otro",
+  async (project) => {
+    const premierepro = require("premierepro");
+
+    const resultado = await processManifest(project, manifestPrueba);
+
+    const okEsperado = ["20260804_PIB0587.MP4"];
+    const okCoincide =
+      resultado.ok.length === okEsperado.length &&
+      resultado.ok.every((nombre, i) => nombre === okEsperado[i]);
+
+    const erroresCoincide =
+      resultado.errores.length === 1 &&
+      resultado.errores[0].archivo === "no-existe.MP4" &&
+      !!resultado.errores[0].mensaje;
+
+    // Lectura real de vuelta del clip que si funciono: bin destino, label,
+    // in/out (fps 30, el placeholder de este task) y proxy.
+    const rootItem = await project.getRootItem();
+    const rootFolder = premierepro.FolderItem.cast(rootItem);
+    const banoFolder = await resolveBinChain(project, rootFolder, ["PruebaTask7", "Bano"]);
+    const clipsEnBano = await findClipsConRuta(banoFolder, CLIP_587);
+    const enBinCorrecto = clipsEnBano.length === 1;
+
+    let labelCorrecto = false;
+    let inOutCorrecto = false;
+    let proxyCorrecto = false;
+
+    if (enBinCorrecto) {
+      const clip = clipsEnBano[0];
+      const indice = await clip.getColorLabelIndex();
+      labelCorrecto = indice === premierepro.Constants.ProjectItemColorLabel.FOREST;
+
+      const clipProjectItem = premierepro.ClipProjectItem.cast(clip);
+      const frameRate = premierepro.FrameRate.createWithValue(30);
+      const inEsperado = premierepro.TickTime.createWithFrameAndFrameRate(10, frameRate);
+      const outEsperado = premierepro.TickTime.createWithFrameAndFrameRate(90, frameRate);
+      const inReal = await clipProjectItem.getInPoint(premierepro.Constants.MediaType.ANY);
+      const outReal = await clipProjectItem.getOutPoint(premierepro.Constants.MediaType.ANY);
+      inOutCorrecto = inReal.equals(inEsperado) && outReal.equals(outEsperado);
+
+      const tieneProxy = await clipProjectItem.hasProxy();
+      const rutaProxy = await clipProjectItem.getProxyPath();
+      proxyCorrecto = tieneProxy === true && rutaProxy === PROXY_587;
+    }
+
+    // El segundo clip (inexistente) no debe haber quedado en ningun lado
+    // dentro de PruebaTask7.
+    const pruebaTask7Folder = await resolveBinChain(project, rootFolder, ["PruebaTask7"]);
+    const clipsNoExiste = await findClipsConRuta(pruebaTask7Folder, RUTA_TEST_DIR + "/no-existe.MP4");
+    const noExisteNoQuedo = clipsNoExiste.length === 0;
+
+    const ok =
+      okCoincide && erroresCoincide && enBinCorrecto && labelCorrecto &&
+      inOutCorrecto && proxyCorrecto && noExisteNoQuedo;
+
+    return {
+      ok: ok,
+      detalle:
+        "resultado.ok=" + JSON.stringify(resultado.ok) + " (esperado " + JSON.stringify(okEsperado) + ")" +
+        " | resultado.errores=" + JSON.stringify(resultado.errores) +
+        " | clip en PruebaTask7>Bano=" + enBinCorrecto +
+        " | label FOREST=" + labelCorrecto +
+        " | in/out 10/90 fps30=" + inOutCorrecto +
+        " | proxy adjunto=" + proxyCorrecto +
+        " | el clip inexistente no quedo en el proyecto=" + noExisteNoQuedo,
+    };
+  }
+);
+
+registrarPrueba(
+  "revisarMaterialDisponible: identifica el faltante y cuenta bien los disponibles",
+  async (project) => {
+    const resultado = await revisarMaterialDisponible(manifestPrueba);
+
+    const ok =
+      resultado.disponibles === 1 &&
+      resultado.faltantes.length === 1 &&
+      resultado.faltantes[0] === RUTA_TEST_DIR + "/no-existe.MP4";
+
+    return {
+      ok: ok,
+      detalle:
+        "disponibles=" + resultado.disponibles + " (esperado 1)" +
+        " | faltantes=" + JSON.stringify(resultado.faltantes),
+    };
+  }
+);
+
 // Helper solo para las pruebas: cuenta cuantos clips con esa ruta hay
 // directamente dentro de una carpeta (sin bajar a subcarpetas), para poder
 // afirmar "vacio" o "exactamente uno" con evidencia real, no solo "no truena".
