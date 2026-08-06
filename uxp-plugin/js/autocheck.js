@@ -1,7 +1,7 @@
 // Arnes de auto-comprobacion. Solo se usa durante la construccion: corre al
 // cargar el plugin y deja el resultado en un archivo que se lee desde la
 // terminal. Se apaga poniendo AUTOCHECK_ACTIVO en false (Task 13).
-const AUTOCHECK_ACTIVO = true;
+const AUTOCHECK_ACTIVO = false;
 const AUTOCHECK_SALIDA_DIR = "/private/tmp/clasificador-autocheck";
 const AUTOCHECK_SALIDA_ARCHIVO = "resultado.json";
 
