@@ -464,6 +464,57 @@ def test_click_real_en_thumbnail_no_crasha_al_reconstruir_filmstrip(qtbot):
     )
 
 
+def test_marcar_in_actualiza_la_scrub_bar_visiblemente(qtbot):
+    window = _window_with_video(qtbot)
+    window.show()
+    qtbot.waitExposed(window)
+    clips = [Clip(orden=1, ruta=Path("/a.MP4"), categoria_path=[], fps=60.0)]
+    window.load_clips(clips)
+    window.video_widget.player._mpv.time_pos = 2.0
+    assert window.scrub_bar._in_frame is None
+    window.handle_key_press("i")
+    assert window.scrub_bar._in_frame == 120
+    assert window.scrub_bar._fps == 60.0
+
+
+def test_marcar_out_y_deshacer_se_reflejan_en_la_scrub_bar(qtbot):
+    window = _window_with_video(qtbot)
+    window.show()
+    qtbot.waitExposed(window)
+    clips = [Clip(orden=1, ruta=Path("/a.MP4"), categoria_path=[], fps=30.0)]
+    window.load_clips(clips)
+    window.video_widget.player._mpv.time_pos = 4.0
+    window.handle_key_press("o")
+    assert window.scrub_bar._out_frame == 120
+    window.handle_key_press("u")
+    assert window.scrub_bar._in_frame is None
+    assert window.scrub_bar._out_frame is None
+
+
+def test_cambiar_de_clip_actualiza_el_in_out_de_la_scrub_bar_al_del_nuevo_clip(qtbot):
+    window = _window_with_video(qtbot)
+    window.show()
+    qtbot.waitExposed(window)
+    clips = [
+        Clip(orden=1, ruta=Path("/a.MP4"), categoria_path=[], fps=30.0, in_frame=10, out_frame=20),
+        Clip(orden=2, ruta=Path("/b.MP4"), categoria_path=[], fps=30.0),
+    ]
+    window.load_clips(clips)
+    assert window.scrub_bar._in_frame == 10
+    window.handle_arrow("next")
+    assert window.scrub_bar._in_frame is None
+
+
+def test_tick_playhead_actualiza_la_posicion_de_la_scrub_bar(qtbot):
+    window = _window_with_video(qtbot)
+    window.show()
+    qtbot.waitExposed(window)
+    window.load_clips([Clip(orden=1, ruta=Path("/a.MP4"), categoria_path=[], fps=30.0)])
+    window.video_widget.player._mpv.time_pos = 7.0
+    window._tick_playhead()
+    assert window.scrub_bar._position == 7.0
+
+
 def test_tecla_i_marca_in_en_el_clip_actual_con_el_fps_del_clip(qtbot):
     window = _window_with_video(qtbot)
     window.show()

@@ -37,7 +37,7 @@ from clasificador_video.thumbnails import (
 )
 from clasificador_video.ui import theme
 from clasificador_video.ui.filmstrip import ClipThumbnail, Filmstrip
-from clasificador_video.ui.video_widget import VideoWidget
+from clasificador_video.ui.video_widget import ScrubBar, VideoWidget
 
 SUBROOM_CANDIDATES = ["Baño", "Closet", "Terraza"]
 
@@ -217,6 +217,11 @@ class MainWindow(QWidget):
 
         self.video_widget = VideoWidget(mpv_factory=video_factory) if video_factory else VideoWidget()
         self.video_widget.setObjectName("videoWidget")
+        self.scrub_bar = ScrubBar()
+        self._playhead_timer = QTimer(self)
+        self._playhead_timer.setInterval(150)
+        self._playhead_timer.timeout.connect(self._tick_playhead)
+        self._playhead_timer.start()
         self.quality_combo = QComboBox()
         self.quality_combo.addItems(list(QUALITY_PROFILES))
         self.quality_combo.currentTextChanged.connect(self._on_quality_changed)
@@ -277,6 +282,7 @@ class MainWindow(QWidget):
         video_column = QVBoxLayout()
         video_column.addWidget(self.subroom_banner)
         video_column.addWidget(self.video_widget, stretch=1)
+        video_column.addWidget(self.scrub_bar)
 
         # inspector de metadata del clip actual: antes solo se leia
         # (parcialmente) en el filmstrip, ahora vive junto al video
@@ -394,6 +400,21 @@ class MainWindow(QWidget):
             return
         elapsed = int(time.monotonic() - self._last_saved_at)
         self.saved_indicator.setText(f"Guardado hace {elapsed}s")
+
+    def _update_scrub_bar(self) -> None:
+        clip = self.current_clip
+        if clip is None:
+            self.scrub_bar.set_duration(0.0)
+            self.scrub_bar.set_in_out(None, None, 0.0)
+            return
+        duration = self.video_widget.player.duration or self._clip_durations.get(self.current_index, 0.0)
+        self.scrub_bar.set_duration(duration)
+        self.scrub_bar.set_in_out(clip.in_frame, clip.out_frame, clip.fps)
+
+    def _tick_playhead(self) -> None:
+        if self.current_clip is None:
+            return
+        self.scrub_bar.set_position(self.video_widget.player.position)
 
     def load_clips(self, clips: list[Clip]) -> None:
         self.clips = clips
@@ -571,6 +592,7 @@ class MainWindow(QWidget):
             self.video_widget.open_clip(clip.ruta)
         self._refresh_filmstrip()
         self._update_inspector()
+        self._update_scrub_bar()
         self._autosave()
 
     def select_clip(self, index: int) -> None:
@@ -593,6 +615,7 @@ class MainWindow(QWidget):
         self.filmstrip.set_current(self.current_index)
         self._update_toolbar_stats()
         self._update_inspector()
+        self._update_scrub_bar()
         self._autosave()
 
     def attach_subroom_or_resolve(self, subroom: str) -> list[str] | None:
@@ -702,6 +725,7 @@ class MainWindow(QWidget):
         self._refresh_room_counts()
         self._update_toolbar_stats()
         self._update_inspector()
+        self._update_scrub_bar()
 
     def _refresh_room_counts(self) -> None:
         from collections import Counter

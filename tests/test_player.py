@@ -103,6 +103,31 @@ def test_clear_in_out_resetea_ambos():
     assert player.out_frame is None
 
 
+def test_position_expone_time_pos_del_mpv():
+    player = MpvPlayer(mpv_factory=FakeMpv)
+    player._mpv.time_pos = 3.5
+    assert player.position == 3.5
+
+
+def test_position_sin_time_pos_devuelve_cero():
+    player = MpvPlayer(mpv_factory=FakeMpv)
+    player._mpv.time_pos = None
+    assert player.position == 0.0
+
+
+def test_duration_expone_duration_del_mpv():
+    player = MpvPlayer(mpv_factory=FakeMpv)
+    player._mpv.duration = 12.5
+    assert player.duration == 12.5
+
+
+def test_duration_sin_atributo_en_el_doble_devuelve_cero():
+    """FakeMpv (y los dobles de pruebas de mas arriba en el archivo) no
+    siempre definen `duration` -- no debe lanzar AttributeError."""
+    player = MpvPlayer(mpv_factory=FakeMpv)
+    assert player.duration == 0.0
+
+
 def test_toggle_alterna_play_y_pause():
     player = MpvPlayer(mpv_factory=FakeMpv)
     player.toggle()          # empieza en pause=True (FakeMpv)

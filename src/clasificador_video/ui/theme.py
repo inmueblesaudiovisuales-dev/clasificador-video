@@ -196,6 +196,11 @@ def build_stylesheet() -> str:
         border-radius: 3px;
     }}
 
+    QWidget#scrubBar {{
+        background-color: {BG_RAIL};
+        border-radius: 3px;
+    }}
+
     QWidget#filmstripPanel, QWidget#roomColumn, QWidget#inspectorPanel {{
         background-color: {BG_RAIL};
         border-radius: 4px;

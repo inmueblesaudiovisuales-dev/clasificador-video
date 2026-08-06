@@ -52,6 +52,18 @@ class MpvPlayer:
         else:
             self.pause()
 
+    @property
+    def position(self) -> float:
+        """Segundo actual de reproduccion -- 0.0 si mpv todavia no lo
+        reporta (recien abierto) o si el doble de pruebas no lo define."""
+        return getattr(self._mpv, "time_pos", None) or 0.0
+
+    @property
+    def duration(self) -> float:
+        """Duracion real del clip segun mpv (mas confiable que la
+        calculada de ffprobe al importar) -- 0.0 si todavia no se conoce."""
+        return getattr(self._mpv, "duration", None) or 0.0
+
     def set_quality(self, profile_name: str) -> None:
         if profile_name not in QUALITY_PROFILES:
             raise ValueError(f"perfil de calidad desconocido: '{profile_name}'")

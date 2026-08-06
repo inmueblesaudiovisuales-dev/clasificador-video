@@ -6,10 +6,12 @@ from pathlib import Path
 from typing import Callable
 
 from PySide6.QtCore import QObject, Signal
-from PySide6.QtGui import QOpenGLContext
+from PySide6.QtGui import QColor, QOpenGLContext, QPainter, QPen
 from PySide6.QtOpenGLWidgets import QOpenGLWidget
+from PySide6.QtWidgets import QWidget
 
 from clasificador_video.player import MpvPlayer
+from clasificador_video.ui.theme import ACCENT, BORDER, TRIM_COLOR
 
 
 class _FrameReadySignal(QObject):
@@ -129,3 +131,73 @@ class VideoWidget(QOpenGLWidget):
 
     def toggle_play(self) -> None:
         self.player.toggle()
+
+
+class ScrubBar(QWidget):
+    """Linea de tiempo del clip actual, tipo Source Monitor de Premiere:
+    un track con el playhead y, cuando hay marca de in/out, un tramo
+    resaltado con brackets en los extremos -- para que marcar in/out
+    (teclas I/O) se vea en el momento, no solo se guarde en silencio.
+
+    Puramente informativo: no reacciona a click ni arrastre, marcar sigue
+    siendo con el teclado (I/O/U), como el resto de los atajos de la app.
+    """
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setObjectName("scrubBar")
+        self.setFixedHeight(26)
+        self._duration = 0.0
+        self._position = 0.0
+        self._in_frame: int | None = None
+        self._out_frame: int | None = None
+        self._fps = 0.0
+
+    def set_duration(self, seconds: float) -> None:
+        self._duration = max(seconds, 0.0)
+        self.update()
+
+    def set_position(self, seconds: float) -> None:
+        self._position = max(seconds, 0.0)
+        self.update()
+
+    def set_in_out(self, in_frame: int | None, out_frame: int | None, fps: float) -> None:
+        self._in_frame = in_frame
+        self._out_frame = out_frame
+        self._fps = fps
+        self.update()
+
+    def _x_for(self, seconds: float, left: int, usable_width: int) -> int:
+        if self._duration <= 0:
+            return left
+        ratio = max(0.0, min(1.0, seconds / self._duration))
+        return left + round(ratio * usable_width)
+
+    def paintEvent(self, event) -> None:  # noqa: N802 -- override de Qt
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        left, right = 6, self.width() - 6
+        usable_width = max(right - left, 1)
+        track_y = self.height() // 2
+
+        painter.setPen(QPen(QColor(BORDER), 3))
+        painter.drawLine(left, track_y, right, track_y)
+
+        if self._duration > 0:
+            if self._in_frame is not None and self._out_frame is not None and self._fps:
+                in_s = self._in_frame / self._fps
+                out_s = self._out_frame / self._fps
+                x1 = self._x_for(min(in_s, out_s), left, usable_width)
+                x2 = self._x_for(max(in_s, out_s), left, usable_width)
+                painter.setPen(QPen(QColor(TRIM_COLOR), 4))
+                painter.drawLine(x1, track_y, x2, track_y)
+                bracket_pen = QPen(QColor(TRIM_COLOR), 3)
+                painter.setPen(bracket_pen)
+                painter.drawLine(x1, track_y - 8, x1, track_y + 8)
+                painter.drawLine(x2, track_y - 8, x2, track_y + 8)
+
+            x = self._x_for(self._position, left, usable_width)
+            painter.setPen(QPen(QColor(ACCENT), 2))
+            painter.drawLine(x, 2, x, self.height() - 2)
+
+        painter.end()

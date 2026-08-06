@@ -1,7 +1,7 @@
 # tests/ui/test_video_widget.py
 from pathlib import Path
 
-from clasificador_video.ui.video_widget import VideoWidget
+from clasificador_video.ui.video_widget import ScrubBar, VideoWidget
 
 
 class FakeMpv:
@@ -86,3 +86,43 @@ def test_video_widget_es_qopenglwidget(qtbot):
     widget = VideoWidget(mpv_factory=FakeMpv)
     qtbot.addWidget(widget)
     assert isinstance(widget, QOpenGLWidget)
+
+
+def test_scrub_bar_tiene_objectname_para_el_tema(qtbot):
+    bar = ScrubBar()
+    qtbot.addWidget(bar)
+    assert bar.objectName() == "scrubBar"
+
+
+def test_scrub_bar_guarda_duracion_posicion_e_in_out(qtbot):
+    bar = ScrubBar()
+    qtbot.addWidget(bar)
+    bar.set_duration(10.0)
+    bar.set_position(3.0)
+    bar.set_in_out(60, 180, 30.0)  # 2s a 6s, a 30fps
+    assert bar._duration == 10.0
+    assert bar._position == 3.0
+    assert bar._in_frame == 60
+    assert bar._out_frame == 180
+    assert bar._fps == 30.0
+
+
+def test_scrub_bar_x_for_es_proporcional_a_la_duracion(qtbot):
+    bar = ScrubBar()
+    qtbot.addWidget(bar)
+    bar.resize(206, 26)
+    bar.set_duration(10.0)
+    left, usable = 6, 206 - 12
+    assert bar._x_for(0.0, left, usable) == left
+    assert bar._x_for(10.0, left, usable) == left + usable
+    assert bar._x_for(5.0, left, usable) == left + usable // 2
+
+
+def test_scrub_bar_sin_duracion_no_truena_al_pintar(qtbot):
+    """Antes de que mpv reporte la duracion real (clip recien abierto) no
+    debe haber division por cero ni excepcion al repintar."""
+    bar = ScrubBar()
+    qtbot.addWidget(bar)
+    bar.show()
+    bar.set_position(1.0)  # sin set_duration -- queda en 0
+    bar.repaint()  # no debe lanzar
