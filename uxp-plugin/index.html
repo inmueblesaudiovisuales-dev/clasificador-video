@@ -7,6 +7,7 @@
 <script src="js/log.js"></script>
 <script src="js/autocheck.js"></script>
 <script src="js/premiereActions.js"></script>
+<script src="js/bins.js"></script>
 <script>
   logToPanel("Plugin cargado.");
 
@@ -14,6 +15,37 @@
     const rootItem = await project.getRootItem();
     const ok = runTransaction(project, () => rootItem.createBinAction("PruebaTask1", true), "Prueba Task 1");
     return { ok: !!ok, detalle: "runTransaction devolvio " + ok };
+  });
+
+  registrarPrueba("resolveBinChain crea y reusa bins anidados", async (project) => {
+    const premierepro = require("premierepro");
+    const rootItem = await project.getRootItem();
+    const rootFolder = premierepro.FolderItem.cast(rootItem);
+
+    const folder1 = await resolveBinChain(project, rootFolder, ["PruebaTask2", "Sub"]);
+    const folder2 = await resolveBinChain(project, rootFolder, ["PruebaTask2", "Sub"]);
+
+    const padreItems = await rootFolder.getItems();
+    const padre = padreItems.find((i) => i.name === "PruebaTask2");
+    if (!padre) {
+      return { ok: false, detalle: "No se encontro el bin padre PruebaTask2" };
+    }
+    const padreFolder = premierepro.FolderItem.cast(padre);
+    const hijos = await padreFolder.getItems();
+    const cuantosSub = hijos.filter((i) => i.name === "Sub").length;
+
+    const ok =
+      folder1 && folder1.name === "Sub" &&
+      folder2 && folder2.name === "Sub" &&
+      cuantosSub === 1;
+
+    return {
+      ok: ok,
+      detalle:
+        "folder1.name=" + (folder1 && folder1.name) +
+        ", folder2.name=" + (folder2 && folder2.name) +
+        ", cantidad de bins 'Sub' dentro de PruebaTask2=" + cuantosSub,
+    };
   });
 
   correrAutocheck();
