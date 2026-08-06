@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Callable
 
 from PySide6.QtCore import QRunnable, QThreadPool, Signal
-from PySide6.QtGui import QPixmap
+from PySide6.QtGui import QKeySequence, QPixmap, QShortcut
 from PySide6.QtWidgets import (
     QComboBox,
     QFileDialog,
@@ -119,6 +119,26 @@ class MainWindow(QWidget):
         root.addWidget(self.filmstrip, stretch=0)
         root.addWidget(self.legend_label, stretch=0)
 
+        self._install_shortcuts()
+
+    def _install_shortcuts(self) -> None:
+        shortcuts: list[tuple[str, Callable[[], None]]] = [
+            ("Space", self.video_widget.toggle_play),
+            ("Left", lambda: self.handle_arrow("prev")),
+            ("Right", lambda: self.handle_arrow("next")),
+            ("I", lambda: self.handle_key_press("i")),
+            ("O", lambda: self.handle_key_press("o")),
+            ("P", lambda: self.handle_key_press("p")),
+            ("X", lambda: self.handle_key_press("x")),
+            ("U", lambda: self.handle_key_press("u")),
+        ]
+        for digit in "123456789":
+            shortcuts.append((digit, lambda d=digit: self.handle_key_press(d)))
+        self._shortcuts = [
+            QShortcut(QKeySequence(sequence), self, activated=handler)
+            for sequence, handler in shortcuts
+        ]
+
     @property
     def current_clip(self) -> Clip | None:
         if not self.clips:
@@ -165,6 +185,19 @@ class MainWindow(QWidget):
     def handle_key_press(self, key: str) -> None:
         if self.current_clip is None:
             return
+        if key == "i":
+            self.current_clip.in_frame = self.video_widget.player.mark_in(self.current_clip.fps)
+            self._refresh_filmstrip()
+            return
+        if key == "o":
+            self.current_clip.out_frame = self.video_widget.player.mark_out(self.current_clip.fps)
+            self._refresh_filmstrip()
+            return
+        if key == "u":
+            self.current_clip.in_frame = None
+            self.current_clip.out_frame = None
+            self._refresh_filmstrip()
+            return
         room_path = self._router.resolve_room_key(key)
         if room_path is not None:
             self.current_clip.categoria_path = room_path
@@ -174,6 +207,21 @@ class MainWindow(QWidget):
         if action is not None:
             self.current_clip.flag = action
             self._refresh_filmstrip()
+
+    def handle_arrow(self, direction: str) -> None:
+        if not self.clips:
+            return
+        if direction == "next":
+            self.current_index = min(self.current_index + 1, len(self.clips) - 1)
+        else:
+            self.current_index = max(self.current_index - 1, 0)
+        clip = self.current_clip
+        if clip is not None:
+            try:
+                self.video_widget.open_clip(clip.ruta)
+            except RuntimeError:
+                pass
+        self._refresh_filmstrip()
 
     def _on_quality_changed(self, profile_name: str) -> None:
         try:

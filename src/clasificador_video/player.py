@@ -48,11 +48,13 @@ class MpvPlayer:
             raise ValueError(f"perfil de calidad desconocido: '{profile_name}'")
         self._mpv.vid_scale = QUALITY_PROFILES[profile_name]
 
-    def mark_in(self, fps: float) -> None:
+    def mark_in(self, fps: float) -> int:
         self.in_frame = round(self._mpv.time_pos * fps)
+        return self.in_frame
 
-    def mark_out(self, fps: float) -> None:
+    def mark_out(self, fps: float) -> int:
         self.out_frame = round(self._mpv.time_pos * fps)
+        return self.out_frame
 
     def clear_in_out(self) -> None:
         self.in_frame = None

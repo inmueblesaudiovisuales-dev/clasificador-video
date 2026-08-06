@@ -144,3 +144,52 @@ def test_load_clips_arranca_el_primer_clip_en_el_reproductor(qtbot):
     clips = [Clip(orden=1, ruta=Path("/a.MP4"), categoria_path=[], fps=30.0)]
     window.load_clips(clips)
     assert window.video_widget.player._mpv.loaded_path == "/a.MP4"
+
+
+def test_flecha_derecha_avanza_al_siguiente_clip_y_lo_carga_en_el_player(qtbot):
+    window = _window_with_video(qtbot)
+    window.show()
+    qtbot.waitExposed(window)
+    clips = [
+        Clip(orden=1, ruta=Path("/a.MP4"), categoria_path=[], fps=30.0),
+        Clip(orden=2, ruta=Path("/b.MP4"), categoria_path=[], fps=30.0),
+    ]
+    window.load_clips(clips)
+    window.handle_arrow("next")
+    assert window.current_index == 1
+    assert window.video_widget.player._mpv.loaded_path == "/b.MP4"
+
+
+def test_tecla_i_marca_in_en_el_clip_actual_con_el_fps_del_clip(qtbot):
+    window = _window_with_video(qtbot)
+    window.show()
+    qtbot.waitExposed(window)
+    clips = [Clip(orden=1, ruta=Path("/a.MP4"), categoria_path=[], fps=60.0)]
+    window.load_clips(clips)
+    window.video_widget.player._mpv.time_pos = 2.0
+    window.handle_key_press("i")
+    assert window.current_clip.in_frame == 120
+
+
+def test_tecla_o_marca_out(qtbot):
+    window = _window_with_video(qtbot)
+    window.show()
+    qtbot.waitExposed(window)
+    clips = [Clip(orden=1, ruta=Path("/a.MP4"), categoria_path=[], fps=60.0)]
+    window.load_clips(clips)
+    window.video_widget.player._mpv.time_pos = 5.0
+    window.handle_key_press("o")
+    assert window.current_clip.out_frame == 300
+
+
+def test_tecla_u_limpia_in_out_del_clip(qtbot):
+    window = _window_with_video(qtbot)
+    window.show()
+    qtbot.waitExposed(window)
+    clips = [Clip(orden=1, ruta=Path("/a.MP4"), categoria_path=[], fps=60.0)]
+    window.load_clips(clips)
+    window.video_widget.player._mpv.time_pos = 2.0
+    window.handle_key_press("i")
+    window.handle_key_press("u")
+    assert window.current_clip.in_frame is None
+    assert window.current_clip.out_frame is None
