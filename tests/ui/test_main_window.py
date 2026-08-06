@@ -417,6 +417,90 @@ def test_subcuarto_desconocido_pide_padre_y_se_cuelga(qtbot, monkeypatch):
     assert window.current_clip.categoria_path == ["Recámara 1", "Baño"]
 
 
+def test_presionar_tecla_de_cuarto_con_multiseleccion_aplica_a_todos_los_seleccionados(qtbot):
+    window = _window(qtbot)
+    clips = [
+        Clip(orden=1, ruta=Path("/a.MP4"), categoria_path=[], fps=30.0),
+        Clip(orden=2, ruta=Path("/b.MP4"), categoria_path=[], fps=30.0),
+        Clip(orden=3, ruta=Path("/c.MP4"), categoria_path=[], fps=30.0),
+    ]
+    window.load_clips(clips)
+    window.filmstrip.set_selected({0, 2})
+    window.handle_key_press("2")  # "Cocina"
+    assert window.clips[0].categoria_path == ["Cocina"]
+    assert window.clips[1].categoria_path == []  # no estaba seleccionado
+    assert window.clips[2].categoria_path == ["Cocina"]
+
+
+def test_seleccion_de_un_solo_clip_no_activa_modo_lote(qtbot):
+    """Con 0 o 1 clip seleccionado, la tecla de cuarto sigue aplicando
+    solo al clip actual -- el comportamiento de siempre."""
+    window = _window(qtbot)
+    clips = [
+        Clip(orden=1, ruta=Path("/a.MP4"), categoria_path=[], fps=30.0),
+        Clip(orden=2, ruta=Path("/b.MP4"), categoria_path=[], fps=30.0),
+    ]
+    window.load_clips(clips)
+    window.filmstrip.set_selected({0})
+    window.handle_key_press("2")
+    assert window.clips[0].categoria_path == ["Cocina"]
+    assert window.clips[1].categoria_path == []
+
+
+def test_toolbar_muestra_posicion_y_resumen_de_estado(qtbot):
+    window = _window(qtbot)
+    clips = [
+        Clip(orden=1, ruta=Path("/a.MP4"), categoria_path=[], fps=30.0, flag="pick"),
+        Clip(orden=2, ruta=Path("/b.MP4"), categoria_path=[], fps=30.0, flag="reject"),
+        Clip(orden=3, ruta=Path("/c.MP4"), categoria_path=[], fps=30.0),
+    ]
+    window.load_clips(clips)
+    assert window.position_label.text() == "Clip 01 / 3"
+    assert "1 pick" in window.progress_label.text()
+    assert "1 reject" in window.progress_label.text()
+    assert "3 sin clasificar" in window.unclassified_badge.text()
+
+
+def test_badge_sin_clasificar_se_vacia_cuando_todo_esta_clasificado(qtbot):
+    window = _window(qtbot)
+    window.load_clips([Clip(orden=1, ruta=Path("/a.MP4"), categoria_path=["Sala"], fps=30.0)])
+    assert window.unclassified_badge.text() == ""
+
+
+def test_inspector_muestra_metadata_del_clip_actual(qtbot):
+    window = _window(qtbot)
+    window.load_clips([
+        Clip(orden=1, ruta=Path("/a.MP4"), categoria_path=["Cocina"], fps=30.0, flag="pick"),
+    ])
+    assert window.inspector_file_label.text() == "a.MP4"
+    assert window.inspector_room_label.text() == "Cocina"
+    assert window.inspector_state_label.text() == "✓ Pick"
+
+
+def test_inspector_muestra_breadcrumb_de_subcuarto(qtbot):
+    window = _window(qtbot)
+    window.load_clips([Clip(orden=1, ruta=Path("/a.MP4"), categoria_path=["Recámara", "Recámara 1"], fps=30.0)])
+    assert window.inspector_room_label.text() == "Recámara › Recámara 1"
+
+
+def test_banner_de_subcuarto_aparece_al_entrar_en_modo_subcuarto(qtbot):
+    window = _window(qtbot)
+    window.load_clips([Clip(orden=1, ruta=Path("/a.MP4"), categoria_path=[], fps=30.0)])
+    window._router.subrooms = {}  # "Cocina" (2) no tiene subcuartos conocidos aun
+    assert window.subroom_banner.isHidden()
+
+
+def test_banner_de_subcuarto_se_oculta_al_resolver(qtbot, monkeypatch):
+    window = _window(qtbot)
+    monkeypatch.setattr(window, "_ask_parent_room", lambda subroom: None)
+    window.load_clips([Clip(orden=1, ruta=Path("/a.MP4"), categoria_path=[], fps=30.0)])
+    window._router.pending_parent = "Sala"
+    window._update_subroom_banner()
+    assert not window.subroom_banner.isHidden()
+    window.handle_key_press("9")  # tecla que no resuelve subcuarto -> sale del modo
+    assert window.subroom_banner.isHidden()
+
+
 def test_columna_de_cuartos_muestra_contador_de_clips(qtbot):
     window = _window_with_video(qtbot)
     clips = [

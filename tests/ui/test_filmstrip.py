@@ -46,7 +46,7 @@ def test_estilo_de_pick_aplica_borde_verde(qtbot):
     qtbot.addWidget(strip)
     strip.set_clips([ClipThumbnail(path=Path("/b.MP4"), thumbnail_path=None, room_label="Cocina", flag="pick")])
     item = strip.item_widgets[0]
-    assert "border: 2px solid #3bb273" in item.styleSheet()
+    assert "border: 2px solid #3ddc84" in item.styleSheet()
 
 
 def test_estilo_de_reject_aplica_borde_rosa(qtbot):
@@ -54,7 +54,7 @@ def test_estilo_de_reject_aplica_borde_rosa(qtbot):
     qtbot.addWidget(strip)
     strip.set_clips([ClipThumbnail(path=Path("/b.MP4"), thumbnail_path=None, room_label="Cocina", flag="reject")])
     item = strip.item_widgets[0]
-    assert "border: 2px solid #e0556f" in item.styleSheet()
+    assert "border: 2px solid #ff5566" in item.styleSheet()
 
 
 def test_sin_flag_no_aplica_borde_de_color(qtbot):
@@ -62,8 +62,23 @@ def test_sin_flag_no_aplica_borde_de_color(qtbot):
     qtbot.addWidget(strip)
     strip.set_clips([ClipThumbnail(path=Path("/b.MP4"), thumbnail_path=None, room_label="Sin clasificar", flag="none")])
     item = strip.item_widgets[0]
-    assert "#3bb273" not in item.styleSheet()
-    assert "#e0556f" not in item.styleSheet()
+    assert "#3ddc84" not in item.styleSheet()
+    assert "#ff5566" not in item.styleSheet()
+
+
+def test_franja_de_color_de_cuarto_no_pelea_con_colores_de_estado(qtbot):
+    """El acento de identidad de cuarto vive en border-top (una posicion
+    distinta del borde de estado) y usa la paleta apagada de theme.py,
+    nunca las familias de color de pick/reject/actual."""
+    strip = Filmstrip()
+    qtbot.addWidget(strip)
+    strip.set_clips([
+        ClipThumbnail(path=Path("/a.MP4"), thumbnail_path=None, room_label="Living",
+                      flag="pick", room_color="#6f8bb0"),
+    ])
+    item = strip.item_widgets[0]
+    assert "border-top: 3px solid #6f8bb0" in item.styleSheet()
+    assert "border: 2px solid #3ddc84" in item.styleSheet()
 
 
 def test_item_puede_recibir_un_pixmap(qtbot):
@@ -76,21 +91,21 @@ def test_item_puede_recibir_un_pixmap(qtbot):
     assert strip.item_widgets[0].has_pixmap()
 
 
-def test_clip_actual_tiene_borde_azul(qtbot):
+def test_clip_actual_tiene_borde_de_acento(qtbot):
     strip = Filmstrip()
     qtbot.addWidget(strip)
     strip.set_clips([ClipThumbnail(path=Path("/a.MP4"), thumbnail_path=None, room_label="X", flag="none")])
     strip.set_current(0)
-    assert "border: 2px solid #2b7fff" in strip.item_widgets[0].styleSheet()
+    assert "border: 2px solid #ff8a3d" in strip.item_widgets[0].styleSheet()
 
 
-def test_pick_sobre_borde_azul_mantiene_ambos_colores(qtbot):
+def test_pick_sobre_borde_actual_mantiene_ambos_colores(qtbot):
     strip = Filmstrip()
     qtbot.addWidget(strip)
     strip.set_clips([ClipThumbnail(path=Path("/a.MP4"), thumbnail_path=None, room_label="X", flag="pick")])
     strip.set_current(0)
-    assert "border: 2px solid #3bb273" in strip.item_widgets[0].styleSheet()
-    assert "outline: 2px solid #2b7fff" in strip.item_widgets[0].styleSheet()
+    assert "border: 2px solid #3ddc84" in strip.item_widgets[0].styleSheet()
+    assert "outline: 2px solid #ff8a3d" in strip.item_widgets[0].styleSheet()
 
 
 def test_miniatura_grande_se_escala_a_altura_fija(qtbot):
@@ -123,6 +138,98 @@ def test_item_del_filmstrip_muestra_cursor_de_mano(qtbot):
     qtbot.addWidget(strip)
     strip.set_clips([ClipThumbnail(path=Path("/a.MP4"), thumbnail_path=None, room_label="X", flag="none")])
     assert strip.item_widgets[0].cursor().shape() == Qt.PointingHandCursor
+
+
+def test_ctrl_click_suma_clips_a_la_seleccion(qtbot):
+    strip = Filmstrip()
+    qtbot.addWidget(strip)
+    strip.set_clips([
+        ClipThumbnail(path=Path("/a.MP4"), thumbnail_path=None, room_label="X", flag="none"),
+        ClipThumbnail(path=Path("/b.MP4"), thumbnail_path=None, room_label="Y", flag="none"),
+        ClipThumbnail(path=Path("/c.MP4"), thumbnail_path=None, room_label="Z", flag="none"),
+    ])
+    strip._on_item_clicked(0, Qt.NoModifier)
+    strip._on_item_clicked(2, Qt.ControlModifier)
+    assert strip.selected_indices() == [0, 2]
+
+
+def test_shift_click_selecciona_un_rango(qtbot):
+    strip = Filmstrip()
+    qtbot.addWidget(strip)
+    strip.set_clips([
+        ClipThumbnail(path=Path("/a.MP4"), thumbnail_path=None, room_label="X", flag="none")
+        for _ in range(5)
+    ])
+    strip._on_item_clicked(1, Qt.NoModifier)
+    strip._on_item_clicked(3, Qt.ShiftModifier)
+    assert strip.selected_indices() == [1, 2, 3]
+
+
+def test_click_simple_reemplaza_la_seleccion_anterior(qtbot):
+    strip = Filmstrip()
+    qtbot.addWidget(strip)
+    strip.set_clips([
+        ClipThumbnail(path=Path("/a.MP4"), thumbnail_path=None, room_label="X", flag="none")
+        for _ in range(3)
+    ])
+    strip._on_item_clicked(0, Qt.ControlModifier)
+    strip._on_item_clicked(1, Qt.ControlModifier)
+    strip._on_item_clicked(2, Qt.NoModifier)  # click simple, sin modificadores
+    assert strip.selected_indices() == [2]
+
+
+def test_seleccion_multiple_emite_selection_changed(qtbot):
+    strip = Filmstrip()
+    qtbot.addWidget(strip)
+    strip.set_clips([
+        ClipThumbnail(path=Path("/a.MP4"), thumbnail_path=None, room_label="X", flag="none")
+        for _ in range(3)
+    ])
+    with qtbot.waitSignal(strip.selection_changed, timeout=1000) as blocker:
+        strip._on_item_clicked(1, Qt.ControlModifier)
+    assert 1 in blocker.args[0]
+
+
+def test_vista_grilla_es_la_vista_por_defecto(qtbot):
+    strip = Filmstrip()
+    qtbot.addWidget(strip)
+    assert strip.grid_view_button.isChecked()
+    assert not strip.list_view_button.isChecked()
+
+
+def test_cambiar_a_vista_lista_crea_una_fila_por_clip(qtbot):
+    strip = Filmstrip()
+    qtbot.addWidget(strip)
+    strip.set_clips([
+        ClipThumbnail(path=Path("/a.MP4"), thumbnail_path=None, room_label="Living", flag="pick"),
+        ClipThumbnail(path=Path("/b.MP4"), thumbnail_path=None, room_label="Cocina", flag="none"),
+    ])
+    strip.set_view_mode("list")
+    assert strip.list_view_button.isChecked()
+    assert len(strip._list_rows) == 2
+    assert strip._list_rows[0]._name_label.text() == "a.MP4"
+
+
+def test_fila_de_lista_en_pick_muestra_texto_de_estado(qtbot):
+    strip = Filmstrip()
+    qtbot.addWidget(strip)
+    strip.set_clips([
+        ClipThumbnail(path=Path("/a.MP4"), thumbnail_path=None, room_label="Living", flag="pick"),
+    ])
+    assert strip._list_rows[0]._flag_label.text() == "✓ Pick"
+
+
+def test_click_en_fila_de_lista_tambien_actualiza_la_seleccion(qtbot):
+    strip = Filmstrip()
+    qtbot.addWidget(strip)
+    strip.set_clips([
+        ClipThumbnail(path=Path("/a.MP4"), thumbnail_path=None, room_label="X", flag="none"),
+        ClipThumbnail(path=Path("/b.MP4"), thumbnail_path=None, room_label="Y", flag="none"),
+    ])
+    with qtbot.waitSignal(strip.clip_clicked, timeout=1000) as blocker:
+        strip._list_rows[1].clicked.emit(Qt.NoModifier)
+    assert blocker.args == [1]
+    assert strip.selected_indices() == [1]
 
 
 def test_miniatura_horizontal_tambien_respeta_la_altura_fija(qtbot):

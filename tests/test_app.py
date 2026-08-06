@@ -104,4 +104,4 @@ def test_main_aplica_el_stylesheet_global(qtbot, monkeypatch):
     app_module.main()
 
     app = QApplication.instance()
-    assert "background-color: #1a1a1e" in app.styleSheet()
+    assert "background-color: #08080a" in app.styleSheet()

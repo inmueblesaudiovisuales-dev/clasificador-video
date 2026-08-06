@@ -2,10 +2,11 @@
 from __future__ import annotations
 
 import shutil
+import time
 from pathlib import Path
 from typing import Callable
 
-from PySide6.QtCore import QRunnable, QThreadPool, Signal
+from PySide6.QtCore import Qt, QRunnable, QThreadPool, QTimer, Signal
 from PySide6.QtGui import QKeySequence, QPixmap, QShortcut
 from PySide6.QtWidgets import (
     QComboBox,
@@ -13,7 +14,9 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QListWidget,
+    QListWidgetItem,
     QMessageBox,
+    QProgressBar,
     QPushButton,
     QVBoxLayout,
     QWidget,
@@ -28,6 +31,7 @@ from clasificador_video.player import QUALITY_PROFILES
 from clasificador_video.probe import probe_clip
 from clasificador_video.rooms import RoomSelection
 from clasificador_video.thumbnails import extract_thumbnail
+from clasificador_video.ui import theme
 from clasificador_video.ui.filmstrip import ClipThumbnail, Filmstrip
 from clasificador_video.ui.video_widget import VideoWidget
 
@@ -49,6 +53,37 @@ def _build_legend_text(active_rooms: list[str]) -> str:
 def _es_room_numerado(room: str) -> bool:
     partes = room.split()
     return bool(partes) and partes[-1].isdigit()
+
+
+def _build_room_row_widget(key_number: int, room: str, count: int, max_count: int, color: str) -> QWidget:
+    """Fila de la lista de cuartos: tecla + nombre + conteo + barra
+    proporcional al cuarto con mas clips -- de un vistazo se ve que
+    cuarto esta "lleno" y cual falta cubrir todavia."""
+    widget = QWidget()
+    layout = QVBoxLayout(widget)
+    layout.setContentsMargins(4, 2, 4, 2)
+    layout.setSpacing(2)
+    top = QHBoxLayout()
+    keycap = QLabel(str(key_number)) if key_number else QLabel("")
+    keycap.setObjectName("roomKeycap")
+    keycap.setFixedWidth(16)
+    keycap.setAlignment(Qt.AlignCenter)
+    dot = QLabel("●")
+    dot.setStyleSheet(f"color: {color}; font-size: 9px;")
+    name_label = QLabel(f"{room} ({count})")
+    top.addWidget(keycap)
+    top.addWidget(dot)
+    top.addWidget(name_label, stretch=1)
+    layout.addLayout(top)
+    bar = QProgressBar()
+    bar.setObjectName("roomCountBar")
+    bar.setRange(0, max(max_count, 1))
+    bar.setValue(count)
+    bar.setTextVisible(False)
+    bar.setFixedHeight(3)
+    layout.addWidget(bar)
+    widget.setFixedHeight(36)
+    return widget
 
 
 class _ThumbnailJob(QRunnable):
@@ -100,6 +135,7 @@ class MainWindow(QWidget):
         self.category_tree = category_tree
         self.clips: list[Clip] = []
         self.current_index = 0
+        self.selected_indices: list[int] = []
         self._router = KeyboardRouter(active_rooms=room_selection.active_rooms())
         self._probe_clip = probe_clip          # inyectable para tests
         self._thread_pool = QThreadPool(self)
@@ -109,6 +145,7 @@ class MainWindow(QWidget):
         self._thumb_dir: Path | None = None
         self._thumb_generation = 0
         self.session_path: Path | None = None
+        self._last_saved_at: float | None = None
 
         self.room_list_widget = QListWidget()
         self.room_list_widget.addItems(room_selection.active_rooms())
@@ -124,6 +161,7 @@ class MainWindow(QWidget):
         self.filmstrip = Filmstrip()
         self.filmstrip.setObjectName("filmstripPanel")
         self.filmstrip.clip_clicked.connect(self.select_clip)
+        self.filmstrip.selection_changed.connect(self._on_selection_changed)
 
         self.video_widget = VideoWidget(mpv_factory=video_factory) if video_factory else VideoWidget()
         self.video_widget.setObjectName("videoWidget")
@@ -138,10 +176,29 @@ class MainWindow(QWidget):
         self.status_label = QLabel("")
         self.status_label.setObjectName("statusLabel")
 
+        # posicion "clip N/total" + resumen pick/reject/pendiente -- datos
+        # que ya se calculan de siempre, solo que antes no se mostraban
+        self.position_label = QLabel("")
+        self.position_label.setObjectName("positionLabel")
+        self.progress_label = QLabel("")
+        self.progress_label.setObjectName("legendLabel")
+        self.unclassified_badge = QLabel("")
+        self.unclassified_badge.setObjectName("unclassifiedBadge")
+        self.saved_indicator = QLabel("")
+        self.saved_indicator.setObjectName("savedIndicator")
+        self._saved_timer = QTimer(self)
+        self._saved_timer.setInterval(1000)
+        self._saved_timer.timeout.connect(self._tick_saved_indicator)
+        self._saved_timer.start()
+
         top_bar = QHBoxLayout()
         top_bar.addWidget(QLabel("Calidad:"))
         top_bar.addWidget(self.quality_combo)
+        top_bar.addWidget(self.position_label)
+        top_bar.addWidget(self.progress_label)
         top_bar.addStretch(1)
+        top_bar.addWidget(self.unclassified_badge)
+        top_bar.addWidget(self.saved_indicator)
         top_bar.addWidget(self.status_label)
         top_bar.addWidget(self.export_button)
 
@@ -158,9 +215,38 @@ class MainWindow(QWidget):
         room_column_widget.setObjectName("roomColumn")
         room_column_widget.setLayout(column)
 
+        # banner de modo subcuarto: solo visible mientras el router esta
+        # esperando la tecla de subcuarto (_router.pending_parent) -- antes
+        # ese estado era invisible para el editor
+        self.subroom_banner = QLabel("")
+        self.subroom_banner.setObjectName("subroomBanner")
+        self.subroom_banner.hide()
+
+        video_column = QVBoxLayout()
+        video_column.addWidget(self.subroom_banner)
+        video_column.addWidget(self.video_widget, stretch=1)
+
+        # inspector de metadata del clip actual: antes solo se leia
+        # (parcialmente) en el filmstrip, ahora vive junto al video
+        self.inspector_panel = QWidget()
+        self.inspector_panel.setObjectName("inspectorPanel")
+        self.inspector_panel.setFixedWidth(200)
+        inspector_layout = QVBoxLayout(self.inspector_panel)
+        self.inspector_file_label = QLabel("")
+        self.inspector_file_label.setObjectName("clipRoomLabel")
+        self.inspector_room_label = QLabel("")
+        self.inspector_room_label.setObjectName("inspectorRoomLabel")
+        self.inspector_state_label = QLabel("")
+        self.inspector_state_label.setObjectName("clipRoomLabel")
+        inspector_layout.addWidget(self.inspector_file_label)
+        inspector_layout.addWidget(self.inspector_room_label)
+        inspector_layout.addWidget(self.inspector_state_label)
+        inspector_layout.addStretch(1)
+
         center = QHBoxLayout()
         center.addWidget(room_column_widget, stretch=0)
-        center.addWidget(self.video_widget, stretch=1)
+        center.addLayout(video_column, stretch=1)
+        center.addWidget(self.inspector_panel, stretch=0)
 
         root = QVBoxLayout(self)
         root.addLayout(top_bar)
@@ -204,6 +290,63 @@ class MainWindow(QWidget):
             return None
         return self.clips[self.current_index]
 
+    def _on_selection_changed(self, indices: list[int]) -> None:
+        self.selected_indices = list(indices)
+
+    def _bulk_targets(self) -> list[Clip]:
+        """Clips a los que aplicar una asignacion de cuarto: si hay mas de
+        un clip seleccionado en el filmstrip (Shift/Ctrl+click), todos
+        ellos; si no, solo el clip actual (comportamiento de siempre)."""
+        if len(self.selected_indices) > 1:
+            return [self.clips[i] for i in self.selected_indices if 0 <= i < len(self.clips)]
+        if self.current_clip is not None:
+            return [self.current_clip]
+        return []
+
+    def _apply_categoria_to_targets(self, path: list[str]) -> None:
+        for clip in self._bulk_targets():
+            clip.categoria_path = list(path)
+
+    def _update_toolbar_stats(self) -> None:
+        total = len(self.clips)
+        position = self.current_index + 1 if self.clips else 0
+        self.position_label.setText(f"Clip {position:02d} / {total}")
+        picks = sum(1 for c in self.clips if c.flag == "pick")
+        rejects = sum(1 for c in self.clips if c.flag == "reject")
+        pending = total - picks - rejects
+        self.progress_label.setText(f"{picks} pick · {rejects} reject · {pending} pend.")
+        unclassified = sum(1 for c in self.clips if not c.categoria_path)
+        self.unclassified_badge.setText(f"{unclassified} sin clasificar" if unclassified else "")
+
+    def _update_inspector(self) -> None:
+        clip = self.current_clip
+        if clip is None:
+            self.inspector_file_label.setText("")
+            self.inspector_room_label.setText("")
+            self.inspector_state_label.setText("")
+            return
+        self.inspector_file_label.setText(Path(clip.ruta).name)
+        self.inspector_room_label.setText(
+            " › ".join(clip.categoria_path) if clip.categoria_path else "Sin clasificar"
+        )
+        estado = {"pick": "✓ Pick", "reject": "✕ Reject"}.get(clip.flag, "—")
+        self.inspector_state_label.setText(estado)
+
+    def _update_subroom_banner(self) -> None:
+        parent = self._router.pending_parent
+        if parent is None:
+            self.subroom_banner.hide()
+            return
+        options = "   ".join(f"{i} {name}" for i, name in enumerate(SUBROOM_CANDIDATES, start=1))
+        self.subroom_banner.setText(f"Elegí subcuarto: {options}")
+        self.subroom_banner.show()
+
+    def _tick_saved_indicator(self) -> None:
+        if self._last_saved_at is None:
+            return
+        elapsed = int(time.monotonic() - self._last_saved_at)
+        self.saved_indicator.setText(f"Guardado hace {elapsed}s")
+
     def load_clips(self, clips: list[Clip]) -> None:
         self.clips = clips
         self.current_index = 0
@@ -228,6 +371,8 @@ class MainWindow(QWidget):
                 "clips": [c.to_dict() for c in self.clips],
             }
             save_session(self.session_path, data)
+            self._last_saved_at = time.monotonic()
+            self._tick_saved_indicator()
         except OSError:
             pass
 
@@ -298,10 +443,11 @@ class MainWindow(QWidget):
                 room = self._router.active_rooms[index]
                 if _es_room_numerado(room) and not self._router.subrooms.get(room):
                     self._router.pending_parent = room
+                    self._update_subroom_banner()
                     return  # la tecla siguiente elige el subcuarto
         room_path = self._router.resolve_room_key(key)
         if room_path is not None:
-            self.current_clip.categoria_path = room_path
+            self._apply_categoria_to_targets(room_path)
             self._refresh_filmstrip()
             self._autosave()
             return
@@ -314,16 +460,19 @@ class MainWindow(QWidget):
     def _handle_subroom_key(self, key: str) -> None:
         sub_path = self._router.resolve_subroom_key(key)
         if sub_path is not None:
-            self.current_clip.categoria_path = sub_path
+            self._apply_categoria_to_targets(sub_path)
             self._refresh_filmstrip()
             self._autosave()
+            self._update_subroom_banner()
             return
         if key.isdigit():
             index = int(key) - 1
             if 0 <= index < len(SUBROOM_CANDIDATES):
                 self.attach_subroom_or_resolve(SUBROOM_CANDIDATES[index])
+                self._update_subroom_banner()
                 return
         self._router.pending_parent = None  # la tecla no era de subcuarto: salir del modo
+        self._update_subroom_banner()
 
     def handle_arrow(self, direction: str) -> None:
         if not self.clips:
@@ -336,6 +485,7 @@ class MainWindow(QWidget):
         if clip is not None:
             self.video_widget.open_clip(clip.ruta)
         self._refresh_filmstrip()
+        self._update_inspector()
         self._autosave()
 
     def select_clip(self, index: int) -> None:
@@ -356,6 +506,8 @@ class MainWindow(QWidget):
         # termina en SIGSEGV (KERN_INVALID_ADDRESS 0xc). Reconstruir ademas
         # borraba todos los pixmaps ya cargados por los _ThumbnailJob.
         self.filmstrip.set_current(self.current_index)
+        self._update_toolbar_stats()
+        self._update_inspector()
         self._autosave()
 
     def attach_subroom_or_resolve(self, subroom: str) -> list[str] | None:
@@ -371,7 +523,7 @@ class MainWindow(QWidget):
         for parent in self.room_selection.active_rooms():
             if subroom in self.category_tree.known_subrooms_for(parent):
                 path = self.category_tree.path_for(parent, subroom=subroom)
-                self.current_clip.categoria_path = path
+                self._apply_categoria_to_targets(path)
                 self._refresh_filmstrip()
                 return path
         parent = self._ask_parent_room(subroom)
@@ -380,7 +532,7 @@ class MainWindow(QWidget):
         self.category_tree.attach_subroom(parent, subroom)
         self._router.subrooms[parent] = self.category_tree.known_subrooms_for(parent)
         path = self.category_tree.path_for(parent, subroom=subroom)
-        self.current_clip.categoria_path = path
+        self._apply_categoria_to_targets(path)
         self._refresh_filmstrip()
         self._autosave()
         return path
@@ -432,17 +584,25 @@ class MainWindow(QWidget):
             self.ingest_list.addItem(f.display_name)
 
     def _refresh_filmstrip(self) -> None:
+        active_rooms = self.room_selection.active_rooms()
         self.filmstrip.set_clips([
             ClipThumbnail(
                 path=clip.ruta,
                 thumbnail_path=None,
                 room_label=clip.categoria_path[-1] if clip.categoria_path else "Sin clasificar",
                 flag=clip.flag,
+                room_color=(
+                    theme.room_color(active_rooms.index(clip.categoria_path[0]))
+                    if clip.categoria_path and clip.categoria_path[0] in active_rooms
+                    else None
+                ),
             )
             for clip in self.clips
         ])
         self.filmstrip.set_current(self.current_index)
         self._refresh_room_counts()
+        self._update_toolbar_stats()
+        self._update_inspector()
 
     def _refresh_room_counts(self) -> None:
         from collections import Counter
@@ -451,6 +611,15 @@ class MainWindow(QWidget):
         for clip in self.clips:
             if clip.categoria_path:
                 counts[clip.categoria_path[0]] += 1
+        active_rooms = self.room_selection.active_rooms()
+        max_count = max(counts.values(), default=0)
         self.room_list_widget.clear()
-        for room in self.room_selection.active_rooms():
-            self.room_list_widget.addItem(f"{room} ({counts[room]})")
+        for index, room in enumerate(active_rooms):
+            item = QListWidgetItem(f"{room} ({counts[room]})")
+            self.room_list_widget.addItem(item)
+            key_number = index + 1 if index < 9 else 0
+            row_widget = _build_room_row_widget(
+                key_number, room, counts[room], max_count, theme.room_color(index)
+            )
+            item.setSizeHint(row_widget.sizeHint())
+            self.room_list_widget.setItemWidget(item, row_widget)
