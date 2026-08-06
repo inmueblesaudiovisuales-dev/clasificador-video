@@ -1,6 +1,7 @@
 # src/clasificador_video/ui/main_window.py
 from __future__ import annotations
 
+import shutil
 from pathlib import Path
 from typing import Callable
 
@@ -47,10 +48,11 @@ class _ThumbnailJob(QRunnable):
     """Extrae la miniatura de un clip fuera del hilo de la UI."""
 
     class Signals(QWidget):
-        done = Signal(int, object)  # indice, Path del jpg
+        done = Signal(int, int, object)  # generation, indice, Path del jpg
 
-    def __init__(self, index: int, video: Path, outdir: Path):
+    def __init__(self, generation: int, index: int, video: Path, outdir: Path):
         super().__init__()
+        self._generation = generation
         self.index = index
         self.video = video
         self.outdir = outdir
@@ -61,7 +63,7 @@ class _ThumbnailJob(QRunnable):
             frame = extract_thumbnail(self.video, 0.5, self.outdir)
         except Exception:
             frame = None
-        self.signals.done.emit(self.index, frame)
+        self.signals.done.emit(self._generation, self.index, frame)
 
 
 class MainWindow(QWidget):
@@ -93,6 +95,7 @@ class MainWindow(QWidget):
         # paralelo saturan VideoToolbox y bloquean al reproductor embebido
         self._thread_pool.setMaxThreadCount(1)
         self._thumb_dir: Path | None = None
+        self._thumb_generation = 0
         self.session_path: Path | None = None
 
         self.room_list_widget = QListWidget()
@@ -171,7 +174,12 @@ class MainWindow(QWidget):
     def closeEvent(self, event) -> None:
         # esperar a que terminen los jobs de miniaturas antes de destruir la UI
         self._thread_pool.waitForDone(5000)
+        self._cleanup_thumb_dir()
         super().closeEvent(event)
+
+    def _cleanup_thumb_dir(self) -> None:
+        if self._thumb_dir is not None and self._thumb_dir.exists():
+            shutil.rmtree(self._thumb_dir, ignore_errors=True)
 
     @property
     def current_clip(self) -> Clip | None:
@@ -228,13 +236,21 @@ class MainWindow(QWidget):
             return
         import tempfile
 
+        # una importacion nueva invalida los jobs viejos: limpia el dir
+        # temporal anterior y avanza la generacion para que las senales
+        # stale de la importacion anterior no escriban sobre el filmstrip nuevo
+        self._cleanup_thumb_dir()
         self._thumb_dir = Path(tempfile.mkdtemp(prefix="clasificador-thumbs-"))
+        self._thumb_generation += 1
+        generation = self._thumb_generation
         for index, clip in enumerate(self.clips):
-            job = _ThumbnailJob(index, clip.ruta, self._thumb_dir / str(index))
+            job = _ThumbnailJob(generation, index, clip.ruta, self._thumb_dir / str(index))
             job.signals.done.connect(self._on_thumbnail_ready)
             self._thread_pool.start(job)
 
-    def _on_thumbnail_ready(self, index: int, frame: Path | None) -> None:
+    def _on_thumbnail_ready(self, generation: int, index: int, frame: Path | None) -> None:
+        if generation != self._thumb_generation:
+            return  # senal de una importacion ya descartada
         if frame is None or index >= self.filmstrip.count():
             return
         self.filmstrip.item_widgets[index].set_pixmap(QPixmap(str(frame)))

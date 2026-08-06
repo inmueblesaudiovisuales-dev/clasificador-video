@@ -166,6 +166,47 @@ def test_import_ignora_clip_cuyo_ffprobe_falla_y_sigue_con_los_demas(qtbot, monk
     assert window.filmstrip.count() == 1
 
 
+def _no_mpv_in_test(*a, **k):
+    raise RuntimeError("no se ejecuta mpv en tests")
+
+
+def test_thumbnail_stale_de_importacion_anterior_se_ignora(qtbot, monkeypatch, tmp_path):
+    window = _window_with_video(qtbot)
+    monkeypatch.setattr(
+        "clasificador_video.ui.main_window.extract_thumbnail", _no_mpv_in_test
+    )
+    window.load_clips([Clip(orden=1, ruta=Path("/a1.MP4"), categoria_path=[], fps=30.0)])
+    window._schedule_thumbnails()  # generacion 1
+    window.load_clips([Clip(orden=1, ruta=Path("/b1.MP4"), categoria_path=[], fps=30.0)])
+    window._schedule_thumbnails()  # generacion 2
+    window._thread_pool.waitForDone(5000)
+
+    calls = []
+    for w in window.filmstrip.item_widgets:
+        monkeypatch.setattr(w, "set_pixmap", lambda pixmap, _w=w: calls.append(_w))
+
+    window._on_thumbnail_ready(1, 0, tmp_path / "stale.jpg")
+    assert calls == []
+    window._on_thumbnail_ready(2, 0, tmp_path / "fresh.jpg")
+    assert len(calls) == 1
+
+
+def test_close_event_limpia_el_thumb_dir_temporal(qtbot, monkeypatch):
+    from PySide6.QtGui import QCloseEvent
+
+    window = _window_with_video(qtbot)
+    monkeypatch.setattr(
+        "clasificador_video.ui.main_window.extract_thumbnail", _no_mpv_in_test
+    )
+    window.load_clips([Clip(orden=1, ruta=Path("/a.MP4"), categoria_path=[], fps=30.0)])
+    window._schedule_thumbnails()
+    thumb_dir = window._thumb_dir
+    assert thumb_dir is not None and thumb_dir.exists()
+    window._thread_pool.waitForDone(5000)
+    window.closeEvent(QCloseEvent())
+    assert not thumb_dir.exists()
+
+
 def test_load_clips_arranca_el_primer_clip_en_el_reproductor(qtbot):
     window = _window_with_video(qtbot)
     window.show()
