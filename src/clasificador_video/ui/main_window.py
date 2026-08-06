@@ -30,7 +30,7 @@ from clasificador_video.manifest import Clip, Manifest
 from clasificador_video.player import QUALITY_PROFILES
 from clasificador_video.probe import probe_clip
 from clasificador_video.rooms import RoomSelection
-from clasificador_video.thumbnails import extract_thumbnail
+from clasificador_video.thumbnails import extract_thumbnail, extract_thumbnail_strip
 from clasificador_video.ui import theme
 from clasificador_video.ui.filmstrip import ClipThumbnail, Filmstrip
 from clasificador_video.ui.video_widget import VideoWidget
@@ -87,26 +87,41 @@ def _build_room_row_widget(key_number: int, room: str, count: int, max_count: in
 
 
 class _ThumbnailJob(QRunnable):
-    """Extrae la miniatura de un clip fuera del hilo de la UI."""
+    """Extrae la miniatura (o la tira de frames para el scrub) de un clip
+    fuera del hilo de la UI."""
+
+    STRIP_COUNT = 12
 
     class Signals(QWidget):
-        done = Signal(int, int, object)  # generation, indice, Path del jpg
+        done = Signal(int, int, object)  # generation, indice, list[Path] | None
 
-    def __init__(self, generation: int, index: int, video: Path, outdir: Path):
+    def __init__(self, generation: int, index: int, video: Path, outdir: Path, duration_seconds: float | None):
         super().__init__()
         self._generation = generation
         self.index = index
         self.video = video
         self.outdir = outdir
+        self.duration_seconds = duration_seconds
         self.signals = _ThumbnailJob.Signals()
 
     def run(self) -> None:
         try:
-            frame = extract_thumbnail(self.video, 0.5, self.outdir)
+            if self.duration_seconds:
+                # tira de frames espaciados a lo largo del clip, un solo
+                # proceso de mpv con varios seek+captura por IPC -- medido
+                # en vivo el 2026-08-06 con clips reales de la FX30:
+                # ~1.8s para 12 frames (ver thumbnails.extract_thumbnail_strip)
+                frames = extract_thumbnail_strip(
+                    self.video, self.duration_seconds, self.STRIP_COUNT, self.outdir
+                )
+            else:
+                # sin duracion conocida (ej. sesion restaurada sin volver
+                # a correr ffprobe): un solo frame, como antes.
+                frames = [extract_thumbnail(self.video, 0.5, self.outdir)]
         except Exception:
-            frame = None
+            frames = None
         try:
-            self.signals.done.emit(self._generation, self.index, frame)
+            self.signals.done.emit(self._generation, self.index, frames or None)
         except RuntimeError:
             # la ventana dueña (y su Signals) ya se destruyo mientras este
             # job corria en su propio hilo -- no hay nadie escuchando.
@@ -146,6 +161,7 @@ class MainWindow(QWidget):
         self._thumb_generation = 0
         self.session_path: Path | None = None
         self._last_saved_at: float | None = None
+        self._clip_durations: dict[int, float] = {}  # indice -> segundos; solo en memoria
 
         self.room_list_widget = QListWidget()
         self.room_list_widget.addItems(room_selection.active_rooms())
@@ -350,7 +366,7 @@ class MainWindow(QWidget):
     def load_clips(self, clips: list[Clip]) -> None:
         self.clips = clips
         self.current_index = 0
-        self._refresh_filmstrip()
+        self._refresh_filmstrip(force_rebuild=True)
         if clips:
             self.video_widget.open_clip(clips[0].ruta)
         self._autosave()
@@ -378,6 +394,7 @@ class MainWindow(QWidget):
 
     def _load_clips_from_ingest(self) -> None:
         clips: list[Clip] = []
+        durations: dict[int, float] = {}
         orden = 1
         for folder in self.ingest_tree.top_level_folders():
             for video in folder.files:
@@ -386,7 +403,15 @@ class MainWindow(QWidget):
                 except Exception:
                     continue
                 clips.append(Clip(orden=orden, ruta=video, categoria_path=[], fps=info["fps"]))
+                fps = info.get("fps") or 0
+                duration_frames = info.get("duration_frames")
+                if fps and duration_frames:
+                    # duracion real del clip, solo en memoria -- no se
+                    # guarda en Clip/manifest (no toca ese contrato), sirve
+                    # para la tira de scrub y la barra de in/out.
+                    durations[len(clips) - 1] = duration_frames / fps
                 orden += 1
+        self._clip_durations = durations
         self.load_clips(clips)
         self._schedule_thumbnails()
 
@@ -403,16 +428,21 @@ class MainWindow(QWidget):
         self._thumb_generation += 1
         generation = self._thumb_generation
         for index, clip in enumerate(self.clips):
-            job = _ThumbnailJob(generation, index, clip.ruta, self._thumb_dir / str(index))
+            duration_seconds = self._clip_durations.get(index)
+            job = _ThumbnailJob(generation, index, clip.ruta, self._thumb_dir / str(index), duration_seconds)
             job.signals.done.connect(self._on_thumbnail_ready)
             self._thread_pool.start(job)
 
-    def _on_thumbnail_ready(self, generation: int, index: int, frame: Path | None) -> None:
+    def _on_thumbnail_ready(self, generation: int, index: int, frames: list[Path] | None) -> None:
         if generation != self._thumb_generation:
             return  # senal de una importacion ya descartada
-        if frame is None or index >= self.filmstrip.count():
+        if not frames or index >= self.filmstrip.count():
             return
-        self.filmstrip.item_widgets[index].set_pixmap(QPixmap(str(frame)))
+        pixmaps = [QPixmap(str(f)) for f in frames]
+        if len(pixmaps) > 1:
+            self.filmstrip.item_widgets[index].set_frames(pixmaps)
+        else:
+            self.filmstrip.item_widgets[index].set_pixmap(pixmaps[0])
 
     def handle_key_press(self, key: str) -> None:
         if self.current_clip is None:
@@ -583,9 +613,9 @@ class MainWindow(QWidget):
         for f in self.ingest_tree.top_level_folders():
             self.ingest_list.addItem(f.display_name)
 
-    def _refresh_filmstrip(self) -> None:
+    def _refresh_filmstrip(self, force_rebuild: bool = False) -> None:
         active_rooms = self.room_selection.active_rooms()
-        self.filmstrip.set_clips([
+        clip_thumbnails = [
             ClipThumbnail(
                 path=clip.ruta,
                 thumbnail_path=None,
@@ -596,9 +626,23 @@ class MainWindow(QWidget):
                     if clip.categoria_path and clip.categoria_path[0] in active_rooms
                     else None
                 ),
+                in_frame=clip.in_frame,
+                out_frame=clip.out_frame,
+                duration_frames=(
+                    round(self._clip_durations[index] * clip.fps)
+                    if index in self._clip_durations
+                    else None
+                ),
             )
-            for clip in self.clips
-        ])
+            for index, clip in enumerate(self.clips)
+        ]
+        if force_rebuild:
+            self.filmstrip.set_clips(clip_thumbnails)
+        else:
+            # actualiza en el lugar en vez de destruir/recrear los widgets:
+            # eso es lo que preserva las miniaturas ya cargadas por los
+            # _ThumbnailJob al navegar entre clips o clasificar.
+            self.filmstrip.update_clips(clip_thumbnails)
         self.filmstrip.set_current(self.current_index)
         self._refresh_room_counts()
         self._update_toolbar_stats()

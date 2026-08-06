@@ -34,6 +34,33 @@ class ClipThumbnail:
     room_label: str
     flag: str  # "none" | "pick" | "reject"
     room_color: str | None = None  # acento de identidad de cuarto (franja superior)
+    in_frame: int | None = None
+    out_frame: int | None = None
+    duration_frames: int | None = None  # solo para la barra de rango -- no se persiste
+
+
+def _range_bar_style(in_frame: int | None, out_frame: int | None, duration_frames: int | None) -> str:
+    """Gradiente lineal que pinta el rango in/out marcado sobre una barra
+    delgada -- si no hay marca (o no se conoce la duracion del clip) queda
+    un color neutro parejo."""
+    base = "#232327"
+    if not duration_frames or in_frame is None or out_frame is None:
+        return f"background-color: {base};"
+    p1 = max(0.0, min(1.0, in_frame / duration_frames))
+    p2 = max(0.0, min(1.0, out_frame / duration_frames))
+    if p2 < p1:
+        p1, p2 = p2, p1
+    eps = 0.002
+    stops = [
+        (0.0, base),
+        (max(p1 - eps, 0.0), base),
+        (p1, CURRENT_COLOR),
+        (p2, CURRENT_COLOR),
+        (min(p2 + eps, 1.0), base),
+        (1.0, base),
+    ]
+    stop_str = ", ".join(f"stop:{pos:.4f} {color}" for pos, color in stops)
+    return f"background: qlineargradient(x1:0, y1:0, x2:1, y2:0, {stop_str});"
 
 
 class _ClipItemWidget(QWidget):
@@ -43,6 +70,8 @@ class _ClipItemWidget(QWidget):
         super().__init__()
         self._flag = clip.flag
         self._room_color = clip.room_color
+        self._frames: list = []  # QPixmap por frame de la tira, para el scrub
+        self._poster_index = 0
         self.setObjectName("clipItem")
         # sin esto, un QWidget plano no pinta su propio fondo/borde por QSS
         # -- la propiedad se hereda a los QLabel hijos, que la pintan cada
@@ -50,20 +79,48 @@ class _ClipItemWidget(QWidget):
         # envolviendo miniatura + nombre de cuarto).
         self.setAttribute(Qt.WA_StyledBackground, True)
         self.setCursor(Qt.PointingHandCursor)
+        self.setMouseTracking(True)  # scrub tipo Final Cut al pasar el mouse
         layout = QVBoxLayout(self)
         self._image_label = QLabel()
         self._image_label.setFixedHeight(THUMB_HEIGHT)
         self._image_label.setObjectName("clipThumbnail")
+        self._image_label.setMouseTracking(True)
         if clip.thumbnail_path is not None:
             self._image_label.setText("")
         else:
             self._image_label.setText("(sin miniatura)")
         layout.addWidget(self._image_label)
+        self._range_bar = QLabel()
+        self._range_bar.setObjectName("clipRangeBar")
+        self._range_bar.setFixedHeight(4)
+        self._range_bar.setStyleSheet(
+            _range_bar_style(clip.in_frame, clip.out_frame, clip.duration_frames)
+        )
+        layout.addWidget(self._range_bar)
         self._room_label = QLabel(clip.room_label)
         self._room_label.setObjectName("clipRoomLabel")
         layout.addWidget(self._room_label)
 
     def set_pixmap(self, pixmap) -> None:
+        """Miniatura unica (compatibilidad con llamadas existentes): sin
+        tira de frames, no hay scrub posible, solo poster fijo."""
+        self._frames = [pixmap]
+        self._poster_index = 0
+        self._show_frame(0)
+
+    def set_frames(self, pixmaps: list) -> None:
+        """Tira de frames espaciados a lo largo del clip (ver
+        thumbnails.extract_thumbnail_strip) -- habilita el scrub al pasar
+        el mouse, tipo Final Cut Pro. El frame del medio es el poster que
+        se ve por default."""
+        if not pixmaps:
+            return
+        self._frames = pixmaps
+        self._poster_index = len(pixmaps) // 2
+        self._show_frame(self._poster_index)
+
+    def _show_frame(self, index: int) -> None:
+        pixmap = self._frames[index]
         scaled = pixmap.scaled(
             THUMB_MAX_WIDTH, THUMB_HEIGHT, Qt.KeepAspectRatio, Qt.SmoothTransformation
         )
@@ -71,12 +128,36 @@ class _ClipItemWidget(QWidget):
         self._image_label.setFixedWidth(scaled.width())
 
     def has_pixmap(self) -> bool:
-        return self._image_label.pixmap() is not None
+        return bool(self._frames)
+
+    def update_content(self, clip: ClipThumbnail) -> None:
+        """Actualiza texto/estado sin tocar la miniatura ya cargada -- a
+        diferencia de reconstruir el widget entero, que perdia el pixmap
+        cargado por el _ThumbnailJob cada vez que se navegaba de clip."""
+        self._flag = clip.flag
+        self._room_color = clip.room_color
+        self._room_label.setText(clip.room_label)
+        self._range_bar.setStyleSheet(
+            _range_bar_style(clip.in_frame, clip.out_frame, clip.duration_frames)
+        )
 
     def mousePressEvent(self, event) -> None:
         if event.button() == Qt.LeftButton:
             self.clicked.emit(event.modifiers())
         super().mousePressEvent(event)
+
+    def mouseMoveEvent(self, event) -> None:
+        if len(self._frames) > 1:
+            width = max(self._image_label.width(), 1)
+            ratio = max(0.0, min(1.0, event.position().x() / width))
+            index = round(ratio * (len(self._frames) - 1))
+            self._show_frame(index)
+        super().mouseMoveEvent(event)
+
+    def leaveEvent(self, event) -> None:
+        if self._frames:
+            self._show_frame(self._poster_index)
+        super().leaveEvent(event)
 
     def set_visual_state(self, is_current: bool, is_selected: bool = False) -> None:
         parts = []
@@ -137,6 +218,13 @@ class _ClipListRowWidget(QWidget):
 
     def _flag_text(self) -> str:
         return {"pick": "✓ Pick", "reject": "✕ Reject"}.get(self._flag, "—")
+
+    def update_content(self, clip: ClipThumbnail) -> None:
+        self._flag = clip.flag
+        self._room_color = clip.room_color
+        self._name_label.setText(clip.path.name)
+        self._room_label.setText(clip.room_label)
+        self._flag_label.setText(self._flag_text())
 
     def mousePressEvent(self, event) -> None:
         if event.button() == Qt.LeftButton:
@@ -243,6 +331,21 @@ class Filmstrip(QWidget):
         self._current = -1
         self._anchor = None
         self.set_selected(set())
+
+    def update_clips(self, clips: list[ClipThumbnail]) -> None:
+        """Como set_clips, pero si la cantidad de clips no cambio actualiza
+        los widgets existentes en vez de destruirlos y recrearlos -- eso es
+        lo que preserva las miniaturas ya cargadas por los _ThumbnailJob al
+        navegar entre clips (bug real: cada avance con las flechas llamaba
+        a _refresh_filmstrip, que via set_clips borraba todos los pixmaps
+        ya cargados y los reemplazaba por "(sin miniatura)")."""
+        if len(clips) != len(self.item_widgets):
+            self.set_clips(clips)
+            return
+        for widget, row, clip in zip(self.item_widgets, self._list_rows, clips):
+            widget.update_content(clip)
+            row.update_content(clip)
+        self._redraw()
 
     def _relayout_grid(self) -> None:
         while self._grid_layout.count():

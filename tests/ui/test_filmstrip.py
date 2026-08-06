@@ -91,6 +91,103 @@ def test_item_puede_recibir_un_pixmap(qtbot):
     assert strip.item_widgets[0].has_pixmap()
 
 
+def test_set_frames_muestra_el_frame_del_medio_como_poster(qtbot):
+    strip = Filmstrip()
+    qtbot.addWidget(strip)
+    strip.set_clips([ClipThumbnail(path=Path("/a.MP4"), thumbnail_path=None, room_label="X", flag="none")])
+    item = strip.item_widgets[0]
+    frames = [QPixmap(10, 10) for _ in range(5)]
+    for i, pm in enumerate(frames):
+        pm.fill(Qt.GlobalColor.black)
+    item.set_frames(frames)
+    assert item.has_pixmap()
+    assert item._poster_index == 2
+
+
+def test_mouse_move_sobre_la_miniatura_cambia_el_frame_mostrado(qtbot):
+    strip = Filmstrip()
+    qtbot.addWidget(strip)
+    strip.set_clips([ClipThumbnail(path=Path("/a.MP4"), thumbnail_path=None, room_label="X", flag="none")])
+    item = strip.item_widgets[0]
+    item.resize(100, 100)
+    frames = [QPixmap(10, 10) for _ in range(5)]
+    item.set_frames(frames)
+    shown_at_poster = item._image_label.pixmap().cacheKey()
+
+    from PySide6.QtCore import QPointF
+    from PySide6.QtGui import QMouseEvent
+
+    event = QMouseEvent(
+        QMouseEvent.Type.MouseMove, QPointF(99, 10), QPointF(99, 10), Qt.MouseButton.NoButton,
+        Qt.MouseButton.NoButton, Qt.KeyboardModifier.NoModifier,
+    )
+    item.mouseMoveEvent(event)
+    shown_after_move = item._image_label.pixmap().cacheKey()
+    assert shown_after_move != shown_at_poster
+
+
+def test_leave_event_vuelve_al_poster(qtbot):
+    strip = Filmstrip()
+    qtbot.addWidget(strip)
+    strip.set_clips([ClipThumbnail(path=Path("/a.MP4"), thumbnail_path=None, room_label="X", flag="none")])
+    item = strip.item_widgets[0]
+    item.resize(100, 100)
+    frames = [QPixmap(10, 10) for _ in range(5)]
+    item.set_frames(frames)
+
+    from PySide6.QtCore import QEvent
+
+    calls = []
+    item._show_frame = lambda i, _orig=item._show_frame: (calls.append(i), _orig(i))[1]
+    item.leaveEvent(QEvent(QEvent.Type.Leave))
+    assert calls == [item._poster_index]
+
+
+def test_barra_de_rango_pinta_el_in_out_marcado(qtbot):
+    strip = Filmstrip()
+    qtbot.addWidget(strip)
+    strip.set_clips([ClipThumbnail(
+        path=Path("/a.MP4"), thumbnail_path=None, room_label="X", flag="none",
+        in_frame=30, out_frame=60, duration_frames=120,
+    )])
+    style = strip.item_widgets[0]._range_bar.styleSheet()
+    assert "qlineargradient" in style
+
+
+def test_barra_de_rango_sin_marca_queda_neutra(qtbot):
+    strip = Filmstrip()
+    qtbot.addWidget(strip)
+    strip.set_clips([ClipThumbnail(path=Path("/a.MP4"), thumbnail_path=None, room_label="X", flag="none")])
+    style = strip.item_widgets[0]._range_bar.styleSheet()
+    assert "qlineargradient" not in style
+
+
+def test_update_clips_preserva_el_pixmap_si_la_cantidad_no_cambia(qtbot):
+    strip = Filmstrip()
+    qtbot.addWidget(strip)
+    strip.set_clips([ClipThumbnail(path=Path("/a.MP4"), thumbnail_path=None, room_label="X", flag="none")])
+    pm = QPixmap(10, 10)
+    pm.fill()
+    strip.item_widgets[0].set_pixmap(pm)
+
+    strip.update_clips([ClipThumbnail(path=Path("/a.MP4"), thumbnail_path=None, room_label="Y", flag="pick")])
+    assert strip.item_widgets[0].has_pixmap()
+    assert "border: 2px solid #3ddc84" in strip.item_widgets[0].styleSheet()
+
+
+def test_update_clips_reconstruye_si_cambia_la_cantidad_de_clips(qtbot):
+    strip = Filmstrip()
+    qtbot.addWidget(strip)
+    strip.set_clips([ClipThumbnail(path=Path("/a.MP4"), thumbnail_path=None, room_label="X", flag="none")])
+    ids_antes = [id(w) for w in strip.item_widgets]
+    strip.update_clips([
+        ClipThumbnail(path=Path("/a.MP4"), thumbnail_path=None, room_label="X", flag="none"),
+        ClipThumbnail(path=Path("/b.MP4"), thumbnail_path=None, room_label="Y", flag="none"),
+    ])
+    assert strip.count() == 2
+    assert [id(w) for w in strip.item_widgets][:1] != ids_antes
+
+
 def test_clip_actual_tiene_borde_de_acento(qtbot):
     strip = Filmstrip()
     qtbot.addWidget(strip)

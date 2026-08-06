@@ -216,10 +216,64 @@ def test_thumbnail_job_no_truena_si_su_signal_ya_fue_destruido(qtbot, monkeypatc
         "clasificador_video.ui.main_window.extract_thumbnail",
         lambda *a, **k: tmp_path / "frame.jpg",
     )
-    job = _ThumbnailJob(1, 0, Path("/a.MP4"), tmp_path)
+    job = _ThumbnailJob(1, 0, Path("/a.MP4"), tmp_path, None)
     shiboken6.delete(job.signals)
 
     job.run()  # no debe lanzar
+
+
+def test_avanzar_de_clip_no_borra_las_miniaturas_ya_cargadas(qtbot):
+    """Bug real reportado en uso: al avanzar con las flechas, el filmstrip
+    se reconstruia entero (via _refresh_filmstrip -> Filmstrip.set_clips),
+    lo que perdia los pixmaps ya cargados por los _ThumbnailJob y volvia
+    a mostrar '(sin miniatura)' en todos los clips."""
+    from PySide6.QtGui import QPixmap
+
+    window = _window_with_video(qtbot)
+    window.show()
+    qtbot.waitExposed(window)
+    clips = [
+        Clip(orden=1, ruta=Path("/a.MP4"), categoria_path=[], fps=30.0),
+        Clip(orden=2, ruta=Path("/b.MP4"), categoria_path=[], fps=30.0),
+    ]
+    window.load_clips(clips)
+    pm = QPixmap(20, 20)
+    pm.fill()
+    for w in window.filmstrip.item_widgets:
+        w.set_pixmap(pm)
+    window.handle_arrow("next")
+    assert all(w.has_pixmap() for w in window.filmstrip.item_widgets)
+
+
+def test_avanzar_de_clip_preserva_los_mismos_widgets_del_filmstrip(qtbot):
+    window = _window_with_video(qtbot)
+    window.show()
+    qtbot.waitExposed(window)
+    clips = [
+        Clip(orden=1, ruta=Path("/a.MP4"), categoria_path=[], fps=30.0),
+        Clip(orden=2, ruta=Path("/b.MP4"), categoria_path=[], fps=30.0),
+    ]
+    window.load_clips(clips)
+    ids_antes = [id(w) for w in window.filmstrip.item_widgets]
+    window.handle_arrow("next")
+    ids_despues = [id(w) for w in window.filmstrip.item_widgets]
+    assert ids_antes == ids_despues
+
+
+def test_reimportar_reconstruye_el_filmstrip_de_verdad(qtbot):
+    """update_clips solo actualiza en el lugar si la cantidad de clips no
+    cambio -- una reimportacion (aunque coincida en cantidad) debe forzar
+    reconstruccion via load_clips, no arrastrar pixmaps del material viejo."""
+    from PySide6.QtGui import QPixmap
+
+    window = _window_with_video(qtbot)
+    window.load_clips([Clip(orden=1, ruta=Path("/viejo.MP4"), categoria_path=[], fps=30.0)])
+    pm = QPixmap(20, 20)
+    pm.fill()
+    window.filmstrip.item_widgets[0].set_pixmap(pm)
+
+    window.load_clips([Clip(orden=1, ruta=Path("/nuevo.MP4"), categoria_path=[], fps=30.0)])
+    assert not window.filmstrip.item_widgets[0].has_pixmap()
 
 
 def test_thumbnail_stale_de_importacion_anterior_se_ignora(qtbot, monkeypatch, tmp_path):
@@ -237,9 +291,9 @@ def test_thumbnail_stale_de_importacion_anterior_se_ignora(qtbot, monkeypatch, t
     for w in window.filmstrip.item_widgets:
         monkeypatch.setattr(w, "set_pixmap", lambda pixmap, _w=w: calls.append(_w))
 
-    window._on_thumbnail_ready(1, 0, tmp_path / "stale.jpg")
+    window._on_thumbnail_ready(1, 0, [tmp_path / "stale.jpg"])
     assert calls == []
-    window._on_thumbnail_ready(2, 0, tmp_path / "fresh.jpg")
+    window._on_thumbnail_ready(2, 0, [tmp_path / "fresh.jpg"])
     assert len(calls) == 1
 
 
