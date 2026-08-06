@@ -127,7 +127,9 @@ class MainWindow(QWidget):
         top_bar.addWidget(self.export_button)
 
         column = QVBoxLayout()
-        column.addWidget(QLabel("Cuartos"))
+        self.room_title_label = QLabel("Cuartos")
+        self.room_title_label.setObjectName("panelTitle")
+        column.addWidget(self.room_title_label)
         column.addWidget(self.room_list_widget, stretch=1)
         column.addWidget(self.import_button)
         column.addWidget(self.ingest_list, stretch=1)
