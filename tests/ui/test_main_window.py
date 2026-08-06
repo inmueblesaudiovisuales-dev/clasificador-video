@@ -282,3 +282,11 @@ def test_exportar_avisa_si_hay_clips_sin_clasificar_sin_bloquear(qtbot, monkeypa
     window.export_button.click()
     assert warns == [1]
     assert out.exists()
+
+
+def test_widgets_clave_tienen_objectname_para_el_tema(qtbot):
+    window = _window(qtbot)
+    assert window.video_widget.objectName() == "videoWidget"
+    assert window.export_button.objectName() == "exportButton"
+    assert window.legend_label.objectName() == "legendLabel"
+    assert window.status_label.objectName() == "statusLabel"

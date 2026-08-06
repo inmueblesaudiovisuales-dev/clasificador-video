@@ -104,15 +104,20 @@ class MainWindow(QWidget):
         self.ingest_list = QListWidget()
 
         self.filmstrip = Filmstrip()
+        self.filmstrip.setObjectName("filmstripPanel")
 
         self.video_widget = VideoWidget(mpv_factory=video_factory) if video_factory else VideoWidget()
+        self.video_widget.setObjectName("videoWidget")
         self.quality_combo = QComboBox()
         self.quality_combo.addItems(list(QUALITY_PROFILES))
         self.quality_combo.currentTextChanged.connect(self._on_quality_changed)
         self.legend_label = QLabel(LEGEND_TEXT)
+        self.legend_label.setObjectName("legendLabel")
         self.export_button = QPushButton("Exportar manifest…")
+        self.export_button.setObjectName("exportButton")
         self.export_button.clicked.connect(self._on_export_manifest)
         self.status_label = QLabel("")
+        self.status_label.setObjectName("statusLabel")
 
         top_bar = QHBoxLayout()
         top_bar.addWidget(QLabel("Calidad:"))
@@ -127,8 +132,12 @@ class MainWindow(QWidget):
         column.addWidget(self.import_button)
         column.addWidget(self.ingest_list, stretch=1)
 
+        room_column_widget = QWidget()
+        room_column_widget.setObjectName("roomColumn")
+        room_column_widget.setLayout(column)
+
         center = QHBoxLayout()
-        center.addLayout(column, stretch=0)
+        center.addWidget(room_column_widget, stretch=0)
         center.addWidget(self.video_widget, stretch=1)
 
         root = QVBoxLayout(self)
