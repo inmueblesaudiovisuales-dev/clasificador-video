@@ -677,6 +677,15 @@ registrarPrueba(
   "Task 9: JSON.parse sobre un archivo invalido lanza y el catch produce un mensaje (no toca el proyecto)",
   async (project) => {
     const premierepro = require("premierepro");
+    const rootItem = await project.getRootItem();
+    const rootFolder = premierepro.FolderItem.cast(rootItem);
+
+    // Conteo real ANTES del intento invalido, para comparar contra el
+    // conteo DESPUES: si algo llegara a tocar el proyecto raiz durante el
+    // parseo fallido, la cantidad de items cambiaria.
+    const itemsAntes = await rootFolder.getItems();
+    const cantidadAntes = itemsAntes.length;
+
     let mensaje = null;
     let lanzo = false;
     try {
@@ -686,18 +695,17 @@ registrarPrueba(
       mensaje = "El archivo elegido no es una clasificacion valida: " + e.message;
     }
 
-    // Confirmar que no aparecio ningun bin nuevo por este intento.
-    const rootItem = await project.getRootItem();
-    const rootFolder = premierepro.FolderItem.cast(rootItem);
-    const items = await rootFolder.getItems();
-    const binesConNombreSospechoso = items.filter((i) => i.name.toLowerCase().includes("json invalido"));
+    const itemsDespues = await rootFolder.getItems();
+    const cantidadDespues = itemsDespues.length;
+    const proyectoSinCambios = cantidadDespues === cantidadAntes;
 
-    const ok = lanzo && !!mensaje && binesConNombreSospechoso.length === 0;
+    const ok = lanzo && !!mensaje && proyectoSinCambios;
     return {
       ok: ok,
       detalle:
         "lanzo excepcion=" + lanzo + " | mensaje=" + mensaje +
-        " | bines nuevos inesperados=" + binesConNombreSospechoso.length,
+        " | items en la raiz antes=" + cantidadAntes + ", despues=" + cantidadDespues +
+        " | proyecto sin cambios=" + proyectoSinCambios,
     };
   }
 );
