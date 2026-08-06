@@ -365,6 +365,7 @@ const manifestPrueba = {
     {
       ruta: CLIP_587,
       categoria_path: ["PruebaTask7", "Bano"],
+      fps: 30,
       in_frame: 10,
       out_frame: 90,
       flag: "pick",
@@ -373,6 +374,7 @@ const manifestPrueba = {
     {
       ruta: RUTA_TEST_DIR + "/no-existe.MP4",
       categoria_path: ["PruebaTask7"],
+      fps: 30,
       in_frame: null,
       out_frame: null,
       flag: "none",
@@ -399,7 +401,7 @@ registrarPrueba(
       !!resultado.errores[0].mensaje;
 
     // Lectura real de vuelta del clip que si funciono: bin destino, label,
-    // in/out (fps 30, el placeholder de este task) y proxy.
+    // in/out (fps 30, el que trae manifestPrueba) y proxy.
     const rootItem = await project.getRootItem();
     const rootFolder = premierepro.FolderItem.cast(rootItem);
     const banoFolder = await resolveBinChain(project, rootFolder, ["PruebaTask7", "Bano"]);
@@ -483,6 +485,7 @@ const manifestPruebaRutaFaltante = {
     {
       ruta: CLIP_587,
       categoria_path: ["PruebaTask7RutaFaltante"],
+      fps: 30,
       in_frame: null,
       out_frame: null,
       flag: "none",
@@ -491,6 +494,7 @@ const manifestPruebaRutaFaltante = {
     {
       ruta: null,
       categoria_path: ["PruebaTask7RutaFaltante"],
+      fps: 30,
       in_frame: null,
       out_frame: null,
       flag: "none",
@@ -499,6 +503,7 @@ const manifestPruebaRutaFaltante = {
     {
       ruta: CLIP_588,
       categoria_path: ["PruebaTask7RutaFaltante"],
+      fps: FPS_CLIP_588,
       in_frame: null,
       out_frame: null,
       flag: "none",
@@ -529,6 +534,75 @@ registrarPrueba(
         "resultado.ok=" + JSON.stringify(resultado.ok) + " (esperado " + JSON.stringify(okEsperado) + ")" +
         " | resultado.errores=" + JSON.stringify(resultado.errores) +
         " | el clip con ruta faltante cayo en errores sin abortar el resto=" + errorCoincide,
+    };
+  }
+);
+
+// Task 8: el fps ya no se infiere en el plugin (antes siempre 30, ver el
+// placeholder que tenia processManifest); ahora viene del propio manifest
+// (clipData.fps). Esta prueba usa un fps distinto al de FPS_CLIP_588
+// (59.94005994005994) para que, si algun call site se le olvidara pasar
+// clipData.fps y cayera en un valor por defecto o en el de otro clip, el
+// in/out calculado no coincidiera con lo esperado.
+const manifestPruebaFps = {
+  proyecto: "Prueba Task 8 - fps del manifest",
+  clips: [
+    {
+      ruta: CLIP_587,
+      categoria_path: ["PruebaTask8Fps"],
+      fps: 30,
+      in_frame: 20,
+      out_frame: 150,
+      flag: "none",
+      ruta_proxy: null,
+    },
+  ],
+};
+
+registrarPrueba(
+  "processManifest: usa clipData.fps (no un valor inferido) al aplicar in/out",
+  async (project) => {
+    const premierepro = require("premierepro");
+
+    const resultado = await processManifest(project, manifestPruebaFps);
+
+    const rootItem = await project.getRootItem();
+    const rootFolder = premierepro.FolderItem.cast(rootItem);
+    const folder = await resolveBinChain(project, rootFolder, ["PruebaTask8Fps"]);
+    const clipsEnFolder = await findClipsConRuta(folder, CLIP_587);
+    const enBinCorrecto = clipsEnFolder.length === 1;
+
+    let inOutCoincideCon30 = false;
+    let inOutNoCoincideConOtroFps = false;
+
+    if (enBinCorrecto) {
+      const clipProjectItem = premierepro.ClipProjectItem.cast(clipsEnFolder[0]);
+      const inReal = await clipProjectItem.getInPoint(premierepro.Constants.MediaType.ANY);
+      const outReal = await clipProjectItem.getOutPoint(premierepro.Constants.MediaType.ANY);
+
+      const frameRate30 = premierepro.FrameRate.createWithValue(30);
+      const inEsperado30 = premierepro.TickTime.createWithFrameAndFrameRate(20, frameRate30);
+      const outEsperado30 = premierepro.TickTime.createWithFrameAndFrameRate(150, frameRate30);
+      inOutCoincideCon30 = inReal.equals(inEsperado30) && outReal.equals(outEsperado30);
+
+      // Si el codigo ignorara clipData.fps y usara FPS_CLIP_588 (u otro fps
+      // distinto), el in/out real coincidiria con este calculo en vez del de
+      // arriba -- confirmamos que NO es el caso.
+      const frameRateOtro = premierepro.FrameRate.createWithValue(FPS_CLIP_588);
+      const inConOtroFps = premierepro.TickTime.createWithFrameAndFrameRate(20, frameRateOtro);
+      const outConOtroFps = premierepro.TickTime.createWithFrameAndFrameRate(150, frameRateOtro);
+      inOutNoCoincideConOtroFps = !inReal.equals(inConOtroFps) && !outReal.equals(outConOtroFps);
+    }
+
+    const ok = resultado.errores.length === 0 && enBinCorrecto && inOutCoincideCon30 && inOutNoCoincideConOtroFps;
+
+    return {
+      ok: ok,
+      detalle:
+        "resultado.errores=" + JSON.stringify(resultado.errores) +
+        " | clip en PruebaTask8Fps=" + enBinCorrecto +
+        " | in/out calculado con fps=30 (el del manifest)=" + inOutCoincideCon30 +
+        " | in/out NO coincide con fps=" + FPS_CLIP_588 + " (otro clip)=" + inOutNoCoincideConOtroFps,
     };
   }
 );

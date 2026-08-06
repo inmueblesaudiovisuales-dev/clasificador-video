@@ -26,10 +26,7 @@ async function processManifest(project, manifest) {
       applyFlagLabel(project, clipItem, clipData.flag);
 
       if (clipData.in_frame !== null && clipData.out_frame !== null) {
-        const clipProjectItem = premierepro.ClipProjectItem.cast(clipItem);
-        const media = await clipProjectItem.getMedia();
-        const fps = media ? await getFpsFromMedia(media) : 30;
-        applyInOut(project, clipItem, fps, clipData.in_frame, clipData.out_frame);
+        applyInOut(project, clipItem, clipData.fps, clipData.in_frame, clipData.out_frame);
       }
 
       if (clipData.ruta_proxy) {
@@ -49,12 +46,6 @@ async function processManifest(project, manifest) {
   }
 
   return resultado;
-}
-
-// Placeholder de fps: se reemplaza en un task posterior por el fps real que ya
-// viene en el manifest, en vez de leerlo de Media.
-async function getFpsFromMedia(media) {
-  return 30;
 }
 
 // Revisa ANTES de empezar que el material exista en disco. El caso real: el
