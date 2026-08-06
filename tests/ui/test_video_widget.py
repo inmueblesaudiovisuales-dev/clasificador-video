@@ -1,6 +1,8 @@
 # tests/ui/test_video_widget.py
 from pathlib import Path
 
+from PySide6.QtCore import QPoint, Qt
+
 from clasificador_video.ui.video_widget import ScrubBar, VideoWidget, format_timecode
 
 
@@ -196,3 +198,60 @@ def test_format_timecode_fps_no_entero():
 
 def test_format_timecode_fps_invalido_no_crashea():
     assert format_timecode(100, 0.0) == "00:00:00"
+
+
+def test_scrub_bar_click_emite_seek_started_y_seek_requested(qtbot):
+    bar = ScrubBar()
+    qtbot.addWidget(bar)
+    bar.resize(200, 26)
+    bar.set_duration(60.0)
+    bar.show()
+    qtbot.waitExposed(bar)
+
+    with qtbot.waitSignal(bar.seek_started, timeout=1000):
+        with qtbot.waitSignal(bar.seek_requested, timeout=1000) as blocker:
+            qtbot.mousePress(bar, Qt.MouseButton.LeftButton, pos=QPoint(100, 13))
+    assert 25.0 < blocker.args[0] < 35.0
+
+
+def test_scrub_bar_arrastre_con_boton_apretado_emite_seek_requested(qtbot):
+    bar = ScrubBar()
+    qtbot.addWidget(bar)
+    bar.resize(200, 26)
+    bar.set_duration(60.0)
+    bar.show()
+    qtbot.waitExposed(bar)
+    qtbot.mousePress(bar, Qt.MouseButton.LeftButton, pos=QPoint(20, 13))
+
+    with qtbot.waitSignal(bar.seek_requested, timeout=1000) as blocker:
+        qtbot.mouseMove(bar, pos=QPoint(180, 13))
+    assert blocker.args[0] > 40.0
+
+    qtbot.mouseRelease(bar, Qt.MouseButton.LeftButton, pos=QPoint(180, 13))
+
+
+def test_scrub_bar_move_sin_boton_no_emite_seek(qtbot):
+    bar = ScrubBar()
+    qtbot.addWidget(bar)
+    bar.resize(200, 26)
+    bar.set_duration(60.0)
+    bar.show()
+    qtbot.waitExposed(bar)
+
+    received = []
+    bar.seek_requested.connect(received.append)
+    qtbot.mouseMove(bar, pos=QPoint(100, 13))
+    assert received == []
+
+
+def test_scrub_bar_click_fuera_de_los_bordes_clampea(qtbot):
+    bar = ScrubBar()
+    qtbot.addWidget(bar)
+    bar.resize(200, 26)
+    bar.set_duration(60.0)
+    bar.show()
+    qtbot.waitExposed(bar)
+
+    with qtbot.waitSignal(bar.seek_requested, timeout=1000) as blocker:
+        qtbot.mousePress(bar, Qt.MouseButton.LeftButton, pos=QPoint(-50, 13))
+    assert blocker.args[0] == 0.0

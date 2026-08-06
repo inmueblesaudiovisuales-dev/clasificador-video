@@ -5,7 +5,7 @@ from ctypes import c_char_p, c_void_p
 from pathlib import Path
 from typing import Callable
 
-from PySide6.QtCore import QObject, Signal
+from PySide6.QtCore import QObject, Qt, Signal
 from PySide6.QtGui import QColor, QOpenGLContext, QPainter, QPen
 from PySide6.QtOpenGLWidgets import QOpenGLWidget
 from PySide6.QtWidgets import QWidget
@@ -149,13 +149,21 @@ def format_timecode(frame: int, fps: float) -> str:
 
 class ScrubBar(QWidget):
     """Linea de tiempo del clip actual, tipo Source Monitor de Premiere:
-    un track con el playhead y, cuando hay marca de in/out, un tramo
-    resaltado con brackets en los extremos -- para que marcar in/out
-    (teclas I/O) se vea en el momento, no solo se guarde en silencio.
+    un track con el playhead y, cuando hay marca de in/out, brackets en
+    los extremos -- cada uno se dibuja apenas su marcador existe, sin
+    esperar al otro -- para que marcar in/out (teclas I/O) se vea en el
+    momento, no solo se guarde en silencio.
 
-    Puramente informativo: no reacciona a click ni arrastre, marcar sigue
-    siendo con el teclado (I/O/U), como el resto de los atajos de la app.
+    Responde a click y arrastre con el mouse (emite `seek_started` al
+    empezar el gesto y `seek_requested(seconds)` en cada evento) para
+    saltar de posicion como un scrubber real -- pero no conoce a
+    MpvPlayer: quien escucha la señal decide que hacer con el player
+    (ver MainWindow._on_scrub_seek*). Marcar in/out sigue siendo solo
+    con el teclado (I/O/U).
     """
+
+    seek_started = Signal()
+    seek_requested = Signal(float)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -186,6 +194,14 @@ class ScrubBar(QWidget):
             return left
         ratio = max(0.0, min(1.0, seconds / self._duration))
         return left + round(ratio * usable_width)
+
+    def _seconds_for_x(self, x: int) -> float:
+        if self._duration <= 0:
+            return 0.0
+        left, right = 6, self.width() - 6
+        usable_width = max(right - left, 1)
+        ratio = max(0.0, min(1.0, (x - left) / usable_width))
+        return ratio * self._duration
 
     def paintEvent(self, event) -> None:  # noqa: N802 -- override de Qt
         painter = QPainter(self)
@@ -221,3 +237,19 @@ class ScrubBar(QWidget):
             painter.drawLine(x, 2, x, self.height() - 2)
 
         painter.end()
+
+    def mousePressEvent(self, event) -> None:  # noqa: N802 -- override de Qt
+        if event.button() != Qt.MouseButton.LeftButton or self._duration <= 0:
+            return
+        self.seek_started.emit()
+        self.seek_requested.emit(self._seconds_for_x(round(event.position().x())))
+
+    def mouseMoveEvent(self, event) -> None:  # noqa: N802 -- override de Qt
+        if not (event.buttons() & Qt.MouseButton.LeftButton) or self._duration <= 0:
+            return
+        self.seek_requested.emit(self._seconds_for_x(round(event.position().x())))
+
+    def mouseReleaseEvent(self, event) -> None:  # noqa: N802 -- override de Qt
+        if event.button() != Qt.MouseButton.LeftButton or self._duration <= 0:
+            return
+        self.seek_requested.emit(self._seconds_for_x(round(event.position().x())))
