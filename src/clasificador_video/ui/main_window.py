@@ -1,13 +1,22 @@
 # src/clasificador_video/ui/main_window.py
 from __future__ import annotations
 
-from PySide6.QtWidgets import QHBoxLayout, QListWidget, QVBoxLayout, QWidget
+from typing import Callable
+
+from PySide6.QtWidgets import QComboBox, QHBoxLayout, QLabel, QListWidget, QVBoxLayout, QWidget
 
 from clasificador_video.category_path import CategoryTree
 from clasificador_video.keyboard import KeyboardRouter
 from clasificador_video.manifest import Clip
+from clasificador_video.player import QUALITY_PROFILES
 from clasificador_video.rooms import RoomSelection
 from clasificador_video.ui.filmstrip import ClipThumbnail, Filmstrip
+from clasificador_video.ui.video_widget import VideoWidget
+
+LEGEND_TEXT = (
+    "1-9 cuartos  |  Espacio play/pause  |  I/O in/out  |  P/X/U pick/reject/ninguno  "
+    "|  ← → clip anterior/siguiente  |  Ctrl+Z deshacer"
+)
 
 
 class MainWindow(QWidget):
@@ -17,9 +26,17 @@ class MainWindow(QWidget):
     Milestones 1-4, wireados aqui.
     """
 
-    def __init__(self, project_name: str, room_selection: RoomSelection, category_tree: CategoryTree, parent=None):
+    def __init__(
+        self,
+        project_name: str,
+        room_selection: RoomSelection,
+        category_tree: CategoryTree,
+        video_factory: Callable[..., object] | None = None,
+        parent=None,
+    ):
         super().__init__(parent)
         self.setWindowTitle(project_name)
+        self.project_name = project_name
         self.room_selection = room_selection
         self.category_tree = category_tree
         self.clips: list[Clip] = []
@@ -31,11 +48,26 @@ class MainWindow(QWidget):
 
         self.filmstrip = Filmstrip()
 
+        self.video_widget = VideoWidget(mpv_factory=video_factory) if video_factory else VideoWidget()
+        self.quality_combo = QComboBox()
+        self.quality_combo.addItems(list(QUALITY_PROFILES))
+        self.quality_combo.currentTextChanged.connect(self._on_quality_changed)
+        self.legend_label = QLabel(LEGEND_TEXT)
+
+        top_bar = QHBoxLayout()
+        top_bar.addWidget(QLabel("Calidad:"))
+        top_bar.addWidget(self.quality_combo)
+        top_bar.addStretch(1)
+
+        center = QHBoxLayout()
+        center.addWidget(self.room_list_widget, stretch=0)
+        center.addWidget(self.video_widget, stretch=1)
+
         root = QVBoxLayout(self)
-        top = QHBoxLayout()
-        top.addWidget(self.room_list_widget, stretch=0)
-        root.addLayout(top, stretch=1)
+        root.addLayout(top_bar)
+        root.addLayout(center, stretch=1)
         root.addWidget(self.filmstrip, stretch=0)
+        root.addWidget(self.legend_label, stretch=0)
 
     @property
     def current_clip(self) -> Clip | None:
@@ -60,6 +92,12 @@ class MainWindow(QWidget):
         if action is not None:
             self.current_clip.flag = action
             self._refresh_filmstrip()
+
+    def _on_quality_changed(self, profile_name: str) -> None:
+        try:
+            self.video_widget.player.set_quality(profile_name)
+        except RuntimeError:
+            pass  # el player aun no se creo (widget no mostrado); se aplica al abrir
 
     def _refresh_filmstrip(self) -> None:
         self.filmstrip.set_clips([

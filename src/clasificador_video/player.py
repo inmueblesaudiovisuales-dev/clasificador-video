@@ -24,6 +24,7 @@ class MpvPlayer:
         if wid is not None:
             kwargs["wid"] = wid
         self._mpv = mpv_factory(**kwargs)
+        self._mpv.pause = True  # estado inicial definido: nunca reproducir solo
         self.in_frame: int | None = None
         self.out_frame: int | None = None
 
