@@ -134,3 +134,31 @@ def test_toggle_alterna_play_y_pause():
     assert player._mpv.pause is False
     player.toggle()
     assert player._mpv.pause is True
+
+
+def test_seek_setea_time_pos():
+    player = MpvPlayer(mpv_factory=FakeMpv)
+    player._mpv.duration = 60.0
+    player.seek(15.0)
+    assert player._mpv.time_pos == 15.0
+
+
+def test_seek_clampea_a_cero_si_es_negativo():
+    player = MpvPlayer(mpv_factory=FakeMpv)
+    player._mpv.duration = 60.0
+    player.seek(-5.0)
+    assert player._mpv.time_pos == 0.0
+
+
+def test_seek_clampea_a_duration_si_excede():
+    player = MpvPlayer(mpv_factory=FakeMpv)
+    player._mpv.duration = 60.0
+    player.seek(999.0)
+    assert player._mpv.time_pos == 60.0
+
+
+def test_is_paused_refleja_estado_del_mpv():
+    player = MpvPlayer(mpv_factory=FakeMpv)
+    assert player.is_paused is True
+    player.play()
+    assert player.is_paused is False

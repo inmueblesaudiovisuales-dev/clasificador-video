@@ -64,6 +64,16 @@ class MpvPlayer:
         calculada de ffprobe al importar) -- 0.0 si todavia no se conoce."""
         return getattr(self._mpv, "duration", None) or 0.0
 
+    @property
+    def is_paused(self) -> bool:
+        return bool(self._mpv.pause)
+
+    def seek(self, seconds: float) -> None:
+        """Salta a una posicion absoluta, clampeada a [0, duration] -- usado
+        por el seek con mouse de la ScrubBar (ver ui/video_widget.py)."""
+        target = max(0.0, min(seconds, self.duration))
+        self._mpv.time_pos = target
+
     def set_quality(self, profile_name: str) -> None:
         if profile_name not in QUALITY_PROFILES:
             raise ValueError(f"perfil de calidad desconocido: '{profile_name}'")
