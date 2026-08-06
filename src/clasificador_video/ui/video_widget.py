@@ -184,17 +184,23 @@ class ScrubBar(QWidget):
         painter.drawLine(left, track_y, right, track_y)
 
         if self._duration > 0:
-            if self._in_frame is not None and self._out_frame is not None and self._fps:
-                in_s = self._in_frame / self._fps
-                out_s = self._out_frame / self._fps
-                x1 = self._x_for(min(in_s, out_s), left, usable_width)
-                x2 = self._x_for(max(in_s, out_s), left, usable_width)
+            in_x = out_x = None
+            if self._in_frame is not None and self._fps:
+                in_x = self._x_for(self._in_frame / self._fps, left, usable_width)
+            if self._out_frame is not None and self._fps:
+                out_x = self._x_for(self._out_frame / self._fps, left, usable_width)
+
+            if in_x is not None and out_x is not None:
+                x1, x2 = min(in_x, out_x), max(in_x, out_x)
                 painter.setPen(QPen(QColor(TRIM_COLOR), 4))
                 painter.drawLine(x1, track_y, x2, track_y)
-                bracket_pen = QPen(QColor(TRIM_COLOR), 3)
-                painter.setPen(bracket_pen)
-                painter.drawLine(x1, track_y - 8, x1, track_y + 8)
-                painter.drawLine(x2, track_y - 8, x2, track_y + 8)
+
+            bracket_pen = QPen(QColor(TRIM_COLOR), 3)
+            painter.setPen(bracket_pen)
+            if in_x is not None:
+                painter.drawLine(in_x, track_y - 8, in_x, track_y + 8)
+            if out_x is not None:
+                painter.drawLine(out_x, track_y - 8, out_x, track_y + 8)
 
             x = self._x_for(self._position, left, usable_width)
             painter.setPen(QPen(QColor(ACCENT), 2))

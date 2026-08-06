@@ -126,3 +126,53 @@ def test_scrub_bar_sin_duracion_no_truena_al_pintar(qtbot):
     bar.show()
     bar.set_position(1.0)  # sin set_duration -- queda en 0
     bar.repaint()  # no debe lanzar
+
+
+def test_scrub_bar_dibuja_bracket_de_in_sin_out(qtbot):
+    bar = ScrubBar()
+    qtbot.addWidget(bar)
+    bar.resize(200, 26)
+    bar.set_duration(60.0)
+    bar.set_in_out(300, None, 30.0)  # in=10s, sin out
+    bar.show()
+    qtbot.waitExposed(bar)
+    pixmap = bar.grab()
+    assert not pixmap.toImage().isNull()
+    expected_x = 6 + round((10.0 / 60.0) * 188)
+    img = pixmap.toImage()
+    track_y = bar.height() // 2
+    color = img.pixelColor(expected_x, track_y - 6)
+    assert color.name() == "#4fd1e8"  # TRIM_COLOR
+
+
+def test_scrub_bar_dibuja_bracket_de_out_sin_in(qtbot):
+    bar = ScrubBar()
+    qtbot.addWidget(bar)
+    bar.resize(200, 26)
+    bar.set_duration(60.0)
+    bar.set_in_out(None, 900, 30.0)  # out=30s, sin in
+    bar.show()
+    qtbot.waitExposed(bar)
+    pixmap = bar.grab()
+    assert not pixmap.toImage().isNull()
+    expected_x = 6 + round((30.0 / 60.0) * 188)
+    img = pixmap.toImage()
+    track_y = bar.height() // 2
+    color = img.pixelColor(expected_x, track_y - 6)
+    assert color.name() == "#4fd1e8"
+
+
+def test_scrub_bar_solo_in_no_dibuja_tramo_resaltado(qtbot):
+    bar = ScrubBar()
+    qtbot.addWidget(bar)
+    bar.resize(200, 26)
+    bar.set_duration(60.0)
+    bar.set_in_out(300, None, 30.0)
+    bar.show()
+    qtbot.waitExposed(bar)
+    pixmap = bar.grab()
+    img = pixmap.toImage()
+    track_y = bar.height() // 2
+    mid_x = 6 + round((35.0 / 60.0) * 188)
+    color = img.pixelColor(mid_x, track_y)
+    assert color.name() != "#4fd1e8"
