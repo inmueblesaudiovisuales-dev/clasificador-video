@@ -86,8 +86,28 @@ Un JSON por exportación. La app lo guarda donde el usuario elija (por default, 
 
 ## 12. El plugin UXP
 
-- **Instalación:** carpeta copiada directo a `~/Library/Application Support/Adobe/UXP/Plugins/External/<id>_<major>` — no requiere UXP Developer Tools corriendo después de instalado.
-- **Actualización:** cerrar Premiere, **borrar** la carpeta instalada y volver a copiarla — no sobrescribir encima, porque quedan archivos viejos que ya no existen en la versión nueva. Si sube el major de la versión, cambia el nombre de la carpeta y hay que borrar la anterior a mano. El plugin nunca debe estar cargado en UXP Developer Tools y copiado en la carpeta de plugins al mismo tiempo: mismo identificador, dos copias, y Premiere puede tomar la equivocada. El procedimiento exacto vive en `uxp-plugin/README.md`.
+- **Instalación — corregido tras verificación real (Task 13, 2026-08-06):** la copia manual de la carpeta a `~/Library/Application Support/Adobe/UXP/Plugins/External/<id>_<version>` **no funciona como mecanismo de instalación de producción.** Se probó en vivo (carpeta copiada, Premiere reiniciado dos veces) y el plugin nunca apareció en `Window > UXP Plugins` — el registro que Premiere lee (`~/Library/Application Support/Adobe/UXP/PluginsInfo/v1/premierepro.json`) se quedaba en `{"plugins":[]}`. Investigación confirmó dos cosas: (1) el nombre de carpeta correcto es `<id>_<versión completa de 3 partes>` (ej. `com.iav.clasificadorvideo_1.0.0`), no `<id>_<major>` como decía este spec antes; (2) aun con el nombre corregido, la copia manual siguió sin registrarse — la documentación oficial de Adobe (`developer.adobe.com/premiere-pro/uxp/plugins/distribution/install`) solo documenta tres vías soportadas: Creative Cloud Marketplace, doble clic en un archivo `.ccx`, y la herramienta de línea de comandos UPIA. La copia manual a la carpeta `External/` no es un mecanismo soportado para Premiere Pro (a diferencia de otras apps Adobe donde sí podría funcionar — no se confirmó ninguna de las dos formas).
+- **Instalación real, validada en vivo — empaquetar como `.ccx` e instalar con UPIA:**
+  1. Empaquetar (requiere el UXP Developer Service corriendo primero):
+     ```bash
+     arch -x86_64 node /tmp/uxpcli-install/node_modules/@adobe/uxp-devtools-cli/src/uxp.js service start
+     cd "uxp-plugin/"
+     arch -x86_64 node /tmp/uxpcli-install/node_modules/@adobe/uxp-devtools-cli/src/uxp.js plugin package --outputPath /tmp/uxp-package-output
+     ```
+     Produce `com.iav.clasificadorvideo_premierepro.ccx`.
+  2. Instalar con UPIA (Unified Plugin Installer Agent, incluido con Creative Cloud Desktop; en esta máquina en `/Library/Application Support/Adobe/Adobe Desktop Common/RemoteComponents/UPI/UnifiedPluginInstallerAgent/UnifiedPluginInstallerAgent.app/Contents/MacOS/UnifiedPluginInstallerAgent`):
+     ```bash
+     "/Library/.../UnifiedPluginInstallerAgent" --install /tmp/uxp-package-output/com.iav.clasificadorvideo_premierepro.ccx
+     ```
+     Esto sí registra el plugin correctamente en `premierepro.json` con `"status":"enabled"` y lo extrae con el nombre de carpeta correcto. Confirmado en vivo: tras esto, Premiere lo muestra en `Window > UXP Plugins` sin UXP Developer Tools corriendo, y funciona igual que la copia de desarrollo.
+  3. Reiniciar Premiere después de instalar — no recarga en caliente la carpeta `External/`.
+- **Actualización — gotcha confirmado en vivo:** `--install` sobre una instalación ya existente **es un no-op** si UPIA ve el mismo id+versión — no reextrae archivos aunque el `.ccx` haya cambiado (confirmado: repackaging con un cambio de código + reinstalar no actualizó los archivos instalados). El procedimiento correcto para actualizar:
+  ```bash
+  "/Library/.../UnifiedPluginInstallerAgent" --remove "Clasificador de Video IAV"
+  "/Library/.../UnifiedPluginInstallerAgent" --install /tmp/uxp-package-output/com.iav.clasificadorvideo_premierepro.ccx
+  ```
+  `--remove` toma el **nombre** de la extensión (campo `name` de `manifest.json`), no una ruta de archivo — pasar una ruta falla con status -406. Reiniciar Premiere después de ambos pasos.
+- El plugin nunca debe estar cargado en UXP Developer Tools y copiado/instalado en la carpeta de plugins al mismo tiempo: mismo identificador, dos copias, y Premiere puede tomar la equivocada. El procedimiento exacto vive en `uxp-plugin/README.md` (pendiente de actualizar con este mecanismo — ver handoff).
 - **Antes de empezar, revisa que el material exista.** Caso real: el usuario clasifica con el disco externo conectado y luego abre Premiere sin el disco. Si no encuentra ninguno de los archivos, avisa una sola vez ("revisa que el disco esté conectado") y no importa nada. Si faltan algunos, avisa cuántos e importa el resto.
 - **Disparo manual, no vigilancia.** El panel tiene un botón "Importar clasificación" que abre el explorador de macOS. El usuario elige el manifest y el plugin lo procesa completo, de una pasada. Descartado explícitamente el poll cada pocos segundos: el usuario quiere una acción deliberada, no un proceso corriendo en segundo plano dentro de Premiere.
 - **El plugin no escribe ni mueve archivos del usuario.** No hay carpetas `pendientes/` ni `procesados/`, ni renombrado de manifests. Solo lee el archivo que se le señala. Reimportar el mismo manifest es seguro (ver dedupe abajo).
@@ -136,12 +156,17 @@ Con los 3 clips reales de prueba (verticales, Sony FX30, con audio), en Premiere
 
 **Detalle de implementación importante:** `executeTransaction` debe ir envuelto en `project.lockedAccess(() => {...})` — sin ese envoltorio falla con "The script object is no longer valid."
 
+**Dos quirks adicionales de la API, confirmados durante la construcción del plugin (Tasks 0-12), que corrigen supuestos de este spec:**
+
+- `FolderItem.cast()` / `ClipProjectItem.cast()` **no exponen `getParentBin()` ni ningún `getId()` en runtime**, aunque el `.d.ts` oficial los declara. Por eso el plugin no le puede preguntar a un clip ya encontrado "¿en qué carpeta estás?" después del hecho. Solución implementada en `uxp-plugin/js/importClip.js`: `findClipByPath` recuerda la carpeta donde encontró el clip durante la misma búsqueda recursiva, y la identidad de carpeta se compara por referencia de objeto (`===`) — confirmado en vivo que `cast()` devuelve el mismo objeto para el mismo ítem subyacente cada vez, así que la comparación por referencia es segura.
+- `ClipProjectItem.getInPoint()` / `getOutPoint()` **exigen un argumento `Constants.MediaType`** — sin él, tiran "Illegal Parameter type". Se usa `premierepro.Constants.MediaType.ANY` en todo el plugin (`uxp-plugin/js/inOut.js` y en las pruebas de `autocheck-tests.js`).
+
 ## 15. Fuera de alcance / descartado explícitamente
 
 - xmeml/FCP7 XML como mecanismo de entrega — descartado, no lo respalda la rotación.
 - Subclips como mecanismo de in/out — se usa in/out directo sobre el clip maestro.
 - Escribir metadata (XMP) en los archivos originales — se consideró como alternativa y se descartó a favor de UXP.
-- Poblar la secuencia de Premiere — **fuera de la v1, no descartado**. El plugin de la v1 no crea ni toca secuencias, solo bins; pero el diseño queda preparado para agregarlo (§12.1).
+- Poblar la secuencia de Premiere — **fuera de la v1, no descartado**. El plugin de la v1 no crea ni toca secuencias, solo bins; pero el diseño queda preparado para agregarlo (§12.1). `uxp-plugin/js/secuencia.js` existe con la función `construirSecuencia` vacía, lista como frontera — decisión explícita, no pendiente accidental.
 - Vigilancia automática de una carpeta de manifests — descartada a favor del botón manual (§12).
 - Lógica de "tipo de cámara" en el ingest — el ingest es genérico, por carpetas que el usuario arma a mano.
 - Detección automática de cortes de escena, sugerencia de categoría por IA, modo comparación — igual que en el spec original, siguen fuera de alcance.
@@ -150,4 +175,4 @@ Con los 3 clips reales de prueba (verticales, Sony FX30, con audio), en Premiere
 
 - El plugin requiere Premiere Pro 25.1.0+ (versión mínima de la API usada). No probado en versiones anteriores.
 - **Deshacer:** cada operación (crear bin, in/out, label) es una entrada independiente en el historial de Premiere, y `attachProxy` no es reversible en absoluto. Revertir una importación completa a mano no es práctico. **Aceptado como limitación**: el flujo de trabajo no contempla deshacer dentro de Premiere; una corrección se hace en la app externa y se reexporta.
-- Distribución a otra máquina/editor requiere copiar la carpeta del plugin a la ruta de plugins de Adobe en esa máquina (no es un instalador de un clic todavía; empaquetar como `.ccx` es la vía si se necesita algo más formal).
+- **Distribución a otra máquina/editor** requiere que esa máquina tenga Creative Cloud Desktop instalado (trae UPIA) para instalar el `.ccx`, y — solo para repaquetar tras un cambio de código — la CLI de UXP devtools corriendo bajo Rosetta (§12). No es un instalador de un clic para el usuario final; sigue siendo trabajo de quien mantiene el plugin, no de Bruno operando la app día a día.
