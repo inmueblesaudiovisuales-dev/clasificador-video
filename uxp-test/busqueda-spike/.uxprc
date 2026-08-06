@@ -1,0 +1,18 @@
+{
+    "plugin": {
+        "sessions": [
+            {
+                "app": {
+                    "id": "premierepro",
+                    "version": "26.3.0",
+                    "name": "Premiere Pro"
+                },
+                "pluginSessionId": "1c965c80-2da8-4408-bc21-0c9d58f06eb9"
+            }
+        ],
+        "info": {
+            "id": "com.iav.spikebusqueda",
+            "name": "Spike Busqueda"
+        }
+    }
+}
