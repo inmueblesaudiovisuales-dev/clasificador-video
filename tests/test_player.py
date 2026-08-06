@@ -78,3 +78,21 @@ def test_clear_in_out_resetea_ambos():
     player.clear_in_out()
     assert player.in_frame is None
     assert player.out_frame is None
+
+
+def test_mpv_player_recibe_wid_cuando_se_pasa():
+    player = MpvPlayer(mpv_factory=FakeMpv, wid=12345)
+    assert player._mpv.init_kwargs["wid"] == 12345
+
+
+def test_mpv_player_sin_wid_no_lo_pasa():
+    player = MpvPlayer(mpv_factory=FakeMpv)
+    assert "wid" not in player._mpv.init_kwargs
+
+
+def test_toggle_alterna_play_y_pause():
+    player = MpvPlayer(mpv_factory=FakeMpv)
+    player.toggle()          # empieza en pause=True (FakeMpv)
+    assert player._mpv.pause is False
+    player.toggle()
+    assert player._mpv.pause is True

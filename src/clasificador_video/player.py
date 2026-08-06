@@ -19,8 +19,11 @@ class MpvPlayer:
     actual de reproduccion.
     """
 
-    def __init__(self, mpv_factory: Callable[..., object]):
-        self._mpv = mpv_factory(hwdec="videotoolbox")
+    def __init__(self, mpv_factory: Callable[..., object], wid: int | None = None):
+        kwargs: dict = {"hwdec": "videotoolbox"}
+        if wid is not None:
+            kwargs["wid"] = wid
+        self._mpv = mpv_factory(**kwargs)
         self.in_frame: int | None = None
         self.out_frame: int | None = None
 
@@ -32,6 +35,12 @@ class MpvPlayer:
 
     def pause(self) -> None:
         self._mpv.pause = True
+
+    def toggle(self) -> None:
+        if self._mpv.pause:
+            self.play()
+        else:
+            self.pause()
 
     def set_quality(self, profile_name: str) -> None:
         if profile_name not in QUALITY_PROFILES:
