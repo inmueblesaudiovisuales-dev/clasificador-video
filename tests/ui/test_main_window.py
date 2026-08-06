@@ -138,6 +138,34 @@ def test_importar_carpeta_construye_clips_con_fps_de_ffprobe(qtbot, monkeypatch,
     assert window.filmstrip.count() == 1
 
 
+class _FlakyProbe:
+    """Probe que falla para ciertas rutas y devuelve info valida para el resto."""
+
+    def __init__(self, fail_on: str):
+        self._fail_on = fail_on
+        self.calls = []
+
+    def __call__(self, path):
+        self.calls.append(path)
+        if str(path).endswith(self._fail_on):
+            raise RuntimeError("ffprobe no encontro pista de video")
+        return {"width": 1920, "height": 1080, "fps": 30.0, "has_audio": True, "duration_frames": 100, "rotation": 0}
+
+
+def test_import_ignora_clip_cuyo_ffprobe_falla_y_sigue_con_los_demas(qtbot, monkeypatch, tmp_path):
+    window = _window_with_video(qtbot)
+    carpeta = tmp_path / "FX30"
+    carpeta.mkdir()
+    (carpeta / "bueno.MP4").touch()
+    (carpeta / "roto.MP4").touch()
+    monkeypatch.setattr(window, "_probe_clip", _FlakyProbe(fail_on="roto.MP4"))
+    window.ingest_tree.import_folder(carpeta)
+    window._load_clips_from_ingest()
+    rutas = [Path(c.ruta).name for c in window.clips]
+    assert rutas == ["bueno.MP4"]
+    assert window.filmstrip.count() == 1
+
+
 def test_load_clips_arranca_el_primer_clip_en_el_reproductor(qtbot):
     window = _window_with_video(qtbot)
     window.show()

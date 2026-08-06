@@ -214,7 +214,10 @@ class MainWindow(QWidget):
         orden = 1
         for folder in self.ingest_tree.top_level_folders():
             for video in folder.files:
-                info = self._probe_clip(video)
+                try:
+                    info = self._probe_clip(video)
+                except Exception:
+                    continue
                 clips.append(Clip(orden=orden, ruta=video, categoria_path=[], fps=info["fps"]))
                 orden += 1
         self.load_clips(clips)
