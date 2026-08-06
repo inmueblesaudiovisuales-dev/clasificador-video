@@ -471,6 +471,68 @@ registrarPrueba(
   }
 );
 
+// Manifest con un clip malformado (ruta ausente) EN MEDIO de dos clips
+// validos: reproduce el caso real (manifest mal formado a mano, o bug futuro
+// de quien lo genera) para probar que un `ruta` nulo no tumba el for entero
+// -- antes del fix, clipData.ruta.split(...) truena FUERA del try/catch de
+// ese clip y aborta processManifest completo, perdiendo tambien los clips
+// validos que venian despues.
+const manifestPruebaRutaFaltante = {
+  proyecto: "Prueba Task 7 - ruta faltante",
+  clips: [
+    {
+      ruta: CLIP_587,
+      categoria_path: ["PruebaTask7RutaFaltante"],
+      in_frame: null,
+      out_frame: null,
+      flag: "none",
+      ruta_proxy: null,
+    },
+    {
+      ruta: null,
+      categoria_path: ["PruebaTask7RutaFaltante"],
+      in_frame: null,
+      out_frame: null,
+      flag: "none",
+      ruta_proxy: null,
+    },
+    {
+      ruta: CLIP_588,
+      categoria_path: ["PruebaTask7RutaFaltante"],
+      in_frame: null,
+      out_frame: null,
+      flag: "none",
+      ruta_proxy: null,
+    },
+  ],
+};
+
+registrarPrueba(
+  "processManifest: un clip con ruta faltante en medio del manifest no tumba a los clips validos que le siguen",
+  async (project) => {
+    const resultado = await processManifest(project, manifestPruebaRutaFaltante);
+
+    const okEsperado = ["20260804_PIB0587.MP4", "20260804_PIB0588.MP4"];
+    const okCoincide =
+      resultado.ok.length === okEsperado.length &&
+      resultado.ok.every((nombre, i) => nombre === okEsperado[i]);
+
+    const errorCoincide =
+      resultado.errores.length === 1 &&
+      !!resultado.errores[0].archivo &&
+      !!resultado.errores[0].mensaje;
+
+    const ok = okCoincide && errorCoincide;
+    return {
+      ok: ok,
+      detalle:
+        "resultado.ok=" + JSON.stringify(resultado.ok) + " (esperado " + JSON.stringify(okEsperado) + ")" +
+        " | resultado.errores=" + JSON.stringify(resultado.errores) +
+        " | el clip con ruta faltante cayo en errores sin abortar el resto=" + errorCoincide,
+    };
+  }
+);
+
 // Helper solo para las pruebas: cuenta cuantos clips con esa ruta hay
 // directamente dentro de una carpeta (sin bajar a subcarpetas), para poder
 // afirmar "vacio" o "exactamente uno" con evidencia real, no solo "no truena".

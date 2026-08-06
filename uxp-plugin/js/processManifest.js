@@ -8,8 +8,10 @@ async function processManifest(project, manifest) {
   const resultado = { ok: [], errores: [] };
 
   for (const clipData of manifest.clips) {
-    const nombreArchivo = clipData.ruta.split("/").pop();
+    let nombreArchivo = "(sin ruta)";
     try {
+      nombreArchivo = (clipData.ruta || "").split("/").pop() || nombreArchivo;
+
       const categoryPath = clipData.categoria_path && clipData.categoria_path.length > 0
         ? clipData.categoria_path
         : ["Sin clasificar"];
@@ -37,8 +39,12 @@ async function processManifest(project, manifest) {
       resultado.ok.push(nombreArchivo);
       logToPanel("OK: " + nombreArchivo + " -> " + categoryPath.join(" > "));
     } catch (e) {
-      resultado.errores.push({ archivo: nombreArchivo, mensaje: e.message });
-      logToPanel(nombreArchivo + ": " + e.message, true);
+      // e no siempre es un Error real (ej. la API nativa de Premiere puede
+      // rechazar con un string u otro valor sin .message) -- con fallback a
+      // String(e) el mensaje nunca queda vacio ni tumba este catch.
+      const mensaje = (e && e.message) || String(e);
+      resultado.errores.push({ archivo: nombreArchivo, mensaje: mensaje });
+      logToPanel(nombreArchivo + ": " + mensaje, true);
     }
   }
 
