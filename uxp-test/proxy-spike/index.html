@@ -1,0 +1,110 @@
+<div style="padding: 8px; font-family: sans-serif;">
+  <h3 style="margin: 0 0 8px 0;">Spike: vincular proxy</h3>
+  <button id="run">Probar attachProxy</button>
+  <div id="log" style="margin-top: 10px; font-size: 12px; line-height: 1.5;"></div>
+</div>
+<script>
+const premierepro = require("premierepro");
+
+const TEST_DIR = "/Users/brunogutierrez/Documents/CLAUDE CODE/ORGANIZADOR VIDEO/TEST/";
+const ORIGINAL = TEST_DIR + "20260804_PIB0587.MP4";
+const PROXY = TEST_DIR + "20260804_PIB0587S03.MP4";
+const BIN_NOMBRE = "SpikeProxy";
+
+function log(msg, esError) {
+  const div = document.createElement("div");
+  div.textContent = (esError ? "[ERROR] " : "") + msg;
+  if (esError) div.style.color = "#e06c75";
+  document.getElementById("log").appendChild(div);
+  console.log(msg);
+}
+
+async function getOrCreateBin(project, parentFolder, name) {
+  const existing = await parentFolder.getItems();
+  const found = existing.find((i) => i.name === name);
+  if (found) return premierepro.FolderItem.cast(found);
+
+  project.lockedAccess(() => {
+    project.executeTransaction((compoundAction) => {
+      compoundAction.addAction(parentFolder.createBinAction(name, true));
+    }, "Crear bin " + name);
+  });
+  const afterItems = await parentFolder.getItems();
+  return premierepro.FolderItem.cast(afterItems.find((i) => i.name === name));
+}
+
+// Busca en el bin el clip cuyo media path coincide con la ruta real (no por nombre).
+async function buscarPorRuta(folder, ruta) {
+  const items = await folder.getItems();
+  for (const item of items) {
+    const clip = premierepro.ClipProjectItem.cast(item);
+    if (!clip) continue;
+    try {
+      const media = await clip.getMediaFilePath();
+      if (media === ruta) return clip;
+    } catch (e) {
+      // no es un clip con archivo de medios; seguir
+    }
+  }
+  return null;
+}
+
+document.getElementById("run").addEventListener("click", async () => {
+  document.getElementById("log").innerHTML = "";
+  try {
+    const project = await premierepro.Project.getActiveProject();
+    if (!project) {
+      log("No hay proyecto abierto en Premiere.", true);
+      return;
+    }
+
+    const rootItem = await project.getRootItem();
+    const folder = await getOrCreateBin(project, rootItem, BIN_NOMBRE);
+    log("Bin listo: " + folder.name);
+
+    // 1. Importar el original (o reusarlo si ya esta, para poder correr el spike varias veces)
+    let clip = await buscarPorRuta(folder, ORIGINAL);
+    if (clip) {
+      log("El clip ya estaba importado, se reusa.");
+    } else {
+      await project.importFiles([ORIGINAL], true, folder, false);
+      // Premiere puede tardar un momento en registrar el item: reintentar.
+      for (let intento = 1; intento <= 10 && !clip; intento++) {
+        clip = await buscarPorRuta(folder, ORIGINAL);
+        if (!clip) await new Promise((r) => setTimeout(r, 300));
+      }
+      log(clip ? "Importado y encontrado por ruta." : "No se encontro tras importar.", !clip);
+    }
+    if (!clip) return;
+
+    // 2. Estado antes de adjuntar
+    log("canProxy(): " + (await clip.canProxy()));
+    log("hasProxy() antes: " + (await clip.hasProxy()));
+
+    // 3. Adjuntar el proxy
+    const ok = await clip.attachProxy(PROXY, false);
+    log("attachProxy() devolvio: " + ok, ok !== true);
+
+    // 4. Verificacion dura: Premiere lo reporta como adjunto y con la ruta correcta
+    const tiene = await clip.hasProxy();
+    log("hasProxy() despues: " + tiene, tiene !== true);
+
+    let rutaProxy = "";
+    try {
+      rutaProxy = await clip.getProxyPath();
+    } catch (e) {
+      log("getProxyPath() fallo: " + e.message, true);
+    }
+    log("getProxyPath(): " + rutaProxy);
+    log("Coincide con el proxy esperado: " + (rutaProxy === PROXY), rutaProxy !== PROXY);
+
+    // 5. Idempotencia: adjuntar otra vez no debe romper nada (pasa en reexportaciones)
+    const ok2 = await clip.attachProxy(PROXY, false);
+    log("attachProxy() segunda vez: " + ok2);
+
+    log("--- Spike terminado ---");
+  } catch (e) {
+    log(e.message + " | " + e.stack, true);
+  }
+});
+</script>

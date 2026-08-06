@@ -1,0 +1,22 @@
+{
+  "id": "com.iav.spikeproxy",
+  "name": "Spike Proxy",
+  "version": "1.0.0",
+  "main": "index.html",
+  "host": {
+    "app": "premierepro",
+    "minVersion": "25.1.0"
+  },
+  "manifestVersion": 5,
+  "requiredPermissions": {
+    "localFileSystem": "fullAccess"
+  },
+  "entrypoints": [
+    {
+      "id": "panel1",
+      "type": "panel",
+      "label": { "default": "Spike Proxy" },
+      "minimumSize": { "width": 320, "height": 320 }
+    }
+  ]
+}
