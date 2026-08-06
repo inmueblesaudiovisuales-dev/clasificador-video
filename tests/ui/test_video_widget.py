@@ -1,7 +1,7 @@
 # tests/ui/test_video_widget.py
 from pathlib import Path
 
-from clasificador_video.ui.video_widget import ScrubBar, VideoWidget
+from clasificador_video.ui.video_widget import ScrubBar, VideoWidget, format_timecode
 
 
 class FakeMpv:
@@ -176,3 +176,23 @@ def test_scrub_bar_solo_in_no_dibuja_tramo_resaltado(qtbot):
     mid_x = 6 + round((35.0 / 60.0) * 188)
     color = img.pixelColor(mid_x, track_y)
     assert color.name() != "#4fd1e8"
+
+
+def test_format_timecode_frame_cero():
+    assert format_timecode(0, 30.0) == "00:00:00"
+
+
+def test_format_timecode_un_segundo_exacto():
+    assert format_timecode(30, 30.0) == "00:01:00"
+
+
+def test_format_timecode_minutos_y_frames():
+    assert format_timecode(2707, 30.0) == "01:30:07"
+
+
+def test_format_timecode_fps_no_entero():
+    assert format_timecode(30, 29.97) == "00:01:00"
+
+
+def test_format_timecode_fps_invalido_no_crashea():
+    assert format_timecode(100, 0.0) == "00:00:00"

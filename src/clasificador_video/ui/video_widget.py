@@ -133,6 +133,20 @@ class VideoWidget(QOpenGLWidget):
         self.player.toggle()
 
 
+def format_timecode(frame: int, fps: float) -> str:
+    """Convierte un numero de frame absoluto a MM:SS:FF -- consistente con
+    que el modelo de datos ya guarda todo en frames (Clip.in_frame/out_frame),
+    no en milisegundos.
+    """
+    if fps <= 0:
+        return "00:00:00"
+    total_seconds = frame / fps
+    minutes = int(total_seconds // 60)
+    seconds = int(total_seconds % 60)
+    remaining_frames = round(frame - (minutes * 60 + seconds) * fps)
+    return f"{minutes:02d}:{seconds:02d}:{remaining_frames:02d}"
+
+
 class ScrubBar(QWidget):
     """Linea de tiempo del clip actual, tipo Source Monitor de Premiere:
     un track con el playhead y, cuando hay marca de in/out, un tramo
