@@ -1,6 +1,7 @@
 # src/clasificador_video/thumbnails.py
 from __future__ import annotations
 
+import hashlib
 import json
 import shutil
 import socket
@@ -10,6 +11,29 @@ from pathlib import Path
 from typing import Callable
 
 MPV_BIN = shutil.which("mpv") or "/opt/homebrew/bin/mpv"
+
+
+def default_cache_root() -> Path:
+    return Path.home() / ".cache" / "clasificador_video" / "thumbnails"
+
+
+def cache_dir_for(video: Path, cache_root: Path) -> Path:
+    """Directorio de cache estable para este clip especifico -- la key
+    incluye tamaño y fecha de modificacion ademas de la ruta, asi que si
+    el archivo se reemplaza (mismo nombre, contenido distinto) el cache
+    se invalida solo, sin lógica de invalidacion aparte.
+
+    Antes las miniaturas se generaban en un directorio temporal que se
+    borraba al cerrar la app -- cada sesion volvia a pagar el costo real
+    de extraccion (varios segundos por clip) aunque el material fuera el
+    mismo de la sesion anterior."""
+    try:
+        stat = video.stat()
+        key_source = f"{video.resolve()}|{stat.st_size}|{stat.st_mtime_ns}"
+    except OSError:
+        key_source = str(video)
+    digest = hashlib.sha1(key_source.encode()).hexdigest()
+    return cache_root / digest
 
 
 def build_thumbnail_command(video: Path, at_seconds: float, outdir: Path) -> list[str]:

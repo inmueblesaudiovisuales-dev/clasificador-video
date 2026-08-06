@@ -34,7 +34,7 @@ def _window(qtbot) -> MainWindow:
     return window
 
 
-def _window_with_video(qtbot) -> MainWindow:
+def _window_with_video(qtbot, cache_root: Path | None = None) -> MainWindow:
     selection = RoomSelection()
     selection.toggle("Sala")
     window = MainWindow(
@@ -42,6 +42,7 @@ def _window_with_video(qtbot) -> MainWindow:
         room_selection=selection,
         category_tree=CategoryTree(),
         video_factory=FakeMpvForWindow,
+        thumbnail_cache_root=cache_root,
     )
     qtbot.addWidget(window)
     return window
@@ -156,7 +157,10 @@ class FakeProbe:
 
 
 def test_importar_carpeta_construye_clips_con_fps_de_ffprobe(qtbot, monkeypatch, tmp_path):
-    window = _window_with_video(qtbot)
+    window = _window_with_video(qtbot, cache_root=tmp_path / "cache")
+    monkeypatch.setattr(
+        "clasificador_video.ui.main_window.extract_thumbnail_strip", lambda *a, **k: []
+    )
     carpeta = tmp_path / "FX30"
     carpeta.mkdir()
     (carpeta / "C0001.MP4").touch()
@@ -184,7 +188,10 @@ class _FlakyProbe:
 
 
 def test_import_ignora_clip_cuyo_ffprobe_falla_y_sigue_con_los_demas(qtbot, monkeypatch, tmp_path):
-    window = _window_with_video(qtbot)
+    window = _window_with_video(qtbot, cache_root=tmp_path / "cache")
+    monkeypatch.setattr(
+        "clasificador_video.ui.main_window.extract_thumbnail_strip", lambda *a, **k: []
+    )
     carpeta = tmp_path / "FX30"
     carpeta.mkdir()
     (carpeta / "bueno.MP4").touch()
@@ -277,7 +284,7 @@ def test_reimportar_reconstruye_el_filmstrip_de_verdad(qtbot):
 
 
 def test_thumbnail_stale_de_importacion_anterior_se_ignora(qtbot, monkeypatch, tmp_path):
-    window = _window_with_video(qtbot)
+    window = _window_with_video(qtbot, cache_root=tmp_path / "cache")
     monkeypatch.setattr(
         "clasificador_video.ui.main_window.extract_thumbnail", _no_mpv_in_test
     )
@@ -297,20 +304,55 @@ def test_thumbnail_stale_de_importacion_anterior_se_ignora(qtbot, monkeypatch, t
     assert len(calls) == 1
 
 
-def test_close_event_limpia_el_thumb_dir_temporal(qtbot, monkeypatch):
+def test_thumbnails_quedan_en_un_cache_persistente_que_sobrevive_al_cierre(qtbot, tmp_path):
+    """Bug de fluidez real: antes las miniaturas vivian en un directorio
+    temporal que se borraba al cerrar la app, asi que cada sesion nueva
+    volvia a pagar el costo real de extraccion (varios segundos por clip)
+    aunque el material fuera el mismo. Ahora el cache es persistente."""
     from PySide6.QtGui import QCloseEvent
 
-    window = _window_with_video(qtbot)
-    monkeypatch.setattr(
-        "clasificador_video.ui.main_window.extract_thumbnail", _no_mpv_in_test
-    )
-    window.load_clips([Clip(orden=1, ruta=Path("/a.MP4"), categoria_path=[], fps=30.0)])
+    cache_root = tmp_path / "cache"
+    clip_path = tmp_path / "a.MP4"
+    clip_path.write_bytes(b"contenido de prueba")
+    window = _window_with_video(qtbot, cache_root=cache_root)
+    from clasificador_video.thumbnails import cache_dir_for
+    cache_dir = cache_dir_for(clip_path, cache_root)
+    cache_dir.mkdir(parents=True)
+    (cache_dir / "strip_00.jpg").write_bytes(b"fake-jpeg")
+
+    window.load_clips([Clip(orden=1, ruta=clip_path, categoria_path=[], fps=30.0)])
     window._schedule_thumbnails()
-    thumb_dir = window._thumb_dir
-    assert thumb_dir is not None and thumb_dir.exists()
-    window._thread_pool.waitForDone(5000)
+    window._thread_pool.waitForDone(2000)
     window.closeEvent(QCloseEvent())
-    assert not thumb_dir.exists()
+
+    assert cache_dir.exists()
+    assert (cache_dir / "strip_00.jpg").exists()
+
+
+def test_cache_hit_no_relanza_mpv(qtbot, monkeypatch, tmp_path):
+    cache_root = tmp_path / "cache"
+    clip_path = tmp_path / "a.MP4"
+    clip_path.write_bytes(b"contenido de prueba")
+    window = _window_with_video(qtbot, cache_root=cache_root)
+    from clasificador_video.thumbnails import cache_dir_for
+    cache_dir = cache_dir_for(clip_path, cache_root)
+    cache_dir.mkdir(parents=True)
+    (cache_dir / "strip_00.jpg").write_bytes(b"fake-jpeg")
+
+    called = []
+    monkeypatch.setattr(
+        "clasificador_video.ui.main_window.extract_thumbnail_strip",
+        lambda *a, **k: called.append(1) or [],
+    )
+    monkeypatch.setattr(
+        "clasificador_video.ui.main_window.extract_thumbnail",
+        lambda *a, **k: called.append(1) or (_ for _ in ()).throw(RuntimeError("no deberia llamarse")),
+    )
+    window.load_clips([Clip(orden=1, ruta=clip_path, categoria_path=[], fps=30.0)])
+    window._schedule_thumbnails()
+    window._thread_pool.waitForDone(2000)
+    assert called == []
+    assert window.filmstrip.item_widgets[0].has_pixmap()
 
 
 def test_load_clips_arranca_el_primer_clip_en_el_reproductor(qtbot):
@@ -583,10 +625,54 @@ def test_autosave_escribe_el_estado_actual(qtbot, monkeypatch, tmp_path):
     window.session_path = session_path
     window.load_clips([Clip(orden=1, ruta=Path("/a.MP4"), categoria_path=["Sala"], fps=30.0)])
     window._autosave()
+    window._flush_autosave()  # fuerza el guardado con debounce a que pase ya
     import json
     saved = json.loads(session_path.read_text())
     assert saved["clips"][0]["categoria_path"] == ["Sala"]
     assert saved["clips"][0]["flag"] == "none"
+
+
+def test_autosave_tiene_debounce_no_escribe_sincronicamente(qtbot, tmp_path):
+    """Bug de fluidez real: antes cada tecla escribia la sesion completa
+    a disco de forma sincronica en el hilo de la UI. Ahora _autosave()
+    solo arranca un debounce -- el guardado real llega despues, en un
+    hilo aparte."""
+    window = _window_with_video(qtbot)
+    session_path = tmp_path / "sesion.json"
+    window.session_path = session_path
+    window.load_clips([Clip(orden=1, ruta=Path("/a.MP4"), categoria_path=["Sala"], fps=30.0)])
+    assert not session_path.exists()  # load_clips ya llamo a _autosave(), pero no escribio todavia
+
+
+def test_varias_ediciones_seguidas_coalescen_en_un_solo_guardado(qtbot, tmp_path):
+    window = _window_with_video(qtbot)
+    session_path = tmp_path / "sesion.json"
+    window.session_path = session_path
+    window.load_clips([Clip(orden=1, ruta=Path("/a.MP4"), categoria_path=[], fps=30.0)])
+    window.handle_key_press("1")
+    window.handle_key_press("p")
+    # tres ediciones seguidas (load_clips, tecla de cuarto, pick) deberian
+    # reiniciar el mismo timer de debounce, no encolar tres escrituras
+    assert window._autosave_timer.isActive()
+    window._flush_autosave()
+    import json
+    saved = json.loads(session_path.read_text())
+    assert saved["clips"][0]["categoria_path"] == ["Sala"]
+    assert saved["clips"][0]["flag"] == "pick"
+
+
+def test_cerrar_la_ventana_no_pierde_la_ultima_edicion_sin_guardar(qtbot, tmp_path):
+    from PySide6.QtGui import QCloseEvent
+
+    window = _window_with_video(qtbot)
+    session_path = tmp_path / "sesion.json"
+    window.session_path = session_path
+    window.load_clips([Clip(orden=1, ruta=Path("/a.MP4"), categoria_path=["Sala"], fps=30.0)])
+    assert not session_path.exists()  # todavia en la ventana de debounce
+    window.closeEvent(QCloseEvent())
+    import json
+    saved = json.loads(session_path.read_text())
+    assert saved["clips"][0]["categoria_path"] == ["Sala"]
 
 
 def test_exportar_escribe_manifest_con_formato_del_plugin(qtbot, monkeypatch, tmp_path):

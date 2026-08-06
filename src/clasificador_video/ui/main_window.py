@@ -1,7 +1,6 @@
 # src/clasificador_video/ui/main_window.py
 from __future__ import annotations
 
-import shutil
 import time
 from pathlib import Path
 from typing import Callable
@@ -30,7 +29,12 @@ from clasificador_video.manifest import Clip, Manifest
 from clasificador_video.player import QUALITY_PROFILES
 from clasificador_video.probe import probe_clip
 from clasificador_video.rooms import RoomSelection
-from clasificador_video.thumbnails import extract_thumbnail, extract_thumbnail_strip
+from clasificador_video.thumbnails import (
+    cache_dir_for,
+    default_cache_root,
+    extract_thumbnail,
+    extract_thumbnail_strip,
+)
 from clasificador_video.ui import theme
 from clasificador_video.ui.filmstrip import ClipThumbnail, Filmstrip
 from clasificador_video.ui.video_widget import VideoWidget
@@ -84,6 +88,23 @@ def _build_room_row_widget(key_number: int, room: str, count: int, max_count: in
     layout.addWidget(bar)
     widget.setFixedHeight(36)
     return widget
+
+
+class _AutosaveWriteJob(QRunnable):
+    """Escribe la sesion a disco fuera del hilo de la UI -- antes
+    `_autosave` escribia sincronicamente en cada tecla, lo que con muchas
+    sesiones/clips se sentia como lag real al clasificar rapido."""
+
+    def __init__(self, path: Path, data: dict):
+        super().__init__()
+        self.path = path
+        self.data = data
+
+    def run(self) -> None:
+        try:
+            save_session(self.path, self.data)
+        except OSError:
+            pass
 
 
 class _ThumbnailJob(QRunnable):
@@ -142,6 +163,7 @@ class MainWindow(QWidget):
         category_tree: CategoryTree,
         video_factory: Callable[..., object] | None = None,
         parent=None,
+        thumbnail_cache_root: Path | None = None,
     ):
         super().__init__(parent)
         self.setWindowTitle(project_name)
@@ -153,15 +175,29 @@ class MainWindow(QWidget):
         self.selected_indices: list[int] = []
         self._router = KeyboardRouter(active_rooms=room_selection.active_rooms())
         self._probe_clip = probe_clip          # inyectable para tests
+        self._thumbnail_cache_root = thumbnail_cache_root or default_cache_root()
         self._thread_pool = QThreadPool(self)
-        # una sola miniatura a la vez: varios decodificadores videotoolbox en
-        # paralelo saturan VideoToolbox y bloquean al reproductor embebido
-        self._thread_pool.setMaxThreadCount(1)
-        self._thumb_dir: Path | None = None
+        # las miniaturas se extraen en software (--hwdec=no, ver
+        # thumbnails.py) -- no tocan VideoToolbox, asi que un par en
+        # paralelo no compite con el reproductor embebido (ese si usa
+        # decodificacion por hardware). 3 a la vez: suficiente para
+        # acelerar importaciones grandes sin saturar CPU en una laptop.
+        self._thread_pool.setMaxThreadCount(3)
         self._thumb_generation = 0
         self.session_path: Path | None = None
         self._last_saved_at: float | None = None
         self._clip_durations: dict[int, float] = {}  # indice -> segundos; solo en memoria
+
+        # autosave con debounce: coalesca ediciones rapidas seguidas en un
+        # solo guardado en vez de escribir a disco en cada tecla, y la
+        # escritura en si corre en un hilo aparte (pool dedicado, un solo
+        # hilo, para que dos guardados nunca se pisen entre si).
+        self._autosave_timer = QTimer(self)
+        self._autosave_timer.setSingleShot(True)
+        self._autosave_timer.setInterval(400)
+        self._autosave_timer.timeout.connect(self._write_autosave_now)
+        self._autosave_pool = QThreadPool(self)
+        self._autosave_pool.setMaxThreadCount(1)
 
         self.room_list_widget = QListWidget()
         self.room_list_widget.addItems(room_selection.active_rooms())
@@ -291,14 +327,10 @@ class MainWindow(QWidget):
         ]
 
     def closeEvent(self, event) -> None:
+        self._flush_autosave()
         # esperar a que terminen los jobs de miniaturas antes de destruir la UI
         self._thread_pool.waitForDone(5000)
-        self._cleanup_thumb_dir()
         super().closeEvent(event)
-
-    def _cleanup_thumb_dir(self) -> None:
-        if self._thumb_dir is not None and self._thumb_dir.exists():
-            shutil.rmtree(self._thumb_dir, ignore_errors=True)
 
     @property
     def current_clip(self) -> Clip | None:
@@ -374,23 +406,38 @@ class MainWindow(QWidget):
     def _autosave(self) -> None:
         if self.session_path is None:
             return
-        try:
-            tree = {}
-            for parent in self.room_selection.active_rooms():
-                known = self.category_tree.known_subrooms_for(parent)
-                if known:
-                    tree[parent] = known
-            data = {
-                "proyecto": self.project_name,
-                "rooms": self.room_selection.active_rooms(),
-                "category_tree": tree,
-                "clips": [c.to_dict() for c in self.clips],
-            }
-            save_session(self.session_path, data)
-            self._last_saved_at = time.monotonic()
-            self._tick_saved_indicator()
-        except OSError:
-            pass
+        # no escribe ahora: reinicia el debounce. Si siguen llegando
+        # ediciones antes de que expire, el guardado real se sigue
+        # posponiendo -- se termina escribiendo una sola vez por rafaga
+        # de teclas, no una vez por tecla.
+        self._autosave_timer.start()
+
+    def _write_autosave_now(self) -> None:
+        if self.session_path is None:
+            return
+        tree = {}
+        for parent in self.room_selection.active_rooms():
+            known = self.category_tree.known_subrooms_for(parent)
+            if known:
+                tree[parent] = known
+        data = {
+            "proyecto": self.project_name,
+            "rooms": self.room_selection.active_rooms(),
+            "category_tree": tree,
+            "clips": [c.to_dict() for c in self.clips],
+        }
+        self._autosave_pool.start(_AutosaveWriteJob(self.session_path, data))
+        self._last_saved_at = time.monotonic()
+        self._tick_saved_indicator()
+
+    def _flush_autosave(self) -> None:
+        """Fuerza el guardado pendiente ya mismo -- se usa al cerrar la
+        ventana, para no perder la ultima edicion si cae dentro de la
+        ventana de debounce."""
+        if self._autosave_timer.isActive():
+            self._autosave_timer.stop()
+            self._write_autosave_now()
+        self._autosave_pool.waitForDone(2000)
 
     def _load_clips_from_ingest(self) -> None:
         clips: list[Clip] = []
@@ -418,18 +465,26 @@ class MainWindow(QWidget):
     def _schedule_thumbnails(self) -> None:
         if not self.clips:
             return
-        import tempfile
-
-        # una importacion nueva invalida los jobs viejos: limpia el dir
-        # temporal anterior y avanza la generacion para que las senales
-        # stale de la importacion anterior no escriban sobre el filmstrip nuevo
-        self._cleanup_thumb_dir()
-        self._thumb_dir = Path(tempfile.mkdtemp(prefix="clasificador-thumbs-"))
+        # una importacion nueva invalida las señales stale de la anterior
+        # (distintas generaciones no se pisan en _on_thumbnail_ready)
         self._thumb_generation += 1
         generation = self._thumb_generation
+        cache_root = self._thumbnail_cache_root
         for index, clip in enumerate(self.clips):
+            cache_dir = cache_dir_for(clip.ruta, cache_root)
+            cached_frames = sorted(cache_dir.glob("strip_*.jpg")) if cache_dir.exists() else []
+            if not cached_frames and cache_dir.exists():
+                single = cache_dir / "00000001.jpg"
+                if single.exists():
+                    cached_frames = [single]
+            if cached_frames:
+                # cache hit: mismo clip (misma ruta+tamaño+mtime) ya
+                # procesado en una sesion anterior -- no hace falta pagar
+                # de nuevo el costo real de correr mpv.
+                self._on_thumbnail_ready(generation, index, cached_frames)
+                continue
             duration_seconds = self._clip_durations.get(index)
-            job = _ThumbnailJob(generation, index, clip.ruta, self._thumb_dir / str(index), duration_seconds)
+            job = _ThumbnailJob(generation, index, clip.ruta, cache_dir, duration_seconds)
             job.signals.done.connect(self._on_thumbnail_ready)
             self._thread_pool.start(job)
 

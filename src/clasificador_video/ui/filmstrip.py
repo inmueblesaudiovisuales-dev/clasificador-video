@@ -73,7 +73,9 @@ class _ClipItemWidget(QWidget):
         self._flag = clip.flag
         self._room_color = clip.room_color
         self._frames: list = []  # QPixmap por frame de la tira, para el scrub
+        self._scaled_cache: dict[int, object] = {}  # indice -> QPixmap ya escalado
         self._poster_index = 0
+        self._shown_index: int | None = None
         self.setObjectName("clipItem")
         # sin esto, un QWidget plano no pinta su propio fondo/borde por QSS
         # -- la propiedad se hereda a los QLabel hijos, que la pintan cada
@@ -107,7 +109,9 @@ class _ClipItemWidget(QWidget):
         """Miniatura unica (compatibilidad con llamadas existentes): sin
         tira de frames, no hay scrub posible, solo poster fijo."""
         self._frames = [pixmap]
+        self._scaled_cache = {}
         self._poster_index = 0
+        self._shown_index = None
         self._show_frame(0)
 
     def set_frames(self, pixmaps: list) -> None:
@@ -118,16 +122,26 @@ class _ClipItemWidget(QWidget):
         if not pixmaps:
             return
         self._frames = pixmaps
+        self._scaled_cache = {}
         self._poster_index = len(pixmaps) // 2
+        self._shown_index = None
         self._show_frame(self._poster_index)
 
     def _show_frame(self, index: int) -> None:
-        pixmap = self._frames[index]
-        scaled = pixmap.scaled(
-            THUMB_MAX_WIDTH, THUMB_HEIGHT, Qt.KeepAspectRatio, Qt.SmoothTransformation
-        )
+        if index == self._shown_index:
+            return
+        # el escalado (bicubico via SmoothTransformation) no es gratis --
+        # cachear por indice evita repetirlo en cada evento de mouseMove
+        # mientras el cursor sigue sobre el mismo frame de la tira.
+        scaled = self._scaled_cache.get(index)
+        if scaled is None:
+            scaled = self._frames[index].scaled(
+                THUMB_MAX_WIDTH, THUMB_HEIGHT, Qt.KeepAspectRatio, Qt.SmoothTransformation
+            )
+            self._scaled_cache[index] = scaled
         self._image_label.setPixmap(scaled)
         self._image_label.setFixedWidth(scaled.width())
+        self._shown_index = index
 
     def has_pixmap(self) -> bool:
         return bool(self._frames)
