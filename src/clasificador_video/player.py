@@ -23,6 +23,7 @@ class MpvPlayer:
         kwargs: dict = {"hwdec": "videotoolbox"}
         if wid is not None:
             kwargs["wid"] = wid
+            kwargs["vo"] = "libmpv"
         self._mpv = mpv_factory(**kwargs)
         self._mpv.pause = True  # estado inicial definido: nunca reproducir solo
         self.in_frame: int | None = None
