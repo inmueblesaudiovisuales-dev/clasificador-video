@@ -182,18 +182,21 @@ class MainWindow(QWidget):
     def _autosave(self) -> None:
         if self.session_path is None:
             return
-        tree = {}
-        for parent in self.room_selection.active_rooms():
-            known = self.category_tree.known_subrooms_for(parent)
-            if known:
-                tree[parent] = known
-        data = {
-            "proyecto": self.project_name,
-            "rooms": self.room_selection.active_rooms(),
-            "category_tree": tree,
-            "clips": [c.to_dict() for c in self.clips],
-        }
-        save_session(self.session_path, data)
+        try:
+            tree = {}
+            for parent in self.room_selection.active_rooms():
+                known = self.category_tree.known_subrooms_for(parent)
+                if known:
+                    tree[parent] = known
+            data = {
+                "proyecto": self.project_name,
+                "rooms": self.room_selection.active_rooms(),
+                "category_tree": tree,
+                "clips": [c.to_dict() for c in self.clips],
+            }
+            save_session(self.session_path, data)
+        except OSError:
+            pass
 
     def _load_clips_from_ingest(self) -> None:
         clips: list[Clip] = []
@@ -269,6 +272,7 @@ class MainWindow(QWidget):
         if sub_path is not None:
             self.current_clip.categoria_path = sub_path
             self._refresh_filmstrip()
+            self._autosave()
             return
         if key.isdigit():
             index = int(key) - 1
@@ -317,6 +321,7 @@ class MainWindow(QWidget):
         path = self.category_tree.path_for(parent, subroom=subroom)
         self.current_clip.categoria_path = path
         self._refresh_filmstrip()
+        self._autosave()
         return path
 
     def _ask_parent_room(self, subroom: str) -> str | None:
@@ -361,6 +366,7 @@ class MainWindow(QWidget):
             return
         self.ingest_tree.import_folder(Path(folder))
         self._refresh_ingest_list()
+        self._load_clips_from_ingest()
 
     def _refresh_ingest_list(self) -> None:
         self.ingest_list.clear()

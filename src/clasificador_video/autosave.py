@@ -13,6 +13,7 @@ def save_session(path: Path, data: dict) -> None:
     garantiza que `path` siempre queda o con el contenido viejo completo,
     o con el nuevo completo -- nunca a medias.
     """
+    path.parent.mkdir(parents=True, exist_ok=True)
     tmp_path = path.with_suffix(path.suffix + ".tmp")
     tmp_path.write_text(json.dumps(data, indent=2, ensure_ascii=False))
     os.replace(tmp_path, path)

@@ -40,16 +40,15 @@ class _ClipItemWidget(QWidget):
         return self._image_label.pixmap() is not None
 
     def set_visual_state(self, is_current: bool) -> None:
-        borders = []
+        parts = []
         flag_color = {"pick": PICK_COLOR, "reject": REJECT_COLOR}.get(self._flag)
         if flag_color:
-            borders.append(flag_color)
-        if is_current:
-            borders.append(CURRENT_COLOR)
-        if borders:
-            self.setStyleSheet(f"border: 2px solid; border-color: {'; border-color: '.join(borders)};")
-        else:
-            self.setStyleSheet("")
+            parts.append(f"border: 2px solid {flag_color};")
+        elif is_current:
+            parts.append(f"border: 2px solid {CURRENT_COLOR};")
+        if is_current and flag_color:
+            parts.append(f"outline: 2px solid {CURRENT_COLOR};")
+        self.setStyleSheet(" ".join(parts))
 
 
 class Filmstrip(QWidget):

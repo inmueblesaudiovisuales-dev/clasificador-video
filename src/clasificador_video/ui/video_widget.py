@@ -4,6 +4,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Callable
 
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QWidget
 
 from clasificador_video.player import MpvPlayer
@@ -18,17 +19,21 @@ def _default_mpv_factory(**kwargs) -> object:
 class VideoWidget(QWidget):
     """Widget que embebe libmpv via `wid` (validado en vivo el 2026-08-06
     en macOS: mpv dibuja dentro del NSView del widget). El player se crea
-    con el wid del widget ya mostrado -- winId() no es valido antes.
+    una vez que el widget tiene un id de ventana nativa valido.
     """
 
     def __init__(self, mpv_factory: Callable[..., object] = _default_mpv_factory, parent=None):
         super().__init__(parent)
+        self.setAttribute(Qt.WA_NativeWindow, True)
+        self.setAttribute(Qt.WA_OpaquePaintEvent, True)
+        self.setAutoFillBackground(True)
         self._mpv_factory = mpv_factory
         self._player: MpvPlayer | None = None
 
     def showEvent(self, event) -> None:
         super().showEvent(event)
         if self._player is None:
+            self.winId()
             self._player = MpvPlayer(mpv_factory=self._mpv_factory, wid=int(self.winId()))
 
     @property

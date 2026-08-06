@@ -109,6 +109,7 @@ def test_importar_carpetas_puebla_el_ingest_list(qtbot, monkeypatch, tmp_path):
         "clasificador_video.ui.main_window.QFileDialog.getExistingDirectory",
         lambda *a, **k: str(carpeta_a),
     )
+    window._load_clips_from_ingest = lambda: None
     window.import_button.click()
     assert window.ingest_list.count() == 1
     assert window.ingest_list.item(0).text() == "FX30"

@@ -94,6 +94,11 @@ def main() -> None:
     if window is None:
         sys.exit(0)
     window.show()
+    if window.clips:
+        try:
+            window.video_widget.open_clip(window.clips[0].ruta)
+        except RuntimeError:
+            pass
     sys.exit(app.exec())
 
 
