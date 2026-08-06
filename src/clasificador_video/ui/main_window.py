@@ -4,6 +4,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Callable
 
+from PySide6.QtCore import QRunnable, QThreadPool, Signal
+from PySide6.QtGui import QPixmap
 from PySide6.QtWidgets import (
     QComboBox,
     QFileDialog,
@@ -20,7 +22,9 @@ from clasificador_video.ingest import IngestTree
 from clasificador_video.keyboard import KeyboardRouter
 from clasificador_video.manifest import Clip
 from clasificador_video.player import QUALITY_PROFILES
+from clasificador_video.probe import probe_clip
 from clasificador_video.rooms import RoomSelection
+from clasificador_video.thumbnails import extract_thumbnail
 from clasificador_video.ui.filmstrip import ClipThumbnail, Filmstrip
 from clasificador_video.ui.video_widget import VideoWidget
 
@@ -28,6 +32,27 @@ LEGEND_TEXT = (
     "1-9 cuartos  |  Espacio play/pause  |  I/O in/out  |  P/X/U pick/reject/ninguno  "
     "|  ← → clip anterior/siguiente  |  Ctrl+Z deshacer"
 )
+
+
+class _ThumbnailJob(QRunnable):
+    """Extrae la miniatura de un clip fuera del hilo de la UI."""
+
+    class Signals(QWidget):
+        done = Signal(int, object)  # indice, Path del jpg
+
+    def __init__(self, index: int, video: Path, outdir: Path):
+        super().__init__()
+        self.index = index
+        self.video = video
+        self.outdir = outdir
+        self.signals = _ThumbnailJob.Signals()
+
+    def run(self) -> None:
+        try:
+            frame = extract_thumbnail(self.video, 0.5, self.outdir)
+        except Exception:
+            frame = None
+        self.signals.done.emit(self.index, frame)
 
 
 class MainWindow(QWidget):
@@ -53,6 +78,9 @@ class MainWindow(QWidget):
         self.clips: list[Clip] = []
         self.current_index = 0
         self._router = KeyboardRouter(active_rooms=room_selection.active_rooms())
+        self._probe_clip = probe_clip          # inyectable para tests
+        self._thread_pool = QThreadPool(self)
+        self._thumb_dir: Path | None = None
 
         self.room_list_widget = QListWidget()
         self.room_list_widget.addItems(room_selection.active_rooms())
@@ -101,6 +129,38 @@ class MainWindow(QWidget):
         self.clips = clips
         self.current_index = 0
         self._refresh_filmstrip()
+        if clips:
+            try:
+                self.video_widget.open_clip(clips[0].ruta)
+            except RuntimeError:
+                pass  # la ventana aun no se muestra; el clip se abrira en la navegacion
+
+    def _load_clips_from_ingest(self) -> None:
+        clips: list[Clip] = []
+        orden = 1
+        for folder in self.ingest_tree.top_level_folders():
+            for video in folder.files:
+                info = self._probe_clip(video)
+                clips.append(Clip(orden=orden, ruta=video, categoria_path=[], fps=info["fps"]))
+                orden += 1
+        self.load_clips(clips)
+        self._schedule_thumbnails()
+
+    def _schedule_thumbnails(self) -> None:
+        if not self.clips:
+            return
+        import tempfile
+
+        self._thumb_dir = Path(tempfile.mkdtemp(prefix="clasificador-thumbs-"))
+        for index, clip in enumerate(self.clips):
+            job = _ThumbnailJob(index, clip.ruta, self._thumb_dir / str(index))
+            job.signals.done.connect(self._on_thumbnail_ready)
+            self._thread_pool.start(job)
+
+    def _on_thumbnail_ready(self, index: int, frame: Path | None) -> None:
+        if frame is None or index >= self.filmstrip.count():
+            return
+        self.filmstrip.item_widgets[index].set_pixmap(QPixmap(str(frame)))
 
     def handle_key_press(self, key: str) -> None:
         if self.current_clip is None:

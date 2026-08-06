@@ -22,17 +22,24 @@ class _ClipItemWidget(QWidget):
     def __init__(self, clip: ClipThumbnail):
         super().__init__()
         layout = QVBoxLayout(self)
-        image_label = QLabel()
+        self._image_label = QLabel()
         if clip.thumbnail_path is not None:
-            image_label.setText("")  # el pixmap real se wirea en Task 14
+            self._image_label.setText("")
         else:
-            image_label.setText("(sin miniatura)")
-        layout.addWidget(image_label)
-        layout.addWidget(QLabel(clip.room_label))
+            self._image_label.setText("(sin miniatura)")
+        layout.addWidget(self._image_label)
+        self._room_label = QLabel(clip.room_label)
+        layout.addWidget(self._room_label)
 
         border_color = {"pick": PICK_COLOR, "reject": REJECT_COLOR}.get(clip.flag)
         if border_color:
             self.setStyleSheet(f"border: 2px solid; border-color: {border_color};")
+
+    def set_pixmap(self, pixmap) -> None:
+        self._image_label.setPixmap(pixmap)
+
+    def has_pixmap(self) -> bool:
+        return self._image_label.pixmap() is not None
 
 
 class Filmstrip(QWidget):

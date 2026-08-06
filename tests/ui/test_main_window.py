@@ -112,3 +112,35 @@ def test_importar_carpetas_puebla_el_ingest_list(qtbot, monkeypatch, tmp_path):
     window.import_button.click()
     assert window.ingest_list.count() == 1
     assert window.ingest_list.item(0).text() == "FX30"
+
+
+class FakeProbe:
+    def __init__(self):
+        self.calls = []
+
+    def __call__(self, path):
+        self.calls.append(path)
+        return {"width": 1920, "height": 1080, "fps": 59.94005994005994, "has_audio": True, "duration_frames": 360, "rotation": 0}
+
+
+def test_importar_carpeta_construye_clips_con_fps_de_ffprobe(qtbot, monkeypatch, tmp_path):
+    window = _window_with_video(qtbot)
+    carpeta = tmp_path / "FX30"
+    carpeta.mkdir()
+    (carpeta / "C0001.MP4").touch()
+    fake_probe = FakeProbe()
+    monkeypatch.setattr(window, "_probe_clip", fake_probe)
+    window.ingest_tree.import_folder(carpeta)
+    window._load_clips_from_ingest()
+    assert window.current_clip.fps == 59.94005994005994
+    assert window.current_clip.ruta.name == "C0001.MP4"
+    assert window.filmstrip.count() == 1
+
+
+def test_load_clips_arranca_el_primer_clip_en_el_reproductor(qtbot):
+    window = _window_with_video(qtbot)
+    window.show()
+    qtbot.waitExposed(window)
+    clips = [Clip(orden=1, ruta=Path("/a.MP4"), categoria_path=[], fps=30.0)]
+    window.load_clips(clips)
+    assert window.video_widget.player._mpv.loaded_path == "/a.MP4"

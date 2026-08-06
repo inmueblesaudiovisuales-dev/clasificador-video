@@ -37,3 +37,14 @@ def test_sin_flag_no_aplica_borde_de_color(qtbot):
     item = strip.item_widgets[0]
     assert "#3bb273" not in item.styleSheet()
     assert "#e0556f" not in item.styleSheet()
+
+
+def test_item_puede_recibir_un_pixmap(qtbot):
+    strip = Filmstrip()
+    qtbot.addWidget(strip)
+    strip.set_clips([ClipThumbnail(path=Path("/a.MP4"), thumbnail_path=None, room_label="X", flag="none")])
+    from PySide6.QtGui import QPixmap
+    pm = QPixmap(10, 10)
+    pm.fill()
+    strip.item_widgets[0].set_pixmap(pm)
+    assert strip.item_widgets[0].has_pixmap()
