@@ -37,7 +37,7 @@ from clasificador_video.thumbnails import (
 )
 from clasificador_video.ui import theme
 from clasificador_video.ui.filmstrip import ClipThumbnail, Filmstrip
-from clasificador_video.ui.video_widget import ScrubBar, VideoWidget
+from clasificador_video.ui.video_widget import ScrubBar, VideoWidget, format_timecode
 
 SUBROOM_CANDIDATES = ["Baño", "Closet", "Terraza"]
 
@@ -218,6 +218,8 @@ class MainWindow(QWidget):
         self.video_widget = VideoWidget(mpv_factory=video_factory) if video_factory else VideoWidget()
         self.video_widget.setObjectName("videoWidget")
         self.scrub_bar = ScrubBar()
+        self.scrub_time_label = QLabel("")
+        self.scrub_time_label.setObjectName("scrubTimeLabel")
         self._playhead_timer = QTimer(self)
         self._playhead_timer.setInterval(150)
         self._playhead_timer.timeout.connect(self._tick_playhead)
@@ -282,6 +284,7 @@ class MainWindow(QWidget):
         video_column = QVBoxLayout()
         video_column.addWidget(self.subroom_banner)
         video_column.addWidget(self.video_widget, stretch=1)
+        video_column.addWidget(self.scrub_time_label)
         video_column.addWidget(self.scrub_bar)
 
         # inspector de metadata del clip actual: antes solo se leia
@@ -406,15 +409,37 @@ class MainWindow(QWidget):
         if clip is None:
             self.scrub_bar.set_duration(0.0)
             self.scrub_bar.set_in_out(None, None, 0.0)
+            self._update_scrub_time_label()
             return
         duration = self.video_widget.player.duration or self._clip_durations.get(self.current_index, 0.0)
         self.scrub_bar.set_duration(duration)
         self.scrub_bar.set_in_out(clip.in_frame, clip.out_frame, clip.fps)
+        self._update_scrub_time_label()
+
+    def _update_scrub_time_label(self) -> None:
+        clip = self.current_clip
+        if clip is None:
+            self.scrub_time_label.setText("")
+            return
+        fps = clip.fps
+        parts = []
+        if clip.in_frame is not None:
+            parts.append(f"IN {format_timecode(clip.in_frame, fps)}")
+        if clip.out_frame is not None:
+            parts.append(f"OUT {format_timecode(clip.out_frame, fps)}")
+        if clip.in_frame is not None and clip.out_frame is not None and fps > 0:
+            dur_seconds = abs(clip.out_frame - clip.in_frame) / fps
+            parts.append(f"dur {round(dur_seconds)}s")
+        position = self.video_widget.player.position
+        pos_frame = round(position * fps) if fps > 0 else 0
+        parts.append(f"pos {format_timecode(pos_frame, fps)}")
+        self.scrub_time_label.setText(" · ".join(parts))
 
     def _tick_playhead(self) -> None:
         if self.current_clip is None:
             return
         self.scrub_bar.set_position(self.video_widget.player.position)
+        self._update_scrub_time_label()
 
     def load_clips(self, clips: list[Clip]) -> None:
         self.clips = clips

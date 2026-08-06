@@ -777,3 +777,31 @@ def test_widgets_clave_tienen_objectname_para_el_tema(qtbot):
 def test_titulo_de_la_columna_de_cuartos_tiene_objectname_de_panel(qtbot):
     window = _window(qtbot)
     assert window.room_title_label.objectName() == "panelTitle"
+
+
+def test_scrub_time_label_vacio_sin_clip(qtbot):
+    window = _window_with_video(qtbot)
+    assert window.scrub_time_label.text() == ""
+
+
+def test_scrub_time_label_muestra_in_y_out(qtbot):
+    window = _window_with_video(qtbot)
+    clips = [
+        Clip(orden=1, ruta=Path("/a.MP4"), categoria_path=[], fps=30.0, in_frame=300, out_frame=900)
+    ]
+    window.load_clips(clips)
+    window._update_scrub_bar()
+    text = window.scrub_time_label.text()
+    assert "IN 00:10:00" in text
+    assert "OUT 00:30:00" in text
+    assert "dur 20s" in text
+
+
+def test_scrub_time_label_sin_in_ni_out_no_muestra_esos_segmentos(qtbot):
+    window = _window_with_video(qtbot)
+    clips = [Clip(orden=1, ruta=Path("/a.MP4"), categoria_path=[], fps=30.0)]
+    window.load_clips(clips)
+    window._update_scrub_bar()
+    text = window.scrub_time_label.text()
+    assert "IN " not in text
+    assert "OUT " not in text

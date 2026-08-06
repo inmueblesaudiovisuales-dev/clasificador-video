@@ -119,7 +119,7 @@ def build_stylesheet() -> str:
         color: {TEXT};
     }}
 
-    QLabel#legendLabel, QLabel#statusLabel {{
+    QLabel#legendLabel, QLabel#statusLabel, QLabel#scrubTimeLabel {{
         color: {TEXT_MUTED};
         font-size: 11px;
         font-family: {MONO_FONT};
