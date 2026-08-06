@@ -193,3 +193,17 @@ def test_tecla_u_limpia_in_out_del_clip(qtbot):
     window.handle_key_press("u")
     assert window.current_clip.in_frame is None
     assert window.current_clip.out_frame is None
+
+
+def test_subcuarto_desconocido_pide_padre_y_se_cuelga(qtbot, monkeypatch):
+    window = _window_with_video(qtbot)
+    monkeypatch.setattr(
+        window, "_ask_parent_room",
+        lambda subroom: "Recámara 1",
+    )
+    clips = [Clip(orden=1, ruta=Path("/a.MP4"), categoria_path=[], fps=30.0)]
+    window.load_clips(clips)
+    window._router.subrooms = {"Recámara 1": []}   # existe el padre como opcion
+    window.attach_subroom_or_resolve("Baño")
+    assert window.category_tree.path_for("Recámara 1", subroom="Baño") == ["Recámara 1", "Baño"]
+    assert window.current_clip.categoria_path == ["Recámara 1", "Baño"]

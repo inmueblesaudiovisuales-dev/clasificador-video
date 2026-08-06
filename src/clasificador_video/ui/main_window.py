@@ -33,6 +33,13 @@ LEGEND_TEXT = (
     "|  ← → clip anterior/siguiente  |  Ctrl+Z deshacer"
 )
 
+SUBROOM_CANDIDATES = ["Baño", "Closet", "Terraza"]
+
+
+def _es_room_numerado(room: str) -> bool:
+    partes = room.split()
+    return bool(partes) and partes[-1].isdigit()
+
 
 class _ThumbnailJob(QRunnable):
     """Extrae la miniatura de un clip fuera del hilo de la UI."""
@@ -185,6 +192,9 @@ class MainWindow(QWidget):
     def handle_key_press(self, key: str) -> None:
         if self.current_clip is None:
             return
+        if self._router.pending_parent is not None:
+            self._handle_subroom_key(key)
+            return
         if key == "i":
             self.current_clip.in_frame = self.video_widget.player.mark_in(self.current_clip.fps)
             self._refresh_filmstrip()
@@ -198,15 +208,43 @@ class MainWindow(QWidget):
             self.current_clip.out_frame = None
             self._refresh_filmstrip()
             return
+        if key.isdigit() and self._router.pending_parent is None:
+            index = int(key) - 1
+            if 0 <= index < len(self._router.active_rooms):
+                room = self._router.active_rooms[index]
+                if _es_room_numerado(room) and not self._router.subrooms.get(room):
+                    self._router.pending_parent = room
+                    return  # la tecla siguiente elige el subcuarto
         room_path = self._router.resolve_room_key(key)
         if room_path is not None:
             self.current_clip.categoria_path = room_path
             self._refresh_filmstrip()
             return
+        if key.isdigit():
+            index = int(key) - 1
+            if 0 <= index < len(self._router.active_rooms):
+                room = self._router.active_rooms[index]
+                if _es_room_numerado(room) and not self._router.subrooms.get(room):
+                    self._router.pending_parent = room
+                    self._handle_subroom_key(key)
+                    return
         action = self._router.resolve_action_key(key)
         if action is not None:
             self.current_clip.flag = action
             self._refresh_filmstrip()
+
+    def _handle_subroom_key(self, key: str) -> None:
+        sub_path = self._router.resolve_subroom_key(key)
+        if sub_path is not None:
+            self.current_clip.categoria_path = sub_path
+            self._refresh_filmstrip()
+            return
+        if key.isdigit():
+            index = int(key) - 1
+            if 0 <= index < len(SUBROOM_CANDIDATES):
+                self.attach_subroom_or_resolve(SUBROOM_CANDIDATES[index])
+                return
+        self._router.pending_parent = None  # la tecla no era de subcuarto: salir del modo
 
     def handle_arrow(self, direction: str) -> None:
         if not self.clips:
@@ -222,6 +260,43 @@ class MainWindow(QWidget):
             except RuntimeError:
                 pass
         self._refresh_filmstrip()
+
+    def attach_subroom_or_resolve(self, subroom: str) -> list[str] | None:
+        """Resuelve el path completo del subcuarto y lo asigna al clip
+        actual.
+
+        Si el subcuarto ya cuelga de alguno de los cuartos activos, se usa
+        ese. Si no, se le pregunta al usuario una sola vez a que cuarto
+        colgarlo (spec app-externa §5).
+        """
+        if self.current_clip is None:
+            return None
+        for parent in self.room_selection.active_rooms():
+            if subroom in self.category_tree.known_subrooms_for(parent):
+                path = self.category_tree.path_for(parent, subroom=subroom)
+                self.current_clip.categoria_path = path
+                self._refresh_filmstrip()
+                return path
+        parent = self._ask_parent_room(subroom)
+        if parent is None:
+            return None
+        self.category_tree.attach_subroom(parent, subroom)
+        self._router.subrooms[parent] = self.category_tree.known_subrooms_for(parent)
+        path = self.category_tree.path_for(parent, subroom=subroom)
+        self.current_clip.categoria_path = path
+        self._refresh_filmstrip()
+        return path
+
+    def _ask_parent_room(self, subroom: str) -> str | None:
+        from PySide6.QtWidgets import QInputDialog
+
+        rooms = self.room_selection.active_rooms()
+        if not rooms:
+            return None
+        parent, ok = QInputDialog.getItem(
+            self, "Subcuarto", f"¿A qué cuarto cuelga '{subroom}'?", rooms, 0, False
+        )
+        return parent if ok else None
 
     def _on_quality_changed(self, profile_name: str) -> None:
         try:
