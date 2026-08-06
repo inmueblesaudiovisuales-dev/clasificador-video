@@ -217,3 +217,27 @@ def test_columna_de_cuartos_muestra_contador_de_clips(qtbot):
     ]
     window.load_clips(clips)
     assert window.room_list_widget.item(0).text() == "Sala (2)"
+
+
+def test_cada_accion_dispara_autosave(qtbot, monkeypatch, tmp_path):
+    window = _window_with_video(qtbot)
+    session_path = tmp_path / "sesion.json"
+    window.session_path = session_path
+    calls = []
+    monkeypatch.setattr(window, "_autosave", lambda: calls.append(1))
+    window.load_clips([Clip(orden=1, ruta=Path("/a.MP4"), categoria_path=[], fps=30.0)])
+    window.handle_key_press("1")
+    window.handle_key_press("p")
+    assert len(calls) >= 3
+
+
+def test_autosave_escribe_el_estado_actual(qtbot, monkeypatch, tmp_path):
+    window = _window_with_video(qtbot)
+    session_path = tmp_path / "sesion.json"
+    window.session_path = session_path
+    window.load_clips([Clip(orden=1, ruta=Path("/a.MP4"), categoria_path=["Sala"], fps=30.0)])
+    window._autosave()
+    import json
+    saved = json.loads(session_path.read_text())
+    assert saved["clips"][0]["categoria_path"] == ["Sala"]
+    assert saved["clips"][0]["flag"] == "none"

@@ -17,6 +17,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from clasificador_video.autosave import save_session
 from clasificador_video.category_path import CategoryTree
 from clasificador_video.ingest import IngestTree
 from clasificador_video.keyboard import KeyboardRouter
@@ -88,6 +89,7 @@ class MainWindow(QWidget):
         self._probe_clip = probe_clip          # inyectable para tests
         self._thread_pool = QThreadPool(self)
         self._thumb_dir: Path | None = None
+        self.session_path: Path | None = None
 
         self.room_list_widget = QListWidget()
         self.room_list_widget.addItems(room_selection.active_rooms())
@@ -161,6 +163,23 @@ class MainWindow(QWidget):
                 self.video_widget.open_clip(clips[0].ruta)
             except RuntimeError:
                 pass  # la ventana aun no se muestra; el clip se abrira en la navegacion
+        self._autosave()
+
+    def _autosave(self) -> None:
+        if self.session_path is None:
+            return
+        tree = {}
+        for parent in self.room_selection.active_rooms():
+            known = self.category_tree.known_subrooms_for(parent)
+            if known:
+                tree[parent] = known
+        data = {
+            "proyecto": self.project_name,
+            "rooms": self.room_selection.active_rooms(),
+            "category_tree": tree,
+            "clips": [c.to_dict() for c in self.clips],
+        }
+        save_session(self.session_path, data)
 
     def _load_clips_from_ingest(self) -> None:
         clips: list[Clip] = []
@@ -194,19 +213,23 @@ class MainWindow(QWidget):
             return
         if self._router.pending_parent is not None:
             self._handle_subroom_key(key)
+            self._autosave()
             return
         if key == "i":
             self.current_clip.in_frame = self.video_widget.player.mark_in(self.current_clip.fps)
             self._refresh_filmstrip()
+            self._autosave()
             return
         if key == "o":
             self.current_clip.out_frame = self.video_widget.player.mark_out(self.current_clip.fps)
             self._refresh_filmstrip()
+            self._autosave()
             return
         if key == "u":
             self.current_clip.in_frame = None
             self.current_clip.out_frame = None
             self._refresh_filmstrip()
+            self._autosave()
             return
         if key.isdigit() and self._router.pending_parent is None:
             index = int(key) - 1
@@ -219,19 +242,13 @@ class MainWindow(QWidget):
         if room_path is not None:
             self.current_clip.categoria_path = room_path
             self._refresh_filmstrip()
+            self._autosave()
             return
-        if key.isdigit():
-            index = int(key) - 1
-            if 0 <= index < len(self._router.active_rooms):
-                room = self._router.active_rooms[index]
-                if _es_room_numerado(room) and not self._router.subrooms.get(room):
-                    self._router.pending_parent = room
-                    self._handle_subroom_key(key)
-                    return
         action = self._router.resolve_action_key(key)
         if action is not None:
             self.current_clip.flag = action
             self._refresh_filmstrip()
+            self._autosave()
 
     def _handle_subroom_key(self, key: str) -> None:
         sub_path = self._router.resolve_subroom_key(key)
@@ -260,6 +277,7 @@ class MainWindow(QWidget):
             except RuntimeError:
                 pass
         self._refresh_filmstrip()
+        self._autosave()
 
     def attach_subroom_or_resolve(self, subroom: str) -> list[str] | None:
         """Resuelve el path completo del subcuarto y lo asigna al clip
