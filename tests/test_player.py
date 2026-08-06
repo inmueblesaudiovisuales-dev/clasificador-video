@@ -27,6 +27,29 @@ def test_mpv_player_se_inicializa_con_hwdec_videotoolbox():
     assert player._mpv.init_kwargs["hwdec"] == "videotoolbox"
 
 
+def test_mpv_player_se_inicializa_con_vo_libmpv_para_el_api_de_render():
+    """vo=libmpv habilita el modo render-API de mpv (MpvRenderContext), la
+    via soportada oficialmente para embeber en Qt. El intento anterior con
+    `wid` abria una ventana de mpv aparte en vez de embeberse -- MpvPlayer
+    ya no acepta `wid`.
+    """
+    player = MpvPlayer(mpv_factory=FakeMpv)
+    assert player._mpv.init_kwargs["vo"] == "libmpv"
+
+
+def test_mpv_player_se_inicializa_con_keep_open_para_conservar_el_ultimo_frame():
+    """Los clips de prueba duran 2-6s; sin keep_open mpv descarga el
+    archivo al llegar a EOF y el widget vuelve a quedar negro.
+    """
+    player = MpvPlayer(mpv_factory=FakeMpv)
+    assert player._mpv.init_kwargs["keep_open"] == "always"
+
+
+def test_mpv_handle_expone_la_instancia_real_de_mpv():
+    player = MpvPlayer(mpv_factory=FakeMpv)
+    assert player.mpv_handle is player._mpv
+
+
 def test_open_carga_el_archivo():
     player = MpvPlayer(mpv_factory=FakeMpv)
     player.open(Path("/shooting/C0012.MP4"))
@@ -78,16 +101,6 @@ def test_clear_in_out_resetea_ambos():
     player.clear_in_out()
     assert player.in_frame is None
     assert player.out_frame is None
-
-
-def test_mpv_player_recibe_wid_cuando_se_pasa():
-    player = MpvPlayer(mpv_factory=FakeMpv, wid=12345)
-    assert player._mpv.init_kwargs["wid"] == 12345
-
-
-def test_mpv_player_sin_wid_no_lo_pasa():
-    player = MpvPlayer(mpv_factory=FakeMpv)
-    assert "wid" not in player._mpv.init_kwargs
 
 
 def test_toggle_alterna_play_y_pause():

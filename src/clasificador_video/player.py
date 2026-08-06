@@ -19,14 +19,23 @@ class MpvPlayer:
     actual de reproduccion.
     """
 
-    def __init__(self, mpv_factory: Callable[..., object], wid: int | None = None):
-        kwargs: dict = {"hwdec": "videotoolbox"}
-        if wid is not None:
-            kwargs["wid"] = wid
-        self._mpv = mpv_factory(**kwargs)
+    def __init__(self, mpv_factory: Callable[..., object]):
+        # vo=libmpv habilita el modo render-API (MpvRenderContext), la via
+        # soportada oficialmente para embeber mpv en Qt -- ver ui/video_widget.py.
+        # keep_open=always conserva el ultimo frame decodificado al llegar a
+        # EOF en vez de descargar el archivo (los clips de prueba duran
+        # pocos segundos; sin esto el widget queda negro tras el primer EOF).
+        self._mpv = mpv_factory(hwdec="videotoolbox", vo="libmpv", keep_open="always")
         self._mpv.pause = True  # estado inicial definido: nunca reproducir solo
         self.in_frame: int | None = None
         self.out_frame: int | None = None
+
+    @property
+    def mpv_handle(self) -> object:
+        """La instancia real de mpv, para quien necesite conectar el API de
+        render (`ui/video_widget.py`). No exponer mas superficie que esto.
+        """
+        return self._mpv
 
     def open(self, path: Path) -> None:
         self._mpv.play(str(path))
