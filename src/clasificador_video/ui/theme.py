@@ -61,6 +61,14 @@ def build_stylesheet() -> str:
         background-color: #4a89e8;
     }}
 
+    QPushButton#importButton {{
+        background-color: {BG_HOVER};
+        border: 1px solid {BORDER};
+    }}
+    QPushButton#importButton:hover {{
+        background-color: #38383f;
+    }}
+
     QComboBox, QLineEdit {{
         background-color: {BG_PANEL};
         border: 1px solid {BORDER};

@@ -31,12 +31,19 @@ from clasificador_video.thumbnails import extract_thumbnail
 from clasificador_video.ui.filmstrip import ClipThumbnail, Filmstrip
 from clasificador_video.ui.video_widget import VideoWidget
 
-LEGEND_TEXT = (
-    "1-9 cuartos  |  Espacio play/pause  |  I/O in/out  |  P/X/U pick/reject/ninguno  "
-    "|  ← → clip anterior/siguiente  |  Ctrl+Z deshacer"
-)
-
 SUBROOM_CANDIDATES = ["Baño", "Closet", "Terraza"]
+
+
+def _build_legend_text(active_rooms: list[str]) -> str:
+    """Leyenda de teclado con el cuarto real que le toca a cada numero de
+    la sesion activa -- bug real de v1: mostraba '1-9 cuartos' generico
+    sin decir a que cuarto corresponde cada tecla.
+    """
+    room_keys = "  ".join(f"{i} {room}" for i, room in enumerate(active_rooms[:9], start=1))
+    return (
+        f"{room_keys}  |  Espacio play/pause  |  I/O in/out  |  P/X/U pick/reject/ninguno  "
+        "|  ← → clip anterior/siguiente  |  Ctrl+Z deshacer"
+    )
 
 
 def _es_room_numerado(room: str) -> bool:
@@ -103,7 +110,10 @@ class MainWindow(QWidget):
 
         self.ingest_tree = IngestTree()
         self.import_button = QPushButton("Importar carpetas…")
+        self.import_button.setObjectName("importButton")
         self.import_button.clicked.connect(self._on_import_folders)
+        self.ingest_title_label = QLabel("Material importado")
+        self.ingest_title_label.setObjectName("panelTitle")
         self.ingest_list = QListWidget()
 
         self.filmstrip = Filmstrip()
@@ -114,7 +124,7 @@ class MainWindow(QWidget):
         self.quality_combo = QComboBox()
         self.quality_combo.addItems(list(QUALITY_PROFILES))
         self.quality_combo.currentTextChanged.connect(self._on_quality_changed)
-        self.legend_label = QLabel(LEGEND_TEXT)
+        self.legend_label = QLabel(_build_legend_text(room_selection.active_rooms()))
         self.legend_label.setObjectName("legendLabel")
         self.export_button = QPushButton("Exportar manifest…")
         self.export_button.setObjectName("exportButton")
@@ -135,6 +145,7 @@ class MainWindow(QWidget):
         column.addWidget(self.room_title_label)
         column.addWidget(self.room_list_widget, stretch=1)
         column.addWidget(self.import_button)
+        column.addWidget(self.ingest_title_label)
         column.addWidget(self.ingest_list, stretch=1)
 
         room_column_widget = QWidget()

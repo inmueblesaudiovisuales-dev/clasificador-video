@@ -95,9 +95,40 @@ def test_ventana_muestra_leyenda_de_teclado(qtbot):
     assert "P/X/U" in window.legend_label.text()
 
 
+def test_leyenda_muestra_el_cuarto_real_de_cada_numero(qtbot):
+    """Bug real de v1: la leyenda mostraba '1-9 cuartos' generico en vez
+    de que cuarto real le toca a cada numero en la sesion activa."""
+    selection = RoomSelection()
+    selection.toggle("Sala")
+    selection.toggle("Cocina")
+    window = MainWindow(
+        project_name="Casa Jardin", room_selection=selection, category_tree=CategoryTree(),
+        video_factory=FakeMpvForWindow,
+    )
+    qtbot.addWidget(window)
+    assert "1 Sala" in window.legend_label.text()
+    assert "2 Cocina" in window.legend_label.text()
+    assert "1-9 cuartos" not in window.legend_label.text()
+
+
 def test_boton_importar_carpetas_existe(qtbot):
     window = _window_with_video(qtbot)
     assert window.import_button.text() == "Importar carpetas…"
+
+
+def test_boton_importar_tiene_objectname_para_fondo_distinto_del_panel(qtbot):
+    """Bug real de v1: el boton usaba el mismo color de fondo que el
+    panel y era invisible como boton."""
+    window = _window_with_video(qtbot)
+    assert window.import_button.objectName() == "importButton"
+
+
+def test_material_importado_tiene_encabezado_propio(qtbot):
+    """Bug real de v1: la carpeta importada no tenia titulo ni
+    separacion visual de la lista de cuartos."""
+    window = _window_with_video(qtbot)
+    assert window.ingest_title_label.text() == "Material importado"
+    assert window.ingest_title_label.objectName() == "panelTitle"
 
 
 def test_importar_carpetas_puebla_el_ingest_list(qtbot, monkeypatch, tmp_path):

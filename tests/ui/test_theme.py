@@ -24,6 +24,14 @@ def test_build_stylesheet_da_fondo_negro_al_video():
     assert "background-color: black" in qss
 
 
+def test_build_stylesheet_da_fondo_distinto_al_boton_importar():
+    """Bug real de v1: el boton 'Importar carpetas...' usaba el mismo
+    color de fondo que el panel donde vive y era invisible como boton.
+    """
+    qss = build_stylesheet()
+    assert "QPushButton#importButton" in qss
+
+
 def test_build_stylesheet_es_una_sola_cadena_no_vacia():
     qss = build_stylesheet()
     assert isinstance(qss, str)

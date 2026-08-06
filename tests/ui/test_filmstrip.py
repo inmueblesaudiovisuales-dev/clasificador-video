@@ -6,6 +6,30 @@ from PySide6.QtGui import QPixmap
 from clasificador_video.ui.filmstrip import ClipThumbnail, Filmstrip
 
 
+def test_item_del_filmstrip_pinta_su_propio_fondo_y_borde(qtbot):
+    """Bug real de v1 (visto en capturas): un QWidget plano sin
+    WA_StyledBackground no pinta su propio borde por QSS -- la propiedad
+    se hereda a los QLabel hijos, que la pintan cada uno por separado,
+    dando dos cajas en vez de una sola envolviendo miniatura + nombre.
+    """
+    from PySide6.QtCore import Qt
+
+    strip = Filmstrip()
+    qtbot.addWidget(strip)
+    strip.set_clips([ClipThumbnail(path=Path("/a.MP4"), thumbnail_path=None, room_label="X", flag="none")])
+    item = strip.item_widgets[0]
+    assert item.testAttribute(Qt.WA_StyledBackground)
+    assert item.objectName() == "clipItem"
+
+
+def test_borde_de_pick_no_se_hereda_a_los_labels_hijos(qtbot):
+    strip = Filmstrip()
+    qtbot.addWidget(strip)
+    strip.set_clips([ClipThumbnail(path=Path("/b.MP4"), thumbnail_path=None, room_label="Cocina", flag="pick")])
+    item = strip.item_widgets[0]
+    assert "border: none" in item.styleSheet()
+
+
 def test_filmstrip_agrega_un_thumbnail_por_clip(qtbot):
     strip = Filmstrip()
     qtbot.addWidget(strip)

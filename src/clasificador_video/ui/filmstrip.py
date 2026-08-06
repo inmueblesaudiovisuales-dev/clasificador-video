@@ -27,6 +27,12 @@ class _ClipItemWidget(QWidget):
     def __init__(self, clip: ClipThumbnail):
         super().__init__()
         self._flag = clip.flag
+        self.setObjectName("clipItem")
+        # sin esto, un QWidget plano no pinta su propio fondo/borde por QSS
+        # -- la propiedad se hereda a los QLabel hijos, que la pintan cada
+        # uno por separado (bug real de v1: dos cajas en vez de una sola
+        # envolviendo miniatura + nombre de cuarto).
+        self.setAttribute(Qt.WA_StyledBackground, True)
         layout = QVBoxLayout(self)
         self._image_label = QLabel()
         self._image_label.setFixedHeight(THUMB_HEIGHT)
@@ -59,6 +65,12 @@ class _ClipItemWidget(QWidget):
             parts.append(f"border: 2px solid {CURRENT_COLOR};")
         if is_current and flag_color:
             parts.append(f"outline: 2px solid {CURRENT_COLOR};")
+        if not parts:
+            parts.append("border: none;")
+        # el borde (o su ausencia) es SOLO del contenedor -- sin esta regla
+        # explicita, QSS lo hereda a los QLabel hijos y cada uno lo pinta
+        # por su cuenta, dando dos cajas visibles en vez de una.
+        parts.append("QLabel { border: none; }")
         self.setStyleSheet(" ".join(parts))
 
 
