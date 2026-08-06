@@ -10,9 +10,55 @@
 
 ---
 
+## Cómo se verifica en este plan (leer antes que nada)
+
+**Decisión del usuario: se construye de corrido y sus pruebas se juntan al final.** No hay que pedirle confirmación tarea por tarea.
+
+Eso **no** significa construir a ciegas. Quedó validado en vivo (spikes de este mismo día) que casi toda la verificación se puede hacer sin intervención humana:
+
+- **El plugin se carga y recarga desde la terminal**, sin abrir UXP Developer Tools. Ver "Manejo del plugin por línea de comandos" abajo.
+- **El plugin corre su auto-comprobación solo al cargarse** y escribe el resultado en un archivo JSON que quien ejecuta el plan lee desde la terminal. Comprobado con material real.
+- **La API contesta casi todo lo que hay que verificar:** si el bin existe y está anidado, si hay duplicados, en qué bin quedó un clip, qué color tiene, qué marcas de in/out, si el proxy está adjunto y con qué ruta, si un clip que falla no tumba a los demás.
+
+Por lo tanto, la regla de este plan:
+
+> **Cada task se verifica solo, por la vía automática, antes de pasar al siguiente.** Lo que la máquina no puede contestar se difiere a la sesión final con el usuario (Task 13). No se le interrumpe antes.
+
+**Lo único que la máquina NO puede verificar, y se difiere al Task 13:**
+
+1. **La rotación** — que el clip vertical se vea derecho. Confirmado que la API no expone dimensiones ni rotación del clip (`FootageInterpretation` y `Media` no las tienen). Requiere ojos humanos en el monitor de origen.
+2. **El botón y su explorador de archivos** — es un diálogo nativo de macOS; ningún script puede elegir el archivo.
+3. **Reiniciar Premiere** para comprobar que el plugin instalado carga sin las herramientas de desarrollo.
+4. **Tener Premiere abierto con un proyecto desechable** — no es una prueba, es el estado inicial; se pide una sola vez al empezar.
+
+### Manejo del plugin por línea de comandos
+
+Validado contra Premiere Pro 26.3.0. **Dos tropiezos ya resueltos, no volver a pelearlos:**
+
+- El instalador de Adobe está roto: su script de arranque requiere `tar`, que él mismo no instala. Instalar con `--ignore-scripts` y correr el setup a mano después.
+- La pieza nativa que trae viene compilada **solo para Intel**. En Apple Silicon hay que correr Node bajo Rosetta con `arch -x86_64`.
+
+```bash
+# Instalación (una sola vez)
+mkdir -p /tmp/uxpcli-install && cd /tmp/uxpcli-install
+npm install tar@6 --no-audit --no-fund
+npm install @adobe/uxp-devtools-cli@1.2.0 --ignore-scripts --no-audit --no-fund
+node node_modules/@adobe/uxp-devtools-helper/scripts/devtools_setup.js
+
+# Confirmar que ve Premiere
+arch -x86_64 node /tmp/uxpcli-install/node_modules/@adobe/uxp-devtools-cli/src/uxp.js apps list
+
+# Cargar / recargar el plugin (desde la carpeta uxp-plugin/)
+cd "/Users/brunogutierrez/Documents/CLAUDE CODE/ORGANIZADOR VIDEO/uxp-plugin"
+arch -x86_64 node /tmp/uxpcli-install/node_modules/@adobe/uxp-devtools-cli/src/uxp.js plugin load
+arch -x86_64 node /tmp/uxpcli-install/node_modules/@adobe/uxp-devtools-cli/src/uxp.js plugin reload
+```
+
+---
+
 ## Notas para quien ejecute este plan
 
-- No hay corredor de pruebas automatizado para JS/UXP en este proyecto — la verificación de cada paso es manual: cargar el plugin en Premiere (vía UXP Developer Tools, carpeta `uxp-plugin/`) y confirmar el comportamiento descrito. Esto es intencional, no un hueco del plan: la API de Premiere solo se puede probar contra un Premiere real corriendo.
+- No hay corredor de pruebas automatizado para JS/UXP en este proyecto. La verificación se hace contra un Premiere real corriendo, por la vía automática descrita arriba (cargar por CLI → el plugin corre su auto-comprobación → leer el archivo de resultados). Esto es intencional, no un hueco del plan: la API de Premiere solo se puede probar contra Premiere.
 - Ya existe un plugin de prueba funcional en `uxp-test/` (`manifest.json`, `index.html`) que confirmó: import con rotación correcta, bins anidados, label, e in/out — todo junto, para 3 clips reales. Este plan construye el plugin de producción a partir de esos mismos patrones ya confirmados; no se re-derivan desde cero.
 - Detalle crítico ya descubierto (no volver a perder tiempo en esto): `executeTransaction` **debe** ir envuelto en `project.lockedAccess(() => {...})`, si no, falla con "The script object is no longer valid."
 - Clips de prueba reales disponibles en `TEST/` dentro de este mismo proyecto (`20260804_PIB0587.MP4`, `...0588.MP4`, `...0589.MP4`), y su proxy real en `TEST/20260804_PIB0587S03.MP4`.
@@ -21,8 +67,8 @@
 - **`attachProxy` ya está validado en vivo** (spike `uxp-test/proxy-spike/`, commit `3859bd4`): `attachProxy` devuelve `true`, `hasProxy()` pasa a `true`, `getProxyPath()` devuelve la ruta exacta, y readjuntar es seguro. El Task 6 ya no es un riesgo abierto — es portar código que corrió.
 - Dos mecanismos validados en ese mismo spike, que se usan en todo el plugin: localizar un clip por `getMediaFilePath()` (nunca por nombre de archivo) y reintentar hasta que Premiere registre el item recién importado.
 - **Protocolo cuando una verificación falla:** detenerse ahí. No avanzar al siguiente task, no "arreglar sobre la marcha" en silencio. Anotar el error exacto (mensaje completo, no un resumen), diagnosticar la causa, y solo entonces corregir. Si la corrección cambia el diseño, actualizar el spec antes de seguir.
-- **Rotación:** el clip vertical debe verse derecho. Es el problema que originó todo el proyecto y se rompe en silencio. Se verifica explícitamente en el Task 3 y otra vez en la prueba de punta a punta (Task 11) — no se da por hecho porque ya funcionó en el plugin de prueba.
-- **Oportunidad a evaluar antes del Task 3:** el `.d.ts` de la API declara `findItemsMatchingMediaPath(matchString, ignoreSubclips)`, que buscaría clips por ruta sin recorrer el árbol de bins a mano. Si funciona como promete, reemplaza `findClipByPath` (la parte más lenta y frágil del Task 3) con una sola llamada. Vale una prueba corta antes de escribir ese task. Ojo: en el `.d.ts` aparece declarado dentro de `ClipProjectItem`, lo cual es raro para una operación de proyecto — puede ser un error de la documentación, así que **hay que probarlo, no asumirlo**. Si no funciona, seguir con `findClipByPath` tal como está escrito.
+- **Rotación:** el clip vertical debe verse derecho. Es el problema que originó todo el proyecto y se rompe en silencio. No se puede comprobar por código (la API no expone dimensiones ni rotación), así que se verifica con el usuario en el Task 13 — pero **no se da por hecho**: es el primer punto de esa sesión, y si falla, todo lo demás no importa.
+- **`findItemsMatchingMediaPath` ya se probó y NO sirve** (spike `uxp-test/busqueda-spike/`, commit `0738e71`): solo existe sobre un `ClipProjectItem` y solo encuentra su propia ruta. Desde el clip A buscando al clip B da 0 resultados, en el mismo bin y en otro. El nombre promete un buscador del proyecto y no lo es. **Se queda `findClipByPath` (recorrido manual del árbol) tal como está escrito. No volver a investigar esto.**
 
 ---
 
@@ -106,6 +152,119 @@ git commit -m "chore: scaffold del plugin UXP de produccion"
 ```
 
 ---
+
+### Task 0b: Arnés de auto-comprobación (lo que permite construir sin interrumpir al usuario)
+
+Sin esto, cada task necesitaría que alguien mire Premiere. Con esto, el plugin se comprueba solo al cargarse y deja el resultado en un archivo que se lee desde la terminal. **Mecanismo ya validado en vivo** (spike `uxp-test/busqueda-spike/`, commit `0738e71`).
+
+**Files:**
+- Create: `uxp-plugin/js/autocheck.js`
+- Modify: `uxp-plugin/index.html`
+
+- [ ] **Step 1: Escribir el arnés**
+
+`uxp-plugin/js/autocheck.js`:
+
+```javascript
+// Arnes de auto-comprobacion. Solo se usa durante la construccion: corre al
+// cargar el plugin y deja el resultado en un archivo que se lee desde la
+// terminal. Se apaga poniendo AUTOCHECK_ACTIVO en false (Task 13).
+const AUTOCHECK_ACTIVO = true;
+const AUTOCHECK_SALIDA_DIR = "/private/tmp/clasificador-autocheck";
+const AUTOCHECK_SALIDA_ARCHIVO = "resultado.json";
+
+const autocheckResultados = [];
+let autocheckPruebas = [];
+
+// Cada task registra aqui sus comprobaciones. nombre: que se comprueba.
+// fn: funcion async que devuelve { ok: boolean, detalle: string }.
+function registrarPrueba(nombre, fn) {
+  autocheckPruebas.push({ nombre, fn });
+}
+
+function anotarResultado(nombre, ok, detalle) {
+  autocheckResultados.push({ nombre, ok: !!ok, detalle: String(detalle) });
+  logToPanel(nombre + ": " + (ok ? "OK" : "FALLO") + " — " + detalle, !ok);
+}
+
+async function correrAutocheck() {
+  if (!AUTOCHECK_ACTIVO) return;
+
+  const premierepro = require("premierepro");
+  const project = await premierepro.Project.getActiveProject();
+  if (!project) {
+    anotarResultado("proyecto activo", false, "No hay proyecto abierto en Premiere");
+    await escribirResultadoAutocheck();
+    return;
+  }
+  anotarResultado("proyecto activo", true, project.name);
+
+  for (const prueba of autocheckPruebas) {
+    try {
+      const r = await prueba.fn(project);
+      anotarResultado(prueba.nombre, r.ok, r.detalle);
+    } catch (e) {
+      anotarResultado(prueba.nombre, false, e.message);
+    }
+  }
+
+  await escribirResultadoAutocheck();
+}
+
+async function escribirResultadoAutocheck() {
+  const uxpFs = require("uxp").storage.localFileSystem;
+  const fallidas = autocheckResultados.filter((r) => !r.ok).length;
+  const carpeta = await uxpFs.getEntryWithUrl("file://" + AUTOCHECK_SALIDA_DIR);
+  const archivo = await carpeta.createFile(AUTOCHECK_SALIDA_ARCHIVO, { overwrite: true });
+  await archivo.write(
+    JSON.stringify(
+      {
+        cuando: new Date().toISOString(),
+        total: autocheckResultados.length,
+        fallidas: fallidas,
+        resultados: autocheckResultados,
+      },
+      null,
+      2
+    )
+  );
+}
+```
+
+- [ ] **Step 2: Crear la carpeta de salida**
+
+```bash
+mkdir -p /tmp/clasificador-autocheck
+```
+
+- [ ] **Step 3: Conectarlo en `index.html`**
+
+Agregar `<script src="js/autocheck.js"></script>` después de `log.js`, y al final del script inline: `correrAutocheck();`
+
+- [ ] **Step 4: Verificar el arnés mismo**
+
+Registrar una prueba de mentiras que siempre pase, recargar por CLI, y confirmar que el archivo aparece:
+
+```bash
+cd "/Users/brunogutierrez/Documents/CLAUDE CODE/ORGANIZADOR VIDEO/uxp-plugin"
+arch -x86_64 node /tmp/uxpcli-install/node_modules/@adobe/uxp-devtools-cli/src/uxp.js plugin reload
+sleep 5 && cat /tmp/clasificador-autocheck/resultado.json
+```
+
+Expected: el JSON trae `"fallidas": 0` y el nombre del proyecto desechable. Quitar la prueba de mentiras.
+
+**De aquí en adelante, la verificación de cada task es:** registrar sus comprobaciones con `registrarPrueba(...)`, recargar por CLI, leer el archivo, confirmar `fallidas: 0`. Si algo falla, detenerse ahí (ver protocolo en las notas).
+
+- [ ] **Step 5: Commit**
+
+```bash
+cd "/Users/brunogutierrez/Documents/CLAUDE CODE/ORGANIZADOR VIDEO"
+git add uxp-plugin/js/autocheck.js uxp-plugin/index.html
+git commit -m "chore: arnes de auto-comprobacion que corre al cargar y escribe resultados a disco"
+```
+
+---
+
 
 ### Task 1: Helper de transacciones de Premiere
 
@@ -351,15 +510,13 @@ document.getElementById("status").addEventListener("click", async () => {
 });
 ```
 
-**Primera corrida — importar:** recargar, clic, confirmar en Premiere que se importó el clip dentro de `PruebaTask3`.
+Registrar estas comprobaciones con `registrarPrueba(...)`, recargar por CLI, y confirmar `fallidas: 0` en `/tmp/clasificador-autocheck/resultado.json`. Las tres son automáticas: la API contesta todas.
 
-**Verificación de rotación (obligatoria, es el problema que originó el proyecto):** abrir ese clip en el monitor de origen. `PIB0588` es vertical. Debe verse **derecho**, no acostado. Si se ve acostado, detenerse: el mecanismo de importación dejó de comportarse como en el plugin de prueba y no tiene caso seguir con el resto del plan.
+1. **Importar:** el clip queda dentro de `PruebaTask3` (confirmar por `getMediaFilePath()`, no por nombre).
+2. **No duplicar:** llamar `importOrReuseClip` dos veces con la misma ruta y confirmar que `PruebaTask3` sigue teniendo **un solo** clip con esa ruta.
+3. **La corrección (el caso de todos los días):** llamar con destino `["Recamara 1", "Bano"]` y luego con `["Recamara 2", "Bano"]`. Confirmar que el clip **se mudó** al segundo baño y que el primero quedó vacío. Los dos bins se llaman "Baño": si el clip se queda en el primero, la comparación de carpetas está mal hecha. **Es la comprobación más importante de todo el plan** — es el error que se corrigió en este task.
 
-**Segunda corrida — no duplicar:** sin reiniciar Premiere ni el plugin, clic otra vez. Confirmar que **no hay un segundo clip** dentro de `PruebaTask3`.
-
-**Tercera corrida — la corrección (el caso de todos los días):** cambiar en el script de prueba el destino a `["Recamara 1", "Bano"]`, recargar, clic. Luego cambiarlo a `["Recamara 2", "Bano"]`, recargar, clic. Confirmar que el clip **se mudó** al segundo baño y que no quedó una copia en el primero. Los dos bins se llaman "Baño": si el clip se queda en el primero, la comparación de carpetas está mal hecha y hay que corregirla antes de avanzar.
-
-Quitar el `addEventListener` de prueba.
+**La rotación NO se comprueba aquí** (la API no la expone). Va en el Task 13, con el usuario.
 
 - [ ] **Step 4: Commit**
 
@@ -875,7 +1032,11 @@ Agregar `<script src="js/importarManifest.js"></script>` con los demás, y reemp
 
 El botón se deshabilita mientras corre para que un doble clic no lance dos importaciones encima de la misma.
 
-- [ ] **Step 3: Verificar el camino feliz**
+- [ ] **Step 3: Preparar el archivo de prueba (la prueba en sí se difiere al Task 13)**
+
+El explorador de archivos es un diálogo nativo de macOS: ningún script puede elegir el archivo. Esta verificación se hace con el usuario en el Task 13. Aquí solo se deja el archivo listo.
+
+**Lo que sí se puede verificar solo, y hay que hacerlo ahora:** llamar directamente a `processManifest` con el manifest de abajo ya parseado (saltándose el explorador) y confirmar por autocheck que el clip queda bien. Así, si algo falla, no es culpa del diálogo.
 
 Crear el archivo `~/Desktop/prueba-task9.json` (en el Escritorio a propósito: comprueba que el plugin lee de donde el usuario quiera, no de una carpeta fija):
 
@@ -898,19 +1059,17 @@ Crear el archivo `~/Desktop/prueba-task9.json` (en el Escritorio a propósito: c
 }
 ```
 
-Recargar el plugin, clic en "Importar clasificacion...", elegir ese archivo. Confirmar:
-- El clip aparece dentro de `PruebaTask9`.
-- El panel dice "1 importados, 0 con error".
-- El archivo `prueba-task9.json` **sigue en el Escritorio, con el mismo nombre** — el plugin no lo movió ni lo renombró.
+Comprobar por autocheck que, procesando ese manifest, el clip queda dentro de `PruebaTask9` y el resultado reporta 1 importado y 0 errores.
 
-- [ ] **Step 4: Verificar los cuatro casos feos**
+- [ ] **Step 4: Verificar los casos feos**
 
-Uno por uno, confirmando que cada mensaje es claro y que el botón vuelve a quedar disponible:
+Tres de los cuatro se comprueban solos, llamando a las funciones directamente (sin pasar por el diálogo). Registrarlos en el autocheck:
 
-1. **Cancelar:** clic en el botón y cerrar el explorador sin elegir nada → "Cancelado, no se eligio ningun archivo."
-2. **Archivo inválido:** elegir cualquier JSON que no sea una clasificación (o un archivo con JSON roto) → mensaje de archivo no válido, sin tocar el proyecto.
-3. **Disco desconectado:** copiar el JSON de prueba cambiando las rutas a algo inexistente (ej. `/Volumes/DiscoQueNoExiste/clip.MP4`) → el mensaje de disco no conectado, **una sola vez**, y ningún clip importado.
-4. **Sin proyecto abierto:** cerrar el proyecto en Premiere dejando el panel abierto, clic → "No hay ningun proyecto abierto en Premiere."
+1. **Archivo inválido:** parsear un texto que no es JSON válido → el flujo devuelve el mensaje de archivo no válido y **no toca el proyecto** (confirmar que no aparecieron bins nuevos).
+2. **Disco desconectado:** un manifest con rutas inexistentes (ej. `/Volumes/DiscoQueNoExiste/clip.MP4`) → `revisarMaterialDisponible` los reporta todos como faltantes y no se importa nada.
+3. **Manifest sin clips:** un manifest con `"clips": []` → mensaje claro, sin tocar el proyecto.
+
+**Se difiere al Task 13** (requiere el diálogo nativo o cerrar el proyecto a mano): el camino feliz completo con el explorador, el caso "cancelar sin elegir archivo", y el caso "sin proyecto abierto".
 
 - [ ] **Step 5: Commit**
 
@@ -940,11 +1099,9 @@ cp -R "/Users/brunogutierrez/Documents/CLAUDE CODE/ORGANIZADOR VIDEO/uxp-plugin/
 
 El nombre de la carpeta es el id del manifest + guion bajo + **el major de la versión** (`1.0.0` → `_1`).
 
-- [ ] **Step 3: Verificar que Premiere lo detecta sin UDT**
+- [ ] **Step 3: Se difiere al Task 13 — verificar que Premiere lo detecta sin UDT**
 
-Reiniciar Premiere. Ir a `Window > UXP Plugins` — confirmar que "Clasificador de Video" aparece sin haber usado UDT en esta sesión.
-
-- [ ] **Step 4: Repetir la prueba del camino feliz del Task 9** (elegir el manifest del Escritorio) para confirmar que la instalación por copia funciona igual que vía UDT.
+Requiere reiniciar Premiere, lo cual tumba la conexión del CLI. Va en la sesión final con el usuario.
 
 - [ ] **Step 5: Dejar escrito el procedimiento de actualización**
 
@@ -1038,24 +1195,25 @@ En `~/Desktop/prueba-e2e.json`, con los cinco casos que importan: dos bins homó
 }
 ```
 
-- [ ] **Step 3: Correr y verificar todo**
+- [ ] **Step 3: Correr y verificar todo por autocheck**
 
-Proyecto de Premiere nuevo y vacío. Clic en el botón, elegir `prueba-e2e.json`. Confirmar **cada punto**:
+Procesar ese manifest llamando directamente a `processManifest` (sin el diálogo) y registrar **cada punto** como comprobación:
 
 1. Existen `Recamara 1 > Bano` y `Recamara 2 > Bano`, **cada uno con su propio clip** — no los dos en el mismo lado. Es la prueba de que las carpetas se comparan por identidad y no por nombre.
-2. Los dos clips llamados `20260804_PIB0587.MP4` entraron **como dos clips distintos**, cada uno en su bin. Es la prueba de la identidad por ruta.
+2. Los dos clips llamados `20260804_PIB0587.MP4` entraron **como dos clips distintos**, cada uno en su bin, con su `getMediaFilePath()` correspondiente. Es la prueba de la identidad por ruta.
 3. El tercer clip quedó en `Sin clasificar`.
-4. **Rotación:** los clips verticales se ven **derechos** en el monitor de origen, no acostados.
-5. El primer clip tiene proxy adjunto (`hasProxy` / columna Proxy), color verde, y las marcas de in/out en 10 y 90.
-6. El segundo tiene color rojo, sin proxy, sin marcas.
-7. El panel reporta 3 importados, 0 con error.
+4. El primer clip: `hasProxy()` es `true` con la ruta correcta, color verde, marcas de in/out en 10 y 90.
+5. El segundo: color rojo, `hasProxy()` es `false`, sin marcas.
+6. El resultado reporta 3 importados, 0 con error.
+
+**La rotación se difiere al Task 13** — la API no la expone.
 
 - [ ] **Step 4: Verificar la reexportación (la corrección de todos los días)**
 
-Editar `prueba-e2e.json`: mover el primer clip a `["Cocina"]`. Volver a importar el mismo archivo **en el mismo proyecto**. Confirmar:
+Editar el manifest en memoria: mover el primer clip a `["Cocina"]`. Volver a procesarlo **en el mismo proyecto**. Comprobar:
 
 - El clip **se mudó** a `Cocina`; `Recamara 1 > Bano` quedó vacío.
-- **No hay duplicados** de ningún clip.
+- **No hay duplicados** de ningún clip (buscar por ruta en todo el árbol y confirmar que hay exactamente uno).
 - El clip mudado **conserva** su proxy, su color y sus marcas de in/out.
 
 - [ ] **Step 5: Limpiar el material de prueba**
@@ -1111,7 +1269,52 @@ git commit -m "chore: modulo de secuencia vacio, frontera lista para el armado a
 
 ---
 
-### Task 13: Cierre — dejar la documentación al día
+### Task 13: Sesión de verificación con el usuario (la única que lo requiere)
+
+**Todo lo anterior se construyó y se verificó solo.** Aquí se juntan las cuatro cosas que ninguna máquina puede comprobar. Son unos dos minutos en total. **Antes de convocar al usuario, confirmar que el autocheck reporta `fallidas: 0`** — no hacerle perder el tiempo con algo que ya se sabe roto.
+
+Presentárselo como una lista corta, en orden, y esperar su respuesta en cada punto.
+
+- [ ] **Punto 1: Rotación (el que decide todo)**
+
+Pedirle que abra en el monitor de origen cualquiera de los clips verticales importados (`20260804_PIB0587` o `0588`) y confirme que **se ve derecho, no acostado**.
+
+Si se ve acostado: detener todo. Es el problema que originó el proyecto y significa que el mecanismo de importación dejó de comportarse como en los spikes. Nada de lo demás importa hasta resolverlo.
+
+- [ ] **Punto 2: El botón y el explorador de archivos**
+
+Dejar preparado `~/Desktop/prueba-e2e.json` (el del Task 11) antes de pedirle nada. Luego pedirle:
+
+1. Clic en "Importar clasificacion...", elegir ese archivo. Confirmar que el panel reporta los clips importados sin errores.
+2. Clic otra vez y **cerrar el explorador sin elegir nada** → debe decir "Cancelado, no se eligio ningun archivo" y el botón debe quedar disponible otra vez.
+3. Confirmar que `prueba-e2e.json` **sigue en el Escritorio con el mismo nombre** — el plugin no mueve ni renombra sus archivos.
+
+- [ ] **Punto 3: Sin proyecto abierto**
+
+Pedirle que cierre el proyecto en Premiere dejando el panel abierto, y dé clic en el botón → debe decir "No hay ningun proyecto abierto en Premiere", sin errores feos.
+
+- [ ] **Punto 4: La instalación de verdad**
+
+Después de copiar el plugin a la carpeta de plugins de Adobe (Task 10) y **descargarlo del CLI** (`plugin unload`), pedirle que reinicie Premiere y confirme que "Clasificador de Video" aparece en `Window > UXP Plugins` sin herramientas de desarrollo corriendo. Luego un último clic en el botón con el mismo archivo, para confirmar que la copia instalada funciona igual.
+
+- [ ] **Punto 5: Apagar el arnés de auto-comprobación**
+
+Ya no debe correr en el plugin que el usuario usa a diario: poner `AUTOCHECK_ACTIVO = false` en `uxp-plugin/js/autocheck.js`, volver a copiar el plugin instalado, y confirmar que el panel arranca limpio.
+
+```bash
+cd "/Users/brunogutierrez/Documents/CLAUDE CODE/ORGANIZADOR VIDEO"
+git add uxp-plugin/js/autocheck.js
+git commit -m "chore: apagar el arnes de auto-comprobacion para uso diario"
+```
+
+- [ ] **Punto 6: Reportarle el resultado**
+
+Decirle qué pasó en cada punto, sin adornos. Si algo falló, decirlo con el error exacto y qué sigue. Solo después de esto se puede dar el plugin por terminado.
+
+---
+
+
+### Task 14: Cierre — dejar la documentación al día
 
 Sin esto, el siguiente que llegue (persona o IA) lee decisiones viejas como si fueran vigentes. Ya pasó una vez en este proyecto con el camino de xmeml.
 
@@ -1143,10 +1346,11 @@ git commit -m "docs: cierre del plan del plugin UXP, spec y handoff al dia"
 
 ## Self-review de este plan
 
-- **Cobertura del spec:** §11 (formato del manifest) → Task 8. §12 (plugin: instalación y actualización, disparo por botón, dedupe, identidad de bins y clips, manejo de errores, feedback visible) → Tasks 0, 3, 7, 9, 10. §12.1 (preparado para el armado automático) → Tasks 8 y 12. §7 (in/out directo) → Task 5. §8 (label) → Task 4. §9 (proxy) → Task 6. §14 (detalle de `lockedAccess`) → Task 1. Verificación de conjunto → Task 11. Cierre documental → Task 13.
+- **Cobertura del spec:** §11 (formato del manifest) → Task 8. §12 (plugin: instalación y actualización, disparo por botón, dedupe, identidad de bins y clips, manejo de errores, feedback visible) → Tasks 0, 3, 7, 9, 10. §12.1 (preparado para el armado automático) → Tasks 8 y 12. §7 (in/out directo) → Task 5. §8 (label) → Task 4. §9 (proxy) → Task 6. §14 (detalle de `lockedAccess`) → Task 1. Verificación de conjunto → Task 11. Cierre documental → Task 14.
 - **Lo que este plan NO cubre, a propósito:** la app externa PySide6 (ingest, reproductor, filmstrip, miniaturas y su rotación, exportar el manifest) — es un plan aparte que todavía no existe. Este plan asume que el manifest ya existe con el formato del Task 8. **La verificación de rotación de las miniaturas con ffmpeg (spec §13) es responsabilidad de ese plan**, no de éste.
 - **Tampoco cubre** el armado automático de la secuencia: el Task 12 solo deja la frontera lista, sin implementarlo.
 - **Placeholders:** el único "placeholder" intencional es `getFpsFromMedia` en el Task 7, y el Task 8 lo elimina explícitamente en el mismo plan — no queda placeholder sin resolver al final. `construirSecuencia` (Task 12) está vacía **por decisión**, no por olvido, y así queda documentado en el propio archivo.
 - **Consistencia de tipos:** `runTransaction`, `resolveBinChain`, `importOrReuseClip`, `applyFlagLabel`, `applyInOut`, `attachProxyIfPresent`, `processManifest`, `revisarMaterialDisponible` se usan con la misma firma en todos los tasks donde aparecen.
 - **Riesgos que este plan sí ataca de frente:** rotación (Tasks 3 y 11), bins homónimos en ramas distintas (Tasks 3 y 11), nombres de archivo repetidos entre tarjetas (Task 11), disco desconectado (Tasks 7 y 9), reexportación de una clasificación corregida (Tasks 3 y 11).
-- **Riesgo que queda abierto:** la instalación por copia (Task 10) sigue sin probarse en vivo — es lo único del plan confirmado solo por documentación de Adobe.
+- **Riesgo que queda abierto:** la instalación por copia (Task 10) sigue sin probarse en vivo — es lo único del plan confirmado solo por documentación de Adobe. Se comprueba en el Task 13, con el usuario.
+- **Interrupciones al usuario:** una sola, al final (Task 13), de unos dos minutos. Todo lo demás se verifica solo gracias al arnés del Task 0b y al manejo del plugin por línea de comandos. El estado inicial (Premiere abierto con un proyecto desechable) se pide una vez al empezar.
