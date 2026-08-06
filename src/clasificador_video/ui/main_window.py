@@ -192,10 +192,7 @@ class MainWindow(QWidget):
         self.current_index = 0
         self._refresh_filmstrip()
         if clips:
-            try:
-                self.video_widget.open_clip(clips[0].ruta)
-            except RuntimeError:
-                pass  # la ventana aun no se muestra; el clip se abrira en la navegacion
+            self.video_widget.open_clip(clips[0].ruta)
         self._autosave()
 
     def _autosave(self) -> None:
@@ -320,10 +317,7 @@ class MainWindow(QWidget):
             self.current_index = max(self.current_index - 1, 0)
         clip = self.current_clip
         if clip is not None:
-            try:
-                self.video_widget.open_clip(clip.ruta)
-            except RuntimeError:
-                pass
+            self.video_widget.open_clip(clip.ruta)
         self._refresh_filmstrip()
         self._autosave()
 
@@ -366,10 +360,7 @@ class MainWindow(QWidget):
         return parent if ok else None
 
     def _on_quality_changed(self, profile_name: str) -> None:
-        try:
-            self.video_widget.player.set_quality(profile_name)
-        except RuntimeError:
-            pass  # el player aun no se creo (widget no mostrado); se aplica al abrir
+        self.video_widget.player.set_quality(profile_name)
 
     def _on_export_manifest(self) -> None:
         unclassified = [c for c in self.clips if not c.categoria_path]

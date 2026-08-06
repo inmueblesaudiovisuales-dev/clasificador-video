@@ -7,6 +7,26 @@ from clasificador_video import app as app_module
 from clasificador_video.ui.room_config_dialog import RoomConfigDialog
 
 
+class _FakeMpv:
+    """Evita abrir un mpv real en pruebas que no verifican video.
+
+    MpvPlayer crea el reproductor en el constructor (ya no al mostrarse el
+    widget), y VideoWidget.player lo crea perezosamente al primer acceso.
+    `arrancar()` accede a `video_widget.open_clip(...)` al restaurar una
+    sesion con clips -- sin este doble, cada prueba de app.py abriria un
+    mpv real y su hilo de eventos, acumulando hilos reales entre pruebas
+    hasta comprometer el proceso (crash nativo documentado en el handoff).
+    """
+
+    def __init__(self, **kwargs):
+        self.init_kwargs = kwargs
+        self.pause = True
+        self.time_pos = 0.0
+
+    def play(self, path):
+        pass
+
+
 def test_arrancar_abre_dialogo_y_construye_ventana_con_cuartos_elegidos(qtbot, monkeypatch):
     def fake_dialog(*args, **kwargs):
         d = RoomConfigDialog(*args, **kwargs)
@@ -18,14 +38,14 @@ def test_arrancar_abre_dialogo_y_construye_ventana_con_cuartos_elegidos(qtbot, m
     monkeypatch.setattr(app_module, "RoomConfigDialog", fake_dialog)
     monkeypatch.setattr(RoomConfigDialog, "exec", lambda self: QDialog.Accepted)
 
-    window = app_module.arrancar(video_factory=None)
+    window = app_module.arrancar(video_factory=_FakeMpv)
     assert window is not None
     assert window.room_list_widget.count() == 3  # Sala, Recámara 1, Recámara 2
 
 
 def test_arrancar_cancelado_devuelve_none(qtbot, monkeypatch):
     monkeypatch.setattr(RoomConfigDialog, "exec", lambda self: QDialog.Rejected)
-    assert app_module.arrancar(video_factory=None) is None
+    assert app_module.arrancar(video_factory=_FakeMpv) is None
 
 
 def test_arrancar_restaura_sesion_si_existe_y_el_usuario_acepta(qtbot, monkeypatch, tmp_path):
@@ -39,7 +59,7 @@ def test_arrancar_restaura_sesion_si_existe_y_el_usuario_acepta(qtbot, monkeypat
     }))
     monkeypatch.setattr(RoomConfigDialog, "exec", lambda self: QDialog.Accepted)
     monkeypatch.setattr(QMessageBox, "question", lambda *a, **k: QMessageBox.Yes)
-    window = app_module.arrancar(video_factory=None, session_path=session)
+    window = app_module.arrancar(video_factory=_FakeMpv, session_path=session)
     assert window is not None
     assert window.clips[0].ruta.name == "a.MP4"
 

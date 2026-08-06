@@ -5,6 +5,7 @@ import sys
 from pathlib import Path
 from typing import Callable
 
+from PySide6.QtGui import QSurfaceFormat
 from PySide6.QtWidgets import QApplication, QDialog, QMessageBox
 
 from clasificador_video.autosave import load_session
@@ -17,6 +18,21 @@ from clasificador_video.ui.room_config_dialog import RoomConfigDialog
 from clasificador_video.ui.theme import build_stylesheet
 
 SESSION_PATH = Path.home() / ".clasificador_video" / "sesion.json"
+
+
+def configure_gl_surface_format() -> None:
+    """El API de render de mpv (ui/video_widget.py) necesita un contexto
+    OpenGL Core >= 3.3 -- el perfil de compatibilidad que Qt usa por
+    default en macOS no alcanza (mpv registra "need >= OpenGL 3.0 for
+    core rectangle texture support" y no dibuja nada). Debe llamarse
+    antes de crear la QApplication: PySide6 usa este formato como
+    default para todo QOpenGLWidget creado despues.
+    """
+    fmt = QSurfaceFormat()
+    fmt.setVersion(3, 3)
+    fmt.setProfile(QSurfaceFormat.CoreProfile)
+    fmt.setSwapBehavior(QSurfaceFormat.DoubleBuffer)
+    QSurfaceFormat.setDefaultFormat(fmt)
 
 
 def _rebuild_room_selection(rooms: list[str]) -> RoomSelection:
@@ -90,6 +106,8 @@ def arrancar(
 
 
 def main() -> None:
+    if QApplication.instance() is None:
+        configure_gl_surface_format()
     app = QApplication.instance() or QApplication(sys.argv)
     app.setStyleSheet(build_stylesheet())
     window = arrancar()
@@ -97,10 +115,7 @@ def main() -> None:
         sys.exit(0)
     window.show()
     if window.clips:
-        try:
-            window.video_widget.open_clip(window.clips[0].ruta)
-        except RuntimeError:
-            pass
+        window.video_widget.open_clip(window.clips[0].ruta)
     sys.exit(app.exec())
 
 
