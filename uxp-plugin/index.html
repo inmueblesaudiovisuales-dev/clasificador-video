@@ -13,8 +13,22 @@
 <script src="js/inOut.js"></script>
 <script src="js/proxy.js"></script>
 <script src="js/processManifest.js"></script>
+<script src="js/importarManifest.js"></script>
 <script src="js/autocheck-tests.js"></script>
 <script>
   logToPanel("Plugin cargado.");
   correrAutocheck();
+  const boton = document.getElementById("importar");
+  boton.disabled = false;
+  boton.addEventListener("click", async () => {
+    boton.disabled = true;
+    try {
+      await importarManifestDesdeArchivo();
+    } catch (e) {
+      logToPanel(e.message + " | " + e.stack, true);
+      document.getElementById("status").textContent = "Listo.";
+    } finally {
+      boton.disabled = false;
+    }
+  });
 </script>

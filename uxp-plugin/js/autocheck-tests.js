@@ -617,6 +617,149 @@ registrarPrueba(
 // el nivel superficial de una carpeta puntual (para afirmar "cuantos hay
 // aqui"). Son dos preguntas distintas: compartir el escaneo de items()
 // obligaria a una de las dos a cargar semantica que no necesita.
+// Task 9: el manifest de prueba en el Escritorio (prueba-task9.json), a
+// proposito fuera de cualquier carpeta del proyecto -- confirma que el
+// plugin lee de donde el usuario elija, no de una carpeta fija. Aqui se
+// llama processManifest directo con el mismo contenido (el dialogo nativo
+// para elegirlo no se puede automatizar; ver Task 13).
+const manifestPruebaTask9 = {
+  proyecto: "Prueba Task 9",
+  orientacion: "vertical",
+  clips: [
+    {
+      orden: 1,
+      ruta: CLIP_589,
+      categoria_path: ["PruebaTask9"],
+      fps: FPS_CLIP_588,
+      in_frame: null,
+      out_frame: null,
+      flag: "none",
+      ruta_proxy: null,
+    },
+  ],
+};
+
+registrarPrueba(
+  "Task 9: processManifest con el manifest de ~/Desktop/prueba-task9.json deja el clip en PruebaTask9",
+  async (project) => {
+    const premierepro = require("premierepro");
+
+    const resultado = await processManifest(project, manifestPruebaTask9);
+
+    const okEsperado = ["20260804_PIB0589.MP4"];
+    const okCoincide =
+      resultado.ok.length === okEsperado.length &&
+      resultado.ok.every((nombre, i) => nombre === okEsperado[i]);
+    const sinErrores = resultado.errores.length === 0;
+
+    const rootItem = await project.getRootItem();
+    const rootFolder = premierepro.FolderItem.cast(rootItem);
+    const folder = await resolveBinChain(project, rootFolder, ["PruebaTask9"]);
+    const clipsEnFolder = await findClipsConRuta(folder, CLIP_589);
+    const enBinCorrecto = clipsEnFolder.length === 1;
+
+    const ok = okCoincide && sinErrores && enBinCorrecto;
+    return {
+      ok: ok,
+      detalle:
+        "resultado.ok=" + JSON.stringify(resultado.ok) + " (esperado " + JSON.stringify(okEsperado) + ")" +
+        " | resultado.errores=" + JSON.stringify(resultado.errores) +
+        " | clip dentro de PruebaTask9=" + enBinCorrecto,
+    };
+  }
+);
+
+// Caso feo 1: archivo elegido que no es JSON valido. No se puede invocar
+// importarManifestDesdeArchivo() completo sin el dialogo nativo (Task 13),
+// asi que se prueba el mismo fragmento de logica que usa la funcion real
+// (try/catch alrededor de JSON.parse) tal cual aparece en el codigo.
+registrarPrueba(
+  "Task 9: JSON.parse sobre un archivo invalido lanza y el catch produce un mensaje (no toca el proyecto)",
+  async (project) => {
+    const premierepro = require("premierepro");
+    let mensaje = null;
+    let lanzo = false;
+    try {
+      JSON.parse("esto no es json");
+    } catch (e) {
+      lanzo = true;
+      mensaje = "El archivo elegido no es una clasificacion valida: " + e.message;
+    }
+
+    // Confirmar que no aparecio ningun bin nuevo por este intento.
+    const rootItem = await project.getRootItem();
+    const rootFolder = premierepro.FolderItem.cast(rootItem);
+    const items = await rootFolder.getItems();
+    const binesConNombreSospechoso = items.filter((i) => i.name.toLowerCase().includes("json invalido"));
+
+    const ok = lanzo && !!mensaje && binesConNombreSospechoso.length === 0;
+    return {
+      ok: ok,
+      detalle:
+        "lanzo excepcion=" + lanzo + " | mensaje=" + mensaje +
+        " | bines nuevos inesperados=" + binesConNombreSospechoso.length,
+    };
+  }
+);
+
+// Caso feo 2: disco desconectado -- manifest con rutas que no existen en
+// ningun disco montado. revisarMaterialDisponible debe marcar todo como
+// faltante.
+registrarPrueba(
+  "Task 9: revisarMaterialDisponible con disco desconectado marca todos los clips como faltantes",
+  async () => {
+    const manifestDiscoDesconectado = {
+      proyecto: "Prueba disco desconectado",
+      clips: [
+        { ruta: "/Volumes/DiscoQueNoExiste/clip1.MP4" },
+        { ruta: "/Volumes/DiscoQueNoExiste/clip2.MP4" },
+      ],
+    };
+
+    const resultado = await revisarMaterialDisponible(manifestDiscoDesconectado);
+
+    const ok =
+      resultado.disponibles === 0 &&
+      resultado.faltantes.length === 2 &&
+      resultado.faltantes.length === manifestDiscoDesconectado.clips.length;
+
+    return {
+      ok: ok,
+      detalle:
+        "disponibles=" + resultado.disponibles + " (esperado 0)" +
+        " | faltantes=" + JSON.stringify(resultado.faltantes) +
+        " | total de clips en el manifest=" + manifestDiscoDesconectado.clips.length,
+    };
+  }
+);
+
+// Caso feo 3: manifest sin clips ("clips": []). La misma condicion que usa
+// importarManifestDesdeArchivo() debe detectarlo como invalido.
+registrarPrueba(
+  "Task 9: la validacion de clips detecta un manifest con clips: [] como invalido",
+  async () => {
+    const manifestSinClips = { proyecto: "Sin clips", clips: [] };
+    const manifestSinPropiedadClips = { proyecto: "Sin propiedad clips" };
+    const manifestClipsNoEsArray = { proyecto: "Clips no es arreglo", clips: "no soy un arreglo" };
+
+    const esInvalido = (manifest) =>
+      !manifest.clips || !Array.isArray(manifest.clips) || manifest.clips.length === 0;
+
+    const ok =
+      esInvalido(manifestSinClips) &&
+      esInvalido(manifestSinPropiedadClips) &&
+      esInvalido(manifestClipsNoEsArray);
+
+    return {
+      ok: ok,
+      detalle:
+        "clips: []=" + esInvalido(manifestSinClips) +
+        " | sin propiedad clips=" + esInvalido(manifestSinPropiedadClips) +
+        " | clips no es arreglo=" + esInvalido(manifestClipsNoEsArray),
+    };
+  }
+);
+
 async function findClipsConRuta(folder, filePath) {
   const premierepro = require("premierepro");
   const items = await folder.getItems();
