@@ -19,6 +19,8 @@ class KeyboardRouter:
         self.pending_parent: str | None = None
 
     def resolve_room_key(self, key: str) -> list[str] | None:
+        if not key.isdigit():
+            return None
         index = int(key) - 1
         if index < 0 or index >= len(self.active_rooms):
             return None
@@ -32,6 +34,8 @@ class KeyboardRouter:
         if self.pending_parent is None:
             return None
         options = self.subrooms.get(self.pending_parent, [])
+        if not key.isdigit():
+            return None
         index = int(key) - 1
         if index < 0 or index >= len(options):
             return None
