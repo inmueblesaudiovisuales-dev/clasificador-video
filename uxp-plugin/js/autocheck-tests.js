@@ -156,6 +156,39 @@ registrarPrueba(
   }
 );
 
+const CLIP_587 = RUTA_TEST_DIR + "/20260804_PIB0587.MP4";
+
+registrarPrueba("applyFlagLabel: 'pick' pone el label FOREST en el clip", async (project) => {
+  const premierepro = require("premierepro");
+  const rootItem = await project.getRootItem();
+  const rootFolder = premierepro.FolderItem.cast(rootItem);
+
+  const folder = await resolveBinChain(project, rootFolder, ["PruebaTask4"]);
+  const clip = await importOrReuseClip(project, folder, CLIP_587);
+
+  // El clip se reusa entre recargas (importOrReuseClip no reimporta), asi
+  // que si una corrida anterior ya lo dejo en FOREST, "antes" ya seria
+  // FOREST y la comparacion antes/despues no probaria nada. Para que la
+  // prueba sea valida en cualquier corrida, primero se fuerza el label a
+  // ROSE (reject) directamente, y luego se comprueba que applyFlagLabel con
+  // "pick" lo cambia a FOREST.
+  applyFlagLabel(project, clip, "reject");
+  const indiceAntes = await clip.getColorLabelIndex();
+  applyFlagLabel(project, clip, "pick");
+  const indiceDespues = await clip.getColorLabelIndex();
+
+  const indiceForest = premierepro.Constants.ProjectItemColorLabel.FOREST;
+  const indiceRose = premierepro.Constants.ProjectItemColorLabel.ROSE;
+  const ok = indiceAntes === indiceRose && indiceDespues === indiceForest && indiceDespues !== indiceAntes;
+
+  return {
+    ok: ok,
+    detalle:
+      "indice ROSE esperado=" + indiceRose + ", indice antes (tras forzar reject)=" + indiceAntes +
+      " | indice FOREST esperado=" + indiceForest + ", indice despues (tras pick)=" + indiceDespues,
+  };
+});
+
 // Helper solo para las pruebas: cuenta cuantos clips con esa ruta hay
 // directamente dentro de una carpeta (sin bajar a subcarpetas), para poder
 // afirmar "vacio" o "exactamente uno" con evidencia real, no solo "no truena".
