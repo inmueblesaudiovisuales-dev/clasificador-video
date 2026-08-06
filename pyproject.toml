@@ -1,3 +1,19 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "clasificador-video"
+version = "0.1.0"
+description = "App externa del clasificador de video para bienes raíces"
+requires-python = ">=3.10"
+
 [tool.pytest.ini_options]
 pythonpath = ["src"]
 testpaths = ["tests"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[project.scripts]
+clasificador = "clasificador_video.app:main"
