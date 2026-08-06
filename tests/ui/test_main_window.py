@@ -201,6 +201,27 @@ def _no_mpv_in_test(*a, **k):
     raise RuntimeError("no se ejecuta mpv en tests")
 
 
+def test_thumbnail_job_no_truena_si_su_signal_ya_fue_destruido(qtbot, monkeypatch, tmp_path):
+    """Bug real visto en corridas repetidas de la suite: un job de
+    miniatura de una prueba anterior a veces termina su run() (en un
+    hilo del QThreadPool) despues de que la ventana dueña ya se
+    destruyo junto con el QWidget que carga la senal `done` -- emitir
+    sobre un objeto Qt ya borrado truena con RuntimeError dentro del
+    hilo. El job debe descartar el resultado en silencio, no propagar."""
+    import shiboken6
+
+    from clasificador_video.ui.main_window import _ThumbnailJob
+
+    monkeypatch.setattr(
+        "clasificador_video.ui.main_window.extract_thumbnail",
+        lambda *a, **k: tmp_path / "frame.jpg",
+    )
+    job = _ThumbnailJob(1, 0, Path("/a.MP4"), tmp_path)
+    shiboken6.delete(job.signals)
+
+    job.run()  # no debe lanzar
+
+
 def test_thumbnail_stale_de_importacion_anterior_se_ignora(qtbot, monkeypatch, tmp_path):
     window = _window_with_video(qtbot)
     monkeypatch.setattr(

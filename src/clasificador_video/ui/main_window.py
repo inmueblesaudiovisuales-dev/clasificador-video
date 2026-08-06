@@ -70,7 +70,12 @@ class _ThumbnailJob(QRunnable):
             frame = extract_thumbnail(self.video, 0.5, self.outdir)
         except Exception:
             frame = None
-        self.signals.done.emit(self._generation, self.index, frame)
+        try:
+            self.signals.done.emit(self._generation, self.index, frame)
+        except RuntimeError:
+            # la ventana dueña (y su Signals) ya se destruyo mientras este
+            # job corria en su propio hilo -- no hay nadie escuchando.
+            pass
 
 
 class MainWindow(QWidget):
