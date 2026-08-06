@@ -11,9 +11,13 @@ MPV_BIN = shutil.which("mpv") or "/opt/homebrew/bin/mpv"
 
 def build_thumbnail_command(video: Path, at_seconds: float, outdir: Path) -> list[str]:
     """Comando validado en vivo el 2026-08-06 contra clips reales de la
-    Sony FX30: respeta la rotacion del clip sin flags adicionales, y no
-    tiene el problema de extraccion por seek que si afecta a ffmpeg en
-    algunos casos limite (ver spec 2026-08-06, §2).
+    Sony FX30: respeta la rotacion del clip sin flags adicionales.
+
+    Sin `hwdec`: las miniaturas se decodifican en software a proposito --
+    un frame por clip no necesita aceleracion, y se evita que los
+    decodificadores videotoolbox en paralelo (o contra el reproductor
+    embebido) saturen VideoToolbox y bloqueen la reproduccion (verificado
+    en vivo el 2026-08-06 con material real).
     """
     return [
         MPV_BIN,
@@ -22,7 +26,6 @@ def build_thumbnail_command(video: Path, at_seconds: float, outdir: Path) -> lis
         f"--vo-image-outdir={outdir}",
         f"--start={at_seconds}",
         "--frames=1",
-        "--hwdec=videotoolbox",
         str(video),
     ]
 

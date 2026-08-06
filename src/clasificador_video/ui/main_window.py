@@ -12,6 +12,7 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QListWidget,
+    QMessageBox,
     QPushButton,
     QVBoxLayout,
     QWidget,
@@ -21,7 +22,7 @@ from clasificador_video.autosave import save_session
 from clasificador_video.category_path import CategoryTree
 from clasificador_video.ingest import IngestTree
 from clasificador_video.keyboard import KeyboardRouter
-from clasificador_video.manifest import Clip
+from clasificador_video.manifest import Clip, Manifest
 from clasificador_video.player import QUALITY_PROFILES
 from clasificador_video.probe import probe_clip
 from clasificador_video.rooms import RoomSelection
@@ -88,6 +89,9 @@ class MainWindow(QWidget):
         self._router = KeyboardRouter(active_rooms=room_selection.active_rooms())
         self._probe_clip = probe_clip          # inyectable para tests
         self._thread_pool = QThreadPool(self)
+        # una sola miniatura a la vez: varios decodificadores videotoolbox en
+        # paralelo saturan VideoToolbox y bloquean al reproductor embebido
+        self._thread_pool.setMaxThreadCount(1)
         self._thumb_dir: Path | None = None
         self.session_path: Path | None = None
 
@@ -106,11 +110,16 @@ class MainWindow(QWidget):
         self.quality_combo.addItems(list(QUALITY_PROFILES))
         self.quality_combo.currentTextChanged.connect(self._on_quality_changed)
         self.legend_label = QLabel(LEGEND_TEXT)
+        self.export_button = QPushButton("Exportar manifest…")
+        self.export_button.clicked.connect(self._on_export_manifest)
+        self.status_label = QLabel("")
 
         top_bar = QHBoxLayout()
         top_bar.addWidget(QLabel("Calidad:"))
         top_bar.addWidget(self.quality_combo)
         top_bar.addStretch(1)
+        top_bar.addWidget(self.status_label)
+        top_bar.addWidget(self.export_button)
 
         column = QVBoxLayout()
         column.addWidget(QLabel("Cuartos"))
@@ -147,6 +156,11 @@ class MainWindow(QWidget):
             QShortcut(QKeySequence(sequence), self, activated=handler)
             for sequence, handler in shortcuts
         ]
+
+    def closeEvent(self, event) -> None:
+        # esperar a que terminen los jobs de miniaturas antes de destruir la UI
+        self._thread_pool.waitForDone(5000)
+        super().closeEvent(event)
 
     @property
     def current_clip(self) -> Clip | None:
@@ -321,6 +335,25 @@ class MainWindow(QWidget):
             self.video_widget.player.set_quality(profile_name)
         except RuntimeError:
             pass  # el player aun no se creo (widget no mostrado); se aplica al abrir
+
+    def _on_export_manifest(self) -> None:
+        unclassified = [c for c in self.clips if not c.categoria_path]
+        if unclassified:
+            QMessageBox.warning(
+                self, "Clips sin clasificar",
+                f"{len(unclassified)} clip(s) no tienen cuarto y entrarán en 'Sin clasificar'. "
+                "Puedes seguir y corregir después.",
+            )
+        path, _ = QFileDialog.getSaveFileName(self, "Guardar manifest", "manifest.json", "JSON (*.json)")
+        if not path:
+            return
+        manifest = Manifest(
+            proyecto=self.project_name,
+            orientacion="horizontal",  # TODO fase 3: detectar del material predominante
+            clips=self.clips,
+        )
+        manifest.write_json(Path(path))
+        self.status_label.setText(f"Manifest exportado: {path}")
 
     def _on_import_folders(self) -> None:
         folder = QFileDialog.getExistingDirectory(self, "Elegir carpeta de material")

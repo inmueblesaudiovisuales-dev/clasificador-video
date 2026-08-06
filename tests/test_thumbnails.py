@@ -15,7 +15,7 @@ def test_build_thumbnail_command_incluye_start_y_frames_1():
     assert "--vo-image-outdir=/tmp/thumbs/xyz" in cmd
     assert "--start=3.0" in cmd
     assert "--frames=1" in cmd
-    assert "--hwdec=videotoolbox" in cmd
+    assert "--hwdec=videotoolbox" not in cmd  # sw: no saturar VideoToolbox del reproductor
     assert cmd[-1] == "/shooting/C0012.MP4"
 
 

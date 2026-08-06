@@ -241,3 +241,43 @@ def test_autosave_escribe_el_estado_actual(qtbot, monkeypatch, tmp_path):
     saved = json.loads(session_path.read_text())
     assert saved["clips"][0]["categoria_path"] == ["Sala"]
     assert saved["clips"][0]["flag"] == "none"
+
+
+def test_exportar_escribe_manifest_con_formato_del_plugin(qtbot, monkeypatch, tmp_path):
+    from PySide6.QtWidgets import QMessageBox
+    window = _window_with_video(qtbot)
+    out = tmp_path / "manifest.json"
+    window.load_clips([
+        Clip(orden=1, ruta=Path("/a.MP4"), categoria_path=["Sala"], fps=59.94,
+             in_frame=30, out_frame=200, flag="pick"),
+        Clip(orden=2, ruta=Path("/b.MP4"), categoria_path=[], fps=29.97, flag="none"),
+    ])
+    monkeypatch.setattr("clasificador_video.ui.main_window.QFileDialog.getSaveFileName",
+                        lambda *a, **k: (str(out), ""))
+    monkeypatch.setattr("clasificador_video.ui.main_window.QMessageBox.warning",
+                        lambda *a, **k: QMessageBox.Ok)
+    window.export_button.click()
+    import json
+    saved = json.loads(out.read_text())
+    assert saved["proyecto"] == "Casa Jardin"
+    assert saved["clips"][0]["ruta"] == "/a.MP4"
+    assert saved["clips"][1]["categoria_path"] == []
+    assert saved["clips"][0]["flag"] == "pick"
+    assert saved["clips"][0]["in_frame"] == 30
+
+
+def test_exportar_avisa_si_hay_clips_sin_clasificar_sin_bloquear(qtbot, monkeypatch, tmp_path):
+    from PySide6.QtWidgets import QMessageBox
+    window = _window_with_video(qtbot)
+    out = tmp_path / "m.json"
+    window.load_clips([
+        Clip(orden=1, ruta=Path("/a.MP4"), categoria_path=[], fps=30.0),
+    ])
+    warns = []
+    monkeypatch.setattr("clasificador_video.ui.main_window.QFileDialog.getSaveFileName",
+                        lambda *a, **k: (str(out), ""))
+    monkeypatch.setattr("clasificador_video.ui.main_window.QMessageBox.warning",
+                        lambda *a, **k: warns.append(1) or QMessageBox.Ok)
+    window.export_button.click()
+    assert warns == [1]
+    assert out.exists()
