@@ -1,0 +1,22 @@
+{
+  "id": "com.iav.testrotacion",
+  "name": "Test Rotacion",
+  "version": "1.0.0",
+  "main": "index.html",
+  "host": {
+    "app": "premierepro",
+    "minVersion": "25.1.0"
+  },
+  "manifestVersion": 5,
+  "requiredPermissions": {
+    "localFileSystem": "request"
+  },
+  "entrypoints": [
+    {
+      "id": "panel1",
+      "type": "panel",
+      "label": { "default": "Test Rotacion" },
+      "minimumSize": { "width": 230, "height": 200 }
+    }
+  ]
+}
