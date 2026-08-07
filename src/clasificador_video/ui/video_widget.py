@@ -147,6 +147,24 @@ def format_timecode(frame: int, fps: float) -> str:
     return f"{minutes:02d}:{seconds:02d}:{remaining_frames:02d}"
 
 
+_TICK_INTERVALS_SECONDS = (1, 2, 5, 10, 15, 30, 60, 120, 300, 600, 900, 1800, 3600)
+_MIN_MAJOR_TICK_SPACING_PX = 48
+
+
+def tick_interval_seconds(duration: float, usable_width: int) -> float:
+    """Elige el intervalo 'prolijo' (1s, 2s, 5s...) mas chico tal que dos
+    marcas mayores consecutivas de la regla queden separadas al menos
+    _MIN_MAJOR_TICK_SPACING_PX -- para que no se amontonen en clips
+    largos ni queden ridiculamente separadas en clips cortos.
+    """
+    if duration <= 0:
+        return 0.0
+    for interval in _TICK_INTERVALS_SECONDS:
+        if usable_width * (interval / duration) >= _MIN_MAJOR_TICK_SPACING_PX:
+            return float(interval)
+    return float(_TICK_INTERVALS_SECONDS[-1])
+
+
 class ScrubBar(QWidget):
     """Linea de tiempo del clip actual, tipo Source Monitor de Premiere:
     un track con el playhead y, cuando hay marca de in/out, brackets en

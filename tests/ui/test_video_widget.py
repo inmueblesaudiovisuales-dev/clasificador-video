@@ -3,7 +3,12 @@ from pathlib import Path
 
 from PySide6.QtCore import QPoint, Qt
 
-from clasificador_video.ui.video_widget import ScrubBar, VideoWidget, format_timecode
+from clasificador_video.ui.video_widget import (
+    ScrubBar,
+    VideoWidget,
+    format_timecode,
+    tick_interval_seconds,
+)
 
 
 class FakeMpv:
@@ -255,3 +260,19 @@ def test_scrub_bar_click_fuera_de_los_bordes_clampea(qtbot):
     with qtbot.waitSignal(bar.seek_requested, timeout=1000) as blocker:
         qtbot.mousePress(bar, Qt.MouseButton.LeftButton, pos=QPoint(-50, 13))
     assert blocker.args[0] == 0.0
+
+
+def test_tick_interval_duracion_corta_usa_intervalo_chico():
+    assert tick_interval_seconds(10.0, 188) == 5.0
+
+
+def test_tick_interval_duracion_media_usa_intervalo_mayor():
+    assert tick_interval_seconds(90.0, 188) == 30.0
+
+
+def test_tick_interval_duracion_muy_larga_cae_al_ultimo_intervalo():
+    assert tick_interval_seconds(18000.0, 188) == 3600.0
+
+
+def test_tick_interval_sin_duracion_devuelve_cero():
+    assert tick_interval_seconds(0.0, 188) == 0.0
