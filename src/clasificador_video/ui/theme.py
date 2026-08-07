@@ -13,6 +13,8 @@ ACCENT = "#ff8a3d"
 TEXT = "#e4e4e4"
 TEXT_MUTED = "#9a9aa0"
 BORDER = "#333338"
+TICK_MINOR_COLOR = "#3a3a40"
+TICK_MAJOR_COLOR = "#55555c"
 
 MONO_FONT = '"SF Mono", "JetBrains Mono", Menlo, monospace'
 
