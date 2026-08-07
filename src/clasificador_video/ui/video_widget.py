@@ -11,7 +11,7 @@ from PySide6.QtOpenGLWidgets import QOpenGLWidget
 from PySide6.QtWidgets import QWidget
 
 from clasificador_video.player import MpvPlayer
-from clasificador_video.ui.theme import ACCENT, BORDER, TRIM_COLOR
+from clasificador_video.ui.theme import ACCENT, BORDER, TICK_MAJOR_COLOR, TICK_MINOR_COLOR, TRIM_COLOR
 
 
 class _FrameReadySignal(QObject):
@@ -186,7 +186,7 @@ class ScrubBar(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setObjectName("scrubBar")
-        self.setFixedHeight(26)
+        self.setFixedHeight(34)
         self._duration = 0.0
         self._position = 0.0
         self._in_frame: int | None = None
@@ -221,6 +221,23 @@ class ScrubBar(QWidget):
         ratio = max(0.0, min(1.0, (x - left) / usable_width))
         return ratio * self._duration
 
+    def _major_tick_seconds(self) -> list[float]:
+        if self._duration <= 0:
+            return []
+        left, right = 6, self.width() - 6
+        usable_width = max(right - left, 1)
+        interval = tick_interval_seconds(self._duration, usable_width)
+        if interval <= 0:
+            return []
+        ticks = []
+        n = 0
+        t = 0.0
+        while t <= self._duration + 1e-9:
+            ticks.append(t)
+            n += 1
+            t = interval * n
+        return ticks
+
     def paintEvent(self, event) -> None:  # noqa: N802 -- override de Qt
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
@@ -232,6 +249,25 @@ class ScrubBar(QWidget):
         painter.drawLine(left, track_y, right, track_y)
 
         if self._duration > 0:
+            major_ticks = self._major_tick_seconds()
+            if len(major_ticks) >= 1:
+                painter.setRenderHint(QPainter.RenderHint.Antialiasing, False)
+                minor_pen = QPen(QColor(TICK_MINOR_COLOR), 1)
+                major_pen = QPen(QColor(TICK_MAJOR_COLOR), 1)
+                for i, t in enumerate(major_ticks):
+                    tx = self._x_for(t, left, usable_width)
+                    painter.setPen(major_pen)
+                    painter.drawLine(tx, track_y - 9, tx, track_y)
+                    if i + 1 < len(major_ticks):
+                        next_t = major_ticks[i + 1]
+                        interval = next_t - t
+                        painter.setPen(minor_pen)
+                        for frac in (1, 2, 3, 4):
+                            minor_t = t + interval * frac / 5
+                            mx = self._x_for(minor_t, left, usable_width)
+                            painter.drawLine(mx, track_y - 5, mx, track_y)
+                painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+
             in_x = out_x = None
             if self._in_frame is not None and self._fps:
                 in_x = self._x_for(self._in_frame / self._fps, left, usable_width)

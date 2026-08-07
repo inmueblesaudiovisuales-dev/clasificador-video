@@ -276,3 +276,48 @@ def test_tick_interval_duracion_muy_larga_cae_al_ultimo_intervalo():
 
 def test_tick_interval_sin_duracion_devuelve_cero():
     assert tick_interval_seconds(0.0, 188) == 0.0
+
+
+def test_major_tick_seconds_duracion_corta(qtbot):
+    bar = ScrubBar()
+    qtbot.addWidget(bar)
+    bar.resize(200, 34)
+    bar.set_duration(10.0)
+    assert bar._major_tick_seconds() == [0.0, 5.0, 10.0]
+
+
+def test_major_tick_seconds_duracion_media(qtbot):
+    bar = ScrubBar()
+    qtbot.addWidget(bar)
+    bar.resize(200, 34)
+    bar.set_duration(90.0)
+    assert bar._major_tick_seconds() == [0.0, 30.0, 60.0, 90.0]
+
+
+def test_major_tick_seconds_sin_duracion_devuelve_vacio(qtbot):
+    bar = ScrubBar()
+    qtbot.addWidget(bar)
+    bar.resize(200, 34)
+    assert bar._major_tick_seconds() == []
+
+
+def test_scrub_bar_altura_fija_34(qtbot):
+    bar = ScrubBar()
+    qtbot.addWidget(bar)
+    assert bar.height() == 34
+
+
+def test_scrub_bar_dibuja_marca_mayor_en_cada_intervalo(qtbot):
+    bar = ScrubBar()
+    qtbot.addWidget(bar)
+    bar.resize(200, 34)
+    bar.set_duration(10.0)
+    bar.show()
+    qtbot.waitExposed(bar)
+    pixmap = bar.grab()
+    img = pixmap.toImage()
+    track_y = bar.height() // 2
+    left, usable = 6, 200 - 12
+    x_5s = left + round((5.0 / 10.0) * usable)
+    color = img.pixelColor(x_5s, track_y - 8)
+    assert color.name() == "#55555c"
