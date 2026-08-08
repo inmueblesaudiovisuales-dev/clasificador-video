@@ -85,7 +85,7 @@ Punto de partida: **335 tests en verde**, commit `abb7807`.
    pidió al hacer click en esa fila; la alternativa —historial lineal, revertir
    solo desde arriba— contradice el documento.
 
-- [ ] **Step 1: Escribir los tests que fallan**
+- [x] **Step 1: Escribir los tests que fallan**
 
 ```python
 # tests/test_history.py
@@ -169,7 +169,7 @@ def test_la_entrada_sabe_que_campos_restaurar():
     assert e.antes == {3: {"flag": "none"}}
 ```
 
-- [ ] **Step 2: Implementar**
+- [x] **Step 2: Implementar**
 
 ```python
 # src/clasificador_video/history.py
@@ -224,7 +224,7 @@ class History:
         self._entries.clear()
 ```
 
-- [ ] **Step 3: Verificar** — `pytest tests/test_history.py -q` en verde.
+- [x] **Step 3: Verificar** — `pytest tests/test_history.py -q` en verde.
 
 ---
 
@@ -241,7 +241,7 @@ la de arriba lleva el tinte ámbar y el borde izquierdo del `.hist-row.top`.
 
 Cada fila: cuadrito de color, `**Etiqueta** → detalle` elidido, y `↺`.
 
-- [ ] **Step 1: Escribir los tests que fallan**
+- [x] **Step 1: Escribir los tests que fallan**
 
 ```python
 # tests/ui/test_room_rail.py  (agregar)
@@ -304,7 +304,7 @@ def test_un_texto_largo_se_elide_en_vez_de_desbordar(qtbot):
     assert rail.history_rows[0].what_label.text().endswith("…")
 ```
 
-- [ ] **Step 2: Implementar** — `_FilaHistorial(QWidget)` con `swatch`,
+- [x] **Step 2: Implementar** — `_FilaHistorial(QWidget)` con `swatch`,
   `what_label` (`ElidedLabel`) y `undo_button` (`QPushButton` con `↺`,
   `setFocusPolicy(Qt.NoFocus)` — o el espacio activa el botón enfocado en vez
   de reproducir). `MAX_HISTORIAL = 4`. `RoomRail.set_history(entries)` y la
@@ -314,7 +314,7 @@ def test_un_texto_largo_se_elide_en_vez_de_desbordar(qtbot):
   `con_alfa_qss(CURRENT_COLOR, 18)` y su borde de `con_alfa_qss(CURRENT_COLOR, 255)`;
   **no** se escriben a mano.
 
-- [ ] **Step 3: Verificar** — tests en verde y **mirar** el rail con el arnés.
+- [x] **Step 3: Verificar** — tests en verde y **mirar** el rail con el arnés.
 
 ---
 
@@ -338,7 +338,7 @@ pierden datos y se revierten a mano en un gesto (borrar el que creaste,
 renombrar de vuelta). Borrar sí entra porque **desclasifica todos sus clips**:
 es la única operación del rail que destruye trabajo.
 
-- [ ] **Step 1: Escribir los tests que fallan**
+- [x] **Step 1: Escribir los tests que fallan**
 
 ```python
 # tests/ui/test_main_window.py  (agregar)
@@ -448,7 +448,7 @@ def test_el_historial_se_ve_en_el_rail(qtbot):
     assert window.room_rail.history_rows[0].etiqueta == "Cocina"
 ```
 
-- [ ] **Step 2: Implementar**
+- [x] **Step 2: Implementar**
 
 El helper que hace todo el trabajo, para que ninguna acción se olvide de
 registrar:
@@ -474,7 +474,7 @@ con `QKeySequence.StandardKey.Undo`, que ya es `⌘Z` en macOS.
 copia haría que el "antes" mutara junto con el clip y deshacer no hiciera nada.
 De ahí el `_copiar`.
 
-- [ ] **Step 3: Verificar** — suite en verde y prueba a mano: asignar seis
+- [x] **Step 3: Verificar** — suite en verde y prueba a mano: asignar seis
   clips, deshacer, comprobar que vuelven los seis.
 
 ---
@@ -495,7 +495,7 @@ decorativo. El de deshacer **sí es un botón**: es la única acción de la colu
 que no refleja un estado del clip, y tener dónde hacer click cuando dudas de
 qué deshace `⌘Z` vale los 40 px.
 
-- [ ] **Step 1: Escribir los tests que fallan**
+- [x] **Step 1: Escribir los tests que fallan**
 
 ```python
 # tests/ui/test_tool_column.py  (agregar)
@@ -527,22 +527,22 @@ def test_el_boton_no_se_roba_el_foco(qtbot):
     assert _column(qtbot).undo_button.focusPolicy() == Qt.FocusPolicy.NoFocus
 ```
 
-- [ ] **Step 2: Implementar** — un separador (`toolDivider`) y el botón.
+- [x] **Step 2: Implementar** — un separador (`toolDivider`) y el botón.
   `MainWindow` conecta `undo_requested` a `undo()` y llama a `set_can_undo`
   cada vez que cambia el historial.
 
-- [ ] **Step 3: Verificar.**
+- [x] **Step 3: Verificar.**
 
 ## Task 5: Cierre de la F4
 
-- [ ] Suite en verde.
-- [ ] **`grep` del renglón de la lista de ejecución**: «Mención de `Ctrl+Z` sin
+- [x] Suite en verde.
+- [x] **`grep` del renglón de la lista de ejecución**: «Mención de `Ctrl+Z` sin
       implementación» queda tachado.
-- [ ] Campos que nadie lee, buscados con `grep`, en `HistoryEntry` y en las
+- [x] Campos que nadie lee, buscados con `grep`, en `HistoryEntry` y en las
       filas del panel.
-- [ ] Arnés corrido, imagen **mirada**, y recorte ampliado del rail con
+- [x] Arnés corrido, imagen **mirada**, y recorte ampliado del rail con
       historial contra el del mockup.
-- [ ] Commit en español mexicano.
+- [x] Commit en español mexicano.
 
 ---
 
@@ -1115,3 +1115,33 @@ macOS es la tecla **⌘**, no Control—, y la normalización de acentos encuent
 una tecla física. Un entorno `offscreen` no recibe pulsaciones reales. Queda
 como **prueba a mano en la Mac de Bruno** al cerrar la F4 — y aplica también al
 `⌘A` que ya se implementó.
+
+---
+
+## Resultado de la F4 — 2026-08-08
+
+Implementada en el commit `d3c3519`. **377 tests en verde.**
+
+**Lo que se desvió del plan**, para que el documento no mienta:
+
+1. **Faltaba el encabezado `HISTORIAL ⌘Z`.** El plan describía las filas pero
+   no la cabecera, que el mockup sí tiene (un `.rail-head` con `border-top`).
+   Sin ella, las filas no dicen que la tecla las deshace. Salió de mirar el
+   recorte, no de los tests.
+2. **La fila necesitó dos etiquetas, no una.** El mockup pone *qué pasó* en
+   negritas y claro, y *sobre qué* en gris. Con una sola etiqueta se pierde esa
+   jerarquía, que es de lo que vive un panel que se lee de reojo. La etiqueta
+   elide —el nombre del cuarto es lo que puede ser largo— y el detalle queda
+   entero; la política `Maximum` es lo que impide que la etiqueta se coma el
+   espacio libre y empuje el detalle contra el botón.
+3. **El botón `↺` no se dibujaba.** La regla genérica de `QPushButton` trae
+   `padding: 8px 14px`; heredarlo manda el `sizeHint` a 38×29 contra un botón
+   fijo de 18×18 y el glifo se recorta entero. **Los tests no lo detectaban**:
+   sin hoja de estilos aplicada, el `sizeHint` no dice nada. El test que quedó
+   mira píxeles con el estilo puesto.
+
+**Lo que confirmó la auditoría previa**: las tres correcciones que salieron del
+spike seguían siendo ciertas al implementar.
+
+**Pendiente de prueba a mano en la Mac de Bruno**: que `⌘Z` y `⌘A` respondan a
+la tecla física. Un entorno `offscreen` no recibe pulsaciones reales.
