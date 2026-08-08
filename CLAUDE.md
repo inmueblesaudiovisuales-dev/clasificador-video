@@ -1,11 +1,44 @@
 # Instrucciones para Claude Code en este repo
 
+## Idioma: español mexicano, siempre
+
+**Toda la conversación va en español mexicano.** No en español de España ni
+sudamericano. Esto aplica a todo lo que se escriba en este proyecto, sin
+excepción:
+
+- las respuestas en el chat,
+- los mensajes de commit,
+- la documentación en `docs/`,
+- los comentarios en el código,
+- **y sobre todo los textos que ve el usuario dentro de la app** (botones,
+  etiquetas, mensajes de error, tooltips), que son los que terminan
+  publicados.
+
+En concreto:
+
+- **Usa `tú`, nunca `vos`.** Se dice "arrastra", "mantén presionada",
+  "suelta", "puedes", "tienes", "selecciona" — no "arrastrá", "mantené",
+  "soltá", "podés", "tenés", "seleccioná".
+- **`aquí`, no `acá`.** `computadora`, no `ordenador`. `video`, no `vídeo`.
+  `jalar`/`arrastrar`, no `coger`.
+- Nada de `che`, `pibe`, `laburo`, `ahorita no` con sentido rioplatense, ni
+  otros marcadores regionales de Argentina/Uruguay/España.
+- Los términos técnicos que en la industria se usan en inglés se dejan en
+  inglés (`pick`, `reject`, `render`, `proxy`, `frame`, `timecode`), porque
+  así los usa un editor de video en México. No traducirlos a la fuerza.
+
+Si un texto ya existente en el repo está en otra variante, corregirlo cuando
+se toque el archivo.
+
 ## Flujo de trabajo
 
 - **Sin branches nuevas**: Bruno pidió explícitamente trabajar directo sobre
   `master`. No crear branches ni proponer PRs a menos que lo pida.
-- **Commits**: mensajes en español, un commit por unidad de trabajo lógica,
-  terminan con `Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>`.
+- **Commits**: mensajes en español mexicano, un commit por unidad de trabajo
+  lógica, terminan con `Co-Authored-By: <modelo> <noreply@anthropic.com>`,
+  donde `<modelo>` es el que realmente hizo el trabajo (`Claude Opus 5`,
+  `Claude Sonnet 5`, etc.). No dejarlo fijo en un modelo: la atribución tiene
+  que ser real.
 - **Tests**:
   ```bash
   QT_QPA_PLATFORM=offscreen .venv/bin/pytest tests/ --ignore=tests/test_app.py -q
@@ -63,12 +96,12 @@ tarea aparte — es un criterio a aplicar **cada vez que se crea algo nuevo**:
   tiene una carpeta lógica a la que pertenece (`src/`, `tests/`, `docs/`,
   `scripts/`, etc.) — si no la tiene, es señal de que hace falta crear una
   carpeta con nombre descriptivo antes de escribir el archivo, no después.
-- **Nombrá las carpetas por lo que contienen**, no genérico (`output/`,
+- **Nombra las carpetas por lo que contienen**, no genérico (`output/`,
   `stuff/`, `tmp/`). Un mockup de rediseño va en algo como
   `docs/superpowers/mockups/rediseno-<fecha>/`, no en la raíz ni en un
   nombre ambiguo.
 - **No dejar código, docs o scripts de "prueba puntual"/spike sin marcar
-  como tal.** Si algo es un experimento descartable, decilo en el nombre o
+  como tal.** Si algo es un experimento descartable, dilo en el nombre o
   en un comentario al tope del archivo — así la próxima limpieza lo
   identifica sin tener que investigar si todavía se usa.
 - **Un archivo nuevo reemplaza a uno viejo → borrar el viejo en el mismo
@@ -91,3 +124,16 @@ tarea aparte — es un criterio a aplicar **cada vez que se crea algo nuevo**:
 Ver `README.md` para qué es la app y cómo correrla, y
 `docs/superpowers/CONTEXTO-Y-METAS.md` para el estado actual del proyecto y
 hacia dónde va.
+
+## Dirección de diseño de la UI
+
+Antes de tocar cualquier cosa en `src/clasificador_video/ui/`, leer
+`docs/superpowers/mockups/rediseno-2026-08-08/DECISIONES.md`. Es la dirección
+de diseño acordada con Bruno y explica el porqué de cada decisión, incluidas
+las que ya se evaluaron y se descartaron (forma de onda de audio, recorte
+automático de in/out, modo comparar de varios clips en paralelo, sistema de 5
+estrellas). No reabrirlas sin una razón nueva.
+
+Lo que no está construido todavía no es una invitación a improvisar otra
+cosa: si el mockup no cubre un caso, vale la pena preguntarle a Bruno antes
+de inventar.
