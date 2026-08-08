@@ -113,3 +113,10 @@ Junto con el HTML, explicame en texto las decisiones de diseño más
 importantes: por qué esa jerarquía visual, por qué esos patrones de
 interacción, y cómo ese layout deja espacio para las metas futuras
 (vertical, proxies, escala) sin tener que rehacerse.
+
+**Higiene de archivos**: no dejes el HTML (ni nada de lo que generes) suelto
+en la raíz del repo. Creá una carpeta propia con un nombre que deje claro de
+qué se trata — algo como `mockups/rediseno-<fecha>/` o
+`docs/superpowers/mockups/rediseno-<fecha>/` — y poné ahí adentro tanto el
+HTML como la explicación en texto. Nada de archivos temporales o de
+prueba sueltos fuera de esa carpeta.
