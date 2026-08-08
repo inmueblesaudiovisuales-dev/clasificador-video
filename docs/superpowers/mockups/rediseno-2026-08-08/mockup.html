@@ -1,0 +1,763 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Organizador de clips — mockup de rediseño (estático)</title>
+<style>
+/* ------------------------------------------------------------------
+   MOCKUP ESTÁTICO — no es la app, no es funcional.
+   Dos pantallas del mismo diseño, alternadas con la tecla ⇥:
+     1. MODO CLIP  — ver y marcar pick (el cuello de botella real)
+     2. MODO HOJA  — clasificar cuartos en lote desde miniaturas
+   Principio rector: cero bandas horizontales de chrome.
+------------------------------------------------------------------- */
+:root{
+  --bg:        #0a0b0d;
+  --surface-0: #101216;
+  --surface-1: #16191e;
+  --surface-2: #1d2128;
+  --line:      #262b33;
+  --line-soft: #1e222a;
+  --text:      #e6e9ee;
+  --text-2:    #9aa3b0;
+  --text-3:    #626b78;
+
+  /* estado del clip — canal semántico propio */
+  --pick:    #55c08a;
+  --star:    #7ee6b0;   /* destacado = pick reforzado, misma familia */
+  --reject:  #d4696c;
+  --current: #e8a33d;   /* clip actual / playhead */
+  --trim:    #6d8cf5;   /* rango in/out */
+
+  /* identidad de cuarto — paleta apagada a propósito */
+  --r1:#c0885a; --r2:#6d8ca8; --r3:#8b7ca8; --r4:#4f9a8e; --r5:#7e9e5e;
+  --r6:#3e9bc0; --r7:#a9836f; --r8:#b26f86; --r9:#7c8794;
+
+  --mono: ui-monospace,"SF Mono","JetBrains Mono",Menlo,monospace;
+  --sans: -apple-system,BlinkMacSystemFont,"Inter","Segoe UI",sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{
+  background:#000;font-family:var(--sans);color:var(--text);
+  display:flex;flex-direction:column;align-items:center;gap:34px;padding:26px 20px 46px;
+  -webkit-font-smoothing:antialiased;
+}
+.caption{width:1600px;display:flex;align-items:baseline;gap:11px}
+.caption h2{font-size:12px;font-weight:650;letter-spacing:.06em;text-transform:uppercase}
+.caption span{font-size:11.5px;color:var(--text-3)}
+.caption .tab{
+  font-family:var(--mono);font-size:10px;background:var(--surface-2);border:1px solid var(--line);
+  border-radius:4px;padding:2px 6px;color:var(--text-2);margin-left:auto;
+}
+.window{
+  width:1600px;height:1000px;background:var(--bg);border-radius:10px;overflow:hidden;
+  display:flex;flex-direction:column;border:1px solid #23272f;box-shadow:0 40px 120px rgba(0,0,0,.8);
+}
+
+/* ================= titlebar ================= */
+.titlebar{
+  height:36px;flex:0 0 36px;background:var(--surface-0);border-bottom:1px solid var(--line);
+  display:flex;align-items:center;gap:13px;padding:0 13px;
+}
+.appmark{width:17px;height:17px;border-radius:4px;background:linear-gradient(140deg,var(--current),#b4632a);display:flex;align-items:center;justify-content:center;flex:0 0 17px}
+.session{display:flex;align-items:baseline;gap:9px}
+.session b{font-size:12.5px;font-weight:600}
+.session span{font-size:11px;color:var(--text-3)}
+.tb-spacer{flex:1}
+.modeswitch{display:flex;background:var(--surface-1);border:1px solid var(--line);border-radius:6px;overflow:hidden}
+.modeswitch b{font-size:10.5px;font-weight:550;padding:4px 10px;color:var(--text-3);display:flex;align-items:center;gap:6px}
+.modeswitch b.on{background:var(--surface-2);color:var(--text)}
+.modeswitch b kbd{font-size:8px;padding:1px 4px;border-bottom-width:1px}
+.saved{font-size:10.5px;color:var(--text-3);display:flex;align-items:center;gap:6px}
+.saved .led{width:6px;height:6px;border-radius:50%;background:var(--pick)}
+.btn{height:25px;padding:0 11px;border-radius:6px;border:1px solid var(--line);background:var(--surface-2);color:var(--text);font-size:11px;font-weight:550;display:flex;align-items:center;gap:7px}
+.btn.primary{background:var(--text);color:#0b0d10;border-color:transparent;font-weight:650}
+.btn .k{font-family:var(--mono);font-size:9px;opacity:.5}
+
+/* ================= layout ================= */
+.body{flex:1;display:flex;min-height:0}
+.rail-l{width:200px;flex:0 0 200px;background:var(--surface-0);border-right:1px solid var(--line);display:flex;flex-direction:column;min-height:0}
+.videocol{width:529px;flex:0 0 529px;background:#000;position:relative;display:flex}
+.toolcol{width:56px;flex:0 0 56px;background:var(--surface-0);border-left:1px solid var(--line);border-right:1px solid var(--line);display:flex;flex-direction:column;align-items:center;padding:10px 0;gap:5px}
+.sheet{flex:1;min-width:0;background:var(--surface-0);display:flex;flex-direction:column;min-height:0;position:relative}
+
+/* ================= rail izquierdo ================= */
+.rail-head{height:30px;flex:0 0 30px;display:flex;align-items:center;justify-content:space-between;padding:0 12px;border-bottom:1px solid var(--line-soft)}
+.rail-head h3{font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--text-3);font-weight:650}
+.rail-head .find{font-size:10px;color:var(--text-3);display:flex;align-items:center;gap:5px}
+
+.progress{padding:13px 12px 12px;border-bottom:1px solid var(--line-soft)}
+.prog-top{display:flex;align-items:baseline;gap:6px;margin-bottom:9px}
+.prog-top .big{font-family:var(--mono);font-size:24px;font-weight:600;letter-spacing:-.5px}
+.prog-top .of{font-family:var(--mono);font-size:11.5px;color:var(--text-3)}
+.prog-top .lbl{font-size:9px;color:var(--text-3);margin-left:auto;text-transform:uppercase;letter-spacing:.09em}
+.bar{height:5px;border-radius:3px;background:var(--surface-2);display:flex;overflow:hidden;gap:1px}
+.bar i{display:block;height:100%}
+.legend{display:flex;gap:11px;margin-top:9px;font-size:10px;color:var(--text-3)}
+.legend span{display:flex;align-items:center;gap:5px}
+.legend em{width:6px;height:6px;border-radius:2px;font-style:normal}
+
+.rooms{flex:1 1 auto;overflow:hidden;padding:6px 7px;min-height:0}
+/* fila fija: repetir el cuarto del clip anterior (las tomas vienen en rachas) */
+.same{
+  display:flex;align-items:center;gap:8px;height:31px;padding:0 6px;border-radius:6px;margin-bottom:5px;
+  background:rgba(232,163,61,.09);border:1px solid rgba(232,163,61,.28);font-size:12px;
+}
+.same .key{background:rgba(232,163,61,.18);border-color:rgba(232,163,61,.4);color:var(--current)}
+.same .nm{flex:1;color:#ccd2db;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.same .tagline{font-size:11px;color:rgba(232,163,61,.8)}
+.samecap{
+  font-size:8.5px;letter-spacing:.11em;text-transform:uppercase;font-weight:650;
+  color:rgba(232,163,61,.7);padding:3px 6px 4px;
+}
+.room{display:flex;align-items:center;gap:8px;height:29px;padding:0 6px;border-radius:6px;font-size:12px}
+.room.on{background:var(--surface-2)}
+.key{font-family:var(--mono);font-size:10.5px;font-weight:600;width:18px;height:18px;flex:0 0 18px;display:flex;align-items:center;justify-content:center;border-radius:4px;background:var(--surface-2);color:var(--text-2);border:1px solid var(--line)}
+.room.on .key{background:#2b313b;color:var(--text)}
+.swatch{width:3px;height:14px;border-radius:2px;flex:0 0 3px}
+.room .nm{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#ccd2db}
+.room .ct{font-family:var(--mono);font-size:10.5px;color:var(--text-3)}
+.room.nokey .key{background:transparent;border-style:dashed;color:transparent}
+.newroom{display:flex;align-items:center;gap:8px;height:29px;padding:0 6px;margin-top:3px;border-radius:6px;font-size:11.5px;color:var(--text-3);border:1px dashed var(--line)}
+.newroom .plus{width:18px;text-align:center;font-size:13px}
+.newroom kbd{margin-left:auto}
+
+.history{flex:0 0 auto;border-top:1px solid var(--line-soft);padding:0 0 8px}
+.hist-row{display:flex;align-items:center;gap:8px;padding:6px 12px;font-size:11px;color:var(--text-2)}
+.hist-row .swatch{height:12px}
+.hist-row .what{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hist-row .what b{font-weight:600;color:var(--text)}
+.hist-row .undo{font-size:11px;color:var(--text-3)}
+.hist-row.top{background:rgba(232,163,61,.07);border-left:2px solid var(--current);padding-left:10px}
+
+/* ================= video ================= */
+.vframe{position:relative;width:100%;height:100%;overflow:hidden;background:#000}
+.ph{position:absolute;inset:0;background:linear-gradient(#efe6d6 0%,#ddd0bb 46%,#c6b69c 52%,#6d5f4c 100%)}
+.ph .wall{position:absolute;inset:0 0 42% 0;background:linear-gradient(180deg,#f2ece0,#dcd2c1)}
+.ph .win{position:absolute;left:13%;top:13%;width:27%;height:25%;border-radius:2px;background:linear-gradient(160deg,#f6fbff,#dbe8f2 55%,#b9cfe0);box-shadow:0 0 48px 14px rgba(255,250,235,.32)}
+.ph .win i{position:absolute;background:#cdbfa8}
+.ph .win i.v{left:50%;top:0;bottom:0;width:2px;margin-left:-1px}
+.ph .win i.h{left:0;right:0;top:50%;height:2px;margin-top:-1px}
+.ph .art{position:absolute;right:13%;top:19%;width:14%;height:13%;border-radius:1px;background:linear-gradient(150deg,#cbb79a,#8e7a5e);border:3px solid #4d4132;box-shadow:0 6px 16px rgba(0,0,0,.22)}
+.ph .floor{position:absolute;left:0;right:0;bottom:0;height:42%;background:linear-gradient(180deg,#a08a6c,#5d4d3a)}
+.ph .floor::after{content:"";position:absolute;inset:0;background:repeating-linear-gradient(96deg,rgba(0,0,0,.1) 0 2px,transparent 2px 26px)}
+.ph .floor::before{content:"";position:absolute;left:0;right:0;top:0;height:2.2%;background:linear-gradient(#efe8db,#c9bda9)}
+.ph .sofa{position:absolute;left:11%;bottom:22%;width:47%;height:14%;border-radius:4px 4px 3px 3px;background:linear-gradient(175deg,#8f989e,#666e74);box-shadow:0 14px 30px rgba(0,0,0,.4)}
+.ph .sofa::before{content:"";position:absolute;left:2%;right:2%;top:-62%;height:74%;border-radius:5px 5px 2px 2px;background:linear-gradient(170deg,#a4acb1,#798187)}
+.ph .sofa::after{content:"";position:absolute;left:-9%;right:-24%;bottom:-46%;height:46%;border-radius:3px;background:linear-gradient(175deg,#b9a68a,#8d7a5f);opacity:.7}
+.ph .plant{position:absolute;right:13%;bottom:23%;width:13%;height:20%;background:radial-gradient(48% 34% at 50% 24%,#6d8a5f,#3c4f33 78%,transparent 80%)}
+.ph .plant::after{content:"";position:absolute;left:33%;right:33%;bottom:0;height:36%;border-radius:1px 1px 5px 5px;background:linear-gradient(#b39a76,#7a684f);box-shadow:0 5px 12px rgba(0,0,0,.3)}
+.ph .vig{position:absolute;inset:0;background:radial-gradient(75% 60% at 50% 45%,transparent 40%,rgba(0,0,0,.42) 100%)}
+
+.v-top{position:absolute;left:0;right:0;top:0;padding:11px 13px 26px;background:linear-gradient(rgba(0,0,0,.7),transparent);display:flex;align-items:center;gap:9px}
+.v-top .fn{font-family:var(--mono);font-size:12px;font-weight:600;text-shadow:0 1px 3px rgba(0,0,0,.6)}
+.v-top .ix{font-family:var(--mono);font-size:10.5px;color:rgba(255,255,255,.62)}
+.v-top .sp{flex:1}
+.seg{display:flex;background:rgba(10,12,15,.6);border:1px solid rgba(255,255,255,.14);border-radius:6px;overflow:hidden;backdrop-filter:blur(6px)}
+.seg b{font-family:var(--mono);font-size:10px;font-weight:500;padding:3.5px 7px;color:rgba(255,255,255,.55);border-right:1px solid rgba(255,255,255,.1)}
+.seg b:last-child{border-right:0}
+.seg b.on{background:rgba(255,255,255,.16);color:#fff}
+.seg.speed b.on{background:rgba(232,163,61,.3);color:#ffd79a}
+
+.v-badges{position:absolute;left:13px;top:38px;display:flex;gap:6px}
+.badge{font-size:9px;letter-spacing:.07em;text-transform:uppercase;font-weight:700;padding:3px 6px;border-radius:4px;background:rgba(10,12,15,.62);border:1px solid rgba(255,255,255,.16);color:rgba(255,255,255,.8);backdrop-filter:blur(6px)}
+.badge.room{border-color:rgba(192,136,90,.55);color:#e3b98f;display:flex;align-items:center;gap:5px}
+.badge.room i{width:6px;height:6px;border-radius:2px;background:var(--r1);display:block}
+.badge.star{border-color:rgba(126,230,176,.55);color:var(--star);background:rgba(20,48,36,.62)}
+.badge.auto{border-color:rgba(232,163,61,.45);color:#ffcf94}
+
+.v-bottom{position:absolute;left:0;right:0;bottom:0;padding:34px 13px 12px;background:linear-gradient(transparent,rgba(0,0,0,.78) 42%)}
+.tcrow{display:flex;align-items:baseline;gap:9px;margin-bottom:8px;font-family:var(--mono)}
+.tcrow .tc{font-size:19px;font-weight:600;letter-spacing:.5px;text-shadow:0 1px 4px rgba(0,0,0,.7)}
+.tcrow .fr{font-size:10px;color:rgba(255,255,255,.55)}
+.tcrow .sp{flex:1}
+.tcrow .io{font-size:10px;color:#a8bbff}
+.tcrow .io b{font-weight:600}
+.scrub{position:relative;height:26px;background:rgba(255,255,255,.13);border-radius:4px;overflow:hidden}
+.scrub .outside{position:absolute;top:0;bottom:0;background:rgba(0,0,0,.42)}
+.scrub .trimzone{position:absolute;top:0;bottom:0;background:rgba(109,140,245,.42);border-left:2px solid var(--trim);border-right:2px solid var(--trim)}
+.scrub .handle{position:absolute;top:0;bottom:0;width:2px;background:var(--trim)}
+.scrub .handle span{position:absolute;top:0;font-family:var(--mono);font-size:8px;font-weight:800;color:#0a0b0d;background:var(--trim);padding:1px 3px;border-radius:0 0 3px 0}
+.scrub .handle.o span{right:0;border-radius:0 0 0 3px}
+.scrub .playhead{position:absolute;top:-2px;bottom:-2px;width:2px;background:var(--current);box-shadow:0 0 10px rgba(232,163,61,.9)}
+.scrub .playhead::before{content:"";position:absolute;top:0;left:50%;transform:translateX(-50%);border-left:5px solid transparent;border-right:5px solid transparent;border-top:6px solid var(--current)}
+.scrub .ticks{position:absolute;left:0;right:0;bottom:0;height:6px;display:flex}
+.scrub .ticks i{flex:1;border-right:1px solid rgba(255,255,255,.14)}
+.botrow{display:flex;align-items:center;justify-content:space-between;gap:9px;margin-top:7px}
+.rangepill{display:inline-flex;align-items:center;gap:7px;font-family:var(--mono);font-size:9.5px;background:rgba(109,140,245,.18);border:1px solid rgba(109,140,245,.4);color:#b6c6ff;border-radius:5px;padding:2.5px 7px;white-space:nowrap}
+.v-keys{display:flex;gap:5px;align-items:center;font-size:9.5px;color:rgba(255,255,255,.45);white-space:nowrap}
+
+/* ============ columna de herramientas: indicadores de estado ============ */
+.tool{width:40px;height:40px;border-radius:8px;background:var(--surface-1);border:1px solid var(--line);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;color:var(--text-3)}
+.tool .lb{font-size:8px;letter-spacing:.04em;text-transform:uppercase;font-weight:650}
+.tool .kk{font-family:var(--mono);font-size:8px;color:var(--text-3)}
+.tool.mark{border-color:#31406e;color:#8fa4dd}
+.tool.mark.set{background:#151a28;color:#a8bbff}
+.tool.pick.on{border-color:rgba(85,192,138,.55);background:rgba(85,192,138,.16);color:var(--pick)}
+.tool.star.on{border-color:rgba(126,230,176,.6);background:rgba(126,230,176,.14);color:var(--star)}
+.tool.rej.on{border-color:rgba(212,105,108,.5);background:rgba(212,105,108,.14);color:var(--reject)}
+.tooldiv{width:26px;height:1px;background:var(--line);margin:4px 0}
+.toolcol .grow{flex:1}
+.toolhint{font-size:8px;color:var(--text-3);text-align:center;line-height:1.5;font-family:var(--mono)}
+.toolcap{font-size:7.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--text-3);font-weight:650;margin-bottom:1px}
+
+/* ================= hoja de contactos ================= */
+.sheet-head{flex:0 0 auto;padding:9px 13px;border-bottom:1px solid var(--line-soft);display:flex;flex-direction:column;gap:7px}
+.sh-row{display:flex;align-items:center;gap:9px}
+.sh-row h3{font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--text-3);font-weight:650}
+.search{height:26px;flex:1;max-width:230px;border-radius:6px;background:var(--surface-1);border:1px solid var(--line);display:flex;align-items:center;gap:7px;padding:0 9px;font-size:11px;color:var(--text-3)}
+.selhint{font-size:10px;color:var(--text-3);display:flex;align-items:center;gap:6px;margin-left:auto}
+.viewtoggle{display:flex;gap:2px;background:var(--surface-1);border:1px solid var(--line);border-radius:5px;padding:2px}
+.viewtoggle i{width:22px;height:17px;border-radius:3px;display:flex;align-items:center;justify-content:center}
+.viewtoggle i.on{background:var(--surface-2)}
+.zoomstep{display:flex;align-items:center;gap:2px;background:var(--surface-1);border:1px solid var(--line);border-radius:5px;padding:2px}
+.zoomstep i{width:20px;height:17px;border-radius:3px;display:flex;align-items:center;justify-content:center;font-style:normal;font-size:11px;color:var(--text-3);font-family:var(--mono)}
+.zoomstep b{font-size:9px;color:var(--text-3);padding:0 4px;font-family:var(--mono);font-weight:600}
+
+/* barra de filtros = cola de navegación */
+.filterbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.fgroup{display:flex;align-items:center;gap:5px}
+.fgroup .lb{font-size:8.5px;letter-spacing:.11em;text-transform:uppercase;color:var(--text-3);font-weight:650;margin-right:1px}
+.fchip{font-size:10.5px;padding:3.5px 8px;border-radius:5px;background:var(--surface-1);border:1px solid var(--line);color:var(--text-3);display:flex;align-items:center;gap:5px}
+.fchip.on{background:var(--surface-2);color:var(--text);border-color:#333b47}
+.fchip.on.q{background:rgba(232,163,61,.13);border-color:rgba(232,163,61,.45);color:#f0bd77}
+.fchip b{font-family:var(--mono);font-weight:600;opacity:.6}
+.fchip em{font-style:normal;font-size:9px;opacity:.7}
+.fdiv{width:1px;height:16px;background:var(--line)}
+.queue{
+  margin-left:auto;display:flex;align-items:center;gap:7px;font-size:10.5px;color:#f0bd77;
+  background:rgba(232,163,61,.1);border:1px solid rgba(232,163,61,.3);border-radius:5px;padding:3.5px 9px;
+}
+.queue b{font-family:var(--mono);font-weight:700}
+
+.sheet-body{flex:1 1 0;min-height:0;overflow:hidden;padding:0 13px 10px;-webkit-mask-image:linear-gradient(#000 92%,transparent 100%);mask-image:linear-gradient(#000 92%,transparent 100%)}
+.grp{display:flex;align-items:center;gap:8px;padding:12px 2px 8px;font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--text-3);font-weight:650;background:var(--surface-0)}
+.grp .n{font-family:var(--mono);letter-spacing:0}
+.grp .ln{flex:1;height:1px;background:var(--line-soft)}
+.grp .all{font-size:9px;letter-spacing:.02em;text-transform:none;color:var(--text-3);opacity:.8}
+.grid{display:grid;grid-template-columns:repeat(5,1fr);gap:9px;align-items:start}
+.grid.wide{grid-template-columns:repeat(7,1fr)}
+
+.card{position:relative;border-radius:6px;overflow:hidden;background:var(--surface-2);border:1px solid var(--line-soft)}
+.card .th{aspect-ratio:9/16;position:relative;overflow:hidden}
+.card.h .th{aspect-ratio:16/9}
+.card .rm{position:absolute;left:0;top:0;bottom:0;width:3px;z-index:3}
+.card .unc{position:absolute;left:0;top:0;bottom:0;width:3px;z-index:3;background:repeating-linear-gradient(135deg,#3a4150 0 3px,#262b33 3px 6px)}
+.card .id{position:absolute;left:6px;top:5px;font-family:var(--mono);font-size:9px;color:#e4e8ee;background:rgba(4,5,7,.62);padding:1.5px 4px;border-radius:3px;z-index:3}
+.card .dur{position:absolute;right:5px;bottom:5px;font-family:var(--mono);font-size:9px;color:#e4e8ee;background:rgba(4,5,7,.66);padding:1.5px 4px;border-radius:3px;z-index:3}
+.card .flag{position:absolute;right:5px;top:5px;width:15px;height:15px;border-radius:4px;z-index:3;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:800;font-family:var(--mono)}
+.card .flag.p{background:var(--pick);color:#07130d}
+.card .flag.s{background:var(--star);color:#04170e;font-size:10px}
+.card .flag.x{background:var(--reject);color:#1b0708}
+.card .trimmed{position:absolute;left:0;right:0;bottom:0;height:2px;background:rgba(255,255,255,.1);z-index:3}
+.card .trimmed i{position:absolute;top:0;bottom:0;background:var(--trim)}
+.card.cur{border-color:var(--current);box-shadow:0 0 0 1px var(--current),0 0 18px rgba(232,163,61,.3)}
+.card.sel{border-color:#8fb4ff;box-shadow:0 0 0 1px #8fb4ff}
+.card.sel .th::after{content:"";position:absolute;inset:0;background:rgba(109,140,245,.24);z-index:2}
+.card .tick{position:absolute;left:6px;bottom:6px;width:15px;height:15px;border-radius:4px;z-index:4;background:#8fb4ff;color:#0a1024;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:800}
+
+/* miniatura bajo el cursor: se escrubea con el mouse */
+.card.hov{border-color:#7f8b9c;box-shadow:0 0 0 1px #7f8b9c,0 10px 26px rgba(0,0,0,.55)}
+.card .hoverbar{position:absolute;left:5px;right:5px;bottom:19px;height:3px;border-radius:2px;background:rgba(0,0,0,.55);z-index:4}
+.card .hoverbar i{position:absolute;top:0;bottom:0;left:0;background:#fff;border-radius:2px}
+.card .hoverbar u{position:absolute;top:-2px;bottom:-2px;width:2px;background:var(--current);text-decoration:none}
+.card .hovertc{position:absolute;left:5px;bottom:25px;font-family:var(--mono);font-size:8.5px;color:#fff;background:rgba(4,5,7,.7);padding:1px 4px;border-radius:3px;z-index:4}
+.scrubhint{
+  position:absolute;left:50%;transform:translateX(-50%);top:26px;white-space:nowrap;z-index:6;
+  font-size:9.5px;color:#e2e7ee;background:rgba(10,12,15,.86);border:1px solid rgba(255,255,255,.2);
+  border-radius:5px;padding:3px 8px;backdrop-filter:blur(4px);
+}
+
+.t1{background:linear-gradient(160deg,#e8d6b6,#a98d68 52%,#4a4034)}
+.t2{background:linear-gradient(150deg,#c3d2de,#748899 52%,#313a42)}
+.t3{background:linear-gradient(170deg,#ded4e6,#93879f 52%,#383140)}
+.t4{background:linear-gradient(155deg,#c8e4de,#5f9b93 52%,#293733)}
+.t5{background:linear-gradient(165deg,#dee6cb,#8b9d6e 52%,#33382d)}
+.t6{background:linear-gradient(150deg,#c4e0ec,#5290b0 52%,#25343d)}
+.t7{background:linear-gradient(160deg,#ecdccd,#ab8873 52%,#3e3129)}
+.t8{background:linear-gradient(150deg,#f0d8e0,#b3748a 52%,#3d292f)}
+.t9{background:linear-gradient(160deg,#ced3da,#818c99 52%,#30343c)}
+
+/* ------- paleta de asignación rápida ------- */
+.palette{position:absolute;left:50%;transform:translateX(-50%);width:330px;z-index:20;background:rgba(20,23,28,.97);border:1px solid #333c4a;border-radius:10px;overflow:hidden;box-shadow:0 24px 60px rgba(0,0,0,.7)}
+.pal-input{display:flex;align-items:center;gap:9px;padding:10px 12px;border-bottom:1px solid var(--line-soft)}
+.pal-input .q{font-family:var(--mono);font-size:13px}
+.pal-input .caret{width:1.5px;height:14px;background:var(--text);display:inline-block;margin-left:1px}
+.pal-input .for{margin-left:auto;font-size:10px;color:var(--text-3)}
+.pal-opt{display:flex;align-items:center;gap:9px;padding:8px 12px;font-size:12px;color:#ccd2db}
+.pal-opt.on{background:#232b38}
+.pal-opt .swatch{height:13px}
+.pal-opt .ct{font-family:var(--mono);font-size:10px;color:var(--text-3);margin-left:auto}
+.pal-opt.new{color:var(--pick);border-top:1px solid var(--line-soft)}
+.pal-opt.new .plus{width:3px;text-align:center;color:var(--pick);font-weight:700}
+.pal-foot{padding:7px 12px;border-top:1px solid var(--line-soft);display:flex;gap:12px;font-size:9.5px;color:var(--text-3)}
+
+/* ------- pincel de cuarto: mantener 1–9 y arrastrar ------- */
+.card.painted{border-color:rgba(126,154,110,.6)}
+.card.painted .th::after{content:"";position:absolute;inset:0;background:rgba(126,158,94,.2);z-index:2}
+.card.painting{border-color:var(--r5);box-shadow:0 0 0 2px var(--r5),0 0 22px rgba(126,158,94,.5)}
+.card.painting .th::after{content:"";position:absolute;inset:0;background:rgba(126,158,94,.34);z-index:2}
+.brushpath{
+  position:absolute;z-index:7;pointer-events:none;height:10px;border-radius:6px;
+  background:linear-gradient(90deg,rgba(126,158,94,0),rgba(126,158,94,.55));
+}
+.brushcursor{position:absolute;z-index:9;pointer-events:none;display:flex;align-items:center;gap:7px}
+.brushcursor .dot{
+  width:15px;height:15px;border-radius:50%;background:var(--r5);
+  box-shadow:0 0 0 3px rgba(126,158,94,.3),0 2px 8px rgba(0,0,0,.6);flex:0 0 15px;
+}
+.brushchip{
+  display:flex;align-items:center;gap:7px;font-size:11px;font-weight:600;white-space:nowrap;
+  background:rgba(16,19,24,.95);border:1px solid var(--r5);border-radius:6px;padding:4px 9px;
+  box-shadow:0 8px 22px rgba(0,0,0,.6);
+}
+.brushchip .key{background:rgba(126,158,94,.2);border-color:rgba(126,158,94,.5);color:#cbe0ac}
+.brushbar{
+  position:absolute;left:13px;right:13px;bottom:12px;z-index:15;background:#1c2418;
+  border:1px solid #3d5230;border-radius:8px;padding:9px 12px;display:flex;align-items:center;gap:11px;
+  box-shadow:0 12px 32px rgba(0,0,0,.5);
+}
+.brushbar .n{font-size:11.5px;font-weight:650;color:#cbe0ac;display:flex;align-items:center;gap:8px}
+.brushbar .sp{flex:1}
+.brushbar .mini{font-size:10.5px;color:var(--text-2);display:flex;align-items:center;gap:5px}
+
+.batch{position:absolute;left:13px;right:13px;bottom:12px;z-index:15;background:#1a2130;border:1px solid #2e3b57;border-radius:8px;padding:9px 12px;display:flex;align-items:center;gap:11px;box-shadow:0 12px 32px rgba(0,0,0,.5)}
+.batch .n{font-size:11.5px;font-weight:650;color:#bcd0ff}
+.batch .sp{flex:1}
+.batch .mini{font-size:10.5px;color:var(--text-2);display:flex;align-items:center;gap:5px}
+
+/* ================= status ================= */
+.status{height:24px;flex:0 0 24px;background:var(--surface-0);border-top:1px solid var(--line);display:flex;align-items:center;gap:15px;padding:0 13px;font-size:10px;color:var(--text-3)}
+.status .warn{color:var(--current);display:flex;align-items:center;gap:6px;border-bottom:1px dotted rgba(232,163,61,.5)}
+.status .sp{flex:1}
+.status .mono{font-family:var(--mono)}
+
+kbd{font-family:var(--mono);font-size:9px;background:var(--surface-2);border:1px solid var(--line);border-bottom-width:2px;border-radius:4px;padding:2px 5px;color:var(--text-2)}
+</style>
+</head>
+<body>
+
+<!-- ============================================================ -->
+<!-- ==================  1. MODO CLIP  ========================== -->
+<!-- ============================================================ -->
+<div class="caption">
+  <h2>1 · Modo clip</h2>
+  <span>ver y marcar pick — el cuello de botella real, un clip a la vez</span>
+  <span class="tab">⇥ alterna modo</span>
+</div>
+
+<div class="window">
+  <div class="titlebar">
+    <div class="appmark"><svg width="9" height="9" viewBox="0 0 9 9" fill="#1a0f04"><path d="M2 0v9l7-4.5z"/></svg></div>
+    <div class="session"><b>Casa Lomas de Chapultepec</b><span>128 clips · Sony FX30</span></div>
+    <div class="modeswitch">
+      <b class="on">Clip</b><b>Hoja <kbd>⇥</kbd></b>
+    </div>
+    <div class="tb-spacer"></div>
+    <div class="saved"><span class="led"></span> Guardado hace 12 s</div>
+    <div class="btn">Cuartos <span class="k">⌘R</span></div>
+    <div class="btn primary">Exportar a Premiere <span class="k" style="opacity:.45">⌘E</span></div>
+  </div>
+
+  <div class="body">
+    <!-- rail izquierdo -->
+    <aside class="rail-l">
+      <div class="progress">
+        <div class="prog-top"><span class="big">116</span><span class="of">/128</span><span class="lbl">clasificados</span></div>
+        <div class="bar">
+          <i style="width:19%;background:var(--r1)"></i><i style="width:13%;background:var(--r2)"></i>
+          <i style="width:11%;background:var(--r3)"></i><i style="width:9%;background:var(--r4)"></i>
+          <i style="width:10%;background:var(--r5)"></i><i style="width:8%;background:var(--r6)"></i>
+          <i style="width:7%;background:var(--r7)"></i><i style="width:7%;background:var(--r8)"></i>
+          <i style="width:7%;background:var(--r9)"></i><i style="width:9%;background:#2a2f38"></i>
+        </div>
+        <div class="legend">
+          <span><em style="background:var(--star)"></em> 6 dest.</span>
+          <span><em style="background:var(--pick)"></em> 41</span>
+          <span><em style="background:var(--reject)"></em> 9</span>
+          <span><em style="background:#2a2f38"></em> 12</span>
+        </div>
+      </div>
+
+      <div class="rail-head">
+        <h3>Cuartos</h3>
+        <span class="find"><kbd>⏎</kbd> buscar</span>
+      </div>
+      <div class="rooms">
+        <div class="samecap">Igual al clip anterior</div>
+        <div class="same">
+          <span class="key">S</span><span class="swatch" style="background:var(--r1)"></span>
+          <span class="nm">Cocina</span><span class="tagline">↩</span>
+        </div>
+        <div class="room on"><span class="key">1</span><span class="swatch" style="background:var(--r1)"></span><span class="nm">Cocina</span><span class="ct">24</span></div>
+        <div class="room"><span class="key">2</span><span class="swatch" style="background:var(--r2)"></span><span class="nm">Sala</span><span class="ct">16</span></div>
+        <div class="room"><span class="key">3</span><span class="swatch" style="background:var(--r3)"></span><span class="nm">Recámara 1</span><span class="ct">14</span></div>
+        <div class="room"><span class="key">4</span><span class="swatch" style="background:var(--r4)"></span><span class="nm">Recámara 2</span><span class="ct">11</span></div>
+        <div class="room"><span class="key">5</span><span class="swatch" style="background:var(--r5)"></span><span class="nm">Baño 1</span><span class="ct">9</span></div>
+        <div class="room"><span class="key">6</span><span class="swatch" style="background:var(--r6)"></span><span class="nm">Baño 2</span><span class="ct">8</span></div>
+        <div class="room"><span class="key">7</span><span class="swatch" style="background:var(--r7)"></span><span class="nm">Comedor</span><span class="ct">14</span></div>
+        <div class="room"><span class="key">8</span><span class="swatch" style="background:var(--r8)"></span><span class="nm">Terraza</span><span class="ct">9</span></div>
+        <div class="room"><span class="key">9</span><span class="swatch" style="background:var(--r9)"></span><span class="nm">Fachada</span><span class="ct">6</span></div>
+        <div class="room nokey"><span class="key">·</span><span class="swatch" style="background:#8a6f9c"></span><span class="nm">Estudio</span><span class="ct">4</span></div>
+        <div class="newroom"><span class="plus">+</span> Nuevo cuarto <kbd>⏎</kbd></div>
+      </div>
+
+      <div class="rail-head" style="border-top:1px solid var(--line-soft)"><h3>Historial</h3><kbd>⌘Z</kbd></div>
+      <div class="history">
+        <div class="hist-row top"><span class="swatch" style="background:var(--star)"></span><span class="what"><b>Destacado</b> → clip 086</span><span class="undo">↺</span></div>
+        <div class="hist-row"><span class="swatch" style="background:var(--r3)"></span><span class="what"><b>Recámara 1</b> → 5 clips</span><span class="undo">↺</span></div>
+        <div class="hist-row"><span class="swatch" style="background:var(--reject)"></span><span class="what"><b>Reject</b> → clip 084</span><span class="undo">↺</span></div>
+        <div class="hist-row"><span class="swatch" style="background:var(--trim)"></span><span class="what"><b>IN/OUT</b> → clip 085</span><span class="undo">↺</span></div>
+      </div>
+    </aside>
+
+    <!-- video -->
+    <section class="videocol">
+      <div class="vframe">
+        <div class="ph">
+          <div class="wall"></div><div class="win"><i class="v"></i><i class="h"></i></div>
+          <div class="art"></div><div class="floor"></div><div class="sofa"></div>
+          <div class="plant"></div><div class="vig"></div>
+        </div>
+
+        <div class="v-top">
+          <span class="fn">C0087.MP4</span>
+          <span class="ix" style="color:#f0bd77">3 de 12 en la cola</span>
+          <span class="sp"></span>
+          <div class="seg speed"><b>1×</b><b class="on">2×</b><b>4×</b></div>
+          <div class="seg"><b>Full</b><b class="on">1/2</b><b>1/4</b><b>1/8</b></div>
+        </div>
+        <div class="v-badges">
+          <span class="badge room"><i></i> Cocina</span>
+          <span class="badge star">★ Destacado</span>
+          <span class="badge auto">▶ auto</span>
+          <span class="badge">Proxy 1080p</span>
+        </div>
+
+        <div class="v-bottom">
+          <div class="tcrow">
+            <span class="tc">00:00:09:23</span><span class="fr">f 293</span>
+            <span class="sp"></span>
+            <span class="io">IN <b>00:00:04:12</b></span><span class="io">OUT <b>00:00:11:16</b></span>
+          </div>
+          <div class="scrub">
+            <div class="outside" style="left:0;width:24%"></div>
+            <div class="outside" style="right:0;width:37%"></div>
+            <div class="trimzone" style="left:24%;right:37%"></div>
+            <div class="handle" style="left:24%"><span>I</span></div>
+            <div class="handle o" style="left:63%"><span>O</span></div>
+            <div class="playhead" style="left:52%"></div>
+            <div class="ticks"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i style="border:0"></i></div>
+          </div>
+          <div class="botrow">
+            <span class="rangepill">rango 07:04 · 212 f · total 18:11</span>
+            <div class="v-keys"><kbd>←</kbd><kbd>→</kbd> cola · <kbd>,</kbd><kbd>.</kbd> frame · <kbd>F</kbd> · <kbd>esc</kbd></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- columna de estado / herramientas -->
+    <div class="toolcol">
+      <span class="toolcap">Rango</span>
+      <div class="tool mark set"><span class="lb">In</span><span class="kk">I</span></div>
+      <div class="tool mark set"><span class="lb">Out</span><span class="kk">O</span></div>
+      <div class="tooldiv"></div>
+      <span class="toolcap">Estado</span>
+      <div class="tool star on"><span class="lb" style="font-size:12px">★</span><span class="kk">⇧P</span></div>
+      <div class="tool pick on"><span class="lb">Pick</span><span class="kk">P</span></div>
+      <div class="tool rej"><span class="lb">Rej</span><span class="kk">X</span></div>
+      <div class="tooldiv"></div>
+      <div class="tool"><svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="#626b78" stroke-width="1.5"><circle cx="5.5" cy="5.5" r="4"/><path d="M8.5 8.5 12 12"/></svg><span class="kk">⏎</span></div>
+      <div class="tool"><span class="lb" style="font-size:12px">↺</span><span class="kk">⌘Z</span></div>
+      <div class="grow"></div>
+      <div class="toolhint">espacio<br>▶ ‖</div>
+    </div>
+
+    <!-- hoja de contactos -->
+    <section class="sheet">
+      <div class="sheet-head">
+        <div class="sh-row">
+          <h3>Clips · 128</h3>
+          <div class="search">
+            <svg width="11" height="11" viewBox="0 0 11 11" fill="none" stroke="#626b78" stroke-width="1.4"><circle cx="4.6" cy="4.6" r="3.4"/><path d="M7.2 7.2 10 10"/></svg>
+            Buscar clip o cuarto…
+          </div>
+          <div class="selhint">pasá el mouse por una miniatura para escrubearla · doble click abre el clip</div>
+          <div class="viewtoggle">
+            <i class="on"><svg width="10" height="10" viewBox="0 0 10 10" fill="#e6e9ee"><path d="M0 0h4v4H0zM6 0h4v4H6zM0 6h4v4H0zM6 6h4v4H6z"/></svg></i>
+            <i><svg width="10" height="10" viewBox="0 0 10 10" fill="#626b78"><path d="M0 0h10v2H0zM0 4h10v2H0zM0 8h10v2H0z"/></svg></i>
+          </div>
+        </div>
+        <div class="filterbar">
+          <div class="fgroup">
+            <span class="lb">Mostrar</span>
+            <span class="fchip">Todos <b>128</b></span>
+            <span class="fchip on q">Sin clasificar <b>12</b></span>
+            <span class="fchip">Clasificados <b>116</b></span>
+          </div>
+          <div class="fdiv"></div>
+          <div class="fgroup">
+            <span class="lb">Estado</span>
+            <span class="fchip on">Todos</span>
+            <span class="fchip">★ solo destacados <b>6</b></span>
+            <span class="fchip">Solo picks <b>41</b></span>
+            <span class="fchip">Ocultar rejects <em>−9</em></span>
+            <span class="fchip">Sin marcar <b>72</b></span>
+          </div>
+          <div class="queue">
+            <svg width="10" height="10" viewBox="0 0 10 10" fill="#f0bd77"><path d="M0 1h10v2H0zM0 4h7v2H0zM0 7h4v2H0z"/></svg>
+            cola de <kbd style="background:rgba(232,163,61,.16);border-color:rgba(232,163,61,.4);color:#f0bd77">←</kbd><kbd style="background:rgba(232,163,61,.16);border-color:rgba(232,163,61,.4);color:#f0bd77">→</kbd> · <b>12</b> clips
+          </div>
+        </div>
+      </div>
+
+      <div class="sheet-body">
+        <div class="grp">Sin clasificar <span class="n">12</span><span class="ln"></span><span class="all">⌘A selecciona el grupo</span></div>
+        <div class="grid">
+          <div class="card sel"><div class="th t7"><span class="unc"></span><span class="id">093</span><span class="tick">✓</span><span class="dur">0:19</span></div></div>
+          <div class="card sel"><div class="th t3"><span class="unc"></span><span class="id">094</span><span class="tick">✓</span><span class="dur">0:24</span></div></div>
+          <div class="card sel"><div class="th t9"><span class="unc"></span><span class="id">095</span><span class="tick">✓</span><span class="dur">0:12</span></div></div>
+          <div class="card sel"><div class="th t8"><span class="unc"></span><span class="id">096</span><span class="tick">✓</span><span class="dur">0:31</span></div></div>
+          <div class="card sel"><div class="th t3"><span class="unc"></span><span class="id">097</span><span class="tick">✓</span><span class="dur">0:16</span></div></div>
+          <div class="card h"><div class="th t6"><span class="unc"></span><span class="id">098</span><span class="dur">0:22</span></div></div>
+          <div class="card"><div class="th t5"><span class="unc"></span><span class="id">099</span><span class="dur">0:14</span></div></div>
+          <div class="card"><div class="th t9"><span class="unc"></span><span class="id">100</span><span class="dur">0:09</span></div></div>
+          <div class="card h"><div class="th t2"><span class="unc"></span><span class="id">101</span><span class="dur">0:27</span></div></div>
+          <div class="card hov">
+            <div class="th t7">
+              <span class="scrubhint">▸ escrubeando · 0:11 / 0:18</span>
+              <span class="unc"></span><span class="id">102</span>
+              <span class="hovertc">0:11</span>
+              <span class="hoverbar"><i style="width:61%"></i><u style="left:61%"></u></span>
+              <span class="dur">0:18</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="grp">Cocina <span class="n">24</span><span class="ln"></span></div>
+        <div class="grid">
+          <div class="card cur"><div class="th t1"><span class="rm" style="background:var(--r1)"></span><span class="id">087</span><span class="flag s">★</span><span class="dur">0:18</span><span class="trimmed"><i style="left:24%;right:37%"></i></span></div></div>
+          <div class="card"><div class="th t1"><span class="rm" style="background:var(--r1)"></span><span class="id">086</span><span class="flag p">P</span><span class="dur">0:26</span><span class="trimmed"><i style="left:12%;right:20%"></i></span></div></div>
+          <div class="card h"><div class="th t1"><span class="rm" style="background:var(--r1)"></span><span class="id">085</span><span class="dur">0:11</span><span class="trimmed"><i style="left:30%;right:15%"></i></span></div></div>
+          <div class="card"><div class="th t1"><span class="rm" style="background:var(--r1)"></span><span class="id">084</span><span class="flag x">X</span><span class="dur">0:08</span></div></div>
+          <div class="card"><div class="th t1"><span class="rm" style="background:var(--r1)"></span><span class="id">083</span><span class="dur">0:29</span></div></div>
+          <div class="card"><div class="th t1"><span class="rm" style="background:var(--r1)"></span><span class="id">082</span><span class="flag p">P</span><span class="dur">0:21</span></div></div>
+          <div class="card h"><div class="th t1"><span class="rm" style="background:var(--r1)"></span><span class="id">081</span><span class="dur">0:17</span></div></div>
+          <div class="card"><div class="th t1"><span class="rm" style="background:var(--r1)"></span><span class="id">080</span><span class="dur">0:13</span></div></div>
+          <div class="card"><div class="th t1"><span class="rm" style="background:var(--r1)"></span><span class="id">079</span><span class="dur">0:25</span></div></div>
+          <div class="card"><div class="th t1"><span class="rm" style="background:var(--r1)"></span><span class="id">078</span><span class="flag p">P</span><span class="dur">0:20</span></div></div>
+        </div>
+      </div>
+
+      <div class="palette" style="top:392px">
+        <div class="pal-input">
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="#9aa3b0" stroke-width="1.5"><circle cx="5" cy="5" r="3.6"/><path d="M7.8 7.8 11 11"/></svg>
+          <span class="q">rec<span class="caret"></span></span>
+          <span class="for">a 5 clips</span>
+        </div>
+        <div class="pal-opt on"><span class="key">3</span><span class="swatch" style="background:var(--r3)"></span>Recámara 1<span class="ct">14</span></div>
+        <div class="pal-opt"><span class="key">4</span><span class="swatch" style="background:var(--r4)"></span>Recámara 2<span class="ct">11</span></div>
+        <div class="pal-opt new"><span class="plus">+</span> Crear cuarto «rec»</div>
+        <div class="pal-foot"><span><kbd>↑</kbd><kbd>↓</kbd> elegir</span><span><kbd>⏎</kbd> asignar</span><span><kbd>esc</kbd> cancelar</span></div>
+      </div>
+
+      <div class="batch">
+        <span class="n">5 clips seleccionados</span>
+        <span class="sp"></span>
+        <span class="mini">asignar <kbd>1</kbd>–<kbd>9</kbd></span>
+        <span class="mini">buscar cuarto <kbd>⏎</kbd></span>
+        <span class="mini">marcar <kbd>P</kbd> <kbd>X</kbd> <kbd>⇧P</kbd></span>
+        <span class="mini">deshacer <kbd>⌘Z</kbd></span>
+        <span class="mini">salir <kbd>esc</kbd></span>
+      </div>
+    </section>
+  </div>
+
+  <div class="status">
+    <span class="mono">C0087.MP4 · 2160×3840 · HEVC 10-bit · 29.97 fps · vertical (rot 90°)</span>
+    <span class="mono" style="color:#7f8b9c">siguiente clip precargado ✓</span>
+    <span class="warn">
+      <svg width="10" height="10" viewBox="0 0 10 10" fill="#e8a33d"><path d="M5 0l5 9H0z"/></svg>
+      12 sin clasificar — click para filtrarlos
+    </span>
+    <span class="sp"></span>
+    <span class="mono">proxies 1080p · 128/128</span>
+    <span class="mono">/Volumes/FX30/CasaLomas · 214 GB</span>
+  </div>
+</div>
+
+
+<!-- ============================================================ -->
+<!-- ==================  2. MODO HOJA  ========================== -->
+<!-- ============================================================ -->
+<div class="caption">
+  <h2>2 · Modo hoja</h2>
+  <span>clasificar cuartos en lote desde miniaturas — sin abrir un solo clip</span>
+  <span class="tab">⇥ vuelve a clip</span>
+</div>
+
+<div class="window">
+  <div class="titlebar">
+    <div class="appmark"><svg width="9" height="9" viewBox="0 0 9 9" fill="#1a0f04"><path d="M2 0v9l7-4.5z"/></svg></div>
+    <div class="session"><b>Casa Lomas de Chapultepec</b><span>128 clips · Sony FX30</span></div>
+    <div class="modeswitch"><b>Clip <kbd>⇥</kbd></b><b class="on">Hoja</b></div>
+    <div class="tb-spacer"></div>
+    <div class="saved"><span class="led"></span> Guardado hace 3 s</div>
+    <div class="btn">Cuartos <span class="k">⌘R</span></div>
+    <div class="btn primary">Exportar a Premiere <span class="k" style="opacity:.45">⌘E</span></div>
+  </div>
+
+  <div class="body">
+    <aside class="rail-l">
+      <div class="progress">
+        <div class="prog-top"><span class="big">116</span><span class="of">/128</span><span class="lbl">clasificados</span></div>
+        <div class="bar">
+          <i style="width:19%;background:var(--r1)"></i><i style="width:13%;background:var(--r2)"></i>
+          <i style="width:11%;background:var(--r3)"></i><i style="width:9%;background:var(--r4)"></i>
+          <i style="width:10%;background:var(--r5)"></i><i style="width:8%;background:var(--r6)"></i>
+          <i style="width:7%;background:var(--r7)"></i><i style="width:7%;background:var(--r8)"></i>
+          <i style="width:7%;background:var(--r9)"></i><i style="width:9%;background:#2a2f38"></i>
+        </div>
+        <div class="legend">
+          <span><em style="background:var(--star)"></em> 6 dest.</span>
+          <span><em style="background:var(--pick)"></em> 41</span>
+          <span><em style="background:var(--reject)"></em> 9</span>
+          <span><em style="background:#2a2f38"></em> 12</span>
+        </div>
+      </div>
+
+      <div class="rail-head"><h3>Cuartos</h3><span class="find"><kbd>⏎</kbd> buscar</span></div>
+      <div class="rooms">
+        <div class="samecap">Igual al clip anterior</div>
+        <div class="same"><span class="key">S</span><span class="swatch" style="background:var(--r5)"></span><span class="nm">Baño 1</span><span class="tagline">↩</span></div>
+        <div class="room"><span class="key">1</span><span class="swatch" style="background:var(--r1)"></span><span class="nm">Cocina</span><span class="ct">24</span></div>
+        <div class="room"><span class="key">2</span><span class="swatch" style="background:var(--r2)"></span><span class="nm">Sala</span><span class="ct">16</span></div>
+        <div class="room"><span class="key">3</span><span class="swatch" style="background:var(--r3)"></span><span class="nm">Recámara 1</span><span class="ct">14</span></div>
+        <div class="room"><span class="key">4</span><span class="swatch" style="background:var(--r4)"></span><span class="nm">Recámara 2</span><span class="ct">11</span></div>
+        <div class="room on"><span class="key">5</span><span class="swatch" style="background:var(--r5)"></span><span class="nm">Baño 1</span><span class="ct">9</span></div>
+        <div class="room"><span class="key">6</span><span class="swatch" style="background:var(--r6)"></span><span class="nm">Baño 2</span><span class="ct">8</span></div>
+        <div class="room"><span class="key">7</span><span class="swatch" style="background:var(--r7)"></span><span class="nm">Comedor</span><span class="ct">14</span></div>
+        <div class="room"><span class="key">8</span><span class="swatch" style="background:var(--r8)"></span><span class="nm">Terraza</span><span class="ct">9</span></div>
+        <div class="room"><span class="key">9</span><span class="swatch" style="background:var(--r9)"></span><span class="nm">Fachada</span><span class="ct">6</span></div>
+        <div class="room nokey"><span class="key">·</span><span class="swatch" style="background:#8a6f9c"></span><span class="nm">Estudio</span><span class="ct">4</span></div>
+        <div class="newroom"><span class="plus">+</span> Nuevo cuarto <kbd>⏎</kbd></div>
+      </div>
+
+      <div class="rail-head" style="border-top:1px solid var(--line-soft)"><h3>Historial</h3><kbd>⌘Z</kbd></div>
+      <div class="history">
+        <div class="hist-row top"><span class="swatch" style="background:var(--r5)"></span><span class="what"><b>Baño 1</b> → 6 clips</span><span class="undo">↺</span></div>
+        <div class="hist-row"><span class="swatch" style="background:var(--r7)"></span><span class="what"><b>Comedor</b> → 4 clips</span><span class="undo">↺</span></div>
+        <div class="hist-row"><span class="swatch" style="background:var(--star)"></span><span class="what"><b>Destacado</b> → clip 086</span><span class="undo">↺</span></div>
+      </div>
+    </aside>
+
+    <section class="sheet">
+      <div class="sheet-head">
+        <div class="sh-row">
+          <h3>Clips · 128</h3>
+          <div class="search">
+            <svg width="11" height="11" viewBox="0 0 11 11" fill="none" stroke="#626b78" stroke-width="1.4"><circle cx="4.6" cy="4.6" r="3.4"/><path d="M7.2 7.2 10 10"/></svg>
+            Buscar clip o cuarto…
+          </div>
+          <div class="selhint">mantené <kbd>1</kbd>–<kbd>9</kbd> y arrastrá para pintar el cuarto · doble click abre el clip</div>
+          <div class="zoomstep"><i>−</i><b>7 col</b><i>+</i></div>
+          <div class="viewtoggle">
+            <i class="on"><svg width="10" height="10" viewBox="0 0 10 10" fill="#e6e9ee"><path d="M0 0h4v4H0zM6 0h4v4H6zM0 6h4v4H0zM6 6h4v4H6z"/></svg></i>
+            <i><svg width="10" height="10" viewBox="0 0 10 10" fill="#626b78"><path d="M0 0h10v2H0zM0 4h10v2H0zM0 8h10v2H0z"/></svg></i>
+          </div>
+        </div>
+        <div class="filterbar">
+          <div class="fgroup">
+            <span class="lb">Mostrar</span>
+            <span class="fchip">Todos <b>128</b></span>
+            <span class="fchip on q">Sin clasificar <b>12</b></span>
+            <span class="fchip">Clasificados <b>116</b></span>
+          </div>
+          <div class="fdiv"></div>
+          <div class="fgroup">
+            <span class="lb">Estado</span>
+            <span class="fchip on">Todos</span>
+            <span class="fchip">★ solo destacados <b>6</b></span>
+            <span class="fchip">Solo picks <b>41</b></span>
+            <span class="fchip">Ocultar rejects <em>−9</em></span>
+            <span class="fchip">Sin marcar <b>72</b></span>
+          </div>
+          <div class="queue">
+            <svg width="10" height="10" viewBox="0 0 10 10" fill="#f0bd77"><path d="M0 1h10v2H0zM0 4h7v2H0zM0 7h4v2H0z"/></svg>
+            cola de <kbd style="background:rgba(232,163,61,.16);border-color:rgba(232,163,61,.4);color:#f0bd77">←</kbd><kbd style="background:rgba(232,163,61,.16);border-color:rgba(232,163,61,.4);color:#f0bd77">→</kbd> · <b>12</b> clips
+          </div>
+        </div>
+      </div>
+
+      <div class="sheet-body">
+        <div class="grp">Sin clasificar <span class="n">12</span><span class="ln"></span><span class="all">se reagrupan al soltar la tecla</span></div>
+        <div class="grid wide" style="position:relative">
+          <div class="card painted"><div class="th t4"><span class="rm" style="background:var(--r5)"></span><span class="id">091</span><span class="dur">0:21</span></div></div>
+          <div class="card painted"><div class="th t4"><span class="rm" style="background:var(--r5)"></span><span class="id">092</span><span class="dur">0:15</span></div></div>
+          <div class="card painted"><div class="th t4"><span class="rm" style="background:var(--r5)"></span><span class="id">093</span><span class="dur">0:19</span></div></div>
+          <div class="card painted"><div class="th t4"><span class="rm" style="background:var(--r5)"></span><span class="id">094</span><span class="dur">0:24</span></div></div>
+          <div class="card painted h"><div class="th t4"><span class="rm" style="background:var(--r5)"></span><span class="id">095</span><span class="dur">0:12</span></div></div>
+          <div class="card painting"><div class="th t4"><span class="rm" style="background:var(--r5)"></span><span class="id">096</span><span class="dur">0:31</span></div></div>
+          <div class="card hov">
+            <div class="th t8">
+              <span class="scrubhint">▸ escrubeando · 0:09 / 0:22</span>
+              <span class="unc"></span><span class="id">097</span>
+              <span class="hovertc">0:09</span>
+              <span class="hoverbar"><i style="width:41%"></i><u style="left:41%"></u></span>
+              <span class="dur">0:22</span>
+            </div>
+          </div>
+          <div class="card"><div class="th t5"><span class="unc"></span><span class="id">098</span><span class="dur">0:14</span></div></div>
+          <div class="card h"><div class="th t6"><span class="unc"></span><span class="id">099</span><span class="dur">0:27</span></div></div>
+          <div class="card"><div class="th t9"><span class="unc"></span><span class="id">100</span><span class="dur">0:09</span></div></div>
+          <div class="card"><div class="th t7"><span class="unc"></span><span class="id">101</span><span class="dur">0:18</span></div></div>
+          <div class="card"><div class="th t2"><span class="unc"></span><span class="id">102</span><span class="dur">0:23</span></div></div>
+
+          <!-- pincelada en curso: se pintaron 091–095, va por el 096 -->
+          <div class="brushpath" style="left:20px;top:150px;width:1035px"></div>
+          <div class="brushcursor" style="left:1055px;top:143px">
+            <span class="dot"></span>
+            <span class="brushchip"><span class="key">5</span><span class="swatch" style="background:var(--r5);height:13px"></span>Baño 1</span>
+          </div>
+        </div>
+
+        <div class="grp">Comedor <span class="n">14</span><span class="ln"></span><span class="all">⇥ vuelve al clip actual, centrado</span></div>
+        <div class="grid wide">
+          <div class="card cur"><div class="th t7"><span class="rm" style="background:var(--r7)"></span><span class="id">077</span><span class="flag s">★</span><span class="dur">0:24</span></div></div>
+          <div class="card"><div class="th t7"><span class="rm" style="background:var(--r7)"></span><span class="id">076</span><span class="flag p">P</span><span class="dur">0:18</span></div></div>
+          <div class="card h"><div class="th t7"><span class="rm" style="background:var(--r7)"></span><span class="id">075</span><span class="dur">0:12</span></div></div>
+          <div class="card"><div class="th t7"><span class="rm" style="background:var(--r7)"></span><span class="id">074</span><span class="flag x">X</span><span class="dur">0:07</span></div></div>
+          <div class="card"><div class="th t7"><span class="rm" style="background:var(--r7)"></span><span class="id">073</span><span class="flag p">P</span><span class="dur">0:29</span></div></div>
+          <div class="card"><div class="th t7"><span class="rm" style="background:var(--r7)"></span><span class="id">072</span><span class="dur">0:16</span></div></div>
+          <div class="card"><div class="th t7"><span class="rm" style="background:var(--r7)"></span><span class="id">071</span><span class="dur">0:20</span></div></div>
+        </div>
+      </div>
+
+      <div class="brushbar">
+        <span class="n">
+          <span class="key" style="background:rgba(126,158,94,.2);border-color:rgba(126,158,94,.5);color:#cbe0ac">5</span>
+          <span class="swatch" style="background:var(--r5);height:13px"></span>
+          Pincel · Baño 1 — 6 clips pintados
+        </span>
+        <span class="sp"></span>
+        <span class="mini">soltá <kbd>5</kbd> para terminar la pincelada</span>
+        <span class="mini"><kbd>⌘Z</kbd> deshace la pincelada entera, no clip por clip</span>
+      </div>
+    </section>
+  </div>
+
+  <div class="status">
+    <span class="mono">128 clips · 74 verticales · 54 horizontales</span>
+    <span class="warn">
+      <svg width="10" height="10" viewBox="0 0 10 10" fill="#e8a33d"><path d="M5 0l5 9H0z"/></svg>
+      12 sin clasificar — click para filtrarlos
+    </span>
+    <span class="sp"></span>
+    <span class="mono">proxies 1080p · 128/128</span>
+    <span class="mono">/Volumes/FX30/CasaLomas · 214 GB</span>
+  </div>
+</div>
+
+</body>
+</html>
