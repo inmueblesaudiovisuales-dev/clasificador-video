@@ -666,6 +666,16 @@ class MainWindow(QWidget):
     def _tick_playhead(self) -> None:
         if self.current_clip is None:
             return
+        # mpv reporta la duracion de forma ASINCRONA: cuando se abrio el clip
+        # todavia no existia, asi que hay que volver a pedirsela. Sin esto la
+        # barra se queda en 0 y no dibuja playhead, marcas ni rango -- estuvo
+        # muerta en la app real y el arnes no lo mostraba, porque sus datos de
+        # ejemplo traen la duracion escrita a mano.
+        duracion = self.video_widget.player.duration or self._clip_durations.get(
+            self.current_index, 0.0
+        )
+        if duracion and duracion != self.scrub_bar.duration:
+            self.scrub_bar.set_duration(duracion)
         self.scrub_bar.set_position(self.video_widget.player.position)
         self._update_timecode()
         # El badge `▶ auto` miente en cuanto pausas: lo que arranco solo ya no

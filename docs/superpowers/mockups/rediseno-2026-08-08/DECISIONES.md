@@ -86,9 +86,29 @@ optimiza el **tiempo de visionado**, no cómo evitarlo:
   nada, pero darle otro significado la ocuparía para siempre.
 - **Arranque al 25% del clip**, no en el frame 0: el principio siempre es la
   cámara acomodándose.
-- **Precarga del siguiente clip** mientras miras el actual (`siguiente clip
+- ~~**Precarga del siguiente clip** mientras miras el actual (`siguiente clip
   precargado ✓` en la barra de estado). Medio segundo de espera por clip son
-  más de un minuto por shooting, y es lo que hace *sentir* lenta a una app.
+  más de un minuto por shooting, y es lo que hace *sentir* lenta a una app.~~
+  **DESCARTADA el 2026-08-08, después de medirla** (F6, Task 6). Esta decisión
+  daba por buena la precarga sin haberla probado nunca, y los dos números
+  salieron en contra:
+
+  | Qué | Umbral fijado antes de medir | Medido (dos corridas) |
+  |---|---|---|
+  | Ganancia | bajar ≥ 150 ms la mediana hasta el primer cuadro | **70 y 77 ms** |
+  | Costo | el `frame-drop-count` del clip que ves no puede subir | **subió: 1→7 y 1→6** |
+
+  O sea: abrir un clip ya costaba poco (mediana de ~75 ms, no el medio segundo
+  que suponía esta decisión), y un segundo decodificador de HEVC 10-bit hace
+  tartamudear el video que estás mirando. Se cambia una espera que casi no se
+  nota por un tirón que sí se nota.
+
+  **El indicador `siguiente clip precargado ✓` tampoco se construye**: un `✓`
+  que no corresponde a nada es peor que no tenerlo.
+
+  Medido con material real de la FX30 en `sample-media/clips/`. Si algún día
+  el material cambia mucho (clips mucho más largos o pesados), vale volver a
+  medirlo — pero con los mismos dos umbrales, no por corazonada.
 
 ## Miniaturas escrubeables
 
@@ -329,7 +349,7 @@ orientación.
 | **Clips verticales** | Es el caso de diseño principal, no una excepción. Sin una sola franja negra en pantalla. |
 | **Proxies** | Badge `Proxy 1080p` junto al selector de calidad —proxy y resolución de reproducción son la misma decisión— y el contador `proxies 1080p · 128/128` en la barra de estado. |
 | **Escala a cientos de clips** | Modo hoja + agrupación sticky + filtros que son la cola + selección por marquesina. Con 300 clips, clasificar por lote deja de ser una idea y es el flujo normal. |
-| **Sensación de instantáneo** | Precarga del siguiente clip, autoplay, control de velocidad, selector de calidad de primera clase, y el timecode sobre la imagen para eliminar el salto de mirada. |
+| **Sensación de instantáneo** | Autoplay, control de velocidad, selector de calidad de primera clase, y el timecode sobre la imagen para eliminar el salto de mirada. (La precarga del siguiente clip estaba aquí y se descartó al medirla — ver arriba.) |
 | **Otros editores** | Nada hardcodeado: los cuartos son datos de la sesión creados al vuelo, sin lista predefinida ni configuración previa que entender antes de empezar. |
 
 ## Lo que dejé afuera a propósito

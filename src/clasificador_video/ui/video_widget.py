@@ -238,6 +238,13 @@ class ScrubBar(QWidget):
                     QColor(*TICK_MINOR_OVER_VIDEO_RGBA))
         return (QColor(TICK_MAJOR_COLOR), QColor(TICK_MINOR_COLOR))
 
+    @property
+    def duration(self) -> float:
+        """Lo que la barra cree que dura el clip. Publico porque la ventana
+        tiene que poder comparar: mpv reporta la duracion tarde y hay que
+        volver a pedirsela hasta que exista."""
+        return self._duration
+
     def set_duration(self, seconds: float) -> None:
         self._duration = max(seconds, 0.0)
         self.update()
@@ -293,20 +300,27 @@ class ScrubBar(QWidget):
         left, right = 6, self.width() - 6
         return self._x_for(frame / self._fps, left, max(right - left, 1))
 
-    def etiquetas_de_manija(self) -> list[str]:
-        """Que manijas hay que dibujar, en orden. Existe para poder probar la
-        barra sin contar pixeles: `["I"]`, `["O"]`, `["I", "O"]` o `[]`.
+    def _manijas(self) -> list[tuple[int, str]]:
+        """`(x, letra)` de cada manija a dibujar, en orden.
 
         Va por marca EXISTENTE, no por rango completo: cada extremo se dibuja
         apenas se marca, sin esperar al otro, para que apretar `I` se vea en
         el momento y no solo se guarde en silencio.
+
+        **`paintEvent` dibuja desde aqui**, no repitiendo la condicion por su
+        cuenta: si fueran dos codigos distintos, `etiquetas_de_manija` podria
+        decir que hay manija mientras el pintado no dibuja ninguna, y el test
+        seguiria en verde.
         """
-        etiquetas = []
-        if self._x_de_marca(self._in_frame) is not None:
-            etiquetas.append("I")
-        if self._x_de_marca(self._out_frame) is not None:
-            etiquetas.append("O")
-        return etiquetas
+        marcas = ((self._in_frame, "I"), (self._out_frame, "O"))
+        return [(x, letra) for x, letra in
+                ((self._x_de_marca(f), letra) for f, letra in marcas)
+                if x is not None]
+
+    def etiquetas_de_manija(self) -> list[str]:
+        """Que manijas hay, en orden: `["I"]`, `["O"]`, `["I", "O"]` o `[]`.
+        Existe para poder probar la barra sin contar pixeles."""
+        return [letra for _, letra in self._manijas()]
 
     def _playhead_body_path(self, x: float, track_y: int) -> QPainterPath:
         half = 6.5
@@ -405,9 +419,7 @@ class ScrubBar(QWidget):
 
             # manijas: una barrita del color del rango con su letra arriba
             painter.setRenderHint(QPainter.RenderHint.Antialiasing, False)
-            for x_manija, letra in ((in_x, "I"), (out_x, "O")):
-                if x_manija is None:
-                    continue
+            for x_manija, letra in self._manijas():
                 painter.fillRect(
                     QRectF(x_manija - SCRUB_HANDLE_WIDTH / 2, 0,
                            SCRUB_HANDLE_WIDTH, alto),

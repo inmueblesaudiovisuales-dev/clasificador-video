@@ -374,3 +374,17 @@ def test_las_etiquetas_del_pie_declaran_fondo_transparente(qtbot):
                    "overlayKeys", "overlayTimecode"):
         bloque = hoja.split(f"QLabel#{nombre} {{")[1].split("}")[0]
         assert "background-color: transparent" in bloque, nombre
+
+
+def test_un_clip_de_mas_de_un_minuto_muestra_los_minutos_en_la_pastilla(qtbot):
+    """`SS:FF` alcanza para un recorrido, que casi nunca pasa del minuto, pero
+    un clip largo sin minutos mentiria: `total 05:12` para algo de 1m05s."""
+    from clasificador_video.ui.video_stage import formato_corto
+    assert formato_corto(18.37, 30.0) == "18:11"      # corto: sin minutos
+    assert formato_corto(65.0, 30.0) == "01:05:00"    # largo: con minutos
+
+
+def test_la_pastilla_sin_fps_no_divide_entre_cero(qtbot):
+    """Sesion restaurada sin fps: mejor `--:--` que reventar."""
+    from clasificador_video.ui.video_stage import formato_corto
+    assert formato_corto(18.37, 0.0) == "--:--"

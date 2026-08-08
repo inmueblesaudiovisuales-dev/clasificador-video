@@ -1766,3 +1766,32 @@ def test_las_teclas_de_cuadro_estan_registradas(qtbot):
     registrados = {s.key().toString() for s in window._shortcuts}
     for tecla in (",", "."):
         assert tecla in registrados, f"{tecla} se maneja pero no está registrada"
+
+
+def test_la_barra_se_entera_de_la_duracion_cuando_mpv_la_reporta(qtbot):
+    """Bug real encontrado con material de la FX30 al cerrar la F6: mpv
+    reporta la duracion de forma ASINCRONA, y `_update_scrub_bar` corre al
+    abrir el clip, cuando todavia no existe. Nadie la volvia a pedir, asi que
+    la barra se quedaba en 0 para siempre: sin playhead, sin marcas de tiempo
+    y sin zona de rango. En la app real la barra estaba muerta; el arnes lo
+    tapaba porque sus datos de ejemplo traen la duracion escrita a mano.
+    """
+    window = _window_with_video(qtbot)
+    window.load_clips([_clip(1)])
+    assert window.scrub_bar.duration == 0.0        # mpv todavia no la sabe
+    window.video_widget.player._mpv.duration = 4.004   # ahora si
+    window._tick_playhead()
+    assert window.scrub_bar.duration == pytest.approx(4.004)
+
+
+def test_la_duracion_se_actualiza_al_cambiar_de_clip(qtbot):
+    """Y no se queda con la del clip anterior, que dibujaria el playhead en
+    el lugar equivocado."""
+    window = _window_with_video(qtbot)
+    window.load_clips([_clip(1), _clip(2)])
+    window.video_widget.player._mpv.duration = 4.0
+    window._tick_playhead()
+    window.handle_arrow("next")
+    window.video_widget.player._mpv.duration = 12.0
+    window._tick_playhead()
+    assert window.scrub_bar.duration == pytest.approx(12.0)
