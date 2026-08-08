@@ -26,16 +26,20 @@ teclado para que un shooting se pueda clasificar sin tocar el mouse (F7).
 - Candados anti-deriva: `docs/superpowers/plans/2026-08-08-rediseno-ui-fidelidad-al-mockup.md`
 
 ```bash
-QT_QPA_PLATFORM=offscreen .venv/bin/pytest tests/ --ignore=tests/test_app.py -q
+QT_QPA_PLATFORM=offscreen .venv/bin/pytest tests/ -q
 ```
 
-Punto de partida: **442 tests en verde**, commit `1327195`.
+**Sin `--ignore`**: la suite corre completa desde el punto de control post-F5.
+`tests/test_app.py` dejó de colgarse cuando la F3 mató el diálogo que abría con
+`exec()`, y cubre el arranque de la app, que ningún otro test toca.
+
+Punto de partida: **476 tests en verde**, commit `96ea3ec`.
 
 ---
 
 ## Advertencias antes de empezar
 
-1. **La F6 es la fase más grande del rediseño.** Trece renglones del registro.
+1. **La F6 es la fase más grande del rediseño.** Catorce renglones del registro.
    Se parte en commits: `player.py` primero (sin UI, verde e inofensivo),
    después el pie del video, después el resto.
 2. **La precarga del siguiente clip se decide con un spike, no con fe.** Es lo
@@ -581,19 +585,29 @@ minuto por shooting, y es lo que hace *sentir* lenta a una app». Pero es lo
 son HEVC 10-bit con `hwdec=videotoolbox`, y un segundo decodificador compite
 con el que estás mirando.
 
-- [ ] **Step 1: Medir, con material real de `sample-media/`**
-  1. Tiempo desde `open_clip` hasta el primer cuadro dibujado, sin precarga.
-  2. Lo mismo con el siguiente clip ya abierto en un `MpvPlayer` de reserva.
-  3. Y con la reproducción del clip actual **corriendo**, que es el caso real:
-     lo que hay que descartar es que la precarga haga tartamudear lo que estás
-     mirando.
+**Los dos umbrales, fijados ANTES de medir.** Un spike sin criterio numérico
+se termina decidiendo por corazonada, que es justo lo que se quería evitar:
 
-- [ ] **Step 2: Decidir con el número en la mano**
-  - **Si mejora y no tartamudea**: se construye, y la barra de estado muestra
-    `siguiente clip precargado ✓`.
-  - **Si no**: **no se construye, y el indicador tampoco.** Un `✓` que no
-    corresponde a nada es peor que no tenerlo. Se escribe el número medido en
-    el análisis de cierre y `DECISIONES.md` se corrige.
+| Qué | Umbral | De dónde sale |
+|---|---|---|
+| **Ganancia** | la mediana del tiempo hasta el primer cuadro tiene que bajar **≥ 150 ms** | `DECISIONES.md` habla de «medio segundo de espera por clip»; 150 ms es un tercio de eso y ya es perceptible. Menos que eso no paga un segundo decodificador |
+| **Costo** | `frame-drop-count` del clip que se está viendo **no puede subir** mientras corre la precarga | Es el número que mpv lleva solo. Un modo que a veces se traba es peor que no tenerlo — el mismo motivo por el que se descartó el modo comparar |
+
+- [ ] **Step 1: Medir, con material real de `sample-media/`**
+  1. Tiempo desde `open_clip` hasta el primer cuadro dibujado, **sin** precarga.
+     Cinco repeticiones, se toma la mediana.
+  2. Lo mismo con el siguiente clip ya abierto en un `MpvPlayer` de reserva.
+  3. Y con la reproducción del clip actual **corriendo**, leyendo su
+     `frame-drop-count` antes y después. Ese es el caso real, y lo que hay que
+     descartar es que la precarga haga tartamudear lo que estás mirando.
+
+- [ ] **Step 2: Decidir con los dos números en la mano**
+  - **Si gana ≥ 150 ms y no sube `frame-drop-count`**: se construye, y la barra
+    de estado muestra `siguiente clip precargado ✓`.
+  - **Si no cumple los dos**: **no se construye, y el indicador tampoco.** Un
+    `✓` que no corresponde a nada es peor que no tenerlo. Se escriben los
+    números medidos en el análisis de cierre y se corrige `DECISIONES.md`, que
+    hoy da la precarga por buena sin haberla medido nunca.
 
 - [ ] **Step 3: Verificar** — sea cual sea la decisión, queda escrita.
 
@@ -1240,3 +1254,43 @@ fallas, 2 fallas, 2 fallas. **Lo que cambia no es la cantidad sino el tipo**:
 las primeras eran sobre APIs de Qt y mpv; estas dos son sobre *lo que el plan
 no dice*. Un plan detallado se audita bien preguntándole qué omite, no solo si
 lo que dice es cierto.
+
+---
+
+## Quinta auditoría del plan de la F6 — 2026-08-08
+
+Ángulo nuevo: **auditar el plan contra el estado de hoy**, no contra sí mismo.
+
+### Falla 1: el preámbulo mentía en cuatro puntos
+
+Un plan que se equivoca sobre su punto de partida desorienta a quien lo
+ejecuta, y el peor de los cuatro era el comando de tests:
+
+| Decía | Es |
+|---|---|
+| `pytest tests/ --ignore=tests/test_app.py` | La suite corre **completa** desde el punto de control post-F5 |
+| «442 tests en verde» | 476 |
+| commit `1327195` | `96ea3ec` |
+| «Trece renglones del registro» | Catorce, desde que la tercera auditoría sumó el `espacio ▶ ‖` |
+
+Ese `--ignore` habría hecho que quien implemente la F6 se saltara ocho tests
+—los del arranque de la app— sin ninguna razón.
+
+### Falla 2: el spike de la precarga no tenía criterio numérico
+
+Decía «si mejora y no tartamudea». Sin número, un spike se decide por
+corazonada, que es exactamente lo que se quería evitar al pedirlo. Ahora los
+dos umbrales están fijados **antes** de medir: la mediana del tiempo hasta el
+primer cuadro tiene que bajar **≥ 150 ms**, y el `frame-drop-count` del clip
+que se está viendo **no puede subir**.
+
+### Hasta aquí llegan las auditorías de este plan
+
+Cinco pasadas: **4, 3, 2, 2 y 2 hallazgos**, y los de esta ronda ya no son
+sobre el contenido técnico —que quedó verificado contra Qt y contra mpv real—
+sino sobre metadatos y sobre una redacción imprecisa.
+
+**La sexta pasada no vale la pena.** Lo que queda por descubrir de este plan ya
+no sale de leerlo: sale de implementarlo. Los tres planes anteriores lo
+mostraron igual — cada uno terminó con una sección «lo que se desvió», y
+ninguno de esos desvíos se podría haber previsto auditando.
