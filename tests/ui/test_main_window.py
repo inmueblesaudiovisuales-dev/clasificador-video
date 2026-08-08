@@ -1795,3 +1795,33 @@ def test_la_duracion_se_actualiza_al_cambiar_de_clip(qtbot):
     window.video_widget.player._mpv.duration = 12.0
     window._tick_playhead()
     assert window.scrub_bar.duration == pytest.approx(12.0)
+
+
+def test_todas_las_teclas_que_dibuja_la_interfaz_existen(qtbot):
+    """El detector que ya encontro CUATRO atajos anunciados y ausentes, ahora
+    tambien sobre los textos nuevos de la F6: la fila de teclas del video y el
+    recordatorio de la columna. Un texto que promete una tecla que no hace
+    nada es peor que no ponerlo."""
+    from clasificador_video.ui.video_stage import KEYS_HINT_TEXT
+
+    window = _window_with_video(qtbot)
+    registrados = {s.key().toString() for s in window._shortcuts}
+    dibujadas = KEYS_HINT_TEXT + " " + window.tool_column.play_hint.text()
+    # como los escribe la interfaz -> como los nombra Qt
+    equivalencias = {
+        "←": "Left", "→": "Right", ",": ",", ".": ".",
+        "L": "L", "K": "K", "espacio": "Space",
+    }
+    for simbolo, secuencia in equivalencias.items():
+        if simbolo in dibujadas:
+            assert secuencia in registrados, f"la interfaz dibuja {simbolo} y no existe"
+
+
+def test_la_fila_de_teclas_no_promete_lo_que_no_esta_construido(qtbot):
+    """`F` (solo video) y `esc` son de fases posteriores. Aparecen en el
+    mockup, pero anunciarlos antes de construirlos es exactamente el bug que
+    esta guarda existe para evitar."""
+    from clasificador_video.ui.video_stage import KEYS_HINT_TEXT
+
+    assert " F " not in KEYS_HINT_TEXT
+    assert "esc" not in KEYS_HINT_TEXT

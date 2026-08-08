@@ -388,3 +388,34 @@ def test_la_pastilla_sin_fps_no_divide_entre_cero(qtbot):
     """Sesion restaurada sin fps: mejor `--:--` que reventar."""
     from clasificador_video.ui.video_stage import formato_corto
     assert formato_corto(18.37, 0.0) == "--:--"
+
+
+def test_las_etiquetas_del_pie_se_reacomodan_al_cambiar_el_texto(qtbot):
+    """Bug real encontrado revisando la F6: las etiquetas se colocaban solo
+    en `_place_overlays`, que corre al cambiar de TAMAÑO. Como nacen vacias,
+    quedaban de 7 px de ancho, y al escribirles `f 293` o `IN 00:04:12` el
+    texto no cabia: se veian cortadas hasta que redimensionaras la ventana.
+
+    Los arneses lo tapaban porque siempre habia un resize despues de poner
+    los datos. En la app real, marcar IN no mostraba nada.
+    """
+    stage = _stage_visible(qtbot)
+    qtbot.wait(50)
+    stage.set_timecode("00:00:09:23", frame=293)
+    stage.set_in_out_labels("00:04:12", "00:11:16")
+    stage.set_range_pill(7.13, 212, 18.37)
+    qtbot.wait(20)
+    for nombre in ("timecode_label", "frame_label", "io_label", "range_pill"):
+        widget = getattr(stage, nombre)
+        assert widget.width() >= widget.sizeHint().width(), nombre
+
+
+def test_el_in_out_sigue_pegado_al_borde_derecho_al_crecer(qtbot):
+    """Va alineado a la derecha: si solo creciera hacia la derecha se saldria
+    del video en vez de estirarse hacia la izquierda."""
+    stage = _stage_visible(qtbot)
+    qtbot.wait(50)
+    stage.set_in_out_labels("00:04:12", "00:11:16")
+    qtbot.wait(20)
+    derecha = stage.io_label.x() + stage.io_label.width()
+    assert stage.video.width() - derecha == theme.OVERLAY_MARGIN

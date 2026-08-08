@@ -202,8 +202,14 @@ class VideoStage(QWidget):
         """El timecode grande y su numero de cuadro. Sin clip los dos quedan
         vacios: dejar un `f 293` viejo al lado de un timecode en blanco es
         peor que no mostrar nada."""
+        cuadro = f"f {frame}" if frame is not None else ""
+        # sale temprano si nada cambio: esto corre en cada tick del playhead
+        # (10 veces por segundo) y `setText` dispara relayout del widget
+        if texto == self.timecode_label.text() and cuadro == self.frame_label.text():
+            return
         self.timecode_label.setText(texto)
-        self.frame_label.setText(f"f {frame}" if frame is not None else "")
+        self.frame_label.setText(cuadro)
+        self._colocar_textos_del_pie()
 
     def set_in_out_labels(self, in_tc: str | None, out_tc: str | None) -> None:
         """`IN 00:04:12   OUT 00:11:16` a la derecha de la fila del timecode.
@@ -213,7 +219,11 @@ class VideoStage(QWidget):
             partes.append(f"IN {in_tc}")
         if out_tc:
             partes.append(f"OUT {out_tc}")
-        self.io_label.setText("   ".join(partes))
+        texto = "   ".join(partes)
+        if texto == self.io_label.text():
+            return
+        self.io_label.setText(texto)
+        self._colocar_textos_del_pie()
 
     def set_range_pill(self, rango_segundos: float | None, cuadros: int | None,
                        total_segundos: float, fps: float | None = None) -> None:
@@ -228,11 +238,14 @@ class VideoStage(QWidget):
             return
         if not fps:
             fps = cuadros / rango_segundos if rango_segundos > 0 else 0.0
-        self.range_pill.setText(
+        texto = (
             f"rango {formato_corto(rango_segundos, fps)}"
             f"  ·  {cuadros} f"
             f"  ·  total {formato_corto(total_segundos, fps)}"
         )
+        if texto != self.range_pill.text():
+            self.range_pill.setText(texto)
+            self._colocar_textos_del_pie()
         self.range_pill.show()
 
     @staticmethod
@@ -244,6 +257,43 @@ class VideoStage(QWidget):
         if obj is self.video and event.type() == QEvent.Resize:
             self._place_overlays()
         return super().eventFilter(obj, event)
+
+    def _colocar_textos_del_pie(self) -> None:
+        """Re-acomoda las etiquetas del pie que CAMBIAN DE TEXTO.
+
+        Se llama desde los setters, no solo al cambiar de tamaño: las cuatro
+        nacen vacias --7 px de ancho-- y sin esto el texto que se les escribe
+        despues no cabe. `f 293`, el IN/OUT y la pastilla se veian cortados
+        hasta que redimensionaras la ventana, y en la app real marcar IN no
+        mostraba nada. Los arneses lo tapaban porque siempre habia un resize
+        despues de poner los datos.
+
+        Las posiciones se derivan de la barra, que ya esta colocada: solo
+        cambian los ANCHOS de estas etiquetas, no la altura de las filas, asi
+        que no hace falta rehacer el acomodo entero en cada tick.
+        """
+        ancho = self.video.width()
+        self.timecode_label.adjustSize()
+        self.frame_label.adjustSize()
+        y_timecode = self.scrub_bar.y() - 8 - self.timecode_label.height()
+        base = y_timecode + self.timecode_label.height()
+        self.timecode_label.move(M, y_timecode)
+        # el numero de cuadro se alinea con la BASE del timecode, no con su
+        # tope: son dos tamaños muy distintos y alinearlos arriba los deja
+        # visualmente flotando
+        self.frame_label.move(
+            M + self.timecode_label.width() + 9,
+            base - self.frame_label.height() - 2,
+        )
+
+        # el IN/OUT va pegado al borde derecho: crece hacia la izquierda, o
+        # se saldria del video al aparecer el segundo timecode
+        self.io_label.adjustSize()
+        self.io_label.move(ancho - M - self.io_label.width(),
+                           base - self.io_label.height() - 2)
+
+        self.range_pill.adjustSize()
+        self.range_pill.move(M, self.keys_hint.y())
 
     def _place_overlays(self) -> None:
         ancho, alto = self.video.width(), self.video.height()
@@ -281,23 +331,7 @@ class VideoStage(QWidget):
             ancho - 2 * M, theme.SCRUB_HEIGHT,
         )
 
-        self.timecode_label.adjustSize()
-        self.frame_label.adjustSize()
-        y_timecode = self.scrub_bar.y() - 8 - self.timecode_label.height()
-        self.timecode_label.move(M, y_timecode)
-        # el numero de cuadro se alinea con la BASE del timecode, no con su
-        # tope: son dos tamaños muy distintos y alinearlos arriba los deja
-        # visualmente flotando
-        self.frame_label.move(
-            M + self.timecode_label.width() + 9,
-            y_timecode + self.timecode_label.height() - self.frame_label.height() - 2,
-        )
-
-        self.io_label.adjustSize()
-        self.io_label.move(
-            ancho - M - self.io_label.width(),
-            y_timecode + self.timecode_label.height() - self.io_label.height() - 2,
-        )
+        self._colocar_textos_del_pie()
 
         self.scrim.lower()
         self.top_scrim.lower()
