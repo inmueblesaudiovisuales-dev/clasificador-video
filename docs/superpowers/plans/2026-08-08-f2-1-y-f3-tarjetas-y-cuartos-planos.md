@@ -92,7 +92,7 @@ Dos tokens mueren y varios nacen. Los que mueren:
   de glifo *es* la información. El token no tiene destinatario en el diseño
   nuevo, así que se borra en vez de buscarle un uso.
 
-- [ ] **Step 1: Escribir los tests que fallan**
+- [x] **Step 1: Escribir los tests que fallan**
 
 ```python
 # tests/ui/test_theme.py  (agregar)
@@ -141,7 +141,7 @@ def test_los_tokens_que_la_f2_dejo_sin_usar_ya_no_existen():
     assert not hasattr(theme, "FLAG_NONE_COLOR")
 ```
 
-- [ ] **Step 2: Implementar**
+- [x] **Step 2: Implementar**
 
 ```python
 # src/clasificador_video/ui/theme.py  (reemplaza RANGE_TRACK_COLOR y FLAG_NONE_COLOR)
@@ -177,7 +177,7 @@ def con_alfa(color_hex: str, alfa: int) -> tuple[int, int, int, int]:
     return (*(int(color_hex[i:i + 2], 16) for i in (0, 2, 4)), alfa)
 ```
 
-- [ ] **Step 3: Verificar** — `pytest tests/ui/test_theme.py -q` en verde y
+- [x] **Step 3: Verificar** — `pytest tests/ui/test_theme.py -q` en verde y
   `grep -rn "RANGE_TRACK_COLOR\|FLAG_NONE_COLOR" src/ tests/ scripts/` vacío.
 
 ---
@@ -196,7 +196,7 @@ datos para poder dibujar lo que el mockup dibuja:
   el orden es lo que el editor va a nombrar cuando hable de un clip.
 - **`fps`** — sin fps, `duration_frames` no se puede convertir a `0:19`.
 
-- [ ] **Step 1: Escribir los tests que fallan**
+- [x] **Step 1: Escribir los tests que fallan**
 
 ```python
 # tests/ui/test_clip_sheet.py  (agregar)
@@ -242,7 +242,7 @@ def test_la_hoja_recibe_el_numero_de_clip_y_los_fps(qtbot, tmp_path):
     assert tarjeta.clip.fps == 29.97
 ```
 
-- [ ] **Step 2: Implementar**
+- [x] **Step 2: Implementar**
 
 ```python
 # src/clasificador_video/ui/clip_sheet.py
@@ -275,7 +275,7 @@ En `ClipCard`:
 En `MainWindow._refresh_sheet`, agregar al `ClipThumbnail(...)`:
 `numero=clip.orden,` y `fps=clip.fps,`.
 
-- [ ] **Step 3: Verificar** — la suite completa en verde.
+- [x] **Step 3: Verificar** — la suite completa en verde.
 
 ---
 
@@ -303,7 +303,7 @@ la rayada no se puede expresar en QSS. Teniendo las dos en el mismo `paintEvent`
 queda garantizado que son excluyentes —o cuarto, o rayado— y no se pueden
 solapar por un orden de reglas.
 
-- [ ] **Step 1: Escribir los tests que fallan**
+- [x] **Step 1: Escribir los tests que fallan**
 
 Los tests se escriben contra un método puro `plan_de_pintado()` que devuelve
 qué piezas van y con qué color, y **una sola** verificación de píxel real. La
@@ -400,7 +400,7 @@ def test_el_overlay_pinta_de_verdad_sobre_la_miniatura(qtbot):
     assert columna == QColor(theme.room_color(0))
 ```
 
-- [ ] **Step 2: Implementar**
+- [x] **Step 2: Implementar**
 
 Constantes de geometría al tope de `clip_sheet.py`, junto a `GAP`:
 
@@ -466,7 +466,7 @@ En `_apply_state`, el borde de selección múltiple pasa a `SELECTION_BORDER`
 palomita), y **se quita el `border-left` del cuarto**, que ahora lo pinta el
 overlay.
 
-- [ ] **Step 3: Verificar** — suite en verde. Correr el arnés con recorte
+- [x] **Step 3: Verificar** — suite en verde. Correr el arnés con recorte
   (Task 6) sobre la hoja y **mirar la imagen**: número, duración, glifo, franja
   y rayado tienen que leerse a tamaño real, no solo al 300%.
 
@@ -498,7 +498,7 @@ cuestan dos líneas:
 El chip `6 dest.` del mockup **no se agrega**: el estado «destacado» no existe
 hasta la F7. `set_flags` recibe hoy tres números y recibirá cuatro entonces.
 
-- [ ] **Step 1: Escribir los tests que fallan**
+- [x] **Step 1: Escribir los tests que fallan**
 
 ```python
 # tests/ui/test_room_rail.py  (reemplaza el test de la leyenda de la linea 61)
@@ -548,7 +548,7 @@ def test_solo_los_tramos_de_los_extremos_van_redondeados(qtbot):
     assert all("border-radius" not in t.styleSheet() for t in tramos[1:-1])
 ```
 
-- [ ] **Step 2: Implementar** — `_Leyenda(QWidget)` con una fila de
+- [x] **Step 2: Implementar** — `_Leyenda(QWidget)` con una fila de
   `(cuadrito de 6×6, número)` por estado; `set_flags` la alimenta con
   `[(picks, PICK_COLOR, "picks"), (rejects, REJECT_COLOR, "rejects"),
   (sin_clasificar, PENDING_COLOR, "sin clasificar")]`. `find_hint` se parte en
@@ -563,7 +563,7 @@ def test_solo_los_tramos_de_los_extremos_van_redondeados(qtbot):
   > `set_counts` deja los tramos rectos y le pone el radio **solo al primero y
   > al último**, que es información que solo él tiene.
 
-- [ ] **Step 3: Verificar** — suite en verde, y recorte del rail contra el
+- [x] **Step 3: Verificar** — suite en verde, y recorte del rail contra el
   mockup mirado de cerca.
 
 ---
@@ -584,7 +584,7 @@ color —que es el canal que hace legible el estado de un vistazo— se pierde.
 Los badges `▶ auto` y `Proxy 1080p` del mockup son de la F6 y la F9: no se
 inventan aquí.
 
-- [ ] **Step 1: Escribir los tests que fallan**
+- [x] **Step 1: Escribir los tests que fallan**
 
 ```python
 # tests/ui/test_video_stage.py  (agregar)
@@ -621,14 +621,14 @@ En `tests/ui/test_main_window.py` se reescriben los tres asserts de
 `badges.text()` (líneas 617, 618, 624) contra `room_badge.text()` y
 `flag_badge.text()`.
 
-- [ ] **Step 2: Implementar** — `_BadgeRow(QWidget)` en `video_stage.py` con
+- [x] **Step 2: Implementar** — `_BadgeRow(QWidget)` en `video_stage.py` con
   `room_badge` y `flag_badge` en un `QHBoxLayout`, expuesto como
   `stage.badges`. `set_room(nombre, color)` arma el estilo con
   `theme.aclarar(color, 0.45)` para el texto y `theme.con_alfa(color, 140)`
   para el borde; `set_flag(flag)` esconde el badge cuando es `none`.
   `_place_overlays` sigue igual salvo `adjustSize()` → el layout ya lo hace.
 
-- [ ] **Step 3: Verificar** — suite en verde y **mirar** el recorte del área de
+- [x] **Step 3: Verificar** — suite en verde y **mirar** el recorte del área de
   badges sobre el frame sintético de la Task 6: el punto de esta tarea es el
   contraste, y sin frame detrás no se puede juzgar.
 
@@ -657,7 +657,7 @@ El frame se agrega **después** de `show()` y `processEvents()`: `_place_overlay
 corre en cada resize del video y hace `scrim.lower()`, así que un hijo agregado
 antes terminaría por encima del scrim. Se agrega al final y se baja al fondo.
 
-- [ ] **Step 1: Escribir los tests que fallan**
+- [x] **Step 1: Escribir los tests que fallan**
 
 ```python
 # tests/test_comparar_con_mockup.py  (agregar)
@@ -686,31 +686,31 @@ def test_el_lienzo_del_recorte_crece_con_el_zoom():
     assert (ancho, alto) == (420, 100)
 ```
 
-- [ ] **Step 2: Implementar** — en `comparar_con_mockup.py`, `parsear_recorte`,
+- [x] **Step 2: Implementar** — en `comparar_con_mockup.py`, `parsear_recorte`,
   `regiones_de_recorte` y un paso de recorte+escala antes de `componer`. En
   `_datos_de_ejemplo.py`, `pintar_frame_de_ejemplo(ventana)` (un `QLabel` hijo
   del `VideoWidget` con un degradado sintético, `lower()` al final) y
   `ventana.status_bar.set_volume("/Volumes/FX30/CasaLomas")`, que es la ruta que
   muestra el mockup.
 
-- [ ] **Step 3: Verificar** — correr el arnés completo y con recorte, y mirar
+- [x] **Step 3: Verificar** — correr el arnés completo y con recorte, y mirar
   las dos imágenes.
 
 ---
 
 ## Task 7: Cierre de la F2.1 — Candados 3 y 4
 
-- [ ] Suite completa en verde (283 + los nuevos).
-- [ ] `grep -rn "RANGE_TRACK_COLOR\|FLAG_NONE_COLOR" src/ tests/ scripts/` vacío
+- [x] Suite completa en verde (283 + los nuevos).
+- [x] `grep -rn "RANGE_TRACK_COLOR\|FLAG_NONE_COLOR" src/ tests/ scripts/` vacío
       — su renglón de la lista de ejecución se tacha.
-- [ ] **Buscar campos que nadie lee** en `ClipThumbnail` y en `ClipCard`:
+- [x] **Buscar campos que nadie lee** en `ClipThumbnail` y en `ClipCard`:
       es el mejor detector de funciones perdidas y es lo que encontró esta
       regresión. Con `grep` sobre cada nombre de campo, no de memoria.
-- [ ] Arnés corrido, imagen completa **mirada**, y al menos tres recortes
+- [x] Arnés corrido, imagen completa **mirada**, y al menos tres recortes
       ampliados: tarjetas, rail y badges sobre el video.
-- [ ] Cada diferencia contra el mockup queda **arreglada o escrita** en el
+- [x] Cada diferencia contra el mockup queda **arreglada o escrita** en el
       análisis de cierre, con su fase.
-- [ ] Commit con mensaje en español mexicano.
+- [x] Commit con mensaje en español mexicano.
 
 **Diferencias que la F2.1 deja a propósito** (ya detectadas, para no volver a
 descubrirlas):
@@ -750,7 +750,7 @@ existía para generar subcuartos numerados— y nacen las tres operaciones que e
 rail necesita. `MASTER_ROOM_LIST` **también muere**: era el catálogo del diálogo
 de configuración, y con cuartos creados sobre la marcha no tiene destinatario.
 
-- [ ] **Step 1: Escribir los tests que fallan**
+- [x] **Step 1: Escribir los tests que fallan**
 
 ```python
 # tests/test_rooms.py  (agregar; los de set_count se borran)
@@ -804,12 +804,12 @@ def test_ya_no_hay_cuartos_repetibles_ni_catalogo_maestro():
     assert not hasattr(RoomSelection, "set_count")
 ```
 
-- [ ] **Step 2: Implementar** — `add`, `rename`, `move(nombre, delta)`,
+- [x] **Step 2: Implementar** — `add`, `rename`, `move(nombre, delta)`,
   `remove`; `toggle` se conserva mientras `app.py::_rebuild_room_selection` la
   use, o se cambia por `add` en la Task 11 (preferible: una sola forma de
   agregar).
 
-- [ ] **Step 3: Verificar.**
+- [x] **Step 3: Verificar.**
 
 > **Antes de las Tasks 9 a 11, arreglar los helpers de los tests.** Verificado
 > leyendo el archivo: `tests/ui/test_main_window.py::_window(qtbot)` **no acepta
@@ -838,7 +838,7 @@ Todo lo que muere aquí está en la lista de ejecución del análisis §5:
 manifest con el plugin de Premiere no se toca — el plugin ya maneja el caso.
 Un test lo fija para que nadie «simplifique» el campo a string más adelante.
 
-- [ ] **Step 1: Escribir los tests que fallan**
+- [x] **Step 1: Escribir los tests que fallan**
 
 ```python
 # tests/test_keyboard.py  (los de subcuartos se BORRAN, no se adaptan: el
@@ -872,10 +872,10 @@ def test_categoria_path_sigue_siendo_una_lista(qtbot, tmp_path):
     assert window.clips[0].to_dict()["categoria_path"] == ["Cocina"]
 ```
 
-- [ ] **Step 2: Implementar** — borrar. Cada test borrado se justifica en el
+- [x] **Step 2: Implementar** — borrar. Cada test borrado se justifica en el
   mensaje del commit: *el comportamiento murió a propósito*.
 
-- [ ] **Step 3: Verificar** — `grep -rn "subroom\|CategoryTree\|category_tree\|pending_parent" src/ tests/ scripts/ uxp-plugin/`
+- [x] **Step 3: Verificar** — `grep -rn "subroom\|CategoryTree\|category_tree\|pending_parent" src/ tests/ scripts/ uxp-plugin/`
   solo debe devolver, si acaso, algo del plugin (que no se toca).
 
 ## Task 10: El rail se edita en el lugar
@@ -886,7 +886,7 @@ def test_categoria_path_sigue_siendo_una_lista(qtbot, tmp_path):
 - Modify: `src/clasificador_video/ui/theme.py::build_stylesheet` (fila `+ Nuevo cuarto`)
 - Test: `tests/ui/test_room_rail.py`, `tests/ui/test_main_window.py`
 
-- [ ] **Step 1: Escribir los tests que fallan**
+- [x] **Step 1: Escribir los tests que fallan**
 
 ```python
 # tests/ui/test_room_rail.py  (agregar)
@@ -970,7 +970,7 @@ def test_reordenar_no_toca_la_clasificacion_de_los_clips(qtbot, tmp_path):
     assert window.room_selection.active_rooms() == ["Sala", "Cocina"]
 ```
 
-- [ ] **Step 2: Implementar** — señales `room_created`, `room_renamed`,
+- [x] **Step 2: Implementar** — señales `room_created`, `room_renamed`,
   `room_moved`, `room_removed` en `RoomRail`; `_FilaCuarto` gana
   `contextMenuEvent` (`QMenu` con las cuatro acciones) y `mouseDoubleClickEvent`
   (renombrar). El renombrado usa `QInputDialog.getText`. La fila
@@ -982,7 +982,7 @@ def test_reordenar_no_toca_la_clasificacion_de_los_clips(qtbot, tmp_path):
   > operación del rail tiene que rehacerlo (o mutar `active_rooms`), o las
   > teclas siguen apuntando a la lista vieja **sin dar ningún síntoma visible**.
 
-- [ ] **Step 3: Verificar.**
+- [x] **Step 3: Verificar.**
 
 ## Task 11: Muere el diálogo de configuración inicial
 
@@ -1002,7 +1002,7 @@ autosave deja de escribirse.
 padre, que es el que existe en el rail—, en vez de tirar el dato o de crear un
 cuarto `Recámara 1 › Baño`.
 
-- [ ] **Step 1: Escribir los tests que fallan**
+- [x] **Step 1: Escribir los tests que fallan**
 
 ```python
 # tests/test_app.py  (actualizar)
@@ -1022,25 +1022,25 @@ def test_una_sesion_vieja_con_subcuartos_se_aplana_al_cuarto_padre(tmp_path):
                            ).categoria_path == ["Recámara 1"]
 ```
 
-- [ ] **Step 2: Implementar.**
+- [x] **Step 2: Implementar.**
 
-- [ ] **Step 3: Verificar** — suite en verde y **abrir la app de verdad**
+- [x] **Step 3: Verificar** — suite en verde y **abrir la app de verdad**
   (`\.venv/bin/python -m clasificador_video.app`): esta tarea toca el arranque,
   que el test excluido es el único que cubre.
 
 ## Task 12: Cierre de la F3
 
-- [ ] Suite en verde.
-- [ ] `grep` confirma que los seis renglones de la F3 en la lista de ejecución
+- [x] Suite en verde.
+- [x] `grep` confirma que los seis renglones de la F3 en la lista de ejecución
       están vacíos: `RoomConfigDialog`, `CategoryTree`, `pending_parent` /
       `resolve_subroom_key`, `SUBROOM_CANDIDATES` / `_handle_subroom_key` /
       `_update_subroom_banner`, `RoomRail.subroom_banner`, `REPEATABLE_ROOMS` /
       `set_count`.
-- [ ] Campos y métodos que nadie lee, buscados con `grep`.
-- [ ] Arnés corrido y la imagen **mirada**, con recorte del rail.
-- [ ] Prueba a mano del arranque en frío: crear tres cuartos, clasificar con
+- [x] Campos y métodos que nadie lee, buscados con `grep`.
+- [x] Arnés corrido y la imagen **mirada**, con recorte del rail.
+- [x] Prueba a mano del arranque en frío: crear tres cuartos, clasificar con
       `1`-`3`, renombrar uno, moverlo, borrarlo, cerrar y reabrir.
-- [ ] Commit en español mexicano.
+- [x] Commit en español mexicano.
 
 ---
 
@@ -1077,3 +1077,39 @@ sigue en vez de pensarlo.
 Orden vigente: **F4** deshacer con historial → **F5** filtros como cola →
 **F6** reproducción rápida → **F7** resto del teclado → **F8** modo hoja y
 pincel → **F9** proxies y orientación del manifest → **F10** barrido final.
+
+---
+
+## Resultado — 2026-08-08
+
+Las dos fases quedaron implementadas el mismo día que se escribió el plan.
+
+| | Commit | Tests |
+|---|---|---|
+| F2.1 | `00e5d9d` | 318 en verde |
+| F3 | `7eab98b` | 328 en verde |
+
+**Lo que se desvió del plan al implementarlo**, para que el documento no
+mienta:
+
+1. **El badge de cuarto necesitó un punto de color aparte.** Con el texto
+   aclarado y nada más, el badge se lee **gris** — comprobado ampliando el
+   recorte contra el mockup. El mockup logra el color con un punto saturado, no
+   con el texto: el punto va con el color puro del cuarto y el texto con su
+   versión clara, y el factor de mezcla bajó de 0.45 a 0.35.
+2. **`MIN_TILE_WIDTH` bajó de 150 a 140.** No estaba en el plan: salió de la
+   comparación de cierre. Con 150, la hoja armaba cuatro columnas de 186 px
+   donde el mockup tiene cinco de ~151.
+3. **Dos separadores y el redondeo de la barra de progreso** se agregaron por
+   la misma vía (mirar el recorte del rail), y un tercer arreglo apareció al
+   mirar el rail de la F3: las etiquetas de nombre y conteo pintaban el fondo
+   de la app encima de la fila del cuarto actual.
+4. **El Candado 1 atrapó un comentario.** Su regex corre sobre el texto del
+   archivo, así que un comentario que *menciona* la notación de color con alfa
+   de CSS lo hace fallar. Hubo que reformularlo. Es correcto que sea así, pero
+   conviene saberlo antes de perder cinco minutos.
+
+**Lo que no se desvió**: las cuatro correcciones de la auditoría previa
+—`fromRgb`, el redondeo del contenedor, la escala de `grab()` y los helpers de
+tests que faltaban— se confirmaron todas al implementar. Auditar ejecutando
+volvió a pagar.

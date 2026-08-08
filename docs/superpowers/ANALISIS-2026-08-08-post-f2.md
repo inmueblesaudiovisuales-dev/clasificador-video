@@ -103,13 +103,13 @@ Lo que quedó del plan maestro, más lo que la F2 dejó provisional.
 
 | Qué | Dónde | Muere en |
 |---|---|---|
-| `RoomConfigDialog` y su exigencia en `arrancar()` | `ui/room_config_dialog.py`, `app.py` | F3 |
-| `CategoryTree` completo | `category_path.py` | F3 |
-| `pending_parent`, `resolve_subroom_key` | `keyboard.py` | F3 |
-| `SUBROOM_CANDIDATES`, `_handle_subroom_key`, `_update_subroom_banner` | `ui/main_window.py` | F3 |
-| `RoomRail.subroom_banner` | `ui/room_rail.py` | F3 |
-| `REPEATABLE_ROOMS`, `set_count` | `rooms.py` | F3 |
-| `orientacion="horizontal"` hardcodeado | `ui/main_window.py` | F9 |
+| ~~`RoomConfigDialog` y su exigencia en `arrancar()`~~ | ~~`ui/room_config_dialog.py`, `app.py`~~ | ✅ F3 |
+| ~~`CategoryTree` completo~~ | ~~`category_path.py`~~ | ✅ F3 |
+| ~~`pending_parent`, `resolve_subroom_key`~~ | ~~`keyboard.py`~~ | ✅ F3 |
+| ~~`SUBROOM_CANDIDATES`, `_handle_subroom_key`, `_update_subroom_banner`~~ | ~~`ui/main_window.py`~~ | ✅ F3 |
+| ~~`RoomRail.subroom_banner`~~ | ~~`ui/room_rail.py`~~ | ✅ F3 |
+| ~~`REPEATABLE_ROOMS`, `set_count`~~ | ~~`rooms.py`~~ | ✅ F3 |
+| `orientacion="horizontal"` hardcodeado | `ui/main_window.py` | **F9 — lo único que sigue vivo** |
 | ~~Campos muertos de `ClipThumbnail`~~ | ~~`ui/clip_sheet.py`~~ | ✅ F2.1 |
 | ~~`RANGE_TRACK_COLOR` y `FLAG_NONE_COLOR` sin usar~~ | ~~`ui/theme.py`~~ | ✅ F2.1 |
 
@@ -123,12 +123,14 @@ de compatibilidad del tema.
 
 Cambia respecto de lo escrito antes de implementar:
 
-- **F2.1 — Cerrar la regresión de las tarjetas** *(nueva, va primero)*.
+- ✅ **F2.1 — Cerrar la regresión de las tarjetas** *(hecha, commit `00e5d9d`)*.
   Número de clip, duración, glifo de estado, barra de rango, rayado de sin
   clasificar y palomita de selección. Más las cinco diferencias menores de la
   §3 y el frame sintético del arnés. Es corta y desbloquea el juicio visual de
   todo lo que sigue.
-- **F3 — Cuartos planos.** Sin cambios.
+- ✅ **F3 — Cuartos planos.** *(hecha, commit `7eab98b`.)* Dos decisiones que
+  el mockup no cubría, tomadas con Bruno: el rail se edita con menú contextual
+  y doble click, y la app abre con el rail vacío.
 - **F4 — Deshacer con historial visible.** Sin cambios.
 - **F5 — Filtros como cola.** Sin cambios, pero ahora se apoya en la barra de
   rango de la F2.1 para el filtro "Sin in/out".

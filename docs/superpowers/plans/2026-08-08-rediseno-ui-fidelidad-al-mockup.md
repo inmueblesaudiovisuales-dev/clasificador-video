@@ -109,13 +109,18 @@ híbrido.
 
 ## 3. Lista de ejecución (lo viejo que debe morir)
 
+> **Al 2026-08-08 esta lista está casi vacía.** Todo lo de la F1, la F2 y la
+> F3 ya murió; el único renglón vivo es `orientacion="horizontal"`, que le
+> toca a la F9. La versión al día está en
+> [`ANALISIS-2026-08-08-post-f2.md`](../ANALISIS-2026-08-08-post-f2.md) §5.
+
 | Qué | Dónde | Muere en |
 |---|---|---|
-| `RoomConfigDialog` y su exigencia en `arrancar()` | `ui/room_config_dialog.py`, `app.py:95` | F3 |
-| `CategoryTree` completo | `category_path.py` | F3 |
-| `pending_parent`, `resolve_subroom_key` | `keyboard.py` | F3 |
-| `SUBROOM_CANDIDATES`, `_handle_subroom_key`, `subroom_banner` | `ui/main_window.py` | F3 |
-| `REPEATABLE_ROOMS`, `set_count` | `rooms.py` | F3 |
+| ~~`RoomConfigDialog` y su exigencia en `arrancar()`~~ | ~~`ui/room_config_dialog.py`, `app.py:95`~~ | ✅ F3 |
+| ~~`CategoryTree` completo~~ | ~~`category_path.py`~~ | ✅ F3 |
+| ~~`pending_parent`, `resolve_subroom_key`~~ | ~~`keyboard.py`~~ | ✅ F3 |
+| ~~`SUBROOM_CANDIDATES`, `_handle_subroom_key`, `subroom_banner`~~ | ~~`ui/main_window.py`~~ | ✅ F3 |
+| ~~`REPEATABLE_ROOMS`, `set_count`~~ | ~~`rooms.py`~~ | ✅ F3 |
 | `legend_label` (la leyenda de una línea al pie) | `ui/main_window.py:232` | F2 |
 | `ingest_list` + `ingest_title_label` ("Material importado") | `ui/main_window.py:209` | F2 |
 | `inspector_panel` (los 200 px fijos a la derecha) | `ui/main_window.py:294` | F2 |
