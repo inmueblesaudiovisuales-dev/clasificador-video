@@ -325,7 +325,8 @@ class MainWindow(QWidget):
         stage = self.video_stage
         if clip is None:
             stage.file_label.setText("")
-            stage.badges.setText("")
+            stage.badges.set_room(None, None)
+            stage.badges.set_flag("none")
             stage.timecode_label.setText("")
             self.status_bar.set_clip_info(None, None, None, None)
             self.tool_column.set_range(None, None)
@@ -335,9 +336,15 @@ class MainWindow(QWidget):
         nombre = Path(clip.ruta).name
         stage.file_label.setText(f"{nombre}    {self.current_index + 1} / {len(self.clips)}")
 
-        cuarto = " › ".join(clip.categoria_path) if clip.categoria_path else "Sin clasificar"
-        estado = {"pick": "● PICK", "reject": "✕ REJECT"}.get(clip.flag, "")
-        stage.badges.setText(f"▌ {cuarto.upper()}    {estado}".rstrip())
+        cuarto = " › ".join(clip.categoria_path) if clip.categoria_path else None
+        active_rooms = self.room_selection.active_rooms()
+        color = (
+            theme.room_color(active_rooms.index(clip.categoria_path[0]))
+            if clip.categoria_path and clip.categoria_path[0] in active_rooms
+            else None
+        )
+        stage.badges.set_room(cuarto, color)
+        stage.badges.set_flag(clip.flag)
 
         self.status_bar.set_clip_info(
             nombre,
@@ -701,8 +708,10 @@ class MainWindow(QWidget):
                     if clip.categoria_path and clip.categoria_path[0] in active_rooms
                     else None
                 ),
+                numero=clip.orden,
                 in_frame=clip.in_frame,
                 out_frame=clip.out_frame,
+                fps=clip.fps,
                 duration_frames=(
                     round(self._clip_durations[index] * clip.fps)
                     if index in self._clip_durations

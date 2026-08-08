@@ -31,6 +31,46 @@ def _stage_visible(qtbot) -> VideoStage:
     return stage
 
 
+def test_el_badge_de_cuarto_lleva_el_color_de_su_cuarto(qtbot):
+    """El punto va con el color PURO del cuarto y el texto con su version
+    clara: aclarar tambien desatura, y un badge todo aclarado se lee gris."""
+    stage = _stage(qtbot)
+    stage.badges.set_room("Cocina", theme.room_color(0))
+    texto = stage.badges.room_badge.text()
+    assert texto.endswith("COCINA")
+    assert theme.room_color(0) in texto            # el punto, sin aclarar
+    estilo = stage.badges.room_badge.styleSheet()
+    assert theme.aclarar(theme.room_color(0), 0.35) in estilo
+
+
+def test_el_badge_de_estado_es_otro_badge_y_no_texto_pegado(qtbot):
+    """Juntar cuarto y estado en una sola etiqueta gris tira el color, que
+    es lo que hace legible el estado de un vistazo."""
+    stage = _stage(qtbot)
+    stage.badges.set_flag("pick")
+    assert "PICK" in stage.badges.flag_badge.text()
+    assert theme.PICK_COLOR in stage.badges.flag_badge.styleSheet()
+    assert not stage.badges.flag_badge.isHidden()
+
+
+def test_reject_pinta_el_badge_con_su_color(qtbot):
+    stage = _stage(qtbot)
+    stage.badges.set_flag("reject")
+    assert theme.REJECT_COLOR in stage.badges.flag_badge.styleSheet()
+
+
+def test_sin_marca_no_hay_badge_de_estado(qtbot):
+    stage = _stage(qtbot)
+    stage.badges.set_flag("none")
+    assert stage.badges.flag_badge.isHidden()
+
+
+def test_sin_cuarto_el_badge_lo_dice_y_no_inventa_color(qtbot):
+    stage = _stage(qtbot)
+    stage.badges.set_room(None, None)
+    assert "SIN CLASIFICAR" in stage.badges.room_badge.text()
+
+
 def test_la_scrub_bar_es_hija_del_video_no_hermana(qtbot):
     """Si fuera hermana volveria a ser una banda y le robaria altura al
     video, que es el problema que este rediseño existe para resolver."""

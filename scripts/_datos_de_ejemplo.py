@@ -13,7 +13,8 @@ import tempfile
 from pathlib import Path
 
 from PySide6.QtCore import QPointF, Qt
-from PySide6.QtGui import QLinearGradient, QPainter, QPixmap
+from PySide6.QtGui import QColor, QLinearGradient, QPainter, QPixmap
+from PySide6.QtWidgets import QLabel
 
 from clasificador_video.category_path import CategoryTree
 from clasificador_video.manifest import Clip
@@ -40,6 +41,7 @@ CLIP_ACTUAL = 86  # el mockup muestra el clip 087, que es el indice 86
 
 VERTICAL = (2160, 3840)
 HORIZONTAL = (3840, 2160)
+VOLUMEN = "/Volumes/FX30/CasaLomas"  # la misma ruta que muestra el mockup
 
 
 class _MpvFalso:
@@ -77,6 +79,36 @@ def _miniatura(color_hex: str, vertical: bool) -> QPixmap:
     pintor.fillRect(pixmap.rect(), gradiente)
     pintor.end()
     return pixmap
+
+
+def pintar_frame_de_ejemplo(ventana: MainWindow) -> None:
+    """Pone una imagen sintética detrás del video.
+
+    El doble de mpv no dibuja nada, así que el área del video salía negra y
+    la comparación no permitía juzgar el contraste de los overlays contra
+    una imagen real —que es justo lo que la F0 validó y lo que más riesgo
+    tiene de verse mal en uso—.
+
+    Se llama DESPUÉS de `show()` y del resize: `VideoStage._place_overlays`
+    corre en cada resize del video y baja el scrim al fondo, así que un
+    frame agregado antes quedaría por encima de él.
+    """
+    video = ventana.video_stage.video
+    lienzo = QLabel("", video)
+    lienzo.setGeometry(0, 0, video.width(), video.height())
+    pixmap = QPixmap(video.width(), video.height())
+    gradiente = QLinearGradient(QPointF(0, 0), QPointF(0, video.height()))
+    # una habitación de día: claro arriba, sombra abajo. Lo que importa no es
+    # que sea bonito, es que tenga zonas claras Y oscuras bajo los overlays.
+    gradiente.setColorAt(0.0, QColor("#d9d2c4"))
+    gradiente.setColorAt(0.55, QColor("#8d8578"))
+    gradiente.setColorAt(1.0, QColor("#2b2823"))
+    pintor = QPainter(pixmap)
+    pintor.fillRect(pixmap.rect(), gradiente)
+    pintor.end()
+    lienzo.setPixmap(pixmap)
+    lienzo.show()
+    lienzo.lower()  # debajo del scrim y de todos los controles flotantes
 
 
 def _clips() -> tuple[list[Clip], dict[int, tuple[int, int]], dict[int, float]]:
@@ -138,6 +170,9 @@ def construir_ventana_de_ejemplo() -> MainWindow:
     ventana.load_clips(clips)
     ventana.current_index = CLIP_ACTUAL
     ventana.select_clip(CLIP_ACTUAL)
+    # sin importación real la barra de estado sale sin ruta y no se puede
+    # comparar contra el mockup, que sí muestra una
+    ventana.status_bar.set_volume(VOLUMEN)
 
     # miniaturas sintéticas, sin lanzar mpv
     for indice, clip in enumerate(clips):

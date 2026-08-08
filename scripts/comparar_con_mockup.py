@@ -68,6 +68,65 @@ def geometria_lienzo(a: tuple[int, int], b: tuple[int, int], separacion: int) ->
     return a[0] + separacion + b[0], max(a[1], b[1])
 
 
+def parsear_recorte(texto: str) -> tuple[int, int, int, int]:
+    """`X,Y,ANCHO,ALTO` en coordenadas de la mitad izquierda (el mockup)."""
+    partes = texto.split(",")
+    if len(partes) != 4:
+        raise SystemExit(f"--recorte espera X,Y,ANCHO,ALTO y recibió {texto!r}")
+    try:
+        x, y, ancho, alto = (int(p) for p in partes)
+    except ValueError:
+        raise SystemExit(f"--recorte espera cuatro enteros y recibió {texto!r}") from None
+    if ancho <= 0 or alto <= 0:
+        raise SystemExit("--recorte necesita ancho y alto positivos")
+    return x, y, ancho, alto
+
+
+def regiones_de_recorte(
+    recorte: tuple[int, int, int, int], ancho_mitad: int, separacion: int
+) -> tuple[tuple[int, int, int, int], tuple[int, int, int, int]]:
+    """La MISMA region en las dos mitades: la de la derecha va corrida por el
+    ancho de la izquierda mas la separacion.
+
+    Existe porque la vista general no alcanza: la regresion de las tarjetas de
+    la F2 no se veia en la comparacion completa y era obvia al ampliar.
+    """
+    x, y, ancho, alto = recorte
+    return (x, y, ancho, alto), (x + ancho_mitad + separacion, y, ancho, alto)
+
+
+def ampliar_recorte(lienzo: Path, recorte: tuple[int, int, int, int], zoom: int,
+                    separacion: int = 40) -> None:
+    """Reescribe el lienzo con las dos regiones equivalentes, ampliadas."""
+    from PySide6.QtCore import Qt
+    from PySide6.QtGui import QColor, QImage, QPainter
+
+    completo = QImage(str(lienzo))
+    izq, der = regiones_de_recorte(recorte, ANCHO, separacion)
+    trozos = [
+        completo.copy(*region).scaled(
+            region[2] * zoom, region[3] * zoom,
+            Qt.AspectRatioMode.IgnoreAspectRatio,
+            # sin suavizado: al ampliar interesa ver el pixel como es, no
+            # una version interpolada que disimula las diferencias
+            Qt.TransformationMode.FastTransformation,
+        )
+        for region in (izq, der)
+    ]
+    ancho, alto = geometria_lienzo(
+        (trozos[0].width(), trozos[0].height()),
+        (trozos[1].width(), trozos[1].height()),
+        separacion,
+    )
+    salida = QImage(ancho, alto, QImage.Format_RGB32)
+    salida.fill(QColor("black"))
+    p = QPainter(salida)
+    p.drawImage(0, 0, trozos[0])
+    p.drawImage(trozos[0].width() + separacion, 0, trozos[1])
+    p.end()
+    salida.save(str(lienzo))
+
+
 def render_mockup(salida: Path, pantalla: int) -> None:
     copia = Path(tempfile.mkdtemp()) / "mockup_solo.html"
     copia.write_text(html_aislado(MOCKUP.read_text(encoding="utf-8"), pantalla), encoding="utf-8")
@@ -108,9 +167,16 @@ def render_app(salida: Path) -> None:
     configure_gl_surface_format()
     app = QApplication.instance() or QApplication(sys.argv[:1])
     app.setStyleSheet(build_stylesheet())
+    from _datos_de_ejemplo import pintar_frame_de_ejemplo
+
     ventana = construir_ventana_de_ejemplo()
     ventana.resize(ANCHO, ALTO)
     ventana.show()
+    app.processEvents()
+    # DESPUES del resize: `VideoStage._place_overlays` corre en cada resize
+    # del video y hace `scrim.lower()`, asi que un frame agregado antes
+    # terminaria por encima del scrim en vez de debajo de todo.
+    pintar_frame_de_ejemplo(ventana)
     app.processEvents()
     ventana.grab().save(str(salida))
 
@@ -150,6 +216,12 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--salida", required=True, type=Path)
     ap.add_argument("--pantalla", type=int, default=0, help="0 = modo clip, 1 = modo hoja")
+    ap.add_argument(
+        "--recorte",
+        help="X,Y,ANCHO,ALTO en coordenadas del mockup: amplía la MISMA región "
+             "de las dos mitades. La vista general no alcanza para juzgar detalle.",
+    )
+    ap.add_argument("--zoom", type=int, default=3, help="factor del recorte (default 3)")
     args = ap.parse_args()
 
     tmp = Path(tempfile.mkdtemp())
@@ -157,6 +229,8 @@ def main() -> None:
     render_mockup(izq, args.pantalla)  # subproceso externo, antes de crear la QApplication
     render_app(der)                    # la unica QApplication del proceso vive aca
     componer(izq, der, args.salida)    # reusa esa misma QApplication
+    if args.recorte:
+        ampliar_recorte(args.salida, parsear_recorte(args.recorte), args.zoom)
     print(f"comparación escrita en {args.salida}")
     print("  izquierda = mockup  |  derecha = app")
 

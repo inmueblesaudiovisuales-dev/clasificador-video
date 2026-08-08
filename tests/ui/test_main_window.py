@@ -595,8 +595,11 @@ def test_toolbar_muestra_posicion_y_resumen_de_estado(qtbot):
     ]
     window.load_clips(clips)
     assert "1 / 3" in window.video_stage.file_label.text()
-    assert "1 picks" in window.room_rail.flags_label.text()
-    assert "1 rejects" in window.room_rail.flags_label.text()
+    # la leyenda pasó de una etiqueta de texto a puntos de color con el
+    # numero: `● 41 picks ● 9 rejects ● 12 sin clasificar` no entraba en los
+    # 200 px del rail y se cortaba (ver ANALISIS-2026-08-08-post-f2 §3)
+    assert [p.text() for p in window.room_rail.leyenda.puntos] == ["1", "1", "3"]
+    assert "picks" in window.room_rail.leyenda.puntos[0].toolTip()
     assert "3 sin clasificar" in window.status_bar.unclassified_label.text()
 
 
@@ -614,14 +617,17 @@ def test_inspector_muestra_metadata_del_clip_actual(qtbot):
     # el panel inspector de 200 px murio: el nombre y los datos tecnicos
     # van a la barra de estado, y cuarto y estado a los badges sobre el video
     assert "a.MP4" in window.status_bar.clip_label.text()
-    assert "COCINA" in window.video_stage.badges.text()
-    assert "PICK" in window.video_stage.badges.text()
+    # cuarto y estado son DOS badges, cada uno con su color: juntarlos en una
+    # etiqueta gris tiraba el color (ver ANALISIS-2026-08-08-post-f2 §3)
+    assert "COCINA" in window.video_stage.badges.room_badge.text()
+    assert "PICK" in window.video_stage.badges.flag_badge.text()
+    assert theme.PICK_COLOR in window.video_stage.badges.flag_badge.styleSheet()
 
 
 def test_inspector_muestra_breadcrumb_de_subcuarto(qtbot):
     window = _window(qtbot)
     window.load_clips([Clip(orden=1, ruta=Path("/a.MP4"), categoria_path=["Recámara", "Recámara 1"], fps=30.0)])
-    assert "RECÁMARA › RECÁMARA 1" in window.video_stage.badges.text()
+    assert "RECÁMARA › RECÁMARA 1" in window.video_stage.badges.room_badge.text()
 
 
 def test_banner_de_subcuarto_aparece_al_entrar_en_modo_subcuarto(qtbot):

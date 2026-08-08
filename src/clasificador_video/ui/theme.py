@@ -40,10 +40,26 @@ ROOM_PALETTE = [
     "#3e9bc0", "#a9836f", "#b26f86", "#7c8794",
 ]
 
+# lo que falta clasificar: el tramo apagado de la barra de progreso y el
+# punto gris de la leyenda son el mismo dato, y por eso el mismo color.
+PENDING_COLOR = "#2a2f38"
+
+# --- tarjetas de la hoja de contactos ---
+# Los alfas van en tuplas, no en cadenas "rgba(...)": QColor no parsea la
+# notacion CSS -- QColor("rgba(255,255,255,26)").isValid() es False -- y
+# QPainter necesita componentes. Mismo criterio que TRACK_OVER_VIDEO_RGBA.
+CARD_BADGE_BG_RGBA = (4, 5, 7, 165)     # pastilla del numero de clip y la duracion
+CARD_BADGE_TEXT = "#e4e8ee"
+RANGE_TRACK_RGBA = (255, 255, 255, 26)  # riel de la barra de rango, SOBRE la imagen
+UNCLASSIFIED_STRIPE = "#3a4150"         # rayado de "sin clasificar"
+SELECTION_BORDER = "#8fb4ff"            # borde y palomita de seleccion multiple
+SELECTION_TICK_INK = "#0a1024"
+# tinta de los glifos de estado: van oscuros SOBRE el color del estado
+PICK_INK = "#07130d"
+REJECT_INK = "#1b0708"
+
 # --- colores derivados que antes vivian sueltos en otros modulos ---
 SELECTION_WASH = "rgba(109, 140, 245, 60)"  # lavado de seleccion multiple
-RANGE_TRACK_COLOR = "#2e343d"               # riel de la barra de rango
-FLAG_NONE_COLOR = TEXT_3                    # texto de "sin marca"
 PLAYHEAD_HIGHLIGHT = "#f2bd72"              # brillo superior del playhead
 TICK_MINOR_COLOR = "#2e343d"
 TICK_MAJOR_COLOR = "#454d59"
@@ -98,6 +114,36 @@ def room_color(index: int) -> str:
     para que la identidad visual de un cuarto no cambie durante la sesion.
     """
     return ROOM_PALETTE[index % len(ROOM_PALETTE)]
+
+
+def aclarar(color_hex: str, factor: float) -> str:
+    """Mezcla un color con blanco. El badge de cuarto sobre el video lleva el
+    texto en una version clara del color de ese cuarto: el mockup la eligio a
+    mano para el primero (#c0885a -> #e3b98f) y esto la deriva para los nueve.
+    Sale un poco menos saturada que la del mockup -- mezclar con blanco baja
+    la saturacion -- y es una diferencia asumida a cambio de no escribir nueve
+    colores a mano que despues nadie mantiene.
+    """
+    color_hex = color_hex.lstrip("#")
+    canales = [int(color_hex[i:i + 2], 16) for i in (0, 2, 4)]
+    return "#" + "".join(f"{round(c + (255 - c) * factor):02x}" for c in canales)
+
+
+def con_alfa(color_hex: str, alfa: int) -> tuple[int, int, int, int]:
+    """Color de token mas alfa, listo para `QColor(*...)`."""
+    color_hex = color_hex.lstrip("#")
+    return (*(int(color_hex[i:i + 2], 16) for i in (0, 2, 4)), alfa)
+
+
+def con_alfa_qss(color_hex: str, alfa: int) -> str:
+    """Lo mismo, pero en la notacion que entiende QSS.
+
+    Vive aca y no en el widget que la usa a proposito: el Candado 1 prohibe
+    declarar color fuera de este archivo, y armar la cadena en el widget
+    seria exactamente eso aunque los numeros vengan de un token.
+    """
+    r, g, b, a = con_alfa(color_hex, alfa)
+    return f"rgba({r}, {g}, {b}, {a})"
 
 
 def apply_letter_spacing(widget, px: float = LETTER_SPACING_CAPS) -> None:
@@ -317,6 +363,9 @@ def build_stylesheet() -> str:
         background-color: {BG_SURFACE_0};
         border-right: 1px solid {LINE};
     }}
+    QWidget#railProgress, QWidget#railSectionHeader {{
+        border-bottom: 1px solid {LINE_SOFT};
+    }}
     QLabel#railHeader {{
         color: {TEXT_3};
         font-size: {FONT_MICRO}px;
@@ -416,6 +465,9 @@ def build_stylesheet() -> str:
         color: {TEXT_3};
         font-size: {FONT_MICRO}px;
         font-weight: 650;
+    }}
+    QWidget#groupLine {{
+        background-color: {LINE_SOFT};
     }}
     QLabel#groupCount {{
         color: {TEXT_3};

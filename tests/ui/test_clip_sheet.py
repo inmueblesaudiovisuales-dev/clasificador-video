@@ -4,7 +4,12 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QPixmap
 
 from clasificador_video.ui import theme
-from clasificador_video.ui.clip_sheet import SIN_CLASIFICAR, ClipSheet, ClipThumbnail
+from clasificador_video.ui.clip_sheet import (
+    SIN_CLASIFICAR,
+    ClipCard,
+    ClipSheet,
+    ClipThumbnail,
+)
 
 VERTICAL = 9 / 16
 HORIZONTAL = 16 / 9
@@ -17,8 +22,16 @@ def _clip(n: int, cuarto: str | None = None, aspect: float = HORIZONTAL,
         room_label=cuarto or SIN_CLASIFICAR,
         flag=flag,
         room_color=theme.room_color(0) if cuarto else None,
+        numero=n,
         aspect_ratio=aspect,
     )
+
+
+def _card(**kwargs) -> ClipCard:
+    """Una tarjeta suelta, sin hoja: alcanza para probar lo que dibuja."""
+    base = dict(path=Path("/tmp/C0093.MP4"), room_label=SIN_CLASIFICAR,
+                flag="none", numero=93)
+    return ClipCard(ClipThumbnail(**{**base, **kwargs}))
 
 
 def _sheet(qtbot, clips) -> ClipSheet:
@@ -205,10 +218,126 @@ def test_pick_pinta_el_borde_de_pick(qtbot):
 
 
 def test_el_cuarto_va_en_una_franja_lateral_no_en_el_borde(qtbot):
-    """Canal distinto del estado: posicion, no familia de color."""
+    """Canal distinto del estado: posicion, no familia de color.
+
+    La franja se mudo del QSS al overlay en la F2.1 --tiene que ser
+    excluyente con el rayado de sin clasificar, y eso solo se garantiza
+    pintandolas en el mismo lugar--, pero la regla no cambio: el color del
+    cuarto NO puede aparecer en el borde, que es el canal del estado.
+    """
     sheet = _sheet(qtbot, [_clip(0, "Cocina")])
-    estilo = sheet.item_widgets[0].styleSheet()
-    assert f"border-left: 3px solid {theme.room_color(0)}" in estilo
+    tarjeta = sheet.item_widgets[0]
+    assert tarjeta.plan_de_pintado()["franja"] == theme.room_color(0)
+    assert theme.room_color(0) not in tarjeta.styleSheet()
+
+
+# --- lo que la tarjeta dibuja encima de la miniatura (F2.1) -----------------
+#
+# La F2 dejo la tarjeta con SOLO la miniatura: se perdieron el numero de clip,
+# la duracion, el glifo de estado, la barra de rango, el rayado de sin
+# clasificar y la palomita. Ver ANALISIS-2026-08-08-post-f2 §2.
+
+
+def test_la_tarjeta_conoce_su_numero_y_su_duracion(qtbot):
+    """Sin numero no se puede hablar de un clip; sin duracion no se sabe
+    cual es largo. Los dos estan en el mockup."""
+    clip = ClipThumbnail(
+        path=Path("/tmp/C0093.MP4"), room_label=SIN_CLASIFICAR, flag="none",
+        numero=93, duration_frames=570, fps=30.0,
+    )
+    sheet = _sheet(qtbot, [clip])
+    assert sheet.item_widgets[0].clip.numero == 93
+    assert sheet.item_widgets[0].texto_duracion() == "0:19"
+
+
+def test_la_duracion_no_se_muestra_si_no_se_conoce():
+    """Sesion restaurada de disco: no se volvio a correr ffprobe. Mentir con
+    0:00 es peor que no decir nada."""
+    assert _card().texto_duracion() == ""
+
+
+def test_la_duracion_pasa_del_minuto():
+    assert _card(duration_frames=2400, fps=30.0).texto_duracion() == "1:20"
+
+
+def test_el_numero_de_clip_va_siempre_y_con_tres_digitos():
+    assert _card().plan_de_pintado()["numero"] == "093"
+
+
+def test_sin_cuarto_lleva_la_franja_rayada_y_no_la_de_color():
+    assert _card().plan_de_pintado()["franja"] == "rayada"
+
+
+def test_con_cuarto_lleva_la_franja_de_color_y_no_la_rayada():
+    plan = _card(room_label="Cocina", room_color=theme.room_color(0)).plan_de_pintado()
+    assert plan["franja"] == theme.room_color(0)
+
+
+def test_pick_dibuja_el_glifo_P_en_tinta_oscura():
+    assert _card(flag="pick").plan_de_pintado()["glifo"] == (
+        "P", theme.PICK_COLOR, theme.PICK_INK,
+    )
+
+
+def test_reject_dibuja_el_glifo_X():
+    assert _card(flag="reject").plan_de_pintado()["glifo"][0] == "X"
+
+
+def test_sin_marca_no_dibuja_glifo():
+    """La ausencia de glifo ES la informacion: el mockup no pinta nada."""
+    assert _card().plan_de_pintado()["glifo"] is None
+
+
+def test_la_barra_de_rango_solo_aparece_si_hay_in_o_out():
+    """Se perdio en la F2 y la F5 la necesita para el filtro 'sin in/out'."""
+    assert _card().plan_de_pintado()["rango"] is None
+    plan = _card(in_frame=100, out_frame=400, duration_frames=800).plan_de_pintado()
+    assert plan["rango"] == (0.125, 0.5)
+
+
+def test_un_in_sin_out_marca_hasta_el_final():
+    assert _card(in_frame=400, duration_frames=800).plan_de_pintado()["rango"] == (0.5, 1.0)
+
+
+def test_sin_duracion_conocida_no_hay_barra_de_rango():
+    """No se puede ubicar un frame dentro de un clip de largo desconocido."""
+    assert _card(in_frame=100, out_frame=400).plan_de_pintado()["rango"] is None
+
+
+def test_la_palomita_solo_aparece_con_seleccion_multiple(qtbot):
+    sheet = _sheet(qtbot, [_clip(0, "Sala"), _clip(1, "Sala")])
+    sheet.item_widgets[0].clicked.emit(Qt.KeyboardModifier.NoModifier)
+    assert sheet.item_widgets[0].plan_de_pintado()["palomita"] is False
+    sheet.item_widgets[1].clicked.emit(Qt.KeyboardModifier.ShiftModifier)
+    assert sheet.item_widgets[0].plan_de_pintado()["palomita"] is True
+
+
+def test_el_overlay_no_se_come_el_scrub_de_la_miniatura(qtbot):
+    """Sin WA_TransparentForMouseEvents el overlay se queda con el mouse y el
+    scrub al pasar por encima --que ya funcionaba-- deja de andar. Sin
+    WA_TranslucentBackground pinta fondo opaco donde no dibuja (hallazgo F0)."""
+    tarjeta = _sheet(qtbot, [_clip(0, "Sala")]).item_widgets[0]
+    assert tarjeta._overlay.testAttribute(Qt.WA_TransparentForMouseEvents)
+    assert tarjeta._overlay.testAttribute(Qt.WA_TranslucentBackground)
+
+
+def test_el_overlay_pinta_de_verdad_sobre_la_miniatura(qtbot):
+    """Candado 3 en chico: el plan de pintado puede estar perfecto y el widget
+    no dibujar nada."""
+    from PySide6.QtGui import QColor
+
+    sheet = _sheet(qtbot, [_clip(0, "Cocina")])
+    sheet.show()
+    qtbot.waitExposed(sheet)  # sin show() el layout nunca corre
+    tarjeta = sheet.item_widgets[0]
+    tarjeta.set_pixmap(_pixmap(Qt.GlobalColor.black))
+    imagen = tarjeta.grab().toImage()
+    # `grab()` sale a la escala de la pantalla: 1x offscreen, 2x en Retina.
+    # Sin normalizar, el test pasa aca y miente en la maquina de Bruno.
+    escala = imagen.width() / max(tarjeta.width(), 1)
+    assert imagen.pixelColor(round(escala), imagen.height() // 2) == QColor(
+        theme.room_color(0)
+    )
 
 
 def test_no_hay_alto_fijo_de_banda(qtbot):

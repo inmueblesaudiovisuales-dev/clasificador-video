@@ -90,6 +90,56 @@ def test_room_color_es_estable_y_da_la_vuelta():
     assert theme.room_color(9) == theme.room_color(0)
 
 
+def test_la_barra_de_rango_va_semitransparente_sobre_la_miniatura():
+    """Un color solido ahi se ve como una banda opaca tapando la imagen: la
+    barra de rango se pinta ENCIMA del frame, no al lado."""
+    assert theme.RANGE_TRACK_RGBA == (255, 255, 255, 26)
+
+
+def test_los_tokens_de_la_tarjeta_salen_del_mockup():
+    assert theme.CARD_BADGE_BG_RGBA == (4, 5, 7, 165)
+    assert theme.CARD_BADGE_TEXT == "#e4e8ee"
+    assert theme.UNCLASSIFIED_STRIPE == "#3a4150"
+    assert theme.SELECTION_BORDER == "#8fb4ff"
+    assert theme.SELECTION_TICK_INK == "#0a1024"
+
+
+def test_las_tintas_de_los_glifos_contrastan_contra_su_color_de_estado():
+    """El glifo `P` va en tinta oscura SOBRE el verde de pick, no al reves."""
+    assert theme.PICK_INK == "#07130d"
+    assert theme.REJECT_INK == "#1b0708"
+
+
+def test_pendiente_tiene_color_propio_y_no_es_una_superficie():
+    """El tramo 'lo que falta' de la barra y el punto gris de la leyenda son
+    el mismo dato; el mockup les da un gris propio, no un fondo de panel."""
+    assert theme.PENDING_COLOR == "#2a2f38"
+    assert theme.PENDING_COLOR != theme.BG_SURFACE_2
+
+
+def test_mezclar_con_blanco_aclara_sin_cambiar_de_tono():
+    """De aqui sale el texto del badge de cuarto sobre el video."""
+    assert theme.aclarar("#000000", 0.5) == "#808080"
+    assert theme.aclarar("#c0885a", 0.0) == "#c0885a"
+    assert theme.aclarar("#c0885a", 1.0) == "#ffffff"
+
+
+def test_con_alfa_devuelve_el_color_en_forma_de_tupla_para_qpainter():
+    """QColor no parsea la notacion CSS: QColor('rgba(...)') es invalido."""
+    assert theme.con_alfa("#55c08a", 140) == (85, 192, 138, 140)
+
+
+def test_los_tokens_que_la_f2_dejo_sin_usar_ya_no_existen():
+    """Un token sin destinatario es una funcion perdida esperando. Los dos
+    huerfanos de la F2 eran justo los de la barra de rango y el texto 'sin
+    marca' de la tarjeta vieja (ver ANALISIS-2026-08-08-post-f2 §2). El
+    primero revive con otra forma -- RANGE_TRACK_RGBA, semitransparente --
+    y el segundo muere: el mockup no dibuja NADA cuando no hay flag, y esa
+    ausencia es la informacion."""
+    assert not hasattr(theme, "RANGE_TRACK_COLOR")
+    assert not hasattr(theme, "FLAG_NONE_COLOR")
+
+
 def test_dimensiones_fijas_del_mockup():
     assert theme.TITLEBAR_HEIGHT == 36
     assert theme.STATUSBAR_HEIGHT == 24

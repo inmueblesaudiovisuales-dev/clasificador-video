@@ -37,14 +37,83 @@ class _BarraProgreso(QWidget):
                 continue
             self._tramos.append(self._tramo(theme.room_color(indice), cuantos))
         if pendientes > 0:
-            self._tramos.append(self._tramo(theme.BG_SURFACE_2, pendientes))
+            self._tramos.append(self._tramo(theme.PENDING_COLOR, pendientes))
+        self._redondear_extremos()
 
     def _tramo(self, color: str, peso: int) -> QWidget:
         tramo = QWidget()
         tramo.setAttribute(Qt.WA_StyledBackground, True)
-        tramo.setStyleSheet(f"background-color: {color}; border-radius: 2px;")
+        tramo.setStyleSheet(f"background-color: {color};")
         self._layout.addWidget(tramo, stretch=peso)
         return tramo
+
+    def _redondear_extremos(self) -> None:
+        """El redondeo va en el primer y el ultimo tramo, no en el contenedor:
+        verificado contra Qt, el `border-radius` de un padre NO recorta a sus
+        hijos, asi que redondearlo no haria nada. Y redondear TODOS los tramos
+        --como hacia la F2-- convierte la barra en nueve pildoras sueltas que
+        no se leen como una sola barra de progreso.
+        """
+        if not self._tramos:
+            return
+        radio = self.height() // 2
+        for tramo, lados in (
+            (self._tramos[0], "border-top-left-radius: {r}px; border-bottom-left-radius: {r}px;"),
+            (self._tramos[-1], "border-top-right-radius: {r}px; border-bottom-right-radius: {r}px;"),
+        ):
+            tramo.setStyleSheet(tramo.styleSheet() + lados.format(r=radio))
+
+
+class _Leyenda(QWidget):
+    """Los conteos por estado, con el color de cada estado.
+
+    La version de la F2 escribia `● 41 picks  ● 9 rejects  ● 12 sin
+    clasificar` en una sola etiqueta: no entra en 200 px y se cortaba a la
+    mitad. El mockup usa el numero pelado y deja que el color diga cual es
+    cual; el tooltip lo confirma sin gastar ancho.
+    """
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._layout = QHBoxLayout(self)
+        self._layout.setContentsMargins(0, 0, 0, 0)
+        self._layout.setSpacing(11)
+        self.puntos: list[QLabel] = []
+        self._cuadros: list[QLabel] = []
+
+    def set_estados(self, estados: list[tuple[int, str, str]]) -> None:
+        for widget in self.puntos + self._cuadros:
+            widget.setParent(None)
+        self.puntos = []
+        self._cuadros = []
+        while self._layout.count():
+            self._layout.takeAt(0)
+        for cuantos, color, que_es in estados:
+            cuadro = QLabel("")
+            cuadro.setFixedSize(6, 6)
+            cuadro.setAttribute(Qt.WA_StyledBackground, True)
+            cuadro.setStyleSheet(f"background-color: {color}; border-radius: 2px;")
+            numero = QLabel(str(cuantos))
+            numero.setObjectName("roomCount")
+            numero.setToolTip(f"{cuantos} {que_es}")
+            cuadro.setToolTip(numero.toolTip())
+            fila = QHBoxLayout()
+            fila.setContentsMargins(0, 0, 0, 0)
+            fila.setSpacing(5)
+            fila.addWidget(cuadro)
+            fila.addWidget(numero)
+            self._layout.addLayout(fila)
+            self.puntos.append(numero)
+            self._cuadros.append(cuadro)
+        self._layout.addStretch(1)
+
+    def colores(self) -> list[str]:
+        """El color de cada punto, para que un test pueda comprobar que la
+        leyenda no perdio el canal semantico."""
+        return [
+            c.styleSheet().split("background-color: ")[1].split(";")[0]
+            for c in self._cuadros
+        ]
 
 
 class _FilaCuarto(QWidget):
@@ -128,22 +197,32 @@ class RoomRail(QWidget):
         self.progress_bar = _BarraProgreso()
         pl.addWidget(self.progress_bar)
 
-        self.flags_label = QLabel("")
-        self.flags_label.setObjectName("roomCount")
-        pl.addWidget(self.flags_label)
+        self.leyenda = _Leyenda()
+        pl.addWidget(self.leyenda)
+        progreso.setObjectName("railProgress")
         raiz.addWidget(progreso)
 
         # --- encabezado de cuartos ---
         encabezado = QWidget()
+        encabezado.setObjectName("railSectionHeader")
         el = QHBoxLayout(encabezado)
         el.setContentsMargins(12, 0, 12, 0)
+        el.setSpacing(5)
         cabecera = QLabel("CUARTOS")
         cabecera.setObjectName("railHeader")
         theme.apply_letter_spacing(cabecera)
-        self.find_hint = QLabel("⏎ buscar")
+        # el ⏎ va dentro de un keycap, igual que las teclas de cuarto: si es
+        # una tecla, se ve como tecla
+        self.find_key = QLabel("⏎")
+        self.find_key.setObjectName("keyCap")
+        self.find_key.setFixedSize(17, 15)
+        self.find_key.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.find_key.setProperty("sin_tecla", False)
+        self.find_hint = QLabel("buscar")
         self.find_hint.setObjectName("roomCount")
         el.addWidget(cabecera)
         el.addStretch(1)
+        el.addWidget(self.find_key)
         el.addWidget(self.find_hint)
         encabezado.setFixedHeight(30)
         raiz.addWidget(encabezado)
@@ -193,9 +272,13 @@ class RoomRail(QWidget):
         self._pendientes = pendientes
 
     def set_flags(self, picks: int, rejects: int, sin_clasificar: int) -> None:
-        self.flags_label.setText(
-            f"● {picks} picks   ● {rejects} rejects   ● {sin_clasificar} sin clasificar"
-        )
+        # el chip `dest.` del mockup entra en la F7, cuando exista el estado
+        # destacado: aca queda el hueco, no una etiqueta que miente con 0
+        self.leyenda.set_estados([
+            (picks, theme.PICK_COLOR, "picks"),
+            (rejects, theme.REJECT_COLOR, "rejects"),
+            (sin_clasificar, theme.PENDING_COLOR, "sin clasificar"),
+        ])
 
     def set_current_room(self, cuarto: str | None) -> None:
         for fila in self.rows:

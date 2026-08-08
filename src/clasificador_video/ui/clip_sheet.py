@@ -4,7 +4,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import QRect, Qt, Signal
+from PySide6.QtGui import QColor, QFont, QPainter
 from PySide6.QtWidgets import (
     QGridLayout,
     QHBoxLayout,
@@ -18,25 +19,162 @@ from clasificador_video.ui import theme
 from clasificador_video.ui.text import ElidedLabel
 
 SIN_CLASIFICAR = "Sin clasificar"
-MIN_TILE_WIDTH = 150
+# 140 y no 150: el mockup arma CINCO columnas en la hoja del modo clip, y con
+# 150 el ancho util (815 menos margenes y barra de scroll) solo daba para
+# cuatro tarjetas de 186 px -- mas gordas y menos densas que las del mockup.
+# Medido en la comparacion de cierre de la F2.1.
+MIN_TILE_WIDTH = 140
 GAP = 9
 FADE_HEIGHT = 60
+
+# --- geometria de lo que va encima de la miniatura (del .card del mockup) ---
+STRIPE_WIDTH = 3    # franja de cuarto / rayado de sin clasificar
+GLYPH_SIZE = 15     # pastilla del glifo de estado y de la palomita
+RANGE_HEIGHT = 2    # barra de in/out al pie
+BADGE_RADIUS = 3
+PAD = 5             # separacion de las pastillas al borde de la tarjeta
 
 
 @dataclass
 class ClipThumbnail:
+    # `path` no se dibuja en ningun lado -- el mockup no pone el nombre de
+    # archivo en la tarjeta -- pero NO es un campo muerto: es la identidad
+    # del clip, y es con lo que los tests comprueban la Regla 1 (que
+    # `item_widgets` siga el orden de `self.clips` y no el visual). Esa regla
+    # tiene detras un bug real e intermitente de miniaturas aterrizando en la
+    # tarjeta equivocada. Si algun dia se va, se va con la regla, no antes.
     path: Path
     room_label: str
     flag: str  # "none" | "pick" | "reject"
     room_color: str | None = None
+    numero: int = 0
     in_frame: int | None = None
     out_frame: int | None = None
     duration_frames: int | None = None
+    fps: float = 0.0
     aspect_ratio: float = 16 / 9
 
 
+class _CardOverlay(QWidget):
+    """Todo lo que el mockup dibuja ENCIMA de la miniatura, en un solo
+    `paintEvent`: numero de clip, duracion, glifo de estado, franja del
+    cuarto o rayado de sin clasificar, barra de rango y palomita.
+
+    Por que QPainter y no seis QLabel con QSS:
+
+    - el rayado de "sin clasificar" es un `repeating-linear-gradient` a 135°
+      que QSS no sabe expresar;
+    - la barra de rango va semitransparente sobre la imagen, y QColor no
+      parsea la notacion de color con alfa de CSS (por eso el tema la
+      entrega en tuplas);
+    - las dos franjas de la izquierda son EXCLUYENTES (o cuarto, o rayado).
+      Teniendolas en el mismo paintEvent eso queda garantizado; con dos
+      reglas de QSS, la segunda gana en silencio -- verificado en el spike
+      de la auditoria del plan, y no da ningun sintoma.
+    """
+
+    def __init__(self, parent: ClipCard):
+        super().__init__(parent)
+        self.setAttribute(Qt.WA_TranslucentBackground, True)
+        self.setAttribute(Qt.WA_TransparentForMouseEvents, True)
+        self._card = parent
+
+    def paintEvent(self, event) -> None:  # noqa: N802 -- override de Qt
+        plan = self._card.plan_de_pintado()
+        ancho, alto = self.width(), self.height()
+        pintor = QPainter(self)
+        pintor.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+
+        self._pintar_franja(pintor, plan["franja"], alto)
+        self._pintar_pastilla(pintor, plan["numero"], esquina="arriba-izq")
+        if plan["duracion"]:
+            self._pintar_pastilla(pintor, plan["duracion"], esquina="abajo-der")
+        if plan["glifo"]:
+            self._pintar_glifo(pintor, *plan["glifo"])
+        if plan["palomita"]:
+            self._pintar_palomita(pintor)
+        if plan["rango"]:
+            self._pintar_rango(pintor, *plan["rango"])
+        pintor.end()
+
+    # --- piezas ----------------------------------------------------------
+
+    def _pintar_franja(self, pintor: QPainter, franja: str, alto: int) -> None:
+        rect = QRect(0, 0, STRIPE_WIDTH, alto)
+        if franja != "rayada":
+            pintor.fillRect(rect, QColor(franja))
+            return
+        pintor.save()
+        pintor.setClipRect(rect)
+        pintor.fillRect(rect, QColor(theme.LINE))
+        lapiz = pintor.pen()
+        lapiz.setColor(QColor(theme.UNCLASSIFIED_STRIPE))
+        lapiz.setWidth(STRIPE_WIDTH)
+        pintor.setPen(lapiz)
+        for x in range(-alto, STRIPE_WIDTH + alto, STRIPE_WIDTH * 2):
+            pintor.drawLine(x, alto, x + alto, 0)
+        pintor.restore()
+
+    def _pintar_pastilla(self, pintor: QPainter, texto: str, esquina: str) -> None:
+        pintor.setFont(_fuente_mono())
+        metricas = pintor.fontMetrics()
+        ancho = metricas.horizontalAdvance(texto) + 8
+        alto = metricas.height() + 3
+        if esquina == "arriba-izq":
+            rect = QRect(PAD + 1, PAD, ancho, alto)
+        else:
+            rect = QRect(self.width() - ancho - PAD, self.height() - alto - PAD,
+                         ancho, alto)
+        pintor.setPen(Qt.PenStyle.NoPen)
+        pintor.setBrush(QColor(*theme.CARD_BADGE_BG_RGBA))
+        pintor.drawRoundedRect(rect, BADGE_RADIUS, BADGE_RADIUS)
+        pintor.setPen(QColor(theme.CARD_BADGE_TEXT))
+        pintor.drawText(rect, Qt.AlignmentFlag.AlignCenter, texto)
+
+    def _pintar_glifo(self, pintor: QPainter, texto: str, fondo: str, tinta: str) -> None:
+        rect = QRect(self.width() - GLYPH_SIZE - PAD, PAD, GLYPH_SIZE, GLYPH_SIZE)
+        pintor.setPen(Qt.PenStyle.NoPen)
+        pintor.setBrush(QColor(fondo))
+        pintor.drawRoundedRect(rect, theme.RADIUS_SM, theme.RADIUS_SM)
+        fuente = _fuente_mono()
+        fuente.setBold(True)
+        pintor.setFont(fuente)
+        pintor.setPen(QColor(tinta))
+        pintor.drawText(rect, Qt.AlignmentFlag.AlignCenter, texto)
+
+    def _pintar_palomita(self, pintor: QPainter) -> None:
+        rect = QRect(PAD + 1, self.height() - GLYPH_SIZE - PAD - 1,
+                     GLYPH_SIZE, GLYPH_SIZE)
+        pintor.setPen(Qt.PenStyle.NoPen)
+        pintor.setBrush(QColor(theme.SELECTION_BORDER))
+        pintor.drawRoundedRect(rect, theme.RADIUS_SM, theme.RADIUS_SM)
+        fuente = _fuente_mono()
+        fuente.setBold(True)
+        pintor.setFont(fuente)
+        pintor.setPen(QColor(theme.SELECTION_TICK_INK))
+        pintor.drawText(rect, Qt.AlignmentFlag.AlignCenter, "✓")
+
+    def _pintar_rango(self, pintor: QPainter, inicio: float, fin: float) -> None:
+        y = self.height() - RANGE_HEIGHT
+        pintor.setPen(Qt.PenStyle.NoPen)
+        pintor.fillRect(
+            QRect(0, y, self.width(), RANGE_HEIGHT), QColor(*theme.RANGE_TRACK_RGBA)
+        )
+        izq = round(self.width() * inicio)
+        ancho = max(1, round(self.width() * (fin - inicio)))
+        pintor.fillRect(QRect(izq, y, ancho, RANGE_HEIGHT), QColor(theme.TRIM_COLOR))
+
+
+def _fuente_mono() -> QFont:
+    """La primera familia de MONO_FONT. QFont no acepta la lista con
+    alternativas que si acepta QSS."""
+    familia = theme.MONO_FONT.split(",")[0].strip().strip('"')
+    return QFont(familia, theme.FONT_MICRO)
+
+
 class ClipCard(QWidget):
-    """Tarjeta de un clip: miniatura con la proporcion REAL del video.
+    """Tarjeta de un clip: miniatura con la proporcion REAL del video, y
+    encima lo que hace legible su estado de un vistazo.
 
     QSS no tiene `aspect-ratio`, asi que el alto se calcula del ancho. Sin
     esto, un clip vertical dentro de una tile apaisada de 150x80 queda de
@@ -66,11 +204,49 @@ class ClipCard(QWidget):
         self.image_label.setMouseTracking(True)
         layout.addWidget(self.image_label)
 
+        # se crea DESPUES de la miniatura y se mantiene arriba: es lo que
+        # hace que se componga sobre el frame en vez de quedar debajo.
+        self._overlay = _CardOverlay(self)
+
     # --- contenido -------------------------------------------------------
 
     @property
     def clip(self) -> ClipThumbnail:
         return self._clip
+
+    def texto_duracion(self) -> str:
+        """Vacio cuando no se conoce: en una sesion restaurada de disco no se
+        volvio a correr ffprobe, y mentir con 0:00 es peor que no decir nada."""
+        if not self._clip.duration_frames or not self._clip.fps:
+            return ""
+        total = round(self._clip.duration_frames / self._clip.fps)
+        return f"{total // 60}:{total % 60:02d}"
+
+    def plan_de_pintado(self) -> dict:
+        """Que piezas van encima de la miniatura y con que color. Separado
+        del paintEvent para poder probarlo sin mirar pixeles -- aunque un
+        test si mira uno, porque un plan perfecto y un widget que no dibuja
+        nada se ven igual desde aca."""
+        clip = self._clip
+        glifo = {
+            "pick": ("P", theme.PICK_COLOR, theme.PICK_INK),
+            "reject": ("X", theme.REJECT_COLOR, theme.REJECT_INK),
+        }.get(clip.flag)
+        rango = None
+        if clip.duration_frames and (clip.in_frame is not None or clip.out_frame is not None):
+            total = clip.duration_frames
+            inicio = (clip.in_frame or 0) / total
+            fin = clip.out_frame / total if clip.out_frame is not None else 1.0
+            rango = (max(0.0, min(1.0, inicio)), max(0.0, min(1.0, fin)))
+        return {
+            "numero": f"{clip.numero:03d}",
+            "duracion": self.texto_duracion(),
+            "glifo": glifo,
+            # excluyentes a proposito: o el color del cuarto, o el rayado
+            "franja": clip.room_color or "rayada",
+            "rango": rango,
+            "palomita": bool(getattr(self, "_is_selected", False)),
+        }
 
     def update_content(self, clip: ClipThumbnail) -> None:
         """Actualiza estado sin tocar la miniatura ya cargada. Reconstruir
@@ -124,6 +300,11 @@ class ClipCard(QWidget):
         self.image_label.setPixmap(scaled)
         self._shown_index = index
 
+    def resizeEvent(self, event) -> None:  # noqa: N802 -- override de Qt
+        super().resizeEvent(event)
+        self._overlay.setGeometry(self.rect())
+        self._overlay.raise_()
+
     # --- interaccion -----------------------------------------------------
 
     def mousePressEvent(self, event) -> None:  # noqa: N802 -- override de Qt
@@ -151,23 +332,28 @@ class ClipCard(QWidget):
         self._apply_state()
 
     def _apply_state(self) -> None:
+        # El BORDE es el canal de estado del clip; la franja del cuarto ya no
+        # va aca -- la pinta el overlay, junto con el rayado de sin
+        # clasificar, para que las dos sean excluyentes por construccion.
         partes = []
         color_flag = {"pick": theme.PICK_COLOR, "reject": theme.REJECT_COLOR}.get(
             self._clip.flag
         )
+        seleccionada = getattr(self, "_is_selected", False)
         if getattr(self, "_is_current", False):
             partes.append(f"border: 2px solid {theme.CURRENT_COLOR};")
+        elif seleccionada:
+            partes.append(f"border: 2px solid {theme.SELECTION_BORDER};")
         elif color_flag:
             partes.append(f"border: 2px solid {color_flag};")
         else:
             partes.append(f"border: 1px solid {theme.LINE_SOFT};")
-        if self._clip.room_color:
-            partes.append(f"border-left: 3px solid {self._clip.room_color};")
-        if getattr(self, "_is_selected", False):
+        if seleccionada:
             partes.append(f"background-color: {theme.SELECTION_WASH};")
         self.setStyleSheet(
             "#clipCard { " + " ".join(partes) + " } #clipCard QLabel { border: none; }"
         )
+        self._overlay.update()  # el estado tambien cambia lo que va encima
 
 
 class _GroupBlock(QWidget):
@@ -192,9 +378,18 @@ class _GroupBlock(QWidget):
         theme.apply_letter_spacing(self.title_label)
         self.count_label = QLabel("0")
         self.count_label.setObjectName("groupCount")
+        # la linea fina que ocupa el ancho sobrante, como en el mockup: sin
+        # ella el encabezado flota y no separa un grupo del anterior
+        self.line = QWidget()
+        self.line.setObjectName("groupLine")
+        self.line.setFixedHeight(1)
+        self.line.setAttribute(Qt.WA_StyledBackground, True)
+        self.hint_label = QLabel("⌘A selecciona el grupo")
+        self.hint_label.setObjectName("sheetHint")
         cabecera.addWidget(self.title_label)
         cabecera.addWidget(self.count_label)
-        cabecera.addStretch(1)
+        cabecera.addWidget(self.line, stretch=1)
+        cabecera.addWidget(self.hint_label)
         layout.addLayout(cabecera)
 
         self.grid_host = QWidget()
@@ -250,8 +445,9 @@ class ClipSheet(QWidget):
         self.title_label = QLabel("CLIPS · 0")
         self.title_label.setObjectName("railHeader")
         theme.apply_letter_spacing(self.title_label)
+        # el `⌘A` se fue al encabezado de cada grupo, que es a lo que aplica
         self.hint_label = QLabel(
-            "pasa el mouse por una miniatura para escrubearla · ⇧+click rango · ⌘A grupo"
+            "pasa el mouse por una miniatura para escrubearla · ⇧+click rango"
         )
         self.hint_label.setObjectName("sheetHint")
         el.addWidget(self.title_label)

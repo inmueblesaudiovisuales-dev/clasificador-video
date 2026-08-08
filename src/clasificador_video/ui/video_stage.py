@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from PySide6.QtCore import QEvent, QObject, Qt
-from PySide6.QtWidgets import QLabel, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QHBoxLayout, QLabel, QVBoxLayout, QWidget
 
 from clasificador_video.ui import theme
 from clasificador_video.ui.segmented import SegmentedControl
@@ -10,6 +10,68 @@ from clasificador_video.ui.video_widget import ScrubBar, VideoWidget
 
 M = theme.OVERLAY_MARGIN
 SCRIM_HEIGHT = 150
+# El texto del badge se aclara para que se lea sobre el fondo oscuro, pero
+# el PUNTO va con el color puro del cuarto: aclarar tambien desatura, y si
+# todo el badge va aclarado se lee gris -- comprobado contra el mockup, que
+# usa exactamente esta division (punto saturado, texto claro).
+BADGE_TEXT_MIX = 0.35
+BADGE_BORDER_ALPHA = 140
+
+
+class _BadgeRow(QWidget):
+    """Los badges de estado del clip, flotando sobre el video.
+
+    Uno por dato, cada uno con SU color. La F2 los junto en una sola
+    etiqueta gris (`▌ COMEDOR    ● PICK`) y con eso tiro el color, que es
+    justo el canal que hace legible el estado sin leer.
+
+    Los badges `▶ auto` y `Proxy 1080p` del mockup son de la F6 y la F9.
+    """
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(6)
+        self.room_badge = QLabel("")
+        self.room_badge.setObjectName("overlayBadges")
+        self.flag_badge = QLabel("")
+        self.flag_badge.setObjectName("overlayBadges")
+        self.flag_badge.hide()
+        layout.addWidget(self.room_badge)
+        layout.addWidget(self.flag_badge)
+
+    def set_room(self, nombre: str | None, color: str | None) -> None:
+        if not nombre or not color:
+            self.room_badge.setText(nombre.upper() if nombre else "SIN CLASIFICAR")
+            self.room_badge.setStyleSheet("")
+            return
+        # el punto va en el color puro del cuarto y el texto en su version
+        # clara: es lo unico que hace que el badge se LEA de color
+        self.room_badge.setText(
+            f'<span style="color: {color}">▌</span> {nombre.upper()}'
+        )
+        self.room_badge.setStyleSheet(
+            self._estilo(theme.aclarar(color, BADGE_TEXT_MIX), color)
+        )
+
+    def set_flag(self, flag: str) -> None:
+        datos = {
+            "pick": ("● PICK", theme.PICK_COLOR),
+            "reject": ("✕ REJECT", theme.REJECT_COLOR),
+        }.get(flag)
+        if datos is None:
+            self.flag_badge.hide()
+            return
+        texto, color = datos
+        self.flag_badge.setText(texto)
+        self.flag_badge.setStyleSheet(self._estilo(color, color))
+        self.flag_badge.show()
+
+    @staticmethod
+    def _estilo(texto: str, borde: str) -> str:
+        color_borde = theme.con_alfa_qss(borde, BADGE_BORDER_ALPHA)
+        return f"#overlayBadges {{ color: {texto}; border: 1px solid {color_borde}; }}"
 
 
 class VideoStage(QWidget):
@@ -37,8 +99,7 @@ class VideoStage(QWidget):
         self.scrim.setObjectName("overlayScrim")
         self.file_label = QLabel("", self.video)
         self.file_label.setObjectName("overlayFile")
-        self.badges = QLabel("", self.video)
-        self.badges.setObjectName("overlayBadges")
+        self.badges = _BadgeRow(self.video)
         self.timecode_label = QLabel("", self.video)
         self.timecode_label.setObjectName("overlayTimecode")
         self.quality = SegmentedControl(["Full", "1/2", "1/4", "1/8"], self.video)

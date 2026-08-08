@@ -57,3 +57,31 @@ def test_geometria_del_lienzo_es_la_suma_mas_la_separacion():
 def test_geometria_del_lienzo_usa_el_alto_mayor():
     _, alto = comparar.geometria_lienzo((100, 200), (100, 500), separacion=10)
     assert alto == 500
+
+
+# --- modo recorte ----------------------------------------------------------
+#
+# La regresion de las tarjetas de la F2 era INVISIBLE en la comparacion
+# completa y obvia al ampliar un recorte. Ver ANALISIS-2026-08-08-post-f2 §7.
+
+
+def test_el_recorte_toma_la_misma_region_de_las_dos_mitades():
+    """Si las regiones no son equivalentes, el recorte compara peras con
+    manzanas y es peor que no tenerlo."""
+    izq, der = comparar.regiones_de_recorte(
+        (10, 20, 100, 50), ancho_mitad=1600, separacion=40
+    )
+    assert izq == (10, 20, 100, 50)
+    assert der == (1650, 20, 100, 50)
+
+
+def test_el_recorte_se_parsea_de_la_linea_de_comandos():
+    assert comparar.parsear_recorte("10,20,100,50") == (10, 20, 100, 50)
+
+
+def test_un_recorte_mal_escrito_falla_fuerte_y_no_en_silencio():
+    import pytest
+
+    for malo in ("10,20,100", "a,b,c,d", ""):
+        with pytest.raises(SystemExit):
+            comparar.parsear_recorte(malo)
