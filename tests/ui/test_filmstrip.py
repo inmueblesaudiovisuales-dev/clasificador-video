@@ -5,6 +5,12 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QPixmap
 
 from clasificador_video.ui.filmstrip import ClipThumbnail, Filmstrip
+from clasificador_video.ui.theme import (
+    CURRENT_COLOR,
+    PICK_COLOR,
+    REJECT_COLOR,
+    room_color,
+)
 
 
 def test_item_del_filmstrip_pinta_su_propio_fondo_y_borde(qtbot):
@@ -46,7 +52,7 @@ def test_estilo_de_pick_aplica_borde_verde(qtbot):
     qtbot.addWidget(strip)
     strip.set_clips([ClipThumbnail(path=Path("/b.MP4"), thumbnail_path=None, room_label="Cocina", flag="pick")])
     item = strip.item_widgets[0]
-    assert "border: 2px solid #3ddc84" in item.styleSheet()
+    assert f"border: 2px solid {PICK_COLOR}" in item.styleSheet()
 
 
 def test_estilo_de_reject_aplica_borde_rosa(qtbot):
@@ -54,7 +60,7 @@ def test_estilo_de_reject_aplica_borde_rosa(qtbot):
     qtbot.addWidget(strip)
     strip.set_clips([ClipThumbnail(path=Path("/b.MP4"), thumbnail_path=None, room_label="Cocina", flag="reject")])
     item = strip.item_widgets[0]
-    assert "border: 2px solid #ff5566" in item.styleSheet()
+    assert f"border: 2px solid {REJECT_COLOR}" in item.styleSheet()
 
 
 def test_sin_flag_no_aplica_borde_de_color(qtbot):
@@ -62,8 +68,8 @@ def test_sin_flag_no_aplica_borde_de_color(qtbot):
     qtbot.addWidget(strip)
     strip.set_clips([ClipThumbnail(path=Path("/b.MP4"), thumbnail_path=None, room_label="Sin clasificar", flag="none")])
     item = strip.item_widgets[0]
-    assert "#3ddc84" not in item.styleSheet()
-    assert "#ff5566" not in item.styleSheet()
+    assert PICK_COLOR not in item.styleSheet()
+    assert REJECT_COLOR not in item.styleSheet()
 
 
 def test_franja_de_color_de_cuarto_no_pelea_con_colores_de_estado(qtbot):
@@ -74,11 +80,11 @@ def test_franja_de_color_de_cuarto_no_pelea_con_colores_de_estado(qtbot):
     qtbot.addWidget(strip)
     strip.set_clips([
         ClipThumbnail(path=Path("/a.MP4"), thumbnail_path=None, room_label="Living",
-                      flag="pick", room_color="#6f8bb0"),
+                      flag="pick", room_color=room_color(0)),
     ])
     item = strip.item_widgets[0]
-    assert "border-top: 3px solid #6f8bb0" in item.styleSheet()
-    assert "border: 2px solid #3ddc84" in item.styleSheet()
+    assert f"border-top: 3px solid {room_color(0)}" in item.styleSheet()
+    assert f"border: 2px solid {PICK_COLOR}" in item.styleSheet()
 
 
 def test_item_puede_recibir_un_pixmap(qtbot):
@@ -172,7 +178,7 @@ def test_update_clips_preserva_el_pixmap_si_la_cantidad_no_cambia(qtbot):
 
     strip.update_clips([ClipThumbnail(path=Path("/a.MP4"), thumbnail_path=None, room_label="Y", flag="pick")])
     assert strip.item_widgets[0].has_pixmap()
-    assert "border: 2px solid #3ddc84" in strip.item_widgets[0].styleSheet()
+    assert f"border: 2px solid {PICK_COLOR}" in strip.item_widgets[0].styleSheet()
 
 
 def test_update_clips_reconstruye_si_cambia_la_cantidad_de_clips(qtbot):
@@ -193,7 +199,7 @@ def test_clip_actual_tiene_borde_de_acento(qtbot):
     qtbot.addWidget(strip)
     strip.set_clips([ClipThumbnail(path=Path("/a.MP4"), thumbnail_path=None, room_label="X", flag="none")])
     strip.set_current(0)
-    assert "border: 2px solid #ff8a3d" in strip.item_widgets[0].styleSheet()
+    assert f"border: 2px solid {CURRENT_COLOR}" in strip.item_widgets[0].styleSheet()
 
 
 def test_pick_sobre_borde_actual_mantiene_ambos_colores(qtbot):
@@ -201,8 +207,8 @@ def test_pick_sobre_borde_actual_mantiene_ambos_colores(qtbot):
     qtbot.addWidget(strip)
     strip.set_clips([ClipThumbnail(path=Path("/a.MP4"), thumbnail_path=None, room_label="X", flag="pick")])
     strip.set_current(0)
-    assert "border: 2px solid #3ddc84" in strip.item_widgets[0].styleSheet()
-    assert "outline: 2px solid #ff8a3d" in strip.item_widgets[0].styleSheet()
+    assert f"border: 2px solid {PICK_COLOR}" in strip.item_widgets[0].styleSheet()
+    assert f"outline: 2px solid {CURRENT_COLOR}" in strip.item_widgets[0].styleSheet()
 
 
 def test_miniatura_grande_se_escala_a_altura_fija(qtbot):

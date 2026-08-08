@@ -11,7 +11,14 @@ from PySide6.QtOpenGLWidgets import QOpenGLWidget
 from PySide6.QtWidgets import QWidget
 
 from clasificador_video.player import MpvPlayer
-from clasificador_video.ui.theme import ACCENT, BORDER, TICK_MAJOR_COLOR, TICK_MINOR_COLOR, TRIM_COLOR
+from clasificador_video.ui.theme import (
+    ACCENT,
+    BORDER,
+    PLAYHEAD_HIGHLIGHT,
+    TICK_MAJOR_COLOR,
+    TICK_MINOR_COLOR,
+    TRIM_COLOR,
+)
 
 
 class _FrameReadySignal(QObject):
@@ -319,7 +326,7 @@ class ScrubBar(QWidget):
             body_path = self._playhead_body_path(x, track_y)
             point_path = self._playhead_point_path(x, track_y)
             gradient = QLinearGradient(0, track_y - 13, 0, track_y - 6)
-            gradient.setColorAt(0.0, QColor("#ff9d5c"))
+            gradient.setColorAt(0.0, QColor(PLAYHEAD_HIGHLIGHT))
             gradient.setColorAt(1.0, QColor(ACCENT))
             painter.setPen(Qt.PenStyle.NoPen)
             painter.setBrush(QBrush(gradient))

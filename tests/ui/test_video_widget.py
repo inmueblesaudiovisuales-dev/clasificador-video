@@ -3,6 +3,7 @@ from pathlib import Path
 
 from PySide6.QtCore import QPoint, Qt
 
+from clasificador_video.ui.theme import ACCENT, TICK_MAJOR_COLOR, TRIM_COLOR
 from clasificador_video.ui.video_widget import (
     ScrubBar,
     VideoWidget,
@@ -149,7 +150,7 @@ def test_scrub_bar_dibuja_bracket_de_in_sin_out(qtbot):
     img = pixmap.toImage()
     track_y = bar.height() // 2
     color = img.pixelColor(expected_x, track_y - 6)
-    assert color.name() == "#4fd1e8"  # TRIM_COLOR
+    assert color.name() == TRIM_COLOR
 
 
 def test_scrub_bar_dibuja_bracket_de_out_sin_in(qtbot):
@@ -166,7 +167,7 @@ def test_scrub_bar_dibuja_bracket_de_out_sin_in(qtbot):
     img = pixmap.toImage()
     track_y = bar.height() // 2
     color = img.pixelColor(expected_x, track_y - 6)
-    assert color.name() == "#4fd1e8"
+    assert color.name() == TRIM_COLOR
 
 
 def test_scrub_bar_solo_in_no_dibuja_tramo_resaltado(qtbot):
@@ -182,7 +183,7 @@ def test_scrub_bar_solo_in_no_dibuja_tramo_resaltado(qtbot):
     track_y = bar.height() // 2
     mid_x = 6 + round((35.0 / 60.0) * 188)
     color = img.pixelColor(mid_x, track_y)
-    assert color.name() != "#4fd1e8"
+    assert color.name() != TRIM_COLOR
 
 
 def test_format_timecode_frame_cero():
@@ -320,7 +321,7 @@ def test_scrub_bar_dibuja_marca_mayor_en_cada_intervalo(qtbot):
     left, usable = 6, 200 - 12
     x_5s = left + round((5.0 / 10.0) * usable)
     color = img.pixelColor(x_5s, track_y - 8)
-    assert color.name() == "#55555c"
+    assert color.name() == TICK_MAJOR_COLOR
 
 
 def test_playhead_ya_no_es_linea_recta_de_punta_a_punta(qtbot):
@@ -336,7 +337,7 @@ def test_playhead_ya_no_es_linea_recta_de_punta_a_punta(qtbot):
     left, usable = 6, 200 - 12
     x = left + round((30.0 / 60.0) * usable)
     color_arriba = img.pixelColor(x, 2)
-    assert color_arriba.name() != "#ff8a3d"
+    assert color_arriba.name() != ACCENT
 
 
 def test_playhead_tiene_linea_fina_bajando_desde_la_casita(qtbot):
@@ -353,7 +354,7 @@ def test_playhead_tiene_linea_fina_bajando_desde_la_casita(qtbot):
     x = left + round((30.0 / 60.0) * usable)
     track_y = bar.height() // 2
     color_abajo = img.pixelColor(x, track_y + 10)
-    assert color_abajo.name() == "#ff8a3d"
+    assert color_abajo.name() == ACCENT
 
 
 def test_playhead_punta_toca_track_y_en_la_posicion_correcta(qtbot):
@@ -370,4 +371,4 @@ def test_playhead_punta_toca_track_y_en_la_posicion_correcta(qtbot):
     x = left + round((30.0 / 60.0) * usable)
     track_y = bar.height() // 2
     color_punta = img.pixelColor(x, track_y - 1)
-    assert color_punta.name() == "#ff8a3d"
+    assert color_punta.name() == ACCENT

@@ -16,16 +16,19 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from clasificador_video.ui.theme import CURRENT_COLOR, PICK_COLOR, REJECT_COLOR, TRIM_COLOR
+from clasificador_video.ui.theme import (
+    CURRENT_COLOR,
+    FLAG_NONE_COLOR,
+    PICK_COLOR,
+    RANGE_TRACK_COLOR,
+    REJECT_COLOR,
+    SELECTION_WASH,
+    TRIM_COLOR,
+)
 
 THUMB_HEIGHT = 80
 THUMB_MAX_WIDTH = 140
 TILE_WIDTH = 150  # ancho de cada tile de la vista grilla, usado para calcular columnas
-
-# fondo de seleccion multiple: el mismo acento que CURRENT_COLOR pero muy
-# translucido, para no competir con los colores de estado (ver theme.py)
-_SELECTION_WASH = "rgba(255, 138, 61, 40)"
-
 
 @dataclass
 class ClipThumbnail:
@@ -39,27 +42,24 @@ class ClipThumbnail:
     duration_frames: int | None = None  # solo para la barra de rango -- no se persiste
 
 
-_RANGE_TRACK_COLOR = "#45454c"  # visible contra el fondo del panel, no se confunde con "sin marca"
-
-
 def _range_bar_style(in_frame: int | None, out_frame: int | None, duration_frames: int | None) -> str:
     """Gradiente lineal que pinta el rango in/out marcado sobre una barra
     -- siempre visible como una linea (como el rango de Premiere/FCP en
     el visor de clip), con el tramo marcado resaltado en TRIM_COLOR."""
     if not duration_frames or in_frame is None or out_frame is None:
-        return f"background-color: {_RANGE_TRACK_COLOR};"
+        return f"background-color: {RANGE_TRACK_COLOR};"
     p1 = max(0.0, min(1.0, in_frame / duration_frames))
     p2 = max(0.0, min(1.0, out_frame / duration_frames))
     if p2 < p1:
         p1, p2 = p2, p1
     eps = 0.002
     stops = [
-        (0.0, _RANGE_TRACK_COLOR),
-        (max(p1 - eps, 0.0), _RANGE_TRACK_COLOR),
+        (0.0, RANGE_TRACK_COLOR),
+        (max(p1 - eps, 0.0), RANGE_TRACK_COLOR),
         (p1, TRIM_COLOR),
         (p2, TRIM_COLOR),
-        (min(p2 + eps, 1.0), _RANGE_TRACK_COLOR),
-        (1.0, _RANGE_TRACK_COLOR),
+        (min(p2 + eps, 1.0), RANGE_TRACK_COLOR),
+        (1.0, RANGE_TRACK_COLOR),
     ]
     stop_str = ", ".join(f"stop:{pos:.4f} {color}" for pos, color in stops)
     return f"background: qlineargradient(x1:0, y1:0, x2:1, y2:0, {stop_str});"
@@ -192,7 +192,7 @@ class _ClipItemWidget(QWidget):
             # para que nunca se puedan confundir entre si.
             parts.append(f"border-top: 3px solid {self._room_color};")
         if is_selected:
-            parts.append(f"background-color: {_SELECTION_WASH};")
+            parts.append(f"background-color: {SELECTION_WASH};")
         # Mezclar una regla "sin selector" (implicita para self) con una
         # regla "QLabel {...}" en la misma cadena no se parsea como cabria
         # esperar -- Qt sigue pintando el borde en los QLabel hijos pese a
@@ -252,10 +252,10 @@ class _ClipListRowWidget(QWidget):
         room_color = self._room_color or "transparent"
         parts.append(f"border-left: 3px solid {room_color};")
         if is_current or is_selected:
-            parts.append(f"background-color: {_SELECTION_WASH};")
+            parts.append(f"background-color: {SELECTION_WASH};")
         own_rule = "#clipListRow { " + " ".join(parts) + " }"
         self.setStyleSheet(own_rule)
-        flag_color = {"pick": PICK_COLOR, "reject": REJECT_COLOR}.get(self._flag, "#666666")
+        flag_color = {"pick": PICK_COLOR, "reject": REJECT_COLOR}.get(self._flag, FLAG_NONE_COLOR)
         self._flag_label.setStyleSheet(f"color: {flag_color}; font-weight: 600;")
 
 

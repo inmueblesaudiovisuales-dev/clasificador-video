@@ -1,48 +1,97 @@
 from __future__ import annotations
 
-# Paleta "Console": fondos oscuros (no negro puro -- un gris muy oscuro
-# se ve mas "pantalla de post-produccion real" y menos "vacio"), un solo
-# acento vivido reservado para foco/acciones, tipografia monoespaciada
-# para metadata tecnica.
-BG_WINDOW = "#1c1c20"
-BG_PANEL = "#232327"
-BG_RAIL = "#1f1f23"
-BG_HOVER = "#2c2c31"
-BG_ACTIVE = "#2e2416"
-ACCENT = "#ff8a3d"
-TEXT = "#e4e4e4"
-TEXT_MUTED = "#9a9aa0"
-BORDER = "#333338"
-TICK_MINOR_COLOR = "#3a3a40"
-TICK_MAJOR_COLOR = "#55555c"
+from PySide6.QtGui import QFont
+
+# ---------------------------------------------------------------------------
+# Tokens de diseño. UNICA fuente de valores visuales de la app.
+#
+# Los valores salen del bloque `:root` de
+# docs/superpowers/mockups/rediseno-2026-08-08/mockup.html -- si hay que
+# cambiar un color, se cambia primero ahi y luego aqui, nunca al reves y
+# nunca en un widget suelto (ver el Candado 1 en
+# docs/superpowers/plans/2026-08-08-rediseno-ui-fidelidad-al-mockup.md).
+# ---------------------------------------------------------------------------
+
+# --- superficies (de mas oscuro a mas claro) ---
+BG_APP = "#0a0b0d"        # fondo de la ventana
+BG_SURFACE_0 = "#101216"  # rails y paneles
+BG_SURFACE_1 = "#16191e"  # controles en reposo
+BG_SURFACE_2 = "#1d2128"  # chips, teclas, elementos activos
+LINE = "#262b33"          # bordes visibles
+LINE_SOFT = "#1e222a"     # separadores internos
+
+# --- texto ---
+TEXT = "#e6e9ee"
+TEXT_2 = "#9aa3b0"
+TEXT_3 = "#626b78"
+
+# --- ESTADO del clip. Nunca se reusan para identidad de cuarto, para que
+# un borde o badge de este color signifique siempre lo mismo en toda la app.
+PICK_COLOR = "#55c08a"
+STAR_COLOR = "#7ee6b0"     # destacado = pick reforzado, misma familia
+REJECT_COLOR = "#d4696c"
+CURRENT_COLOR = "#e8a33d"  # clip actual y playhead
+TRIM_COLOR = "#6d8cf5"     # rango in/out marcado
+
+# --- IDENTIDAD DE CUARTO: apagada a proposito (nunca verde, rojo ni ambar)
+# para no competir visualmente con los colores de estado de arriba.
+ROOM_PALETTE = [
+    "#c0885a", "#6d8ca8", "#8b7ca8", "#4f9a8e", "#7e9e5e",
+    "#3e9bc0", "#a9836f", "#b26f86", "#7c8794",
+]
+
+# --- colores derivados que antes vivian sueltos en otros modulos ---
+SELECTION_WASH = "rgba(109, 140, 245, 60)"  # lavado de seleccion multiple
+RANGE_TRACK_COLOR = "#2e343d"               # riel de la barra de rango
+FLAG_NONE_COLOR = TEXT_3                    # texto de "sin marca"
+PLAYHEAD_HIGHLIGHT = "#f2bd72"              # brillo superior del playhead
+TICK_MINOR_COLOR = "#2e343d"
+TICK_MAJOR_COLOR = "#454d59"
+# riel de la scrub bar cuando va ENCIMA del video: un color solido se veria
+# como una banda opaca tapando la imagen (ver ScrubBar.set_over_video).
+TRACK_OVER_VIDEO_RGBA = (255, 255, 255, 33)
+
+# --- dimensiones fijas del layout (px) ---
+TITLEBAR_HEIGHT = 36
+STATUSBAR_HEIGHT = 24
+RAIL_WIDTH = 200
+TOOLCOL_WIDTH = 56
+SHEET_MIN_WIDTH = 340
+OVERLAY_MARGIN = 13       # margen de los controles flotantes sobre el video
+SCRUB_HEIGHT = 26
+
+# --- radios ---
+RADIUS_SM = 4
+RADIUS_MD = 6
+RADIUS_LG = 8
+
+# --- tipografia ---
+# Enteros a proposito: QSS no interpreta de forma confiable tamaños
+# fraccionarios de fuente, y los medios pixeles del mockup no aportan nada.
+FONT_MICRO = 9      # etiquetas en mayusculas con tracking
+FONT_SMALL = 11     # hints y metadata secundaria
+FONT_BODY = 12      # texto normal
+FONT_TITLE = 13     # nombre de proyecto
+FONT_TIMECODE = 19  # timecode sobre el video
+FONT_BIG = 24       # numero grande de progreso
+
+LETTER_SPACING_CAPS = 1.2  # tracking de las etiquetas en mayusculas
 
 MONO_FONT = '"SF Mono", "JetBrains Mono", Menlo, monospace'
 
-# Reservados para ESTADO (pick/reject/actual) -- nunca se usan para
-# identidad de cuarto, para que un borde/badge de este color siempre
-# signifique lo mismo en toda la app (ver spec de diseno: no compiten
-# entre si porque no comparten ni familia de color ni posicion).
-PICK_COLOR = "#3ddc84"
-REJECT_COLOR = "#ff5566"
-CURRENT_COLOR = ACCENT
-# color propio para el rango in/out marcado -- distinto del acento de
-# "clip actual" para que un thumbnail con ambos (actual + rango marcado)
-# no confunda las dos cosas.
-TRIM_COLOR = "#4fd1e8"
-
-# Paleta de IDENTIDAD DE CUARTO: apagada/pastel a proposito (nunca verde,
-# rojo ni naranja) para no competir visualmente con los colores de estado
-# de arriba.
-ROOM_PALETTE = [
-    "#6f8bb0",  # azul grisaceo
-    "#a98f5c",  # ocre
-    "#8f7fb8",  # violeta apagado
-    "#5c9a9a",  # verde azulado
-    "#9c8a6f",  # marron claro
-    "#7a8fa6",  # gris azulado
-    "#a67a95",  # mauve
-    "#8a9b6f",  # oliva
-]
+# ---------------------------------------------------------------------------
+# Alias de compatibilidad. Existen SOLO para que la app siga corriendo
+# durante la F1 con los widgets viejos, que importan estos nombres. Cambian
+# de valor, no de nombre. Se borran en la Task 9 de la F2.
+# ---------------------------------------------------------------------------
+ACCENT = CURRENT_COLOR
+BG_WINDOW = BG_APP
+BG_PANEL = BG_SURFACE_0
+BG_RAIL = BG_SURFACE_0
+BG_HOVER = BG_SURFACE_1
+BG_ACTIVE = BG_SURFACE_2
+TEXT_MUTED = TEXT_2
+BORDER = LINE
 
 
 def room_color(index: int) -> str:
@@ -53,18 +102,27 @@ def room_color(index: int) -> str:
     return ROOM_PALETTE[index % len(ROOM_PALETTE)]
 
 
+def apply_letter_spacing(widget, px: float = LETTER_SPACING_CAPS) -> None:
+    """QSS no tiene `letter-spacing`: el tracking de las etiquetas en
+    mayusculas del mockup solo se puede aplicar por QFont desde codigo.
+    """
+    font = widget.font()
+    font.setLetterSpacing(QFont.SpacingType.AbsoluteSpacing, px)
+    widget.setFont(font)
+
+
 def build_stylesheet() -> str:
     return f"""
     QWidget {{
         background-color: {BG_WINDOW};
         color: {TEXT};
-        font-size: 13px;
+        font-size: {FONT_BODY}px;
     }}
 
     QListWidget {{
         background-color: {BG_PANEL};
         border: 1px solid {BORDER};
-        border-radius: 4px;
+        border-radius: {RADIUS_SM}px;
         padding: 6px;
     }}
     QListWidget::item {{
@@ -85,7 +143,7 @@ def build_stylesheet() -> str:
         color: {TEXT};
     }}
     QPushButton:hover {{
-        background-color: #1c1c20;
+        background-color: {BG_SURFACE_0};
     }}
     QPushButton:checked {{
         background-color: {BG_ACTIVE};
@@ -95,18 +153,18 @@ def build_stylesheet() -> str:
 
     QPushButton#startButton, QPushButton#exportButton {{
         background-color: {ACCENT};
-        color: #0a0a0b;
+        color: {BG_APP};
         font-weight: 700;
         border: none;
         padding: 10px 16px;
     }}
     QPushButton#startButton:hover, QPushButton#exportButton:hover {{
-        background-color: #ff9d5c;
+        background-color: {PLAYHEAD_HIGHLIGHT};
     }}
 
     QPushButton#importButton {{
         background-color: transparent;
-        border: 1px dashed #29292d;
+        border: 1px dashed {LINE};
         color: {TEXT_MUTED};
     }}
     QPushButton#importButton:hover {{
@@ -115,7 +173,7 @@ def build_stylesheet() -> str:
 
     QComboBox, QLineEdit {{
         background-color: {BG_HOVER};
-        border: 1px solid #29292d;
+        border: 1px solid {LINE};
         border-radius: 3px;
         padding: 4px 8px;
         color: {TEXT};
@@ -123,37 +181,37 @@ def build_stylesheet() -> str:
 
     QLabel#legendLabel, QLabel#statusLabel, QLabel#scrubTimeLabel {{
         color: {TEXT_MUTED};
-        font-size: 11px;
+        font-size: {FONT_SMALL}px;
         font-family: {MONO_FONT};
     }}
     QLabel#clipRoomLabel {{
         color: {TEXT_MUTED};
-        font-size: 10px;
+        font-size: {FONT_MICRO}px;
         font-family: {MONO_FONT};
     }}
     QLabel#panelTitle {{
-        color: #5c5c60;
-        font-size: 11px;
+        color: {TEXT_3};
+        font-size: {FONT_SMALL}px;
         text-transform: uppercase;
         font-weight: 700;
     }}
     QLabel#unclassifiedBadge {{
-        color: #ffb15c;
-        font-size: 11px;
+        color: {CURRENT_COLOR};
+        font-size: {FONT_SMALL}px;
     }}
     QLabel#savedIndicator {{
-        color: #4a4a4e;
-        font-size: 10.5px;
+        color: {TEXT_3};
+        font-size: {FONT_MICRO}px;
     }}
     QLabel#positionLabel {{
         color: {TEXT};
         font-family: {MONO_FONT};
-        font-size: 11.5px;
+        font-size: {FONT_SMALL}px;
     }}
     QLabel#inspectorRoomLabel {{
         color: {ACCENT};
         font-weight: 600;
-        font-size: 13px;
+        font-size: {FONT_TITLE}px;
     }}
     QWidget#clipListRow {{
         border-bottom: 1px solid {BORDER};
@@ -163,16 +221,16 @@ def build_stylesheet() -> str:
     }}
     QLabel#clipListName {{
         font-family: {MONO_FONT};
-        font-size: 11.5px;
+        font-size: {FONT_SMALL}px;
         color: {TEXT};
     }}
     QLabel#roomKeycap {{
         background-color: {BG_HOVER};
-        border: 1px solid #2c2c30;
+        border: 1px solid {LINE};
         border-radius: 3px;
-        color: #777777;
+        color: {TEXT_2};
         font-family: {MONO_FONT};
-        font-size: 10px;
+        font-size: {FONT_MICRO}px;
     }}
     QProgressBar#roomCountBar {{
         background-color: {BG_HOVER};
@@ -180,14 +238,14 @@ def build_stylesheet() -> str:
         border-radius: 1px;
     }}
     QProgressBar#roomCountBar::chunk {{
-        background-color: #3a2c15;
+        background-color: {BG_SURFACE_2};
         border-radius: 1px;
     }}
     QLabel#subroomBanner {{
         background-color: {BG_ACTIVE};
         color: {ACCENT};
         border: 1px solid {ACCENT};
-        border-radius: 4px;
+        border-radius: {RADIUS_SM}px;
         padding: 6px 14px;
         font-weight: 600;
     }}
@@ -205,6 +263,6 @@ def build_stylesheet() -> str:
 
     QWidget#filmstripPanel, QWidget#roomColumn, QWidget#inspectorPanel {{
         background-color: {BG_RAIL};
-        border-radius: 4px;
+        border-radius: {RADIUS_SM}px;
     }}
     """

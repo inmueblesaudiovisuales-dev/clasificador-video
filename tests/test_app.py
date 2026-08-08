@@ -4,6 +4,7 @@ import json
 from PySide6.QtWidgets import QDialog, QMessageBox
 
 from clasificador_video import app as app_module
+from clasificador_video.ui import theme
 from clasificador_video.ui.room_config_dialog import RoomConfigDialog
 
 
@@ -104,4 +105,7 @@ def test_main_aplica_el_stylesheet_global(qtbot, monkeypatch):
     app_module.main()
 
     app = QApplication.instance()
-    assert "background-color: #08080a" in app.styleSheet()
+    # el color exacto sale del tema, no se escribe a mano: si se fija un
+    # hexadecimal aqui, la asercion queda obsoleta en silencio (paso: este
+    # test afirmaba #08080a, un color que ya no existia en theme.py).
+    assert f"background-color: {theme.BG_APP}" in app.styleSheet()
