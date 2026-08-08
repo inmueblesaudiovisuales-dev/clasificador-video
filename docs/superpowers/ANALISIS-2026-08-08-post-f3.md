@@ -116,8 +116,8 @@ hasta ahora:
 | Qué dice `DECISIONES.md` | Qué hace la app hoy | Propuesta |
 |---|---|---|
 | *«`P` `X` — repetir la tecla vuelve a neutral»* | `P` sobre un pick lo deja en pick | **F7** |
-| *«No hay tecla de neutral»* | Existe `U`, que limpia in/out | **preguntarle a Bruno** — ver abajo |
-| La tabla de teclado no menciona `U` | `U` está registrada y funciona | idem |
+| *«No hay tecla de neutral»* | Existe `U`, que limpia in/out | ✅ resuelto — ver abajo |
+| La tabla de teclado no menciona `U` | `U` está registrada y funciona | ✅ resuelto |
 
 **✅ Resuelto el mismo día** (commit `57680a3`): `U` se queda y ya está escrita
 en la tabla de teclado de `DECISIONES.md`. La frase «no hay tecla de neutral»
@@ -161,7 +161,7 @@ que este análisis le suma.
   columna de herramientas**.
 - **F5 — Filtros como cola.** Barra de filtros, `←/→` sobre el conjunto
   filtrado, `3 de 12 en la cola`, chip de cola, aviso clickeable, **más el
-  campo «Buscar clip o cuarto…» y `⌘A` (o quitar su anuncio)**.
+  campo «Buscar clip o cuarto…»** (`⌘A` ya se adelantó).
 - **F6 — Reproducción rápida.** Autoplay, `1×/2×/4×`, arranque al 25%,
   precarga, `,`/`.`, **más la forma de la barra de reproducción, la pastilla de
   rango, el renglón de teclas, el contador `f 293`, el `espacio ▶ ‖` y el badge
