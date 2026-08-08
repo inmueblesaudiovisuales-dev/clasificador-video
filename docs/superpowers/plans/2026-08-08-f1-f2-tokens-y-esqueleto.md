@@ -355,6 +355,11 @@ def test_ningun_modulo_declara_colores_fuera_del_tema():
 
 - [ ] **Step 5: Correr la suite completa.** Verde.
 
+> **Esto no es trabajo tirado aunque `filmstrip.py` muera en la F2.** La F1
+> tiene que cerrar con la suite verde, y los tres tokens que introduce
+> —`SELECTION_WASH`, `RANGE_TRACK_COLOR`, `FLAG_NONE_COLOR`— los hereda
+> `ClipSheet`. Son tres renglones; saltárselos deja la F1 en rojo.
+
 ---
 
 ### Task 4: Arnés de comparación con el mockup
@@ -1158,6 +1163,78 @@ Lo que **no** entra aquí es que los encabezados sean **pegajosos** al scroll:
 eso necesita un widget que escuche el scroll y rinde de verdad cuando hay
 filtros. Queda para la fase de filtros. Al cerrar la F2, los encabezados se
 desplazan con el contenido: es una diferencia esperada y anotada.
+
+#### Tres reglas que la agrupación NO puede romper
+
+Agrupar parece inofensivo y choca con tres cosas que ya funcionan. Estas
+reglas no son sugerencias: romper cualquiera reintroduce un bug que este
+proyecto ya pagó una vez.
+
+**Regla 1 — `item_widgets` sigue indexado por índice de clip, no por posición
+visual.** `MainWindow._on_thumbnail_ready` entrega las miniaturas con
+`item_widgets[index]`, donde `index` es la posición del clip en `self.clips`.
+Si al agrupar se reordena esa lista para que coincida con lo que se ve, **las
+miniaturas van a aterrizar en las tarjetas equivocadas** — y peor, de forma
+intermitente, porque llegan de hilos en desorden. Lo que cambia con la
+agrupación es **dónde se coloca cada widget en la grilla**, nunca su índice.
+`count()` también se conserva, porque `_on_thumbnail_ready` lo consulta.
+
+**Regla 2 — Agrupar es re-colocar, jamás reconstruir.** Clasificar un clip
+cambia su grupo, así que `update_clips` ahora tiene que **mover** tarjetas
+entre grupos. Tiene que hacerlo reusando los mismos objetos —`addWidget` sobre
+un widget que ya existe solo lo reubica— y nunca destruyéndolos. Dos razones,
+las dos con historia en este repo:
+  - reconstruir borra los `QPixmap` que ya cargaron los `_ThumbnailJob`, que es
+    el bug que motivó que `update_clips` existiera (ver su docstring en
+    `filmstrip.py:351`);
+  - reconstruir dentro del `mousePressEvent` del propio widget terminó en
+    SIGSEGV en macOS (ver el comentario largo en `main_window.py:640`). Aunque
+    hoy la clasificación llega por teclado y no por click, la regla se
+    mantiene: es gratis y el crash costó una sesión entera.
+
+**Regla 3 — Un `QVBoxLayout` de bloques, no una sola `QGridLayout` gigante.**
+Cada grupo es un bloque `encabezado + QGridLayout propia`. Meter todos los
+grupos en una sola grilla obliga a llevar la cuenta de en qué fila arranca cada
+uno, y esa aritmética se rompe apenas un grupo se vacía. Con bloques, un grupo
+que se queda sin clips simplemente se saca del `QVBoxLayout` — y su encabezado
+sí se puede destruir, porque nunca está en el camino de un evento de mouse.
+
+Tests que van con estas reglas:
+
+```python
+# tests/ui/test_clip_sheet.py
+def test_las_miniaturas_se_entregan_por_indice_de_clip_no_por_posicion(qtbot):
+    """Los clips llegan agrupados por cuarto, pero item_widgets sigue en
+    el orden de self.clips: si no, las miniaturas caen en la tarjeta
+    equivocada."""
+    sheet = _sheet(qtbot, [_clip(0, "Sala"), _clip(1, "Cocina"), _clip(2, "Sala")])
+    assert sheet.count() == 3
+    sheet.item_widgets[1].set_pixmap(_pixmap_rojo())
+    assert sheet.item_widgets[1].has_pixmap()
+    assert not sheet.item_widgets[0].has_pixmap()
+
+
+def test_reclasificar_mueve_la_tarjeta_sin_recrearla(qtbot):
+    """Regla 2: mover entre grupos preserva el objeto y con el la
+    miniatura ya cargada."""
+    clips = [_clip(0, "Sala"), _clip(1, "Cocina")]
+    sheet = _sheet(qtbot, clips)
+    antes = sheet.item_widgets[0]
+    antes.set_pixmap(_pixmap_rojo())
+    clips[0] = _clip(0, "Cocina")
+    sheet.update_clips(clips)
+    assert sheet.item_widgets[0] is antes
+    assert antes.has_pixmap()
+
+
+def test_un_grupo_que_se_vacia_desaparece(qtbot):
+    clips = [_clip(0, "Sala"), _clip(1, "Cocina")]
+    sheet = _sheet(qtbot, clips)
+    assert sheet.group_titles() == ["Cocina", "Sala"]
+    clips[0] = _clip(0, "Cocina")
+    sheet.update_clips(clips)
+    assert sheet.group_titles() == ["Cocina"]
+```
 
 **La proporción de cada tarjeta se calcula, no se declara**: QSS no tiene
 `aspect-ratio`. `ClipCard.setFixedSize(ancho, round(ancho / aspecto))`, con el
