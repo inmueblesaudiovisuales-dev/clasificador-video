@@ -382,3 +382,173 @@ def test_seleccionar_el_grupo_emite_la_seleccion(qtbot):
     with qtbot.waitSignal(sheet.selection_changed) as blocker:
         sheet.select_current_group()
     assert blocker.args == [[0, 1]]
+
+
+# --- F5: filtrar esconde, y NO puede tocar item_widgets ---------------------
+
+
+def test_filtrar_esconde_pero_NO_reordena_item_widgets(qtbot):
+    """Regla 1: las miniaturas se entregan con item_widgets[indice_de_clip] y
+    llegan de tres hilos en desorden. Reordenar la lista las haria aterrizar
+    en la tarjeta equivocada, de forma intermitente."""
+    sheet = _sheet(qtbot, [_clip(0, "Sala"), _clip(1, None), _clip(2, "Sala")])
+    antes = list(sheet.item_widgets)
+    sheet.set_visible_indices([1])
+    assert sheet.item_widgets == antes
+    # `isHidden` y no `isVisible`: el segundo mira toda la cadena de padres y
+    # da False con la hoja sin mostrar, que es como corren estos tests
+    assert not sheet.item_widgets[1].isHidden()
+    assert sheet.item_widgets[0].isHidden()
+    assert sheet.item_widgets[2].isHidden()
+
+
+def test_filtrar_no_borra_las_miniaturas_ya_cargadas(qtbot):
+    """Regla 2: esconder no es reconstruir."""
+    sheet = _sheet(qtbot, [_clip(0, "Sala"), _clip(1, None)])
+    sheet.item_widgets[0].set_pixmap(_pixmap())
+    sheet.set_visible_indices([1])
+    sheet.set_visible_indices([0, 1])
+    assert sheet.item_widgets[0].has_pixmap()
+
+
+def test_quitar_el_filtro_vuelve_a_mostrar_todo(qtbot):
+    sheet = _sheet(qtbot, [_clip(0, "Sala"), _clip(1, None)])
+    sheet.set_visible_indices([1])
+    sheet.set_visible_indices(None)
+    assert not any(c.isHidden() for c in sheet.item_widgets)
+
+
+def test_un_grupo_que_queda_vacio_por_el_filtro_se_esconde(qtbot):
+    sheet = _sheet(qtbot, [_clip(0, "Sala"), _clip(1, "Cocina")])
+    sheet.set_visible_indices([1])
+    visibles = [b.titulo for b in sheet._ordered_blocks() if not b.isHidden()]
+    assert visibles == ["Cocina"]
+
+
+def test_el_conteo_del_encabezado_cuenta_lo_visible(qtbot):
+    sheet = _sheet(qtbot, [_clip(0, "Sala"), _clip(1, "Sala")])
+    sheet.set_visible_indices([0])
+    bloques = {b.titulo: b for b in sheet._ordered_blocks()}
+    assert bloques["Sala"].count_label.text() == "1"
+
+
+def test_las_tarjetas_visibles_se_recolocan_sin_dejar_huecos(qtbot):
+    """Verificado contra Qt: esconder NO alcanza -- el QGridLayout deja el
+    hueco donde estaba la tarjeta. Hay que re-colocar salteando las
+    escondidas, y por eso set_visible_indices dispara _relayout."""
+    sheet = _sheet(qtbot, [_clip(i, "Sala") for i in range(4)])
+    sheet.set_visible_indices([1, 3])
+    bloque = sheet._ordered_blocks()[0]
+    posiciones = [
+        bloque.grid.getItemPosition(bloque.grid.indexOf(sheet.item_widgets[i]))[:2]
+        for i in (1, 3)
+    ]
+    assert posiciones == [(0, 0), (0, 1)]
+    assert bloque.grid.indexOf(sheet.item_widgets[0]) == -1
+
+
+def test_cmd_a_selecciona_solo_lo_visible_del_grupo(qtbot):
+    """Con un filtro puesto, seleccionar el grupo entero incluiria clips que
+    no estas viendo -- y despues les asignarias un cuarto sin querer."""
+    sheet = _sheet(qtbot, [_clip(0, "Sala"), _clip(1, "Sala"), _clip(2, "Sala")])
+    sheet.set_visible_indices([0, 2])
+    sheet.set_current(0)
+    sheet.select_current_group()
+    assert sheet.selected_indices() == [0, 2]
+
+
+# --- F5: la barra de filtros -------------------------------------------------
+
+
+def test_los_chips_muestran_su_conteo(qtbot):
+    sheet = _sheet(qtbot, [_clip(0, "Sala"), _clip(1, None), _clip(2, None)])
+    sheet.set_counts({"todos": 3, "sin_clasificar": 2, "clasificados": 1,
+                      "solo_picks": 0, "ocultar_rejects": 0, "sin_marcar": 3})
+    assert "2" in sheet.chips["sin_clasificar"].text()
+    assert "3" in sheet.chips["todos"].text()
+
+
+def test_ocultar_rejects_muestra_cuantos_esconde_con_signo(qtbot):
+    """El mockup dice `−9`: no es cuantos quedan, es cuantos se van."""
+    sheet = _sheet(qtbot, [_clip(0, "Sala")])
+    sheet.set_counts({"todos": 1, "sin_clasificar": 0, "clasificados": 1,
+                      "solo_picks": 0, "ocultar_rejects": 9, "sin_marcar": 1})
+    assert "−9" in sheet.chips["ocultar_rejects"].text()
+
+
+def test_prender_un_chip_emite_el_estado_del_filtro(qtbot):
+    sheet = _sheet(qtbot, [_clip(0, "Sala")])
+    with qtbot.waitSignal(sheet.filters_changed) as blocker:
+        sheet.chips["sin_clasificar"].click()
+    assert blocker.args[0].mostrar == "sin_clasificar"
+
+
+def test_los_chips_de_un_grupo_son_excluyentes(qtbot):
+    sheet = _sheet(qtbot, [_clip(0, "Sala")])
+    sheet.chips["sin_clasificar"].click()
+    sheet.chips["clasificados"].click()
+    assert sheet.chips["sin_clasificar"].isChecked() is False
+    assert sheet.chips["clasificados"].isChecked() is True
+
+
+def test_para_apagar_un_filtro_se_clickea_Todos(qtbot):
+    """Verificado contra Qt: en un QButtonGroup exclusivo, volver a clickear
+    el chip activo NO lo apaga. Por eso cada grupo tiene su chip `Todos` --
+    el mockup ya lo trae-- y no hay forma de quedarse sin ninguno prendido."""
+    sheet = _sheet(qtbot, [_clip(0, "Sala")])
+    sheet.chips["sin_clasificar"].click()
+    sheet.chips["sin_clasificar"].click()
+    assert sheet.chips["sin_clasificar"].isChecked() is True
+    sheet.chips["todos"].click()
+    assert sheet.chips["sin_clasificar"].isChecked() is False
+
+
+def test_los_dos_grupos_son_independientes(qtbot):
+    sheet = _sheet(qtbot, [_clip(0, "Sala")])
+    sheet.chips["sin_clasificar"].click()
+    sheet.chips["solo_picks"].click()
+    assert sheet.chips["sin_clasificar"].isChecked() is True
+    assert sheet.chips["solo_picks"].isChecked() is True
+
+
+def test_escribir_en_la_busqueda_emite_el_estado(qtbot):
+    sheet = _sheet(qtbot, [_clip(0, "Sala")])
+    with qtbot.waitSignal(sheet.filters_changed) as blocker:
+        sheet.search_input.setText("coci")
+    assert blocker.args[0].busqueda == "coci"
+
+
+def test_el_chip_de_cola_solo_se_ve_cuando_hay_filtro(qtbot):
+    """Sin filtro, las flechas recorren todo y el chip mentiria."""
+    sheet = _sheet(qtbot, [_clip(0, "Sala")])
+    assert sheet.queue_chip.isHidden()
+    sheet.set_queue_size(12, filtrando=True)
+    assert not sheet.queue_chip.isHidden()
+    assert "12" in sheet.queue_chip.text()
+    sheet.set_queue_size(1, filtrando=False)
+    assert sheet.queue_chip.isHidden()
+
+
+def test_no_se_construyen_los_iconos_de_vista(qtbot):
+    """El mockup los dibuja pero no hay ninguna decision detras: no existe
+    una vista de lista en DECISIONES.md (ver analisis post-F3 §1.9)."""
+    assert not hasattr(_sheet(qtbot, []), "view_toggle")
+
+
+def test_no_hay_chip_de_destacados_todavia(qtbot):
+    """El estado «destacado» no existe hasta la F7: el hueco se deja, no se
+    inventa un chip que no filtraria nada."""
+    assert "solo_destacados" not in _sheet(qtbot, []).chips
+
+
+def test_el_chip_que_define_la_cola_se_marca_aparte(qtbot):
+    """El ambar es el color de la cola en toda la app: verlo en el chip es lo
+    que dice «por aqui se mueven las flechas ahora». `Todos` no lo lleva
+    porque no filtra nada."""
+    sheet = _sheet(qtbot, [_clip(0, "Sala")])
+    assert sheet.chips["todos"].property("q") is not True
+    sheet.chips["sin_clasificar"].click()
+    assert sheet.chips["sin_clasificar"].property("q") is True
+    assert sheet.chips["todos"].property("q") is not True
+    sheet.chips["todos"].click()
+    assert sheet.chips["sin_clasificar"].property("q") is False

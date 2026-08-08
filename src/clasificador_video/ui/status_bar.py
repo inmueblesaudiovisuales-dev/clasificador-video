@@ -1,7 +1,8 @@
 # src/clasificador_video/ui/status_bar.py
 from __future__ import annotations
 
-from PySide6.QtWidgets import QHBoxLayout, QLabel, QWidget
+from PySide6.QtCore import Qt, Signal
+from PySide6.QtWidgets import QHBoxLayout, QLabel, QPushButton, QWidget
 
 from clasificador_video.ui import theme
 
@@ -15,6 +16,8 @@ class StatusBar(QWidget):
     costado del video.
     """
 
+    unclassified_clicked = Signal()
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setObjectName("statusBar")
@@ -26,8 +29,15 @@ class StatusBar(QWidget):
 
         self.clip_label = QLabel("")
         self.clip_label.setObjectName("statusMono")
-        self.unclassified_label = QLabel("")
+        # es un BOTON, no una etiqueta: DECISIONES.md lo llama «literalmente
+        # el boton de segui trabajando» -- clickearlo filtra por lo que falta
+        self.unclassified_label = QPushButton("")
         self.unclassified_label.setObjectName("unclassifiedBadge")
+        self.unclassified_label.setFlat(True)
+        self.unclassified_label.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.unclassified_label.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self.unclassified_label.hide()
+        self.unclassified_label.clicked.connect(self.unclassified_clicked.emit)
         self.volume_label = QLabel("")
         self.volume_label.setObjectName("statusMono")
 
@@ -65,8 +75,9 @@ class StatusBar(QWidget):
 
     def set_unclassified(self, cuantos: int) -> None:
         self.unclassified_label.setText(
-            f"⚠ {cuantos} sin clasificar" if cuantos else ""
+            f"⚠ {cuantos} sin clasificar — click para filtrarlos" if cuantos else ""
         )
+        self.unclassified_label.setVisible(bool(cuantos))
 
     def set_volume(self, ruta: str) -> None:
         self.volume_label.setText(ruta)

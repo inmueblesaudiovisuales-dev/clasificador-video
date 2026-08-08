@@ -1211,3 +1211,185 @@ def test_importar_material_nuevo_vacia_el_historial(qtbot):
     window.handle_key_press("1")
     window.load_clips([_clip(5), _clip(6)])
     assert window.history.entries() == []
+
+
+# --- F5: los filtros son la cola de navegación ------------------------------
+
+from clasificador_video.filters import FilterState  # noqa: E402
+
+
+def _cuatro(window):
+    window.load_clips([_clip(1, "Cocina"), _clip(2), _clip(3, "Cocina"), _clip(4)])
+
+
+def test_las_flechas_recorren_solo_la_cola_filtrada(qtbot):
+    window = _window(qtbot, rooms=("Cocina",))
+    _cuatro(window)
+    window.set_filters(FilterState(mostrar="sin_clasificar"))
+    window.select_clip(1)
+    window.handle_arrow("next")
+    assert window.current_index == 3      # se salta el 2, que esta clasificado
+
+
+def test_al_final_de_la_cola_la_flecha_no_se_va_del_borde(qtbot):
+    window = _window(qtbot, rooms=("Cocina",))
+    _cuatro(window)
+    window.set_filters(FilterState(mostrar="sin_clasificar"))
+    window.select_clip(3)
+    window.handle_arrow("next")
+    assert window.current_index == 3
+
+
+def test_si_el_clip_actual_no_esta_en_la_cola_la_flecha_va_al_siguiente_que_si(qtbot):
+    """Pasa siempre que resuelves un clip: sale de la cola y el «actual» deja
+    de pertenecer a ella. La flecha tiene que seguir desde ahi, no trabarse.
+
+    Se prueba con `select_clip` a proposito, y no clasificando: clasificar YA
+    avanza solo, y el test pasaria sin que la logica de la flecha exista.
+    """
+    window = _window(qtbot, rooms=("Cocina",))
+    _cuatro(window)
+    window.set_filters(FilterState(mostrar="sin_clasificar"))   # cola = [1, 3]
+    window.select_clip(0)                                       # el 0 no esta
+    window.handle_arrow("next")
+    assert window.current_index == 1
+    window.select_clip(2)                                       # el 2 tampoco
+    window.handle_arrow("prev")
+    assert window.current_index == 1
+
+
+def test_con_la_cola_vacia_las_flechas_no_revientan(qtbot):
+    window = _window(qtbot, rooms=("Cocina",))
+    _cuatro(window)
+    window.set_filters(FilterState(busqueda="no-existe-nada"))
+    window.handle_arrow("next")
+    window.handle_arrow("prev")
+
+
+def test_asignar_un_cuarto_avanza_al_siguiente(qtbot):
+    """DECISIONES.md: `1`-`9` es «asignar cuarto y avanzar»."""
+    window = _window(qtbot, rooms=("Cocina",))
+    _cuatro(window)
+    window.select_clip(0)
+    window.handle_key_press("1")
+    assert window.current_index == 1
+
+
+def test_asignar_avanza_dentro_de_la_cola_filtrada(qtbot):
+    window = _window(qtbot, rooms=("Cocina",))
+    _cuatro(window)
+    window.set_filters(FilterState(mostrar="sin_clasificar"))   # cola = [1, 3]
+    window.select_clip(1)
+    window.handle_key_press("1")     # el 1 se clasifica y sale de la cola
+    assert window.current_index == 3
+
+
+def test_asignar_en_lote_NO_avanza(qtbot):
+    """Con seis seleccionados, avanzar es un salto sin sentido."""
+    window = _window(qtbot, rooms=("Cocina",))
+    _cuatro(window)
+    window.select_clip(0)
+    window.select_current_group()
+    window.handle_key_press("1")
+    assert window.current_index == 0
+
+
+def test_pick_no_avanza(qtbot):
+    """Solo los cuartos avanzan: marcar pick es lo ultimo que haces sobre un
+    clip que estas mirando, y avanzar te sacaria de el."""
+    window = _window(qtbot, rooms=("Cocina",))
+    _cuatro(window)
+    window.select_clip(0)
+    window.handle_key_press("p")
+    assert window.current_index == 0
+
+
+def test_el_visor_dice_la_posicion_en_la_cola_cuando_hay_filtro(qtbot):
+    window = _window(qtbot, rooms=("Cocina",))
+    _cuatro(window)
+    window.set_filters(FilterState(mostrar="sin_clasificar"))
+    window.select_clip(3)
+    assert "2 de 2 en la cola" in window.video_stage.file_label.text()
+
+
+def test_sin_filtro_el_visor_sigue_diciendo_el_total(qtbot):
+    """Sin filtrar, tu posicion en el shooting entero SI sirve."""
+    window = _window(qtbot, rooms=("Cocina",))
+    _cuatro(window)
+    window.select_clip(0)
+    assert "1 / 4" in window.video_stage.file_label.text()
+
+
+def test_el_aviso_de_sin_clasificar_aplica_el_filtro_al_clickearlo(qtbot):
+    window = _window(qtbot, rooms=("Cocina",))
+    _cuatro(window)
+    window.status_bar.unclassified_clicked.emit()
+    assert window.filters.mostrar == "sin_clasificar"
+    assert window.clip_sheet.chips["sin_clasificar"].isChecked()
+
+
+def test_la_hoja_solo_muestra_la_cola(qtbot):
+    window = _window(qtbot, rooms=("Cocina",))
+    _cuatro(window)
+    window.set_filters(FilterState(mostrar="sin_clasificar"))
+    visibles = [i for i, c in enumerate(window.clip_sheet.item_widgets)
+                if not c.isHidden()]
+    assert visibles == [1, 3]
+
+
+def test_el_chip_de_cola_dice_cuantos_quedan(qtbot):
+    window = _window(qtbot, rooms=("Cocina",))
+    _cuatro(window)
+    window.set_filters(FilterState(mostrar="sin_clasificar"))
+    assert "2 clips" in window.clip_sheet.queue_chip.text()
+
+
+def test_los_chips_muestran_los_conteos_reales(qtbot):
+    window = _window(qtbot, rooms=("Cocina",))
+    _cuatro(window)
+    assert "2" in window.clip_sheet.chips["sin_clasificar"].text()
+    assert "2" in window.clip_sheet.chips["clasificados"].text()
+
+
+def test_tocar_un_chip_filtra_de_verdad(qtbot):
+    window = _window(qtbot, rooms=("Cocina",))
+    _cuatro(window)
+    window.clip_sheet.chips["sin_clasificar"].click()
+    assert window.filters.mostrar == "sin_clasificar"
+    assert [i for i, c in enumerate(window.clip_sheet.item_widgets)
+            if not c.isHidden()] == [1, 3]
+
+
+def test_el_lote_no_toca_clips_escondidos_por_el_filtro(qtbot):
+    """Una seleccion vieja escondida por un filtro recibiria la asignacion
+    sin que la veas."""
+    window = _window(qtbot, rooms=("Cocina", "Sala"))
+    _cuatro(window)
+    window.clip_sheet.set_selected({0, 1, 2})
+    window.set_filters(FilterState(mostrar="sin_clasificar"))   # solo 1 y 3
+    window.select_clip(1)
+    window.handle_key_press("2")
+    assert window.clips[1].categoria_path == ["Sala"]
+    assert window.clips[0].categoria_path == ["Cocina"]   # intacto
+    assert window.clips[2].categoria_path == ["Cocina"]   # intacto
+
+
+def test_si_el_clip_actual_quedo_fuera_del_filtro_el_visor_no_inventa_posicion(qtbot):
+    """Pasa apenas resuelves un clip: sale de la cola. Decir «0 de 12» seria
+    mentir sobre donde estas."""
+    window = _window(qtbot, rooms=("Cocina",))
+    _cuatro(window)
+    window.select_clip(0)                                       # clasificado
+    window.set_filters(FilterState(mostrar="sin_clasificar"))   # cola = [1, 3]
+    texto = window.video_stage.file_label.text()
+    assert "2 en la cola" in texto
+    assert "0 de" not in texto
+
+
+def test_el_aviso_tambien_marca_el_chip_como_el_que_define_la_cola(qtbot):
+    """`setChecked` no emite `clicked`: por esa via la hoja no se enteraba y
+    el chip quedaba sin el ambar de la cola."""
+    window = _window(qtbot, rooms=("Cocina",))
+    _cuatro(window)
+    window.status_bar.unclassified_clicked.emit()
+    assert window.clip_sheet.chips["sin_clasificar"].property("q") is True

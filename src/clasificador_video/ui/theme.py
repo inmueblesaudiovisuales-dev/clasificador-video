@@ -239,9 +239,19 @@ def build_stylesheet() -> str:
         text-transform: uppercase;
         font-weight: 700;
     }}
-    QLabel#unclassifiedBadge {{
+    QPushButton#unclassifiedBadge {{
+        background-color: transparent;
+        border: none;
+        /* la regla generica de QPushButton trae `padding: 8px 14px`: en una
+           barra de 24 px eso lo recorta entero */
+        padding: 0px;
         color: {CURRENT_COLOR};
         font-size: {FONT_SMALL}px;
+        text-align: left;
+    }}
+    QPushButton#unclassifiedBadge:hover {{
+        color: {PLAYHEAD_HIGHLIGHT};
+        text-decoration: underline;
     }}
     QLabel#savedIndicator {{
         color: {TEXT_3};
@@ -524,6 +534,54 @@ def build_stylesheet() -> str:
     QWidget#sheetHeader {{
         background-color: {BG_SURFACE_0};
         border-bottom: 1px solid {LINE_SOFT};
+    }}
+    QLineEdit#sheetSearch {{
+        background-color: {BG_SURFACE_1};
+        border: 1px solid {LINE};
+        border-radius: {RADIUS_MD}px;
+        padding: 0 9px;
+        color: {TEXT};
+        font-size: {FONT_SMALL}px;
+    }}
+    QLabel#filterGroupLabel {{
+        color: {TEXT_3};
+        font-size: {FONT_MICRO}px;
+        font-weight: 650;
+    }}
+    QWidget#filterDivider {{
+        background-color: {LINE};
+    }}
+    QPushButton#filterChip {{
+        background-color: {BG_SURFACE_1};
+        border: 1px solid {LINE};
+        border-radius: 5px;
+        padding: 3px 8px;
+        color: {TEXT_3};
+        font-size: {FONT_SMALL}px;
+        font-weight: 400;
+    }}
+    QPushButton#filterChip:hover {{
+        color: {TEXT_2};
+    }}
+    QPushButton#filterChip:checked {{
+        background-color: {BG_SURFACE_2};
+        border-color: {LINE};
+        color: {TEXT};
+    }}
+    /* el chip activo que SI filtra lleva el color de la cola: es el mismo
+       ambar del chip `cola de ←→`, del playhead y del clip actual */
+    QPushButton#filterChip:checked[q="true"] {{
+        background-color: {con_alfa_qss(CURRENT_COLOR, 33)};
+        border-color: {con_alfa_qss(CURRENT_COLOR, 115)};
+        color: {PLAYHEAD_HIGHLIGHT};
+    }}
+    QLabel#queueChip {{
+        background-color: {con_alfa_qss(CURRENT_COLOR, 26)};
+        border: 1px solid {con_alfa_qss(CURRENT_COLOR, 77)};
+        border-radius: 5px;
+        padding: 3px 9px;
+        color: {PLAYHEAD_HIGHLIGHT};
+        font-size: {FONT_SMALL}px;
     }}
     QLabel#sheetHint {{
         color: {TEXT_3};

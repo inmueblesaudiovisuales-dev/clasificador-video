@@ -56,3 +56,24 @@ def test_tiene_objectnames_para_el_tema(qtbot):
     bar = _bar(qtbot)
     assert bar.objectName() == "statusBar"
     assert bar.unclassified_label.objectName() == "unclassifiedBadge"
+
+
+# --- F5: el aviso es el botón de «sigue trabajando» -------------------------
+
+
+def test_el_aviso_de_sin_clasificar_es_clickeable(qtbot):
+    """DECISIONES.md: la advertencia es, literalmente, el boton de «segui
+    trabajando»."""
+    barra = _bar(qtbot)
+    barra.set_unclassified(12)
+    assert "12 sin clasificar" in barra.unclassified_label.text()
+    assert "click para filtrarlos" in barra.unclassified_label.text()
+    with qtbot.waitSignal(barra.unclassified_clicked):
+        barra.unclassified_label.click()
+
+
+def test_sin_pendientes_el_aviso_desaparece(qtbot):
+    barra = _bar(qtbot)
+    barra.set_unclassified(0)
+    assert barra.unclassified_label.text() == ""
+    assert barra.unclassified_label.isHidden()

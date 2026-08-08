@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (
 )
 
 from clasificador_video.autosave import save_session
+from clasificador_video.filters import FilterState, cola, contar
 from clasificador_video.history import History, HistoryEntry
 from clasificador_video.ingest import IngestTree
 from clasificador_video.keyboard import KeyboardRouter
@@ -133,6 +134,7 @@ class MainWindow(QWidget):
         self.current_index = 0
         self.selected_indices: list[int] = []
         self.history = History()
+        self.filters = FilterState()
         self._router = KeyboardRouter(active_rooms=room_selection.active_rooms())
         self._probe_clip = probe_clip          # inyectable para tests
         self._thumbnail_cache_root = thumbnail_cache_root or default_cache_root()
@@ -187,8 +189,10 @@ class MainWindow(QWidget):
         self.clip_sheet = ClipSheet()
         self.clip_sheet.clip_clicked.connect(self.select_clip)
         self.clip_sheet.selection_changed.connect(self._on_selection_changed)
+        self.clip_sheet.filters_changed.connect(self.set_filters)
 
         self.status_bar = StatusBar()
+        self.status_bar.unclassified_clicked.connect(self._filtrar_sin_clasificar)
 
         cuerpo = QHBoxLayout()
         cuerpo.setContentsMargins(0, 0, 0, 0)
@@ -299,9 +303,17 @@ class MainWindow(QWidget):
 
     def _bulk_target_indices(self) -> list[int]:
         """Clips a los que aplicar una asignacion de cuarto: si hay mas de
-        un clip seleccionado, todos ellos; si no, solo el clip actual."""
+        un clip seleccionado, todos ellos; si no, solo el clip actual.
+
+        Los que el filtro esconde NO entran: una seleccion vieja tapada por un
+        filtro recibiria la asignacion sin que la veas.
+        """
         if len(self.selected_indices) > 1:
-            return [i for i in self.selected_indices if 0 <= i < len(self.clips)]
+            visibles = set(self.queue())
+            return [
+                i for i in self.selected_indices
+                if 0 <= i < len(self.clips) and i in visibles
+            ]
         if self.current_clip is not None:
             return [self.current_index]
         return []
@@ -323,6 +335,42 @@ class MainWindow(QWidget):
         )
         for indice in indices:
             self.clips[indice].categoria_path = list(path)
+
+    # ------------------------------------------------------------------
+    # los filtros SON la cola de navegacion
+    # ------------------------------------------------------------------
+
+    def queue(self) -> list[int]:
+        """Los indices que pasan el filtro, en orden.
+
+        Una sola lista alimenta tres cosas: que se ve en la hoja, por donde
+        se mueven las flechas y que dice el contador del visor. Calculadas
+        por separado se desincronizan, y ahi aparecen los bugs de «la flecha
+        me llevo a un clip que no estoy viendo».
+        """
+        return cola(self.clips, self.filters)
+
+    def set_filters(self, estado: FilterState) -> None:
+        self.filters = estado
+        self._refresh_sheet()
+
+    def _filtrar_sin_clasificar(self) -> None:
+        """El aviso de la barra de estado: el boton de «sigue trabajando».
+
+        Se usa `click()` y no `setChecked()`: `setChecked` no emite `clicked`,
+        asi que la hoja no se enteraba y el chip no se marcaba como el que
+        define la cola.
+        """
+        self.clip_sheet.chips["sin_clasificar"].click()
+
+    def _avanzar_en_la_cola(self) -> None:
+        """`1`-`9` es «asignar cuarto y avanzar» (DECISIONES.md).
+
+        Avanza solo cuando se actuo sobre UN clip: con seis seleccionados,
+        avanzar es un salto sin sentido.
+        """
+        if len(self.selected_indices) <= 1:
+            self.handle_arrow("next")
 
     # ------------------------------------------------------------------
     # historial: registrar antes de mutar, deshacer despues
@@ -426,7 +474,24 @@ class MainWindow(QWidget):
             return
 
         nombre = Path(clip.ruta).name
-        stage.file_label.setText(f"{nombre}    {self.current_index + 1} / {len(self.clips)}")
+        # Con filtro, tu posicion en el shooting entero no te sirve de nada:
+        # lo que quieres saber es cuanto falta para terminar lo que estas
+        # haciendo (DECISIONES.md). Sin filtro, el total si sirve.
+        if self.filters.esta_filtrando():
+            indices = self.queue()
+            if self.current_index in indices:
+                posicion = indices.index(self.current_index) + 1
+                stage.file_label.setText(
+                    f"{nombre}    {posicion} de {len(indices)} en la cola"
+                )
+            else:
+                # el clip actual quedo fuera del filtro -- pasa apenas lo
+                # resuelves. Inventarle una posicion ("0 de 12") seria mentir
+                stage.file_label.setText(f"{nombre}    {len(indices)} en la cola")
+        else:
+            stage.file_label.setText(
+                f"{nombre}    {self.current_index + 1} / {len(self.clips)}"
+            )
 
         cuarto = " › ".join(clip.categoria_path) if clip.categoria_path else None
         active_rooms = self.room_selection.active_rooms()
@@ -718,6 +783,10 @@ class MainWindow(QWidget):
             self._apply_categoria_to_targets(room_path)
             self._refresh_sheet()
             self._autosave()
+            # «asignar cuarto y avanzar»: el clip recien resuelto suele salir
+            # de la cola, y quedarse en el obligaria a apretar la flecha
+            # 128 veces de mas
+            self._avanzar_en_la_cola()
             return
         action = self._router.resolve_action_key(key)
         if action is not None:
@@ -735,12 +804,23 @@ class MainWindow(QWidget):
             self._autosave()
 
     def handle_arrow(self, direction: str) -> None:
+        """Se mueve DENTRO de la cola filtrada, no sobre los 128.
+
+        El clip actual puede no estar en la cola --pasa cada vez que resuelves
+        uno y sale de ella--, asi que no alcanza con buscar su posicion: se
+        busca el siguiente (o el anterior) que si este.
+        """
         if not self.clips:
             return
+        indices = self.queue()
+        if not indices:
+            return
         if direction == "next":
-            self.current_index = min(self.current_index + 1, len(self.clips) - 1)
+            siguientes = [i for i in indices if i > self.current_index]
+            self.current_index = siguientes[0] if siguientes else indices[-1]
         else:
-            self.current_index = max(self.current_index - 1, 0)
+            anteriores = [i for i in indices if i < self.current_index]
+            self.current_index = anteriores[-1] if anteriores else indices[0]
         clip = self.current_clip
         if clip is not None:
             self.video_widget.open_clip(clip.ruta)
@@ -827,6 +907,13 @@ class MainWindow(QWidget):
             # actualiza en el lugar: eso es lo que preserva las miniaturas ya
             # cargadas por los _ThumbnailJob al navegar o clasificar.
             self.clip_sheet.update_clips(thumbs)
+        # la MISMA lista que recorren las flechas: si se calcularan por
+        # separado, la hoja y la navegacion se desincronizan
+        indices = self.queue()
+        filtrando = self.filters.esta_filtrando()
+        self.clip_sheet.set_visible_indices(indices if filtrando else None)
+        self.clip_sheet.set_counts(contar(self.clips))
+        self.clip_sheet.set_queue_size(len(indices), filtrando)
         self.clip_sheet.set_current(self.current_index)
         self._refresh_rail()
         self._refresh_overlays()

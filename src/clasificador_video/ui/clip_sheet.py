@@ -7,14 +7,19 @@ from pathlib import Path
 from PySide6.QtCore import QRect, Qt, Signal
 from PySide6.QtGui import QColor, QFont, QPainter
 from PySide6.QtWidgets import (
+    QButtonGroup,
     QGridLayout,
     QHBoxLayout,
     QLabel,
+    QLineEdit,
+    QPushButton,
     QScrollArea,
+    QSizePolicy,
     QVBoxLayout,
     QWidget,
 )
 
+from clasificador_video.filters import FilterState
 from clasificador_video.ui import theme
 from clasificador_video.ui.text import ElidedLabel
 
@@ -403,6 +408,36 @@ class _GroupBlock(QWidget):
         self.count_label.setText(str(cuantos))
 
 
+class _Chip(QPushButton):
+    """Un filtro. Chequeable y con su conteo al lado, como el `.fchip` del
+    mockup.
+
+    Los chips de un grupo van en un `QButtonGroup` exclusivo. Volver a
+    clickear el que esta prendido **no lo apaga** --verificado contra Qt--, y
+    por eso cada grupo tiene su chip `Todos`: es la unica forma de quitar el
+    filtro, y no hay manera de quedarse sin ninguno prendido.
+    """
+
+    def __init__(self, clave: str, etiqueta: str, parent=None):
+        super().__init__(parent)
+        self.setObjectName("filterChip")
+        self.clave = clave
+        self._etiqueta = etiqueta
+        self.setCheckable(True)
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self.set_count(None)
+
+    def set_count(self, cuantos: int | None) -> None:
+        if cuantos is None:
+            self.setText(self._etiqueta)
+        elif self.clave == "ocultar_rejects":
+            # cuantos SE VAN, no cuantos quedan: el mockup dice "−9"
+            self.setText(f"{self._etiqueta}  −{cuantos}")
+        else:
+            self.setText(f"{self._etiqueta}  {cuantos}")
+
+
 class ClipSheet(QWidget):
     """Hoja de contactos: los clips agrupados por cuarto.
 
@@ -424,6 +459,7 @@ class ClipSheet(QWidget):
 
     clip_clicked = Signal(int)
     selection_changed = Signal(list)
+    filters_changed = Signal(object)   # FilterState
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -433,6 +469,9 @@ class ClipSheet(QWidget):
         self._current = -1
         self._selected: set[int] = set()
         self._anchor: int | None = None
+        # None = no hay filtro. Un `set` vacio es distinto: filtro que no deja
+        # pasar nada, y la hoja tiene que verse vacia de verdad.
+        self._visible: set[int] | None = None
 
         raiz = QVBoxLayout(self)
         raiz.setContentsMargins(0, 0, 0, 0)
@@ -440,19 +479,49 @@ class ClipSheet(QWidget):
 
         encabezado = QWidget()
         encabezado.setObjectName("sheetHeader")
-        el = QHBoxLayout(encabezado)
+        el = QVBoxLayout(encabezado)
         el.setContentsMargins(13, 9, 13, 9)
+        el.setSpacing(7)
+
+        # --- primera fila: titulo, busqueda y hint ---
+        fila_arriba = QHBoxLayout()
+        fila_arriba.setSpacing(9)
         self.title_label = QLabel("CLIPS · 0")
         self.title_label.setObjectName("railHeader")
         theme.apply_letter_spacing(self.title_label)
+        self.search_input = QLineEdit()
+        self.search_input.setObjectName("sheetSearch")
+        self.search_input.setPlaceholderText("Buscar clip o cuarto…")
+        self.search_input.setClearButtonEnabled(True)
+        self.search_input.setFixedHeight(26)
+        # 230 fijo, el maximo del mockup. Con `stretch` competia con el
+        # espaciador por el sobrante y se quedaba en 120 px, donde no cabe
+        # ni el placeholder.
+        self.search_input.setFixedWidth(230)
+        self.search_input.textChanged.connect(self._on_filters_changed)
         # el `⌘A` se fue al encabezado de cada grupo, que es a lo que aplica
         self.hint_label = QLabel(
             "pasa el mouse por una miniatura para escrubearla · ⇧+click rango"
         )
         self.hint_label.setObjectName("sheetHint")
-        el.addWidget(self.title_label)
-        el.addStretch(1)
-        el.addWidget(self.hint_label)
+        # El chip de cola va en ESTA fila y no junto a los filtros, donde lo
+        # pone el mockup: con los siete chips, sus dos etiquetas de grupo y el
+        # chip, la fila de filtros pide 856 px y la hoja en modo clip mide
+        # 815. Se salia por 67 px y aparecia scroll horizontal. Aca sobra
+        # lugar, el dato se sigue viendo, y no hubo que achicar la tipografia.
+        self.queue_chip = QLabel("")
+        self.queue_chip.setObjectName("queueChip")
+        self.queue_chip.hide()
+        fila_arriba.addWidget(self.title_label)
+        fila_arriba.addWidget(self.search_input)
+        fila_arriba.addWidget(self.queue_chip)
+        fila_arriba.addStretch(1)
+        fila_arriba.addWidget(self.hint_label)
+        el.addLayout(fila_arriba)
+
+        # --- los filtros, que son la cola de navegacion ---
+        for fila_filtros in self._construir_filtros():
+            el.addLayout(fila_filtros)
         raiz.addWidget(encabezado)
 
         self._content = QWidget()
@@ -465,6 +534,18 @@ class ClipSheet(QWidget):
         self._scroll.setWidgetResizable(True)
         self._scroll.setWidget(self._content)
         self._scroll.setFrameShape(QScrollArea.Shape.NoFrame)
+        self._scroll.setHorizontalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAlwaysOff
+        )
+        # `Ignored` en horizontal: las tarjetas usan `setFixedSize`, asi que el
+        # minimo de la grilla crece con ellas y --a traves del area de scroll--
+        # se volvia el minimo de la ventana entera. Resultado: un trinquete.
+        # La ventana podia crecer y nunca encoger, y la hoja se llevaba 49 px
+        # que le tocaban al video. El ancho de la hoja lo decide el padre: es
+        # la que absorbe lo que sobra, no la que lo reclama.
+        self._scroll.setSizePolicy(
+            QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Expanding
+        )
         raiz.addWidget(self._scroll, stretch=1)
 
         # QSS no tiene `mask-image`: el desvanecido al pie se hace con un
@@ -472,6 +553,111 @@ class ClipSheet(QWidget):
         self._fade = QLabel("", self._scroll)
         self._fade.setObjectName("sheetFade")
         self._fade.setAttribute(Qt.WA_TransparentForMouseEvents, True)
+
+    # --- filtros ---------------------------------------------------------
+
+    def _construir_filtros(self) -> list[QHBoxLayout]:
+        """Los dos grupos del mockup, **uno por renglon**.
+
+        El mockup los pone en una sola fila con `flex-wrap: wrap`. En Qt esa
+        fila EXIGE su ancho completo: con los conteos reales pedia 838 px
+        contra los 789 que tiene la hoja en modo clip, y ese minimo se
+        propagaba hasta la ventana -- que crecia a 1649 px y ya no podia
+        encoger. Un trinquete que le robaba ancho al video, que es justo lo
+        que este rediseño existe para proteger.
+
+        Dos renglones lo resuelven sin layouts a medida y con holgura de
+        sobra para el chip de destacados que agrega la F7. El costo es alto
+        del encabezado, y el alto de la hoja no le cuesta nada al video: la
+        hoja es una columna.
+
+        No se construyen los iconos de vista --no hay ninguna decision detras
+        de ellos-- ni el chip de destacados, que necesita un estado que no
+        existe hasta la F7.
+        """
+        filas: list[QHBoxLayout] = []
+        self.chips: dict[str, _Chip] = {}
+        self._grupos: dict[str, QButtonGroup] = {}
+
+        for grupo, titulo, opciones in (
+            ("mostrar", "MOSTRAR", [
+                ("todos", "Todos"),
+                ("sin_clasificar", "Sin clasificar"),
+                ("clasificados", "Clasificados"),
+            ]),
+            ("estado", "ESTADO", [
+                ("todos_estado", "Todos"),
+                ("solo_picks", "Solo picks"),
+                ("ocultar_rejects", "Ocultar rejects"),
+                ("sin_marcar", "Sin marcar"),
+            ]),
+        ):
+            fila = QHBoxLayout()
+            fila.setSpacing(6)
+            etiqueta = QLabel(titulo)
+            etiqueta.setObjectName("filterGroupLabel")
+            etiqueta.setFixedWidth(58)
+            theme.apply_letter_spacing(etiqueta)
+            fila.addWidget(etiqueta)
+            botones = QButtonGroup(self)
+            botones.setExclusive(True)
+            for clave, texto in opciones:
+                chip = _Chip(clave, texto)
+                chip.clicked.connect(self._on_filters_changed)
+                botones.addButton(chip)
+                fila.addWidget(chip)
+                self.chips[clave] = chip
+            self._grupos[grupo] = botones
+            fila.addStretch(1)
+            filas.append(fila)
+
+        self.chips["todos"].setChecked(True)
+        self.chips["todos_estado"].setChecked(True)
+        return filas
+
+    def filter_state(self) -> FilterState:
+        mostrar = next(
+            (c.clave for c in self.chips.values()
+             if c.isChecked() and c.clave in ("sin_clasificar", "clasificados")),
+            "todos",
+        )
+        estado = next(
+            (c.clave for c in self.chips.values()
+             if c.isChecked() and c.clave in ("solo_picks", "ocultar_rejects", "sin_marcar")),
+            "todos",
+        )
+        return FilterState(mostrar=mostrar, estado=estado,
+                           busqueda=self.search_input.text())
+
+    def _on_filters_changed(self) -> None:
+        self._marcar_chips_de_cola()
+        self.filters_changed.emit(self.filter_state())
+
+    def _marcar_chips_de_cola(self) -> None:
+        """El chip activo que SI filtra se tiñe de ámbar, como en el mockup.
+
+        No es decoración: el ámbar es el color de la cola en toda la app --el
+        chip `cola de ←→`, el playhead, el clip actual-- y verlo en el chip es
+        lo que dice «por aquí se mueven las flechas ahora».
+        """
+        for chip in self.chips.values():
+            define_cola = chip.isChecked() and chip.clave not in ("todos", "todos_estado")
+            if chip.property("q") != define_cola:
+                chip.setProperty("q", define_cola)
+                chip.style().unpolish(chip)
+                chip.style().polish(chip)
+
+    def set_counts(self, conteos: dict[str, int]) -> None:
+        self.chips["todos"].set_count(conteos.get("todos"))
+        for clave in ("sin_clasificar", "clasificados", "solo_picks",
+                      "ocultar_rejects", "sin_marcar"):
+            self.chips[clave].set_count(conteos.get(clave))
+
+    def set_queue_size(self, cuantos: int, filtrando: bool) -> None:
+        """Sin filtro las flechas recorren todo y el chip mentiria."""
+        self.queue_chip.setVisible(filtrando)
+        if filtrando:
+            self.queue_chip.setText(f"cola de ←→ · {cuantos} clips")
 
     # --- datos -----------------------------------------------------------
 
@@ -494,6 +680,9 @@ class ClipSheet(QWidget):
             self.item_widgets.append(card)
         self._current = -1
         self._anchor = None
+        # el filtro guarda INDICES: con otra lista de clips apuntarian a
+        # cualquier cosa. Quien filtre vuelve a llamar a set_visible_indices.
+        self._visible = None
         self._regroup()
         self.title_label.setText(f"CLIPS · {len(clips)}")
         self.set_selected(set())
@@ -510,6 +699,26 @@ class ClipSheet(QWidget):
         self._redraw()
 
     # --- agrupacion ------------------------------------------------------
+
+    def set_visible_indices(self, indices) -> None:
+        """Filtra la hoja **sin tocar `item_widgets`**.
+
+        La lista va indexada por indice de clip y las miniaturas llegan de
+        tres hilos en desorden: reordenarla o rearmarla las haria aterrizar en
+        la tarjeta equivocada, y de forma intermitente (Regla 1 de la clase).
+        Aca solo se esconde y se vuelve a colocar.
+
+        `None` quita el filtro; un conjunto vacio deja la hoja vacia.
+        """
+        self._visible = None if indices is None else set(indices)
+        for i, card in enumerate(self.item_widgets):
+            card.setVisible(self._es_visible(i))
+        # esconder NO alcanza: el QGridLayout deja el hueco donde estaba la
+        # tarjeta. Verificado contra Qt -- hay que re-colocar salteandolas.
+        self._regroup()
+
+    def _es_visible(self, indice: int) -> bool:
+        return self._visible is None or indice in self._visible
 
     def _group_of(self, clip: ClipThumbnail) -> str:
         return clip.room_label or SIN_CLASIFICAR
@@ -558,15 +767,21 @@ class ClipSheet(QWidget):
         columnas = max(1, (ancho_util + GAP) // (MIN_TILE_WIDTH + GAP))
         ancho_tile = max(1, (ancho_util - GAP * (columnas - 1)) // columnas)
 
+        # solo lo visible: las escondidas por el filtro no entran a la grilla,
+        # porque esconderlas sin sacarlas deja el hueco donde estaban
         por_grupo: dict[str, list[ClipCard]] = {}
-        for card in self.item_widgets:
-            por_grupo.setdefault(self._group_of(card.clip), []).append(card)
+        for indice, card in enumerate(self.item_widgets):
+            if self._es_visible(indice):
+                por_grupo.setdefault(self._group_of(card.clip), []).append(card)
 
         for titulo, block in self._blocks.items():
             while block.grid.count():
                 block.grid.takeAt(0)
             tarjetas = por_grupo.get(titulo, [])
             block.set_count(len(tarjetas))
+            # un grupo del que el filtro no dejo pasar nada no tiene por que
+            # ocupar su encabezado y su linea
+            block.setVisible(bool(tarjetas))
             for posicion, card in enumerate(tarjetas):
                 fila, columna = divmod(posicion, columnas)
                 card.apply_width(ancho_tile)
@@ -610,9 +825,11 @@ class ClipSheet(QWidget):
         if not 0 <= self._current < len(self.item_widgets):
             return
         grupo = self._group_of(self.item_widgets[self._current].clip)
+        # solo lo VISIBLE: con un filtro puesto, meter en la seleccion clips
+        # que no estas viendo termina en asignarles un cuarto sin querer
         self.set_selected({
             i for i, card in enumerate(self.item_widgets)
-            if self._group_of(card.clip) == grupo
+            if self._group_of(card.clip) == grupo and self._es_visible(i)
         })
 
     def set_selected(self, indices: set[int]) -> None:
