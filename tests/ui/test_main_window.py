@@ -896,14 +896,25 @@ def test_un_clip_vertical_ocupa_el_ancho_del_mockup(qtbot):
 
 
 def test_un_clip_horizontal_no_desborda_la_hoja(qtbot):
-    """El video crece hasta donde la hoja conserva su minimo."""
+    """El video crece hasta donde la hoja conserva su mínimo REAL.
+
+    Antes este test usaba `theme.SHEET_MIN_WIDTH`, que es justo la suposición
+    equivocada que inflaba la ventana: el encabezado de la hoja pide bastante
+    más que esa constante. Lo que importa no es el número, es que la suma
+    cierre y la ventana no crezca.
+    """
     window = _window_with_video(qtbot)
     window.resize(1600, 1000)
     window._clip_sizes = {0: (3840, 2160)}
     window.load_clips([Clip(orden=1, ruta=Path("/tmp/a.mp4"), categoria_path=[], fps=29.97)])
     window._resize_video_stage()
-    maximo = 1600 - theme.RAIL_WIDTH - theme.TOOLCOL_WIDTH - theme.SHEET_MIN_WIDTH
-    assert window.video_stage.width() == maximo
+    minimo_real = max(theme.SHEET_MIN_WIDTH,
+                      window.clip_sheet.minimumSizeHint().width())
+    assert window.video_stage.width() == (
+        1600 - theme.RAIL_WIDTH - theme.TOOLCOL_WIDTH - minimo_real
+    )
+    assert window.width() == 1600
+
 
 
 def test_cambiar_de_clip_reajusta_el_ancho_del_video(qtbot):
@@ -1441,3 +1452,49 @@ def test_deshacer_un_borrado_le_devuelve_su_tecla(qtbot):
     window.select_clip(0)
     window.handle_key_press("2")
     assert window.clips[0].categoria_path == ["Sala"]
+
+
+def test_un_clip_horizontal_no_infla_la_ventana(qtbot):
+    """Bug real de la F2, agravado por la barra de filtros de la F5: el
+    calculo del ancho del video asumia que la hoja mide como minimo
+    `SHEET_MIN_WIDTH`, pero mide bastante mas. Cada pasada agrandaba la
+    ventana, lo que agrandaba el maximo del video, lo que la agrandaba otra
+    vez: con un clip horizontal la ventana se inflaba de 1600 a 2653 px.
+    """
+    window = _window_with_video(qtbot)
+    window.load_clips([_clip(1)])
+    window._clip_sizes = {0: (3840, 2160)}
+    window.resize(1600, 1000)
+    window.show()
+    qtbot.waitExposed(window)
+    window.select_clip(0)
+    qtbot.wait(10)
+    assert window.width() == 1600
+
+
+def test_el_video_horizontal_crece_hasta_donde_puede(qtbot):
+    """Con un clip apaisado el video deja de estar limitado por la altura:
+    tiene que ocupar lo que la hoja no necesita."""
+    window = _window_with_video(qtbot)
+    window.load_clips([_clip(1)])
+    window._clip_sizes = {0: (3840, 2160)}
+    window.resize(1600, 1000)
+    window.show()
+    qtbot.waitExposed(window)
+    window.select_clip(0)
+    qtbot.wait(10)
+    assert window.video_stage.width() > 700
+
+
+def test_el_clip_vertical_sigue_midiendo_529(qtbot):
+    """La medida objetiva de la F2 no se toca."""
+    window = _window_with_video(qtbot)
+    window.load_clips([_clip(1)])
+    window._clip_sizes = {0: (2160, 3840)}
+    window.resize(1600, 1000)
+    window.show()
+    qtbot.waitExposed(window)
+    window.select_clip(0)
+    qtbot.wait(10)
+    assert window.video_stage.width() == 529
+    assert window.width() == 1600

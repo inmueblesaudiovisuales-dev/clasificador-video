@@ -170,3 +170,58 @@ salvo lo que se movió de la F5:
   control.** La F3 dejó `Cuartos` sin destinatario y el botón siguió ahí tres
   fases. El síntoma estaba disponible desde entonces: su señal ya no tenía
   quien la escuchara.
+
+---
+
+## 9. Revisión de la F1 a la F3 — 2026-08-08
+
+Mismo método: medir y ejecutar, no leer. La F1 salió limpia; la F2 tenía un
+bug que la F5 agravó.
+
+### La F1 está intacta, pero su candado tenía un hueco
+
+Los catorce colores y la paleta de nueve coinciden **exactamente** con el
+`:root` del mockup. Pero los tests comparaban contra hexadecimales **copiados
+a mano**: si alguien cambiaba un token y su test, la deriva pasaba sin que
+nadie se enterara. Ahora hay un test que lee el `:root` del mockup y compara
+contra el tema — la fuente de verdad es el mockup, no una copia.
+
+### La F2: un clip horizontal inflaba la ventana a 2653 px
+
+`_resize_video_stage` calcula el ancho del video restando `SHEET_MIN_WIDTH`
+(340). Pero el mínimo real de la hoja es mucho mayor —su encabezado tiene
+título, buscador, chip de cola y dos filas de filtros—, así que el video pedía
+más ancho del que había: la ventana crecía, eso agrandaba el máximo, el video
+crecía otra vez. **Tres pasadas y la ventana pasaba de 1600 a 2653 px.**
+
+Ya estaba mal desde la F2 —el encabezado siempre pidió más de 340— y la barra
+de filtros de la F5 lo volvió grave.
+
+Dos arreglos:
+
+1. El cálculo usa el **mínimo real** de la hoja, no la constante.
+2. El hint del encabezado —decorativo, y el que más ancho exigía— pasa a
+   elidirse y a tener mínimo cero. La hoja puede bajar a ~470 px, así que el
+   video horizontal llega a 872.
+
+### Y al angostarse la hoja, las tarjetas quedaban cortadas
+
+Consecuencia del anterior, y solo visible una vez arreglado: `_relayout`
+medía `_content.width()`, cuyo **mínimo lo fijan las propias tarjetas**. Al
+angostarse la hoja, el contenido se quedaba con el ancho de antes y se volvían
+a calcular las mismas columnas; la última quedaba cortada y, con el scroll
+horizontal apagado, no había forma de llegar a ella.
+
+Ahora se mide el **viewport** del área de scroll, que es el espacio que de
+verdad hay. Con un clip horizontal las tarjetas se reacomodan de cinco
+columnas a dos, que es exactamente el «el layout se reacomoda y la pantalla
+salta» que `DECISIONES.md` eligió a propósito.
+
+### Lo que esto enseñó
+
+- **Un test puede fijar una suposición equivocada.** El de la F2 afirmaba que
+  el video mide `ancho - rail - columna - SHEET_MIN_WIDTH`, que era justo la
+  cuenta mal hecha. Pasaba en verde mientras la ventana se inflaba.
+- **Los casos que el diseño menciona de pasada hay que probarlos igual.**
+  `DECISIONES.md` dedica una sección entera a los clips horizontales y nadie
+  los había ejecutado nunca.

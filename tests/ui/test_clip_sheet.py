@@ -5,6 +5,7 @@ from PySide6.QtGui import QPixmap
 
 from clasificador_video.ui import theme
 from clasificador_video.ui.clip_sheet import (
+    GAP,
     SIN_CLASIFICAR,
     ClipCard,
     ClipSheet,
@@ -639,3 +640,44 @@ def test_no_se_reestiliza_una_tarjeta_que_no_cambio(qtbot):
         assert len(llamadas) == 1, "un cambio real tiene que reestilizar una vez"
     finally:
         type(tarjeta).setStyleSheet = original
+
+
+def test_la_hoja_puede_encogerse_para_dejarle_ancho_al_video(qtbot):
+    """El ancho del video sale de lo que la hoja NO necesita. Si el
+    encabezado exige 724 px, un clip horizontal se queda sin lugar --y el
+    hint, que es decorativo, era el que mas pedia."""
+    sheet = _sheet(qtbot, [_clip(0, "Sala")])
+    sheet.set_queue_size(12, filtrando=True)
+    assert sheet.minimumSizeHint().width() <= 520
+
+
+def test_al_encoger_la_hoja_las_tarjetas_se_reacomodan(qtbot):
+    """El widget de contenido NO se encoge solo: su minimo lo fijan las
+    propias tarjetas, asi que se queda con el ancho de antes y `_relayout`
+    volvia a calcular las mismas columnas. Resultado: con un clip horizontal
+    --que angosta la hoja-- la ultima columna quedaba cortada.
+
+    La medida buena es el viewport del area de scroll, que es el espacio que
+    de verdad hay.
+    """
+    sheet = _sheet(qtbot, [_clip(i, "Sala") for i in range(12)])
+    sheet.show()
+    qtbot.waitExposed(sheet)
+    sheet.resize(815, 900)
+    qtbot.wait(10)
+    sheet._relayout()
+    anchas = sheet.item_widgets[0].width()
+
+    sheet.resize(472, 900)
+    qtbot.wait(10)
+    sheet._relayout()
+    bloque = sheet._ordered_blocks()[0]
+    columnas = max(
+        bloque.grid.getItemPosition(bloque.grid.indexOf(c))[1]
+        for c in sheet.item_widgets
+    ) + 1
+    usado = columnas * sheet.item_widgets[0].width() + (columnas - 1) * GAP
+    assert usado <= sheet.width(), (
+        f"las tarjetas ocupan {usado} px en una hoja de {sheet.width()}"
+    )
+    assert sheet.item_widgets[0].width() != anchas or columnas < 5

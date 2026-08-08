@@ -207,3 +207,41 @@ def test_ningun_modulo_declara_colores_fuera_del_tema():
             if patron.search(linea):
                 ofensores.append(f"{archivo.relative_to(raiz)}:{numero}: {linea.strip()}")
     assert ofensores == [], "colores fuera de theme.py:\n" + "\n".join(ofensores)
+
+
+def test_los_tokens_siguen_siendo_los_del_mockup_de_verdad():
+    """Candado 1, cerrado por el otro lado.
+
+    Los tests de arriba comparan contra hexadecimales copiados a mano: si
+    alguien cambia un token Y su test, la deriva pasa sin que nadie se entere.
+    Este lee el `:root` del mockup --la fuente de verdad-- y compara contra
+    el tema. Si el mockup cambia, esto avisa; si el tema se desvía, también.
+    """
+    mockup = Path(__file__).resolve().parents[2] / (
+        "docs/superpowers/mockups/rediseno-2026-08-08/mockup.html"
+    )
+    root = mockup.read_text(encoding="utf-8").split(":root{")[1].split("}")[0]
+    variables = dict(re.findall(r"--([a-z0-9-]+):\s*(#[0-9a-fA-F]{6})", root))
+
+    equivalencias = {
+        "bg": "BG_APP", "surface-0": "BG_SURFACE_0", "surface-1": "BG_SURFACE_1",
+        "surface-2": "BG_SURFACE_2", "line": "LINE", "line-soft": "LINE_SOFT",
+        "text": "TEXT", "text-2": "TEXT_2", "text-3": "TEXT_3",
+        "pick": "PICK_COLOR", "star": "STAR_COLOR", "reject": "REJECT_COLOR",
+        "current": "CURRENT_COLOR", "trim": "TRIM_COLOR",
+    }
+    desviados = [
+        f"--{var} del mockup es {variables[var]} y theme.{token} es {getattr(theme, token)}"
+        for var, token in equivalencias.items()
+        if variables.get(var) != getattr(theme, token, None)
+    ]
+    assert desviados == [], "el tema se desvió del mockup:\n" + "\n".join(desviados)
+
+
+def test_la_paleta_de_cuartos_sale_del_mockup_de_verdad():
+    mockup = Path(__file__).resolve().parents[2] / (
+        "docs/superpowers/mockups/rediseno-2026-08-08/mockup.html"
+    )
+    root = mockup.read_text(encoding="utf-8").split(":root{")[1].split("}")[0]
+    variables = dict(re.findall(r"--([a-z0-9-]+):\s*(#[0-9a-fA-F]{6})", root))
+    assert theme.ROOM_PALETTE == [variables[f"r{i}"] for i in range(1, 10)]

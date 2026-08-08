@@ -510,11 +510,18 @@ class ClipSheet(QWidget):
         # ni el placeholder.
         self.search_input.setFixedWidth(230)
         self.search_input.textChanged.connect(self._on_filters_changed)
-        # el `⌘A` se fue al encabezado de cada grupo, que es a lo que aplica
-        self.hint_label = QLabel(
+        # el `⌘A` se fue al encabezado de cada grupo, que es a lo que aplica.
+        # Va elidido y con minimo cero: es decorativo, y su ancho completo
+        # --310 px-- era lo que mas exigia del encabezado. Ese minimo se le
+        # resta al video, que es lo que este rediseño existe para agrandar.
+        self.hint_label = ElidedLabel(
             "pasa el mouse por una miniatura para escrubearla · ⇧+click rango"
         )
         self.hint_label.setObjectName("sheetHint")
+        self.hint_label.setMinimumWidth(0)
+        self.hint_label.setSizePolicy(
+            QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred
+        )
         # El chip de cola va en ESTA fila y no junto a los filtros, donde lo
         # pone el mockup: con los siete chips, sus dos etiquetas de grupo y el
         # chip, la fila de filtros pide 856 px y la hoja en modo clip mide
@@ -772,6 +779,18 @@ class ClipSheet(QWidget):
         for titulo in titulos:
             self._content_layout.addWidget(self._blocks[titulo])
 
+    def _ancho_disponible(self) -> int:
+        """El ancho REAL para las tarjetas: el viewport del area de scroll.
+
+        No sirve `_content.width()`: su minimo lo fijan las propias tarjetas,
+        asi que cuando la hoja se angosta --pasa con un clip horizontal, que
+        le da mas ancho al video-- el contenido se queda con el ancho de antes
+        y aca se volvian a calcular las mismas columnas. La ultima quedaba
+        cortada, y como el scroll horizontal esta apagado, ni siquiera se
+        podia llegar a ella.
+        """
+        return self._scroll.viewport().width() or self._content.width() or self.width()
+
     def _firma_de_acomodo(self) -> tuple:
         """Todo lo que decide DONDE y de que tamaño va cada tarjeta.
 
@@ -779,7 +798,7 @@ class ClipSheet(QWidget):
         resultado y es trabajo tirado.
         """
         return (
-            self._content.width() or self.width(),
+            self._ancho_disponible(),
             tuple(
                 (self._group_of(card.clip), self._es_visible(i), card.clip.aspect_ratio)
                 for i, card in enumerate(self.item_widgets)
@@ -800,7 +819,7 @@ class ClipSheet(QWidget):
         self._acomodar_de_verdad()
 
     def _acomodar_de_verdad(self) -> None:
-        ancho_util = max(self._content.width() or self.width(), MIN_TILE_WIDTH)
+        ancho_util = max(self._ancho_disponible(), MIN_TILE_WIDTH)
         ancho_util -= 26  # margenes del contenido
         columnas = max(1, (ancho_util + GAP) // (MIN_TILE_WIDTH + GAP))
         ancho_tile = max(1, (ancho_util - GAP * (columnas - 1)) // columnas)

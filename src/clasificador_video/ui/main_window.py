@@ -238,9 +238,16 @@ class MainWindow(QWidget):
         `resizeEvent` los hijos todavia tienen el tamaño anterior."""
         alto_cuerpo = self.height() - theme.TITLEBAR_HEIGHT - theme.STATUSBAR_HEIGHT
         ancho = VideoStage.width_for(alto_cuerpo, self.aspect_ratio_for(self.current_index))
-        maximo = (
-            self.width() - theme.RAIL_WIDTH - theme.TOOLCOL_WIDTH - theme.SHEET_MIN_WIDTH
+        # El minimo REAL de la hoja, no la constante: su encabezado --titulo,
+        # buscador, chip de cola y las dos filas de filtros-- pide bastante mas
+        # que `SHEET_MIN_WIDTH`. Usar la constante creaba un lazo: el video
+        # pedia mas ancho del que habia, la ventana crecia, eso agrandaba el
+        # maximo, el video crecia otra vez... con un clip horizontal la ventana
+        # se inflaba de 1600 a 2653 px.
+        minimo_hoja = max(
+            theme.SHEET_MIN_WIDTH, self.clip_sheet.minimumSizeHint().width()
         )
+        maximo = self.width() - theme.RAIL_WIDTH - theme.TOOLCOL_WIDTH - minimo_hoja
         self.video_stage.setFixedWidth(max(1, min(ancho, maximo)))
 
     def aspect_ratio_for(self, index: int) -> float:
