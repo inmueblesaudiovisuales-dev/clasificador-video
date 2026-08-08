@@ -3,24 +3,29 @@ import re
 from pathlib import Path
 
 from clasificador_video.ui import theme
-from clasificador_video.ui.theme import ACCENT, BG_PANEL, BG_WINDOW, build_stylesheet
+from clasificador_video.ui.theme import (
+    BG_APP,
+    BG_SURFACE_0,
+    CURRENT_COLOR,
+    build_stylesheet,
+)
 
 
 def test_build_stylesheet_incluye_el_fondo_oscuro_de_la_ventana():
     qss = build_stylesheet()
-    assert f"background-color: {BG_WINDOW}" in qss
+    assert f"background-color: {BG_APP}" in qss
 
 
 def test_build_stylesheet_estiliza_los_paneles():
     qss = build_stylesheet()
-    assert f"background-color: {BG_PANEL}" in qss
+    assert f"background-color: {BG_SURFACE_0}" in qss
 
 
 def test_build_stylesheet_da_estilo_al_boton_principal():
     qss = build_stylesheet()
     assert "QPushButton#startButton" in qss
     assert "QPushButton#exportButton" in qss
-    assert ACCENT in qss
+    assert CURRENT_COLOR in qss
 
 
 def test_build_stylesheet_da_fondo_negro_al_video():
@@ -73,11 +78,6 @@ def test_tokens_de_estado_son_los_del_mockup():
     assert theme.TRIM_COLOR == "#6d8cf5"
 
 
-def test_accent_sigue_existiendo_y_apunta_al_color_de_clip_actual():
-    """`ui/video_widget.py` importa ACCENT; no se rompe durante la F1."""
-    assert theme.ACCENT == theme.CURRENT_COLOR
-
-
 def test_paleta_de_cuartos_tiene_nueve_colores_del_mockup():
     assert theme.ROOM_PALETTE == [
         "#c0885a", "#6d8ca8", "#8b7ca8", "#4f9a8e", "#7e9e5e",
@@ -107,10 +107,14 @@ def test_escala_tipografica_es_entera():
         assert isinstance(value, int), f"{name} debe ser int, es {type(value)}"
 
 
-def test_los_nombres_viejos_siguen_existiendo_durante_la_f1():
+def test_no_quedan_alias_de_compatibilidad():
+    """Los alias existieron solo mientras convivieron los widgets viejos
+    con la paleta nueva. Dejarlos vivos invita a que alguien vuelva a
+    escribir BG_WINDOW en vez de BG_APP y se pierda el sentido de los
+    cuatro niveles de superficie."""
     for name in ("BG_WINDOW", "BG_PANEL", "BG_RAIL", "BG_HOVER", "BG_ACTIVE",
-                 "TEXT_MUTED", "BORDER", "TICK_MINOR_COLOR", "TICK_MAJOR_COLOR"):
-        assert hasattr(theme, name), f"falta el alias {name}"
+                 "TEXT_MUTED", "BORDER", "ACCENT"):
+        assert not hasattr(theme, name), f"el alias {name} sigue vivo"
 
 
 def test_apply_letter_spacing_cambia_la_fuente_del_widget(qtbot):

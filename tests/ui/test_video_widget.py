@@ -4,7 +4,7 @@ from pathlib import Path
 from PySide6.QtCore import QPoint, Qt
 
 from clasificador_video.ui.theme import (
-    ACCENT,
+    CURRENT_COLOR,
     SCRUB_HEIGHT,
     TICK_MAJOR_COLOR,
     TRIM_COLOR,
@@ -345,7 +345,7 @@ def test_playhead_ya_no_es_linea_recta_de_punta_a_punta(qtbot):
     left, usable = 6, 200 - 12
     x = left + round((30.0 / 60.0) * usable)
     color_arriba = img.pixelColor(x, 2)
-    assert color_arriba.name() != ACCENT
+    assert color_arriba.name() != CURRENT_COLOR
 
 
 def test_playhead_tiene_linea_fina_bajando_desde_la_casita(qtbot):
@@ -362,7 +362,7 @@ def test_playhead_tiene_linea_fina_bajando_desde_la_casita(qtbot):
     x = left + round((30.0 / 60.0) * usable)
     track_y = bar.height() // 2
     color_abajo = img.pixelColor(x, track_y + 10)
-    assert color_abajo.name() == ACCENT
+    assert color_abajo.name() == CURRENT_COLOR
 
 
 def test_playhead_punta_toca_track_y_en_la_posicion_correcta(qtbot):
@@ -379,7 +379,7 @@ def test_playhead_punta_toca_track_y_en_la_posicion_correcta(qtbot):
     x = left + round((30.0 / 60.0) * usable)
     track_y = bar.height() // 2
     color_punta = img.pixelColor(x, track_y - 1)
-    assert color_punta.name() == ACCENT
+    assert color_punta.name() == CURRENT_COLOR
 
 
 # ---------------------------------------------------------------------------

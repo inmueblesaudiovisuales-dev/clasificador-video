@@ -170,7 +170,7 @@ def extract_thumbnail_strip(
     connect: Callable[[Path], MpvIpcConnection] = _connect_ipc,
 ) -> list[Path]:
     """Extrae `count` frames espaciados a lo largo del clip, para el scrub
-    tipo Final Cut sobre la miniatura del filmstrip. Un solo proceso de
+    tipo Final Cut sobre la miniatura de la hoja de contactos. Un solo proceso de
     mpv, varios seek+captura dentro de la misma sesion IPC (ver
     build_strip_ipc_args) -- espera el evento `playback-restart` despues
     de cada seek antes de capturar, que es como mpv avisa que el frame

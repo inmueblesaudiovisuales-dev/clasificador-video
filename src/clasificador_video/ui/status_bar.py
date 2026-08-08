@@ -43,18 +43,24 @@ class StatusBar(QWidget):
         fps: float | None,
         rotacion: int | None,
     ) -> None:
-        if not nombre or not tamano:
+        if not nombre:
             self.clip_label.setText("")
             return
-        ancho, alto = tamano
-        orientacion = "vertical" if alto > ancho else "horizontal"
-        partes = [nombre, f"{ancho}×{alto}"]
+        # se muestra lo que se sabe: en una sesion restaurada de disco no se
+        # volvio a correr ffprobe y no hay tamaño, pero el nombre del archivo
+        # tiene que verse igual.
+        partes = [nombre]
+        if tamano:
+            ancho, alto = tamano
+            partes.append(f"{ancho}×{alto}")
         if fps:
             partes.append(f"{fps:.2f} fps")
-        if rotacion:
-            partes.append(f"{orientacion} (rot {rotacion}°)")
-        else:
-            partes.append(orientacion)
+        if tamano:
+            ancho, alto = tamano
+            orientacion = "vertical" if alto > ancho else "horizontal"
+            partes.append(
+                f"{orientacion} (rot {rotacion}°)" if rotacion else orientacion
+            )
         self.clip_label.setText(" · ".join(partes))
 
     def set_unclassified(self, cuantos: int) -> None:

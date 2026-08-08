@@ -90,19 +90,6 @@ LETTER_SPACING_CAPS = 1.2  # tracking de las etiquetas en mayusculas
 # populacion de alias de fuentes en cada arranque. Medido el 2026-08-08.
 MONO_FONT = 'Menlo, "SF Mono", "JetBrains Mono", monospace'
 
-# ---------------------------------------------------------------------------
-# Alias de compatibilidad. Existen SOLO para que la app siga corriendo
-# durante la F1 con los widgets viejos, que importan estos nombres. Cambian
-# de valor, no de nombre. Se borran en la Task 9 de la F2.
-# ---------------------------------------------------------------------------
-ACCENT = CURRENT_COLOR
-BG_WINDOW = BG_APP
-BG_PANEL = BG_SURFACE_0
-BG_RAIL = BG_SURFACE_0
-BG_HOVER = BG_SURFACE_1
-BG_ACTIVE = BG_SURFACE_2
-TEXT_MUTED = TEXT_2
-BORDER = LINE
 
 
 def room_color(index: int) -> str:
@@ -125,14 +112,14 @@ def apply_letter_spacing(widget, px: float = LETTER_SPACING_CAPS) -> None:
 def build_stylesheet() -> str:
     return f"""
     QWidget {{
-        background-color: {BG_WINDOW};
+        background-color: {BG_APP};
         color: {TEXT};
         font-size: {FONT_BODY}px;
     }}
 
     QListWidget {{
-        background-color: {BG_PANEL};
-        border: 1px solid {BORDER};
+        background-color: {BG_SURFACE_0};
+        border: 1px solid {LINE};
         border-radius: {RADIUS_SM}px;
         padding: 6px;
     }}
@@ -142,13 +129,13 @@ def build_stylesheet() -> str:
         margin-bottom: 2px;
     }}
     QListWidget::item:selected {{
-        background-color: {BG_ACTIVE};
-        color: {ACCENT};
+        background-color: {BG_SURFACE_2};
+        color: {CURRENT_COLOR};
     }}
 
     QPushButton {{
-        background-color: {BG_HOVER};
-        border: 1px solid {BORDER};
+        background-color: {BG_SURFACE_1};
+        border: 1px solid {LINE};
         border-radius: 3px;
         padding: 8px 14px;
         color: {TEXT};
@@ -157,13 +144,13 @@ def build_stylesheet() -> str:
         background-color: {BG_SURFACE_0};
     }}
     QPushButton:checked {{
-        background-color: {BG_ACTIVE};
-        border-color: {ACCENT};
-        color: {ACCENT};
+        background-color: {BG_SURFACE_2};
+        border-color: {CURRENT_COLOR};
+        color: {CURRENT_COLOR};
     }}
 
     QPushButton#startButton, QPushButton#exportButton {{
-        background-color: {ACCENT};
+        background-color: {CURRENT_COLOR};
         color: {BG_APP};
         font-weight: 700;
         border: none;
@@ -176,14 +163,14 @@ def build_stylesheet() -> str:
     QPushButton#importButton {{
         background-color: transparent;
         border: 1px dashed {LINE};
-        color: {TEXT_MUTED};
+        color: {TEXT_2};
     }}
     QPushButton#importButton:hover {{
-        background-color: {BG_HOVER};
+        background-color: {BG_SURFACE_1};
     }}
 
     QComboBox, QLineEdit {{
-        background-color: {BG_HOVER};
+        background-color: {BG_SURFACE_1};
         border: 1px solid {LINE};
         border-radius: 3px;
         padding: 4px 8px;
@@ -191,12 +178,12 @@ def build_stylesheet() -> str:
     }}
 
     QLabel#legendLabel, QLabel#statusLabel, QLabel#scrubTimeLabel {{
-        color: {TEXT_MUTED};
+        color: {TEXT_2};
         font-size: {FONT_SMALL}px;
         font-family: {MONO_FONT};
     }}
     QLabel#clipRoomLabel {{
-        color: {TEXT_MUTED};
+        color: {TEXT_2};
         font-size: {FONT_MICRO}px;
         font-family: {MONO_FONT};
     }}
@@ -220,15 +207,15 @@ def build_stylesheet() -> str:
         font-size: {FONT_SMALL}px;
     }}
     QLabel#inspectorRoomLabel {{
-        color: {ACCENT};
+        color: {CURRENT_COLOR};
         font-weight: 600;
         font-size: {FONT_TITLE}px;
     }}
     QWidget#clipListRow {{
-        border-bottom: 1px solid {BORDER};
+        border-bottom: 1px solid {LINE};
     }}
     QWidget#clipListRow:hover {{
-        background-color: {BG_HOVER};
+        background-color: {BG_SURFACE_1};
     }}
     QLabel#clipListName {{
         font-family: {MONO_FONT};
@@ -236,7 +223,7 @@ def build_stylesheet() -> str:
         color: {TEXT};
     }}
     QLabel#roomKeycap {{
-        background-color: {BG_HOVER};
+        background-color: {BG_SURFACE_1};
         border: 1px solid {LINE};
         border-radius: 3px;
         color: {TEXT_2};
@@ -244,7 +231,7 @@ def build_stylesheet() -> str:
         font-size: {FONT_MICRO}px;
     }}
     QProgressBar#roomCountBar {{
-        background-color: {BG_HOVER};
+        background-color: {BG_SURFACE_1};
         border: none;
         border-radius: 1px;
     }}
@@ -253,9 +240,9 @@ def build_stylesheet() -> str:
         border-radius: 1px;
     }}
     QLabel#subroomBanner {{
-        background-color: {BG_ACTIVE};
-        color: {ACCENT};
-        border: 1px solid {ACCENT};
+        background-color: {BG_SURFACE_2};
+        color: {CURRENT_COLOR};
+        border: 1px solid {CURRENT_COLOR};
         border-radius: {RADIUS_SM}px;
         padding: 6px 14px;
         font-weight: 600;
@@ -414,6 +401,41 @@ def build_stylesheet() -> str:
         color: {REJECT_COLOR};
     }}
 
+    QWidget#clipSheet {{
+        background-color: {BG_SURFACE_0};
+    }}
+    QWidget#sheetHeader {{
+        background-color: {BG_SURFACE_0};
+        border-bottom: 1px solid {LINE_SOFT};
+    }}
+    QLabel#sheetHint {{
+        color: {TEXT_3};
+        font-size: {FONT_MICRO}px;
+    }}
+    QLabel#groupTitle {{
+        color: {TEXT_3};
+        font-size: {FONT_MICRO}px;
+        font-weight: 650;
+    }}
+    QLabel#groupCount {{
+        color: {TEXT_3};
+        font-family: {MONO_FONT};
+        font-size: {FONT_MICRO}px;
+    }}
+    QLabel#sheetFade {{
+        background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+            stop:0 {OVERLAY_SCRIM_FROM}, stop:1 {BG_SURFACE_0});
+        border: none;
+    }}
+    QWidget#clipCard {{
+        background-color: {BG_SURFACE_2};
+        border-radius: {RADIUS_MD}px;
+    }}
+    QLabel#clipCardImage {{
+        background-color: {BG_SURFACE_1};
+        border: none;
+    }}
+
     QLabel#overlayScrim {{
         background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
             stop:0 {OVERLAY_SCRIM_FROM}, stop:1 {OVERLAY_SCRIM_TO});
@@ -449,17 +471,13 @@ def build_stylesheet() -> str:
 
     QWidget#videoWidget {{
         background-color: black;
-        border: 1px solid {BORDER};
+        border: 1px solid {LINE};
         border-radius: 3px;
     }}
 
     QWidget#scrubBar {{
-        background-color: {BG_RAIL};
+        background-color: {BG_SURFACE_0};
         border-radius: 3px;
     }}
 
-    QWidget#filmstripPanel, QWidget#roomColumn, QWidget#inspectorPanel {{
-        background-color: {BG_RAIL};
-        border-radius: {RADIUS_SM}px;
-    }}
     """

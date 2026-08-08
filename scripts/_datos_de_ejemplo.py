@@ -106,8 +106,11 @@ def _clips() -> tuple[list[Clip], dict[int, tuple[int, int]], dict[int, float]]:
         if indice % 3 == 0:
             clip.in_frame, clip.out_frame = 132, 344
         clips.append(clip)
-        # 74 verticales de 128, como dice la barra de estado del mockup
-        tamanos[indice] = VERTICAL if indice % 128 < 74 else HORIZONTAL
+        # mayoria verticales, como el material real de la FX30, e
+        # intercalando horizontales para ver los dos casos conviviendo.
+        # El clip actual TIENE que ser vertical: es el caso que el
+        # rediseño existe para resolver y el que muestra el mockup.
+        tamanos[indice] = HORIZONTAL if indice % 5 == 4 else VERTICAL
         duraciones[indice] = 18.37
     return clips, tamanos, duraciones
 
@@ -138,10 +141,10 @@ def construir_ventana_de_ejemplo() -> MainWindow:
 
     # miniaturas sintéticas, sin lanzar mpv
     for indice, clip in enumerate(clips):
-        if indice >= ventana.filmstrip.count():
+        if indice >= ventana.clip_sheet.count():
             break
         cuarto = clip.categoria_path[0] if clip.categoria_path else None
         color = theme.room_color(CUARTOS.index(cuarto)) if cuarto else theme.TEXT_3
         vertical = tamanos[indice] == VERTICAL
-        ventana.filmstrip.item_widgets[indice].set_pixmap(_miniatura(color, vertical))
+        ventana.clip_sheet.item_widgets[indice].set_pixmap(_miniatura(color, vertical))
     return ventana

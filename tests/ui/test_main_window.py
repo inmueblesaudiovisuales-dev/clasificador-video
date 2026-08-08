@@ -5,6 +5,7 @@ from clasificador_video.category_path import CategoryTree
 from clasificador_video.manifest import Clip
 from clasificador_video.player import QUALITY_PROFILES
 from clasificador_video.rooms import RoomSelection
+from clasificador_video.ui import theme
 from clasificador_video.ui.main_window import MainWindow
 from clasificador_video.ui.video_widget import VideoWidget
 
@@ -50,14 +51,14 @@ def _window_with_video(qtbot, cache_root: Path | None = None) -> MainWindow:
 
 def test_ventana_muestra_los_cuartos_activos_en_la_columna(qtbot):
     window = _window(qtbot)
-    assert window.room_list_widget.count() == 2
+    assert [f.nombre for f in window.room_rail.rows] == ["Sala", "Cocina"]
 
 
-def test_cargar_clips_los_manda_al_filmstrip(qtbot):
+def test_cargar_clips_los_manda_al_clip_sheet(qtbot):
     window = _window(qtbot)
     clips = [Clip(orden=1, ruta=Path("/a.MP4"), categoria_path=[], fps=30.0)]
     window.load_clips(clips)
-    assert window.filmstrip.count() == 1
+    assert window.clip_sheet.count() == 1
 
 
 def test_presionar_tecla_de_cuarto_asigna_categoria_al_clip_actual(qtbot):
@@ -78,22 +79,16 @@ def test_presionar_p_marca_pick_en_el_clip_actual(qtbot):
 
 def test_ventana_tiene_reproductor_embebido_y_selector_de_calidad(qtbot):
     window = _window_with_video(qtbot)
-    assert isinstance(window.video_widget, VideoWidget)
-    assert window.quality_combo.count() == len(QUALITY_PROFILES)
+    assert isinstance(window.video_stage.video, VideoWidget)
+    assert len(window.video_stage.quality.buttons) == len(QUALITY_PROFILES)
 
 
 def test_cambiar_calidad_aplica_el_perfil(qtbot):
     window = _window_with_video(qtbot)
     window.show()
     qtbot.waitExposed(window)
-    window.quality_combo.setCurrentText("1/2")
-    assert window.video_widget.player._mpv.vid_scale == QUALITY_PROFILES["1/2"]
-
-
-def test_ventana_muestra_leyenda_de_teclado(qtbot):
-    window = _window_with_video(qtbot)
-    assert "Espacio" in window.legend_label.text()
-    assert "P/X/U" in window.legend_label.text()
+    window.video_stage.quality.selected.emit("1/2")
+    assert window.video_stage.video.player._mpv.vid_scale == QUALITY_PROFILES["1/2"]
 
 
 def test_leyenda_muestra_el_cuarto_real_de_cada_numero(qtbot):
@@ -107,29 +102,24 @@ def test_leyenda_muestra_el_cuarto_real_de_cada_numero(qtbot):
         video_factory=FakeMpvForWindow,
     )
     qtbot.addWidget(window)
-    assert "1 Sala" in window.legend_label.text()
-    assert "2 Cocina" in window.legend_label.text()
-    assert "1-9 cuartos" not in window.legend_label.text()
+    # la leyenda de una linea murio con el rediseño, pero su intencion
+    # sobrevive en el rail: cada numero muestra su cuarto real
+    assert window.room_rail.rows[0].key_cap.text() == "1"
+    assert window.room_rail.rows[0].nombre == "Sala"
+    assert window.room_rail.rows[1].key_cap.text() == "2"
+    assert window.room_rail.rows[1].nombre == "Cocina"
 
 
 def test_boton_importar_carpetas_existe(qtbot):
     window = _window_with_video(qtbot)
-    assert window.import_button.text() == "Importar carpetas…"
+    assert window.room_rail.import_button.text() == "Importar carpetas…"
 
 
 def test_boton_importar_tiene_objectname_para_fondo_distinto_del_panel(qtbot):
     """Bug real de v1: el boton usaba el mismo color de fondo que el
     panel y era invisible como boton."""
     window = _window_with_video(qtbot)
-    assert window.import_button.objectName() == "importButton"
-
-
-def test_material_importado_tiene_encabezado_propio(qtbot):
-    """Bug real de v1: la carpeta importada no tenia titulo ni
-    separacion visual de la lista de cuartos."""
-    window = _window_with_video(qtbot)
-    assert window.ingest_title_label.text() == "Material importado"
-    assert window.ingest_title_label.objectName() == "panelTitle"
+    assert window.room_rail.import_button.objectName() == "importButton"
 
 
 def test_importar_carpetas_puebla_el_ingest_list(qtbot, monkeypatch, tmp_path):
@@ -142,9 +132,11 @@ def test_importar_carpetas_puebla_el_ingest_list(qtbot, monkeypatch, tmp_path):
         lambda *a, **k: str(carpeta_a),
     )
     window._load_clips_from_ingest = lambda: None
-    window.import_button.click()
-    assert window.ingest_list.count() == 1
-    assert window.ingest_list.item(0).text() == "FX30"
+    window.room_rail.import_button.click()
+    # el panel de carpetas importadas murio; lo que importa es que la
+    # carpeta entro al ingest y que la ruta se ve en la barra de estado
+    assert [c.display_name for c in window.ingest_tree.top_level_folders()] == ["FX30"]
+    assert window.status_bar.volume_label.text() == str(carpeta_a)
 
 
 class FakeProbe:
@@ -170,7 +162,7 @@ def test_importar_carpeta_construye_clips_con_fps_de_ffprobe(qtbot, monkeypatch,
     window._load_clips_from_ingest()
     assert window.current_clip.fps == 59.94005994005994
     assert window.current_clip.ruta.name == "C0001.MP4"
-    assert window.filmstrip.count() == 1
+    assert window.clip_sheet.count() == 1
 
 
 class _FlakyProbe:
@@ -201,7 +193,7 @@ def test_import_ignora_clip_cuyo_ffprobe_falla_y_sigue_con_los_demas(qtbot, monk
     window._load_clips_from_ingest()
     rutas = [Path(c.ruta).name for c in window.clips]
     assert rutas == ["bueno.MP4"]
-    assert window.filmstrip.count() == 1
+    assert window.clip_sheet.count() == 1
 
 
 def _no_mpv_in_test(*a, **k):
@@ -231,7 +223,7 @@ def test_thumbnail_job_no_truena_si_su_signal_ya_fue_destruido(qtbot, monkeypatc
 
 def test_avanzar_de_clip_no_borra_las_miniaturas_ya_cargadas(qtbot):
     """Bug real reportado en uso: al avanzar con las flechas, el filmstrip
-    se reconstruia entero (via _refresh_filmstrip -> Filmstrip.set_clips),
+    se reconstruia entero (via _refresh_clip_sheet -> Filmstrip.set_clips),
     lo que perdia los pixmaps ya cargados por los _ThumbnailJob y volvia
     a mostrar '(sin miniatura)' en todos los clips."""
     from PySide6.QtGui import QPixmap
@@ -246,13 +238,13 @@ def test_avanzar_de_clip_no_borra_las_miniaturas_ya_cargadas(qtbot):
     window.load_clips(clips)
     pm = QPixmap(20, 20)
     pm.fill()
-    for w in window.filmstrip.item_widgets:
+    for w in window.clip_sheet.item_widgets:
         w.set_pixmap(pm)
     window.handle_arrow("next")
-    assert all(w.has_pixmap() for w in window.filmstrip.item_widgets)
+    assert all(w.has_pixmap() for w in window.clip_sheet.item_widgets)
 
 
-def test_avanzar_de_clip_preserva_los_mismos_widgets_del_filmstrip(qtbot):
+def test_avanzar_de_clip_preserva_los_mismos_widgets_del_clip_sheet(qtbot):
     window = _window_with_video(qtbot)
     window.show()
     qtbot.waitExposed(window)
@@ -261,13 +253,13 @@ def test_avanzar_de_clip_preserva_los_mismos_widgets_del_filmstrip(qtbot):
         Clip(orden=2, ruta=Path("/b.MP4"), categoria_path=[], fps=30.0),
     ]
     window.load_clips(clips)
-    ids_antes = [id(w) for w in window.filmstrip.item_widgets]
+    ids_antes = [id(w) for w in window.clip_sheet.item_widgets]
     window.handle_arrow("next")
-    ids_despues = [id(w) for w in window.filmstrip.item_widgets]
+    ids_despues = [id(w) for w in window.clip_sheet.item_widgets]
     assert ids_antes == ids_despues
 
 
-def test_reimportar_reconstruye_el_filmstrip_de_verdad(qtbot):
+def test_reimportar_reconstruye_el_clip_sheet_de_verdad(qtbot):
     """update_clips solo actualiza en el lugar si la cantidad de clips no
     cambio -- una reimportacion (aunque coincida en cantidad) debe forzar
     reconstruccion via load_clips, no arrastrar pixmaps del material viejo."""
@@ -277,10 +269,10 @@ def test_reimportar_reconstruye_el_filmstrip_de_verdad(qtbot):
     window.load_clips([Clip(orden=1, ruta=Path("/viejo.MP4"), categoria_path=[], fps=30.0)])
     pm = QPixmap(20, 20)
     pm.fill()
-    window.filmstrip.item_widgets[0].set_pixmap(pm)
+    window.clip_sheet.item_widgets[0].set_pixmap(pm)
 
     window.load_clips([Clip(orden=1, ruta=Path("/nuevo.MP4"), categoria_path=[], fps=30.0)])
-    assert not window.filmstrip.item_widgets[0].has_pixmap()
+    assert not window.clip_sheet.item_widgets[0].has_pixmap()
 
 
 def test_thumbnail_stale_de_importacion_anterior_se_ignora(qtbot, monkeypatch, tmp_path):
@@ -295,7 +287,7 @@ def test_thumbnail_stale_de_importacion_anterior_se_ignora(qtbot, monkeypatch, t
     window._thread_pool.waitForDone(5000)
 
     calls = []
-    for w in window.filmstrip.item_widgets:
+    for w in window.clip_sheet.item_widgets:
         monkeypatch.setattr(w, "set_pixmap", lambda pixmap, _w=w: calls.append(_w))
 
     window._on_thumbnail_ready(1, 0, [tmp_path / "stale.jpg"])
@@ -352,7 +344,7 @@ def test_cache_hit_no_relanza_mpv(qtbot, monkeypatch, tmp_path):
     window._schedule_thumbnails()
     window._thread_pool.waitForDone(2000)
     assert called == []
-    assert window.filmstrip.item_widgets[0].has_pixmap()
+    assert window.clip_sheet.item_widgets[0].has_pixmap()
 
 
 def test_load_clips_arranca_el_primer_clip_en_el_reproductor(qtbot):
@@ -361,7 +353,7 @@ def test_load_clips_arranca_el_primer_clip_en_el_reproductor(qtbot):
     qtbot.waitExposed(window)
     clips = [Clip(orden=1, ruta=Path("/a.MP4"), categoria_path=[], fps=30.0)]
     window.load_clips(clips)
-    assert window.video_widget.player._mpv.loaded_path == "/a.MP4"
+    assert window.video_stage.video.player._mpv.loaded_path == "/a.MP4"
 
 
 def test_flecha_derecha_avanza_al_siguiente_clip_y_lo_carga_en_el_player(qtbot):
@@ -375,10 +367,10 @@ def test_flecha_derecha_avanza_al_siguiente_clip_y_lo_carga_en_el_player(qtbot):
     window.load_clips(clips)
     window.handle_arrow("next")
     assert window.current_index == 1
-    assert window.video_widget.player._mpv.loaded_path == "/b.MP4"
+    assert window.video_stage.video.player._mpv.loaded_path == "/b.MP4"
 
 
-def test_click_en_un_thumbnail_del_filmstrip_carga_ese_clip(qtbot):
+def test_click_en_un_thumbnail_del_clip_sheet_carga_ese_clip(qtbot):
     window = _window_with_video(qtbot)
     window.show()
     qtbot.waitExposed(window)
@@ -388,17 +380,17 @@ def test_click_en_un_thumbnail_del_filmstrip_carga_ese_clip(qtbot):
         Clip(orden=3, ruta=Path("/c.MP4"), categoria_path=[], fps=30.0),
     ]
     window.load_clips(clips)
-    window.filmstrip.clip_clicked.emit(2)
+    window.clip_sheet.clip_clicked.emit(2)
     assert window.current_index == 2
-    assert window.video_widget.player._mpv.loaded_path == "/c.MP4"
+    assert window.video_stage.video.player._mpv.loaded_path == "/c.MP4"
 
 
-def test_click_real_en_thumbnail_no_crasha_al_reconstruir_filmstrip(qtbot):
+def test_click_real_en_thumbnail_no_crasha_al_reconstruir_clip_sheet(qtbot):
     """Bug real de uso (crash SIGSEGV reportado en vivo, 2026-08-06, ver
     docs/superpowers/HANDOFF-2026-08-06-crash-al-importar.md):
 
-    Click real con el mouse sobre una miniatura del filmstrip dispara
-    `select_clip` -> `_refresh_filmstrip` -> `Filmstrip.set_clips`, que
+    Click real con el mouse sobre una miniatura de la hoja dispara
+    `select_clip` -> `_refresh_clip_sheet` -> `Filmstrip.set_clips`, que
     destruye (setParent(None) + reemplaza) TODOS los `_ClipItemWidget`
     --incluyendo el propio widget que esta dentro de su `mousePressEvent`
     mientras Qt todavia lo referencia internamente en `sendMouseEvent`.
@@ -410,10 +402,10 @@ def test_click_real_en_thumbnail_no_crasha_al_reconstruir_filmstrip(qtbot):
     por processMouseEvent/sendMouseEvent anidado de cocoa), asi que este
     test verifica la propiedad estructural que lo imposibilita: el click
     solo cambia el clip actual (bordes) SIN destruir/recrear los widgets
-    del filmstrip. Si los widgets se preservan, Qt nunca regresa a un
+    de la hoja. Si los widgets se preservan, Qt nunca regresa a un
     widget ya destruido y la condicion de carrera desaparece.
 
-    Bonus de bug confirmado por la misma cadena: `_refresh_filmstrip`
+    Bonus de bug confirmado por la misma cadena: `_refresh_clip_sheet`
     recrea los widgets con thumbnail_path=None, perdiendo los pixmaps
     ya cargados por los _ThumbnailJob -- hacer click en un clip borraba
     las miniaturas de todos. Preservar los widgets tambien lo arregla.
@@ -434,31 +426,31 @@ def test_click_real_en_thumbnail_no_crasha_al_reconstruir_filmstrip(qtbot):
     window.load_clips(clips)
     # simula miniaturas ya cargadas en background por los _ThumbnailJob
     pixmap_widths = []
-    for w in window.filmstrip.item_widgets:
+    for w in window.clip_sheet.item_widgets:
         pm = QPixmap(50, 50)
         pm.fill()
         w.set_pixmap(pm)
-        pixmap_widths.append(w._image_label.pixmap().width())
-    ids_antes = [id(w) for w in window.filmstrip.item_widgets]
+        pixmap_widths.append(w.image_label.pixmap().width())
+    ids_antes = [id(w) for w in window.clip_sheet.item_widgets]
     assert all(pw > 0 for pw in pixmap_widths)
 
     # click real con QTest (mecanismo interno de qtbot.mouseClick) sobre
     # la tercera miniatura, sin mantener ref python sostenida aparte.
     QTest.mouseClick(
-        window.filmstrip.item_widgets[2], Qt.LeftButton, Qt.NoModifier, QPoint(5, 5)
+        window.clip_sheet.item_widgets[2], Qt.LeftButton, Qt.NoModifier, QPoint(5, 5)
     )
 
     # la seleccion cambio y el reproductor cargo el clip correcto
     assert window.current_index == 2
-    assert window.video_widget.player._mpv.loaded_path == "/c.MP4"
+    assert window.video_stage.video.player._mpv.loaded_path == "/c.MP4"
     # no se reconstruyo el filmstrip: mismos widgets (mismos ids) y pixmaps
     # preservados -> imposibilita el crash y la perdida de miniaturas.
-    ids_despues = [id(w) for w in window.filmstrip.item_widgets]
+    ids_despues = [id(w) for w in window.clip_sheet.item_widgets]
     assert ids_despues == ids_antes, (
         "el filmstrip se reconstruyo durante el click -> los widgets se "
         "destruyen dentro de su propio mousePressEvent (crash nativo real)"
     )
-    widths_despues = [w._image_label.pixmap().width() for w in window.filmstrip.item_widgets]
+    widths_despues = [w.image_label.pixmap().width() for w in window.clip_sheet.item_widgets]
     assert widths_despues == pixmap_widths, (
         "los pixmaps ya cargados se perdieron al reconstruir el filmstrip"
     )
@@ -470,7 +462,7 @@ def test_marcar_in_actualiza_la_scrub_bar_visiblemente(qtbot):
     qtbot.waitExposed(window)
     clips = [Clip(orden=1, ruta=Path("/a.MP4"), categoria_path=[], fps=60.0)]
     window.load_clips(clips)
-    window.video_widget.player._mpv.time_pos = 2.0
+    window.video_stage.video.player._mpv.time_pos = 2.0
     assert window.scrub_bar._in_frame is None
     window.handle_key_press("i")
     assert window.scrub_bar._in_frame == 120
@@ -483,7 +475,7 @@ def test_marcar_out_y_deshacer_se_reflejan_en_la_scrub_bar(qtbot):
     qtbot.waitExposed(window)
     clips = [Clip(orden=1, ruta=Path("/a.MP4"), categoria_path=[], fps=30.0)]
     window.load_clips(clips)
-    window.video_widget.player._mpv.time_pos = 4.0
+    window.video_stage.video.player._mpv.time_pos = 4.0
     window.handle_key_press("o")
     assert window.scrub_bar._out_frame == 120
     window.handle_key_press("u")
@@ -510,7 +502,7 @@ def test_tick_playhead_actualiza_la_posicion_de_la_scrub_bar(qtbot):
     window.show()
     qtbot.waitExposed(window)
     window.load_clips([Clip(orden=1, ruta=Path("/a.MP4"), categoria_path=[], fps=30.0)])
-    window.video_widget.player._mpv.time_pos = 7.0
+    window.video_stage.video.player._mpv.time_pos = 7.0
     window._tick_playhead()
     assert window.scrub_bar._position == 7.0
 
@@ -521,7 +513,7 @@ def test_tecla_i_marca_in_en_el_clip_actual_con_el_fps_del_clip(qtbot):
     qtbot.waitExposed(window)
     clips = [Clip(orden=1, ruta=Path("/a.MP4"), categoria_path=[], fps=60.0)]
     window.load_clips(clips)
-    window.video_widget.player._mpv.time_pos = 2.0
+    window.video_stage.video.player._mpv.time_pos = 2.0
     window.handle_key_press("i")
     assert window.current_clip.in_frame == 120
 
@@ -532,7 +524,7 @@ def test_tecla_o_marca_out(qtbot):
     qtbot.waitExposed(window)
     clips = [Clip(orden=1, ruta=Path("/a.MP4"), categoria_path=[], fps=60.0)]
     window.load_clips(clips)
-    window.video_widget.player._mpv.time_pos = 5.0
+    window.video_stage.video.player._mpv.time_pos = 5.0
     window.handle_key_press("o")
     assert window.current_clip.out_frame == 300
 
@@ -543,7 +535,7 @@ def test_tecla_u_limpia_in_out_del_clip(qtbot):
     qtbot.waitExposed(window)
     clips = [Clip(orden=1, ruta=Path("/a.MP4"), categoria_path=[], fps=60.0)]
     window.load_clips(clips)
-    window.video_widget.player._mpv.time_pos = 2.0
+    window.video_stage.video.player._mpv.time_pos = 2.0
     window.handle_key_press("i")
     window.handle_key_press("u")
     assert window.current_clip.in_frame is None
@@ -572,7 +564,7 @@ def test_presionar_tecla_de_cuarto_con_multiseleccion_aplica_a_todos_los_selecci
         Clip(orden=3, ruta=Path("/c.MP4"), categoria_path=[], fps=30.0),
     ]
     window.load_clips(clips)
-    window.filmstrip.set_selected({0, 2})
+    window.clip_sheet.set_selected({0, 2})
     window.handle_key_press("2")  # "Cocina"
     assert window.clips[0].categoria_path == ["Cocina"]
     assert window.clips[1].categoria_path == []  # no estaba seleccionado
@@ -588,7 +580,7 @@ def test_seleccion_de_un_solo_clip_no_activa_modo_lote(qtbot):
         Clip(orden=2, ruta=Path("/b.MP4"), categoria_path=[], fps=30.0),
     ]
     window.load_clips(clips)
-    window.filmstrip.set_selected({0})
+    window.clip_sheet.set_selected({0})
     window.handle_key_press("2")
     assert window.clips[0].categoria_path == ["Cocina"]
     assert window.clips[1].categoria_path == []
@@ -602,16 +594,16 @@ def test_toolbar_muestra_posicion_y_resumen_de_estado(qtbot):
         Clip(orden=3, ruta=Path("/c.MP4"), categoria_path=[], fps=30.0),
     ]
     window.load_clips(clips)
-    assert window.position_label.text() == "Clip 01 / 3"
-    assert "1 pick" in window.progress_label.text()
-    assert "1 reject" in window.progress_label.text()
-    assert "3 sin clasificar" in window.unclassified_badge.text()
+    assert "1 / 3" in window.video_stage.file_label.text()
+    assert "1 picks" in window.room_rail.flags_label.text()
+    assert "1 rejects" in window.room_rail.flags_label.text()
+    assert "3 sin clasificar" in window.status_bar.unclassified_label.text()
 
 
 def test_badge_sin_clasificar_se_vacia_cuando_todo_esta_clasificado(qtbot):
     window = _window(qtbot)
     window.load_clips([Clip(orden=1, ruta=Path("/a.MP4"), categoria_path=["Sala"], fps=30.0)])
-    assert window.unclassified_badge.text() == ""
+    assert window.status_bar.unclassified_label.text() == ""
 
 
 def test_inspector_muestra_metadata_del_clip_actual(qtbot):
@@ -619,22 +611,24 @@ def test_inspector_muestra_metadata_del_clip_actual(qtbot):
     window.load_clips([
         Clip(orden=1, ruta=Path("/a.MP4"), categoria_path=["Cocina"], fps=30.0, flag="pick"),
     ])
-    assert window.inspector_file_label.text() == "a.MP4"
-    assert window.inspector_room_label.text() == "Cocina"
-    assert window.inspector_state_label.text() == "✓ Pick"
+    # el panel inspector de 200 px murio: el nombre y los datos tecnicos
+    # van a la barra de estado, y cuarto y estado a los badges sobre el video
+    assert "a.MP4" in window.status_bar.clip_label.text()
+    assert "COCINA" in window.video_stage.badges.text()
+    assert "PICK" in window.video_stage.badges.text()
 
 
 def test_inspector_muestra_breadcrumb_de_subcuarto(qtbot):
     window = _window(qtbot)
     window.load_clips([Clip(orden=1, ruta=Path("/a.MP4"), categoria_path=["Recámara", "Recámara 1"], fps=30.0)])
-    assert window.inspector_room_label.text() == "Recámara › Recámara 1"
+    assert "RECÁMARA › RECÁMARA 1" in window.video_stage.badges.text()
 
 
 def test_banner_de_subcuarto_aparece_al_entrar_en_modo_subcuarto(qtbot):
     window = _window(qtbot)
     window.load_clips([Clip(orden=1, ruta=Path("/a.MP4"), categoria_path=[], fps=30.0)])
     window._router.subrooms = {}  # "Cocina" (2) no tiene subcuartos conocidos aun
-    assert window.subroom_banner.isHidden()
+    assert window.room_rail.subroom_banner.isHidden()
 
 
 def test_banner_de_subcuarto_se_oculta_al_resolver(qtbot, monkeypatch):
@@ -643,9 +637,9 @@ def test_banner_de_subcuarto_se_oculta_al_resolver(qtbot, monkeypatch):
     window.load_clips([Clip(orden=1, ruta=Path("/a.MP4"), categoria_path=[], fps=30.0)])
     window._router.pending_parent = "Sala"
     window._update_subroom_banner()
-    assert not window.subroom_banner.isHidden()
+    assert not window.room_rail.subroom_banner.isHidden()
     window.handle_key_press("9")  # tecla que no resuelve subcuarto -> sale del modo
-    assert window.subroom_banner.isHidden()
+    assert window.room_rail.subroom_banner.isHidden()
 
 
 def test_columna_de_cuartos_muestra_contador_de_clips(qtbot):
@@ -655,7 +649,8 @@ def test_columna_de_cuartos_muestra_contador_de_clips(qtbot):
         Clip(orden=2, ruta=Path("/b.MP4"), categoria_path=["Sala"], fps=30.0),
     ]
     window.load_clips(clips)
-    assert window.room_list_widget.item(0).text() == "Sala (2)"
+    assert window.room_rail.rows[0].nombre == "Sala"
+    assert window.room_rail.rows[0].count_label.text() == "2"
 
 
 def test_cada_accion_dispara_autosave(qtbot, monkeypatch, tmp_path):
@@ -739,7 +734,7 @@ def test_exportar_escribe_manifest_con_formato_del_plugin(qtbot, monkeypatch, tm
                         lambda *a, **k: (str(out), ""))
     monkeypatch.setattr("clasificador_video.ui.main_window.QMessageBox.warning",
                         lambda *a, **k: QMessageBox.Ok)
-    window.export_button.click()
+    window.title_bar.export_button.click()
     import json
     saved = json.loads(out.read_text())
     assert saved["proyecto"] == "Casa Jardin"
@@ -761,48 +756,44 @@ def test_exportar_avisa_si_hay_clips_sin_clasificar_sin_bloquear(qtbot, monkeypa
                         lambda *a, **k: (str(out), ""))
     monkeypatch.setattr("clasificador_video.ui.main_window.QMessageBox.warning",
                         lambda *a, **k: warns.append(1) or QMessageBox.Ok)
-    window.export_button.click()
+    window.title_bar.export_button.click()
     assert warns == [1]
     assert out.exists()
 
 
 def test_widgets_clave_tienen_objectname_para_el_tema(qtbot):
     window = _window(qtbot)
-    assert window.video_widget.objectName() == "videoWidget"
-    assert window.export_button.objectName() == "exportButton"
-    assert window.legend_label.objectName() == "legendLabel"
-    assert window.status_label.objectName() == "statusLabel"
+    assert window.video_stage.video.objectName() == "videoWidget"
+    assert window.title_bar.export_button.objectName() == "exportButton"
+    assert window.room_rail.objectName() == "roomRail"
+    assert window.clip_sheet.objectName() == "clipSheet"
+    assert window.status_bar.objectName() == "statusBar"
 
 
-def test_titulo_de_la_columna_de_cuartos_tiene_objectname_de_panel(qtbot):
-    window = _window(qtbot)
-    assert window.room_title_label.objectName() == "panelTitle"
-
-
-def test_scrub_time_label_vacio_sin_clip(qtbot):
+def test_timecode_overlay_vacio_sin_clip(qtbot):
     window = _window_with_video(qtbot)
-    assert window.scrub_time_label.text() == ""
+    assert window.video_stage.timecode_label.text() == ""
 
 
-def test_scrub_time_label_muestra_in_y_out(qtbot):
+def test_timecode_overlay_muestra_in_y_out(qtbot):
     window = _window_with_video(qtbot)
     clips = [
         Clip(orden=1, ruta=Path("/a.MP4"), categoria_path=[], fps=30.0, in_frame=300, out_frame=900)
     ]
     window.load_clips(clips)
     window._update_scrub_bar()
-    text = window.scrub_time_label.text()
+    text = window.video_stage.timecode_label.text()
     assert "IN 00:10:00" in text
     assert "OUT 00:30:00" in text
-    assert "dur 20s" in text
+    assert "rango 20s" in text
 
 
-def test_scrub_time_label_sin_in_ni_out_no_muestra_esos_segmentos(qtbot):
+def test_timecode_overlay_sin_in_ni_out_no_muestra_esos_segmentos(qtbot):
     window = _window_with_video(qtbot)
     clips = [Clip(orden=1, ruta=Path("/a.MP4"), categoria_path=[], fps=30.0)]
     window.load_clips(clips)
     window._update_scrub_bar()
-    text = window.scrub_time_label.text()
+    text = window.video_stage.timecode_label.text()
     assert "IN " not in text
     assert "OUT " not in text
 
@@ -811,19 +802,19 @@ def test_scrub_bar_seek_started_pausa_el_player(qtbot):
     window = _window_with_video(qtbot)
     clips = [Clip(orden=1, ruta=Path("/a.MP4"), categoria_path=[], fps=30.0)]
     window.load_clips(clips)
-    window.video_widget.player.play()
-    assert window.video_widget.player.is_paused is False
+    window.video_stage.video.player.play()
+    assert window.video_stage.video.player.is_paused is False
     window.scrub_bar.seek_started.emit()
-    assert window.video_widget.player.is_paused is True
+    assert window.video_stage.video.player.is_paused is True
 
 
 def test_scrub_bar_seek_requested_mueve_el_player_y_la_barra(qtbot):
     window = _window_with_video(qtbot)
     clips = [Clip(orden=1, ruta=Path("/a.MP4"), categoria_path=[], fps=30.0)]
     window.load_clips(clips)
-    window.video_widget.player._mpv.duration = 60.0
+    window.video_stage.video.player._mpv.duration = 60.0
     window.scrub_bar.seek_requested.emit(15.0)
-    assert window.video_widget.player._mpv.time_pos == 15.0
+    assert window.video_stage.video.player._mpv.time_pos == 15.0
     assert window.scrub_bar._position == 15.0
 
 
@@ -891,3 +882,75 @@ def test_aspect_ratio_ignora_tamanos_invalidos(qtbot):
     window = _window(qtbot)
     window._clip_sizes = {0: (0, 0)}
     assert window.aspect_ratio_for(0) == 16 / 9
+
+
+# ---------------------------------------------------------------------------
+# F2: estructura. Estas son las medidas OBJETIVAS de la fase -- se verifican
+# con una regla, no con una opinion sobre si "se ve bien".
+# ---------------------------------------------------------------------------
+
+
+def test_la_ventana_no_tiene_bandas_horizontales(qtbot):
+    """El layout raiz solo puede tener tres filas: barra de titulo, cuerpo
+    y barra de estado. Cualquier cuarta fila es una banda, y en un clip
+    9:16 cada 16 px de banda cuestan 9 px de ancho de video."""
+    window = _window_with_video(qtbot)
+    assert window.layout().count() == 3
+
+
+def test_alturas_fijas_de_las_barras(qtbot):
+    window = _window_with_video(qtbot)
+    assert window.title_bar.height() == theme.TITLEBAR_HEIGHT
+    assert window.status_bar.height() == theme.STATUSBAR_HEIGHT
+
+
+def test_anchos_fijos_de_los_rails(qtbot):
+    window = _window_with_video(qtbot)
+    assert window.room_rail.width() == theme.RAIL_WIDTH
+    assert window.tool_column.width() == theme.TOOLCOL_WIDTH
+
+
+def test_un_clip_vertical_ocupa_el_ancho_del_mockup(qtbot):
+    """LA medida de la F2. Ventana 1600x1000, clip 9:16:
+    cuerpo = 1000 - 36 - 24 = 940, video = 940 * 9/16 = 529.
+    El diseño viejo daba 328."""
+    window = _window_with_video(qtbot)
+    window.resize(1600, 1000)
+    window._clip_sizes = {0: (2160, 3840)}
+    window.load_clips([Clip(orden=1, ruta=Path("/tmp/a.mp4"), categoria_path=[], fps=29.97)])
+    window._resize_video_stage()
+    assert window.video_stage.width() == 529
+
+
+def test_un_clip_horizontal_no_desborda_la_hoja(qtbot):
+    """El video crece hasta donde la hoja conserva su minimo."""
+    window = _window_with_video(qtbot)
+    window.resize(1600, 1000)
+    window._clip_sizes = {0: (3840, 2160)}
+    window.load_clips([Clip(orden=1, ruta=Path("/tmp/a.mp4"), categoria_path=[], fps=29.97)])
+    window._resize_video_stage()
+    maximo = 1600 - theme.RAIL_WIDTH - theme.TOOLCOL_WIDTH - theme.SHEET_MIN_WIDTH
+    assert window.video_stage.width() == maximo
+
+
+def test_cambiar_de_clip_reajusta_el_ancho_del_video(qtbot):
+    """Decision tomada con Bruno: la pantalla salta al cambiar de
+    orientacion, priorizando el aprovechamiento sobre la estabilidad."""
+    window = _window_with_video(qtbot)
+    window.resize(1600, 1000)
+    window._clip_sizes = {0: (2160, 3840), 1: (3840, 2160)}
+    window.load_clips([
+        Clip(orden=1, ruta=Path("/tmp/a.mp4"), categoria_path=[], fps=29.97),
+        Clip(orden=2, ruta=Path("/tmp/b.mp4"), categoria_path=[], fps=29.97),
+    ])
+    window._resize_video_stage()
+    vertical = window.video_stage.width()
+    window.handle_arrow("next")
+    assert window.video_stage.width() > vertical
+
+
+def test_los_controles_del_video_no_son_hermanos_del_video(qtbot):
+    """Si lo fueran volverian a ser bandas."""
+    window = _window_with_video(qtbot)
+    assert window.video_stage.scrub_bar.parent() is window.video_stage.video
+    assert window.video_stage.timecode_label.parent() is window.video_stage.video

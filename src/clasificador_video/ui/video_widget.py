@@ -12,8 +12,8 @@ from PySide6.QtWidgets import QWidget
 
 from clasificador_video.player import MpvPlayer
 from clasificador_video.ui.theme import (
-    ACCENT,
-    BORDER,
+    CURRENT_COLOR,
+    LINE,
     PLAYHEAD_HIGHLIGHT,
     TICK_MAJOR_COLOR,
     TICK_MINOR_COLOR,
@@ -215,7 +215,7 @@ class ScrubBar(QWidget):
     def track_color(self) -> QColor:
         if self._over_video:
             return QColor(*TRACK_OVER_VIDEO_RGBA)
-        return QColor(BORDER)
+        return QColor(LINE)
 
     def set_duration(self, seconds: float) -> None:
         self._duration = max(seconds, 0.0)
@@ -344,14 +344,14 @@ class ScrubBar(QWidget):
             point_path = self._playhead_point_path(x, track_y)
             gradient = QLinearGradient(0, track_y - 13, 0, track_y - 6)
             gradient.setColorAt(0.0, QColor(PLAYHEAD_HIGHLIGHT))
-            gradient.setColorAt(1.0, QColor(ACCENT))
+            gradient.setColorAt(1.0, QColor(CURRENT_COLOR))
             painter.setPen(Qt.PenStyle.NoPen)
             painter.setBrush(QBrush(gradient))
             painter.drawPath(body_path)
-            painter.setBrush(QColor(ACCENT))
+            painter.setBrush(QColor(CURRENT_COLOR))
             painter.drawPath(point_path)
             painter.setBrush(Qt.BrushStyle.NoBrush)
-            painter.setPen(QPen(QColor(ACCENT), 2))
+            painter.setPen(QPen(QColor(CURRENT_COLOR), 2))
             painter.drawLine(round(x), track_y, round(x), self.height() - 2)
 
         painter.end()

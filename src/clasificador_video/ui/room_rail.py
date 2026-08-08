@@ -128,9 +128,9 @@ class RoomRail(QWidget):
         self.progress_bar = _BarraProgreso()
         pl.addWidget(self.progress_bar)
 
-        self.legend_label = QLabel("")
-        self.legend_label.setObjectName("roomCount")
-        pl.addWidget(self.legend_label)
+        self.flags_label = QLabel("")
+        self.flags_label.setObjectName("roomCount")
+        pl.addWidget(self.flags_label)
         raiz.addWidget(progreso)
 
         # --- encabezado de cuartos ---
@@ -193,7 +193,7 @@ class RoomRail(QWidget):
         self._pendientes = pendientes
 
     def set_flags(self, picks: int, rejects: int, sin_clasificar: int) -> None:
-        self.legend_label.setText(
+        self.flags_label.setText(
             f"● {picks} picks   ● {rejects} rejects   ● {sin_clasificar} sin clasificar"
         )
 

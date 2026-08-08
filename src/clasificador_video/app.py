@@ -68,11 +68,6 @@ def _restore_session(window: MainWindow, session_path: Path) -> None:
     ):
         return
     window.room_selection = _rebuild_room_selection(data.get("rooms", []))
-    window.room_list_widget.clear()
-    window.room_list_widget.addItems(window.room_selection.active_rooms())
-    from clasificador_video.ui.main_window import _build_legend_text
-
-    window.legend_label.setText(_build_legend_text(window.room_selection.active_rooms()))
     tree_data = data.get("category_tree", {})
     for parent, subrooms in tree_data.items():
         for subroom in subrooms:

@@ -59,7 +59,7 @@ def test_progreso_muestra_clasificados_sobre_total(qtbot):
 def test_leyenda_de_estados(qtbot):
     rail = _rail(qtbot)
     rail.set_flags(41, 9, 12)
-    texto = rail.legend_label.text()
+    texto = rail.flags_label.text()
     assert "41 picks" in texto and "9 rejects" in texto and "12 sin clasificar" in texto
 
 
