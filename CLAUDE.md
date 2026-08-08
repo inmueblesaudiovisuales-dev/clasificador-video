@@ -46,16 +46,29 @@ se toque el archivo.
   `tests/test_app.py` tiene un cuelgue preexistente en entornos sin pantalla
   real (limitación del `QOpenGLWidget` de video bajo `offscreen`, confirmada
   en varias sesiones) — no perseguirlo, no es un bug a resolver.
-- **Verificación visual real, no solo tests**: para cambios de UI, construir
-  una `MainWindow`/widget de prueba, usar `grab()`, guardar el PNG, y leerlo
-  con la herramienta de lectura de archivos antes de afirmar que algo se ve
-  bien. Patrón ya usado en varias sesiones (ver scripts temporales en el
-  historial de `docs/superpowers/plans/`).
+- **Verificación visual real, no solo tests**: nunca afirmar que algo se ve
+  bien sin haber visto el pixel. El medio depende del artefacto:
+  - **Widget de PySide6** — construir una `MainWindow`/widget de prueba, usar
+    `grab()`, guardar el PNG y leerlo con la herramienta de lectura de
+    archivos.
+  - **Mockup o documento HTML** — servirlo (`python3 -m http.server` sobre su
+    carpeta), abrirlo con una herramienta de navegador, sacar captura y
+    leerla.
+
+  En los dos casos vale la misma regla: si no se miró la imagen, no se
+  afirma. Y los archivos temporales de esa verificación van al scratchpad de
+  la sesión, nunca al repo.
 - **Brainstorm antes de features nuevas o cambios visuales** — este proyecto
   usa el flujo de `superpowers:brainstorming` → spec en
   `docs/superpowers/specs/` → plan en `docs/superpowers/plans/` →
   implementación con TDD. Los specs y planes de sesiones anteriores son la
   fuente de verdad de decisiones ya tomadas — revisarlos antes de asumir.
+
+  **Excepción**: si ya existe un brief o spec escrito que cubre el trabajo
+  pedido, ese documento *es* el resultado del brainstorm y no hace falta
+  repetirlo (por ejemplo `PROMPT-REDISENO-2026-08-08.md`, que originó el
+  rediseño de la UI). Rehacer el brainstorm cuando los requisitos ya están
+  por escrito solo le hace perder tiempo a Bruno.
 
 ## Decisiones de arquitectura ya tomadas (no las reabras sin razón nueva)
 

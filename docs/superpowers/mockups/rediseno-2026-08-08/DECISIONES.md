@@ -60,7 +60,7 @@ estado (24 px). Cada control se fue a un lugar que no cuesta altura:
 1. **Flotando sobre el video** — timecode, scrub bar, in/out, nombre de
    archivo, velocidad, calidad, badges de estado. En un clip vertical caen
    dentro del cuadro, como un reproductor a pantalla completa. Se
-   auto-ocultan mientras navegás rápido.
+   auto-ocultan mientras navegas rápido.
 2. **Columna vertical de 56 px** — estado del clip (in/out puestos, pick,
    destacado, reject). Una columna cuesta ancho, y ancho es lo que sobra.
 3. **Barra de estado** — datos técnicos que se consultan, no se persiguen.
@@ -74,18 +74,18 @@ Marcar pick obliga a ver el clip. No hay atajo posible, así que el diseño
 optimiza el **tiempo de visionado**, no cómo evitarlo:
 
 - **Reproducción automática al cambiar de clip.** Apretar espacio 128 veces
-  es puro peaje. Llegás al clip y ya está corriendo (badge `▶ auto`).
+  es puro peaje. Llegas al clip y ya está corriendo (badge `▶ auto`).
 - **Velocidad con tecla** — `1× / 2× / 4×`. Para juzgar un recorrido no hace
   falta verlo a velocidad real.
 - **Arranque al 25% del clip**, no en el frame 0: el principio siempre es la
   cámara acomodándose.
-- **Precarga del siguiente clip** mientras mirás el actual (`siguiente clip
+- **Precarga del siguiente clip** mientras miras el actual (`siguiente clip
   precargado ✓` en la barra de estado). Medio segundo de espera por clip son
   más de un minuto por shooting, y es lo que hace *sentir* lenta a una app.
 
 ## Miniaturas escrubeables
 
-Cuando la miniatura no te dice el cuarto, tenés que abrir el clip — y ahí
+Cuando la miniatura no te dice el cuarto, tienes que abrir el clip — y ahí
 perdiste el tiempo que el modo hoja te ahorraba. En un recorrido el primer
 frame suele ser una puerta, una pared o movimiento borroso.
 
@@ -111,8 +111,8 @@ pensar.
 ## Pincel de cuarto
 
 El truco más subestimado del módulo Library de Lightroom es el *spray can*:
-cargás una palabra clave y la pintás sobre las miniaturas arrastrando.
-Traducido acá: **mantené `1`–`9` y arrastrá el mouse sobre las tarjetas** —
+cargas una palabra clave y la pintas sobre las miniaturas arrastrando.
+Traducido aquí: **mantén `1`–`9` y arrastra el mouse sobre las tarjetas** —
 todas las que toques quedan en ese cuarto. Una racha de seis se clasifica con
 un gesto, sin seleccionar primero y asignar después.
 
@@ -126,7 +126,7 @@ Que funcione bien depende de cinco detalles, no de la idea:
    hace marquesina de selección, como siempre. El pincel solo existe mientras
    la tecla está abajo, así que no se puede disparar por accidente.
 2. **El cursor lleva su carga visible** — un punto del color del cuarto más
-   un chip con la tecla y el nombre (`5 ▌ Baño 1`). Nunca pintás sin saber qué
+   un chip con la tecla y el nombre (`5 ▌ Baño 1`). Nunca pintas sin saber qué
    estás pintando.
 3. **La tarjeta responde en el momento de tocarla**: la que está bajo el
    cursor se ilumina con el color del cuarto, y las ya pintadas quedan
@@ -134,8 +134,8 @@ Que funcione bien depende de cinco detalles, no de la idea:
 4. **Toda la pincelada es UNA sola entrada de historial.** `⌘Z` deshace las
    seis, no una. Si deshiciera clip por clip, el pincel sería una trampa: un
    gesto rápido que cuesta seis acciones revertir.
-5. **Los clips no se reagrupan hasta que soltás la tecla.** Si saltaran de
-   grupo mientras pintás, la grilla se reacomodaría bajo el cursor y
+5. **Los clips no se reagrupan hasta que sueltas la tecla.** Si saltaran de
+   grupo mientras pintas, la grilla se reacomodaría bajo el cursor y
    seguirías pintando sobre otra cosa. El encabezado lo dice: *se reagrupan
    al soltar la tecla*.
 
@@ -155,14 +155,14 @@ compartir más estado que los de Lightroom, no menos. Nada se pierde al cruzar:
   con el scroll donde estaba.
 - **`esc` vuelve a la hoja** desde modo clip. Salida obvia, sin pensar.
 - **La selección sobrevive el cruce.** Si tenías seis clips seleccionados y
-  entrás a ver uno, al volver siguen los seis. Es lo que Lightroom hace mal y
+  entras a ver uno, al volver siguen los seis. Es lo que Lightroom hace mal y
   no hay razón para copiarlo.
 - **Transición animada**: la tarjeta crece hasta la posición del visor. Medio
   segundo que evita el "¿dónde estaba?" en cada cruce.
 
 ## Filtros tipo Lightroom que además son la cola de navegación
 
-Los filtros no cambian solo **lo que ves**: cambian **por dónde te movés**.
+Los filtros no cambian solo **lo que ves**: cambian **por dónde te mueves**.
 
 ```
 MOSTRAR   [todos] [sin clasificar] [clasificados]
@@ -170,7 +170,7 @@ ESTADO    [todos] [★ solo destacados] [solo picks] [ocultar rejects] [sin marc
 ```
 
 Con "Sin clasificar" activo, `←/→` recorre únicamente esos 12 clips, en orden,
-y cada uno desaparece de la cola en cuanto lo resolvés. Cuando la cola queda
+y cada uno desaparece de la cola en cuanto lo resuelves. Cuando la cola queda
 vacía, terminaste — sin buscar, sin volver a pasar por nada ya hecho. El chip
 `cola de ←→ · 12 clips` lo dice explícitamente, para que nunca haya dudas de
 qué recorren las flechas.
@@ -180,7 +180,7 @@ literalmente, el botón de "seguí trabajando".
 
 Y por eso el visor **no dice `087 / 128`** sino **`3 de 12 en la cola`**. Tu
 posición en el shooting entero no te sirve de nada mientras estás filtrando;
-lo que querés saber es cuánto falta para terminar lo que estás haciendo.
+lo que quieres saber es cuánto falta para terminar lo que estás haciendo.
 
 ## Cuatro estados, no cinco estrellas
 
@@ -191,7 +191,7 @@ Descarté las cinco estrellas por dos razones:
 1. **Las teclas numéricas no están libres**: `1`–`9` son los cuartos, la
    acción más frecuente que existe. Cederlas a las estrellas sería cambiar el
    atajo barato de la operación cara por el de una secundaria.
-2. **El costo de decidir.** Pick/reject es binario: mirás y apretás. Una
+2. **El costo de decidir.** Pick/reject es binario: miras y aprietas. Una
    escala de cinco te obliga a preguntarte "¿esto es 3 o 4?" en cada clip, y
    esa duda multiplicada por 128 es exactamente la fricción que hace que en
    Lightroom la gente termine usando solo las banderitas en el primer pase.
@@ -213,13 +213,13 @@ Visualmente **no inventa un color nuevo**: destacado es un pick reforzado
 Nada de subcuartos con segunda tecla: `Recámara 1`, `Recámara 2`, `Baño 1`,
 `Baño 2`. Una tecla, un cuarto, sin estado intermedio ni timeout.
 
-La app abre lista para trabajar; no hay paso previo de "elegí los cuartos".
+La app abre lista para trabajar; no hay paso previo de "elige los cuartos".
 El rail izquierdo se edita en el lugar —renombrar, reordenar (que es cambiar
 qué tecla le toca a cada uno), borrar— y los cuartos se crean sobre la marcha.
 
 Nueve teclas no alcanzan con cuartos planos. En vez de un segundo banco de
 atajos —memorizar dieciocho combinaciones es peor que el problema— hay una
-**paleta de asignación rápida**: `⏎` abre un campo, tecleás dos o tres letras,
+**paleta de asignación rápida**: `⏎` abre un campo, tecleas dos o tres letras,
 la lista se filtra en vivo, `⏎` asigna y avanza. Un solo mecanismo cubre tres
 necesidades:
 
