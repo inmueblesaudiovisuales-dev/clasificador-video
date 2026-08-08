@@ -3,6 +3,6 @@
 __pycache__/
 *.pyc
 .DS_Store
-/TEST/
+/sample-media/
 /spike-output.xml
 *.egg-info/
