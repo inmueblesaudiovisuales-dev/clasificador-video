@@ -128,21 +128,43 @@ híbrido.
 
 ## 4. Fases
 
-### F0 — Spike del overlay sobre `QOpenGLWidget` *(bloqueante)*
+### F0 — Spike del overlay sobre `QOpenGLWidget` — ✅ HECHO 2026-08-08
 
-Todo el diseño depende de poner controles flotando encima del video. Antes de
-comprometerse al layout hay que saber si Qt lo permite en macOS con mpv por
-API de render.
+**Resultado: funciona. Se sigue el camino cómodo (widgets normales como hijos
+del `VideoWidget`); no hace falta el plan B.**
 
-- Un `QLabel` semitransparente y una `ScrubBar` como hijos del `VideoWidget`,
-  con el reproductor corriendo material real.
-- Verificar con `grab()` **y mirando la imagen**: que el overlay se vea, que no
-  parpadee, que el video siga debajo.
-- **Terminado cuando** hay una imagen que lo demuestra, o una decisión escrita
-  de pasar al plan B (dibujar los overlays dentro de `paintGL` con `QPainter`).
+Cómo se probó: `VideoWidget` reproduciendo material real de
+`sample-media/clips/` (HEVC 10-bit de la FX30, clip vertical), con cuatro
+overlays como hijos directos —un `QLabel` con fondo `rgba(...,60)`, un scrim
+con `qlineargradient` de transparente a negro, un timecode con fondo
+transparente y una `ScrubBar` completa— capturado con `grab()` dos veces
+mientras reproducía (posiciones 2.19 s y 3.69 s).
 
-Si esto falla y no se detecta ahora, se descubre en la F2 con el layout ya a
-medio hacer. Es media hora que protege semanas.
+Lo que quedó demostrado:
+
+- Los widgets se componen **encima** del contenido de OpenGL.
+- El alfa se mezcla **contra los pixeles del video**, no contra negro: con
+  `rgba(10,12,15,60)` la imagen se ve claramente a través. Esto es lo que
+  hace posibles los scrims del mockup.
+- Los degradados de QSS funcionan como overlay.
+- La `ScrubBar` —widget de `QPainter`— funciona como hijo del `VideoWidget`
+  sin tocar su `paintEvent`.
+- Dos capturas en momentos distintos con el video corriendo salen ambas
+  correctas: no desaparece ni parpadea.
+
+**Receta para la F2, encontrada en el spike:** un widget de `QPainter` puesto
+sobre el `VideoWidget` pinta fondo **opaco** en el área que no dibuja, y tapa
+el video. Se arregla con
+`widget.setAttribute(Qt.WA_TranslucentBackground, True)`. Sin esa bandera la
+`ScrubBar` se comía una franja del video; con ella, la imagen se ve entre las
+marcas. **Aplicar a todo overlay de dibujo propio.**
+
+Salvedad honesta: la verificación es con `grab()`, que es el composite del
+propio Qt, no una foto de la pantalla. `screencapture` falló por falta de
+permiso de Grabación de Pantalla. `grab()` ya detectó en este proyecto un
+problema real de GL (el caso `wid` de agosto), así que se considera evidencia
+suficiente; si más adelante se concede el permiso, conviene repetir la
+comprobación contra la pantalla real.
 
 ### F1 — Tokens y arnés
 
@@ -169,7 +191,8 @@ scrub bar, selección múltiple, asignación en lote, autoguardado, exportar.
 - El chrome del video pasa a overlay (nombre, índice en la cola, calidad,
   velocidad, badges, timecode, scrub bar).
 - La `ScrubBar` se muda encima del video. **Sigue siendo `QPainter` en
-  `paintEvent`** — la decisión de arquitectura de `CLAUDE.md` no se toca.
+  `paintEvent`** — la decisión de arquitectura de `CLAUDE.md` no se toca —
+  y lleva `WA_TranslucentBackground` por lo que encontró la F0.
 - Se borra en el mismo commit: `legend_label`, `ingest_list`,
   `inspector_panel`, `scrub_time_label`, `top_bar`, el `Filmstrip` viejo.
 - **Terminado cuando** la comparación lado a lado muestra la misma estructura
