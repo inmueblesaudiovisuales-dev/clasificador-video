@@ -1,7 +1,11 @@
 # src/clasificador_video/keyboard.py
 from __future__ import annotations
 
-ACTION_KEYS = {"p": "pick", "x": "reject", "u": "none"}
+# Sin `"u": "none"`: era inalcanzable. `MainWindow.handle_key_press`
+# intercepta la `u` antes que el router --ahi limpia el in/out del clip-- y
+# hace return, asi que el router nunca la veia. El estado neutral se va a
+# alcanzar repitiendo `P` o `X` sobre un clip que ya lo tiene (F7).
+ACTION_KEYS = {"p": "pick", "x": "reject"}
 
 
 class KeyboardRouter:

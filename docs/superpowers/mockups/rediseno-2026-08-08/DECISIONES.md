@@ -266,6 +266,7 @@ memoria.
 | `P` `X` | pick / reject — repetir la tecla vuelve a neutral |
 | `⇧P` | destacado |
 | `I` `O` | marcar in / out |
+| `U` | borrar el in/out del clip |
 | `⇥` | alternar modo clip ↔ modo hoja, siempre sobre el clip actual |
 | doble click | abrir esa tarjeta en modo clip |
 | `esc` | volver a la hoja (o limpiar la selección) |
@@ -275,8 +276,11 @@ memoria.
 | `⌘Z` | deshacer |
 | arrastre · `⇧`+click · `⌘A` | selección múltiple |
 
-**No hay tecla de "neutral"**: `P` sobre un clip que ya es pick lo devuelve a
-neutral, igual `X`. Menos atajos se aprenden más rápido y no dudás. Tampoco
+**No hay tecla de "neutral"** *para el flag*: `P` sobre un clip que ya es pick
+lo devuelve a neutral, igual `X`. El **rango** sí tiene la suya —`U` borra el
+in/out—, porque ahí no hay tecla que repetir: `I` y `O` marcan una posición, no
+alternan un estado. `U` es anterior al rediseño, funciona, y se confirmó
+explícitamente el 2026-08-08 al detectar que estaba fuera de esta tabla. Menos atajos se aprenden más rápido y no dudás. Tampoco
 existe ya `⇧`+`1`–`9` ("asignar sin avanzar"): era una sutileza que nadie iba
 a usar.
 

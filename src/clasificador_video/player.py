@@ -79,12 +79,15 @@ class MpvPlayer:
             raise ValueError(f"perfil de calidad desconocido: '{profile_name}'")
         self._mpv.vid_scale = QUALITY_PROFILES[profile_name]
 
+    # Los dos pasan por `self.position`, no por `self._mpv.time_pos`: mpv no
+    # reporta la posicion apenas se abre el clip, y leerla cruda hacia que
+    # apretar `I` en ese momento tirara un TypeError contra None.
     def mark_in(self, fps: float) -> int:
-        self.in_frame = round(self._mpv.time_pos * fps)
+        self.in_frame = round(self.position * fps)
         return self.in_frame
 
     def mark_out(self, fps: float) -> int:
-        self.out_frame = round(self._mpv.time_pos * fps)
+        self.out_frame = round(self.position * fps)
         return self.out_frame
 
     def clear_in_out(self) -> None:

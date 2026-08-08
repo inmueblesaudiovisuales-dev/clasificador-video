@@ -34,5 +34,11 @@ def test_pick_reject_se_resuelven_directo():
     router = KeyboardRouter(active_rooms=["Sala"])
     assert router.resolve_action_key("p") == "pick"
     assert router.resolve_action_key("x") == "reject"
-    assert router.resolve_action_key("u") == "none"
     assert router.resolve_action_key("z") is None
+
+
+def test_la_u_no_es_una_accion_del_router():
+    """Era `"u": "none"` y estaba muerto: MainWindow.handle_key_press la
+    intercepta antes --ahi limpia el in/out-- y hace return, asi que el
+    router nunca la veia."""
+    assert KeyboardRouter(active_rooms=["Sala"]).resolve_action_key("u") is None

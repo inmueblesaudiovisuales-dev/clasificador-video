@@ -162,3 +162,15 @@ def test_is_paused_refleja_estado_del_mpv():
     assert player.is_paused is True
     player.play()
     assert player.is_paused is False
+
+
+def test_marcar_in_recien_abierto_el_clip_no_revienta():
+    """Bug real: `position` y `duration` se protegen de que mpv todavia no
+    reporte `time_pos` --lo dice su propio comentario-- pero `mark_in` lo
+    leia crudo. Apretar `I` apenas abierto el clip tiraba
+    `TypeError: unsupported operand type(s) for *: 'NoneType' and 'float'`.
+    """
+    player = MpvPlayer(mpv_factory=FakeMpv)
+    player._mpv.time_pos = None
+    assert player.mark_in(fps=30.0) == 0
+    assert player.mark_out(fps=30.0) == 0

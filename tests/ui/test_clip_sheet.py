@@ -345,3 +345,40 @@ def test_no_hay_alto_fijo_de_banda(qtbot):
     perdia 250 px de alto."""
     sheet = _sheet(qtbot, [_clip(0, "Sala")])
     assert sheet.maximumHeight() > 1000
+
+
+# --- ⌘A selecciona el grupo -------------------------------------------------
+#
+# La hoja lo ANUNCIA en el encabezado de cada grupo desde la F2.1. Un atajo
+# anunciado y ausente es la clase de detalle que hace desconfiar de una
+# herramienta (mismo caso que el Ctrl+Z que la F4 va a cerrar).
+
+
+def test_seleccionar_el_grupo_del_clip_actual(qtbot):
+    sheet = _sheet(qtbot, [_clip(0, "Sala"), _clip(1, "Cocina"), _clip(2, "Sala")])
+    sheet.set_current(0)
+    sheet.select_current_group()
+    assert sheet.selected_indices() == [0, 2]
+
+
+def test_seleccionar_el_grupo_de_los_sin_clasificar(qtbot):
+    """Es la cola de trabajo: es el grupo donde mas sirve seleccionar todo."""
+    sheet = _sheet(qtbot, [_clip(0, None), _clip(1, "Cocina"), _clip(2, None)])
+    sheet.set_current(2)
+    sheet.select_current_group()
+    assert sheet.selected_indices() == [0, 2]
+
+
+def test_sin_clip_actual_no_selecciona_nada(qtbot):
+    sheet = _sheet(qtbot, [_clip(0, "Sala")])
+    sheet.set_current(-1)
+    sheet.select_current_group()
+    assert sheet.selected_indices() == []
+
+
+def test_seleccionar_el_grupo_emite_la_seleccion(qtbot):
+    sheet = _sheet(qtbot, [_clip(0, "Sala"), _clip(1, "Sala")])
+    sheet.set_current(0)
+    with qtbot.waitSignal(sheet.selection_changed) as blocker:
+        sheet.select_current_group()
+    assert blocker.args == [[0, 1]]

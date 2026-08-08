@@ -600,6 +600,21 @@ class ClipSheet(QWidget):
             self._anchor = index
         self.set_selected(nueva)
 
+    def select_current_group(self) -> None:
+        """Selecciona todos los clips del grupo del clip actual.
+
+        Es lo que anuncia el encabezado de cada grupo (`⌘A selecciona el
+        grupo`). Donde mas rinde es en "Sin clasificar", que es la cola de
+        trabajo: seleccionar la racha entera y asignarle un cuarto de una.
+        """
+        if not 0 <= self._current < len(self.item_widgets):
+            return
+        grupo = self._group_of(self.item_widgets[self._current].clip)
+        self.set_selected({
+            i for i, card in enumerate(self.item_widgets)
+            if self._group_of(card.clip) == grupo
+        })
+
     def set_selected(self, indices: set[int]) -> None:
         self._selected = set(indices)
         self._redraw()

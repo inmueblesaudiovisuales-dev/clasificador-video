@@ -246,6 +246,10 @@ class MainWindow(QWidget):
             ("P", lambda: self.handle_key_press("p")),
             ("X", lambda: self.handle_key_press("x")),
             ("U", lambda: self.handle_key_press("u")),
+            # la hoja lo anuncia en el encabezado de cada grupo: tiene que
+            # existir de verdad. QKeySequence.SelectAll ya es ⌘A en macOS y
+            # Ctrl+A en el resto, sin escribir el modificador a mano.
+            (QKeySequence.StandardKey.SelectAll, self.select_current_group),
         ]
         for digit in "123456789":
             shortcuts.append((digit, lambda d=digit: self.handle_key_press(d)))
@@ -272,6 +276,11 @@ class MainWindow(QWidget):
 
     def _on_selection_changed(self, indices: list[int]) -> None:
         self.selected_indices = list(indices)
+
+    def select_current_group(self) -> None:
+        """`⌘A`: selecciona el grupo del clip actual, para asignarle un cuarto
+        de una sola tecla. Es lo que anuncia el encabezado de cada grupo."""
+        self.clip_sheet.select_current_group()
 
     def _bulk_targets(self) -> list[Clip]:
         """Clips a los que aplicar una asignacion de cuarto: si hay mas de

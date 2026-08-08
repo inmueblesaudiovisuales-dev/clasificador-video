@@ -1045,3 +1045,15 @@ def test_el_autosave_ya_no_escribe_el_arbol_de_subcuartos(qtbot, tmp_path):
     data = json.loads((tmp_path / "sesion.json").read_text(encoding="utf-8"))
     assert "category_tree" not in data
     assert data["rooms"] == ["Cocina"]
+
+
+def test_cmd_a_selecciona_el_grupo_y_permite_asignarlo_de_una(qtbot):
+    """La hoja anuncia `⌘A selecciona el grupo` en cada encabezado: el atajo
+    tiene que existir de verdad."""
+    window = _window(qtbot, rooms=("Sala", "Cocina"))
+    window.load_clips([_clip(1), _clip(2), _clip(3)])
+    window.select_clip(0)
+    window.select_current_group()
+    assert window.selected_indices == [0, 1, 2]   # los tres sin clasificar
+    window.handle_key_press("2")
+    assert [c.categoria_path for c in window.clips] == [["Cocina"]] * 3
