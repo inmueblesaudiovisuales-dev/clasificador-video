@@ -1,6 +1,6 @@
 # Handoff — Rediseño de la UI, continuar desde la F6 — 2026-08-08
 
-Vas a continuar un rediseño completo de la interfaz que ya lleva **seis fases
+Vas a continuar un rediseño completo de la interfaz que ya lleva **siete fases
 hechas** (F0, F1, F2, F2.1, F3, F4, F5) y está a mitad de camino.
 **Tu primera tarea es implementar la F6**, que ya tiene plan escrito y auditado
 cinco veces.
@@ -73,7 +73,7 @@ histórica concreta.
 ## 4. Dónde está todo hoy
 
 - Rama `master`, árbol limpio. **476 tests en verde.**
-- Último commit: `fb70dc2`.
+- Último commit: `ce97ae7` (este handoff).
 - Fases hechas: **F0** (spike del overlay), **F1** (tokens y arnés), **F2**
   (esqueleto), **F2.1** (tarjetas completas), **F3** (cuartos planos),
   **F4** (deshacer con historial), **F5** (filtros como cola).
@@ -288,6 +288,11 @@ que sigue—. Si al usarlo le resulta incómodo, se cambia.
 
 - **Español mexicano en todo**: chat, commits, docs, comentarios y **sobre todo
   los textos de la app**. Nada de voseo. Está en `CLAUDE.md` y no es negociable.
+- **En el chat, escribe corto y sin lenguaje técnico.** Bruno es editor de
+  video, no programador: no quiere leer nombres de clases, métodos, atributos ni
+  explicaciones largas de cómo funciona Qt por dentro. Resume en pocas líneas
+  **qué cambió y qué va a ver él**, en palabras normales. El detalle técnico va
+  en los docs y en los commits, que es donde sirve — no en la conversación.
 - **Se trabaja directo sobre `master`.** Sin branches ni PRs salvo que Bruno lo
   pida.
 - **Higiene de archivos**: nada suelto en la raíz, y **un archivo nuevo que

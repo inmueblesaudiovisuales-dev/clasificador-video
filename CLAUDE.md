@@ -30,6 +30,16 @@ En concreto:
 Si un texto ya existente en el repo está en otra variante, corregirlo cuando
 se toque el archivo.
 
+## En el chat: breve y sin lenguaje técnico
+
+Bruno es editor de video, no programador. **Las respuestas en la conversación
+van cortas y en palabras normales**: qué cambió y qué va a ver él al usar la
+app. Nada de nombres de clases, métodos o atributos, ni explicaciones de cómo
+funciona Qt por dentro, ni muros de texto con todo el razonamiento.
+
+El detalle técnico sí se escribe — pero en los commits, en `docs/` y en los
+comentarios del código, que es donde sirve. En el chat, no.
+
 ## Flujo de trabajo
 
 - **Sin branches nuevas**: Bruno pidió explícitamente trabajar directo sobre
