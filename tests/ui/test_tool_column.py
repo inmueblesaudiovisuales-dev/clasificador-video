@@ -66,3 +66,42 @@ def test_cada_indicador_declara_su_canal_semantico(qtbot):
     assert col.in_indicator.property("canal") == "rango"
     assert col.pick_indicator.property("canal") == "pick"
     assert col.reject_indicator.property("canal") == "reject"
+
+
+# --- F4: el boton de deshacer ------------------------------------------------
+
+
+def test_la_columna_tiene_boton_de_deshacer(qtbot):
+    col = _col(qtbot)
+    assert col.undo_button.key.text() == "⌘Z"
+
+
+def test_el_boton_de_deshacer_emite_su_senal(qtbot):
+    col = _col(qtbot)
+    col.set_can_undo(True)
+    with qtbot.waitSignal(col.undo_requested):
+        col.undo_button.click()
+
+
+def test_deshacer_se_apaga_cuando_no_hay_nada_que_deshacer(qtbot):
+    """Un boton que no hace nada y no lo dice es peor que no tenerlo."""
+    col = _col(qtbot)
+    assert not col.undo_button.isEnabled()   # al abrir no hay nada
+    col.set_can_undo(True)
+    assert col.undo_button.isEnabled()
+    col.set_can_undo(False)
+    assert not col.undo_button.isEnabled()
+
+
+def test_el_boton_no_se_roba_el_foco(qtbot):
+    """Con foco, la barra espaciadora activaria el boton en vez de
+    reproducir el video."""
+    from PySide6.QtCore import Qt
+    assert _col(qtbot).undo_button.focusPolicy() == Qt.FocusPolicy.NoFocus
+
+
+def test_deshacer_es_un_boton_y_no_un_indicador(qtbot):
+    """Desviacion consciente del resto de la columna: los demas reflejan el
+    estado del clip, este ES una accion."""
+    from PySide6.QtWidgets import QAbstractButton
+    assert isinstance(_col(qtbot).undo_button, QAbstractButton)

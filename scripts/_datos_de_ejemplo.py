@@ -110,6 +110,25 @@ def pintar_frame_de_ejemplo(ventana: MainWindow) -> None:
     lienzo.lower()  # debajo del scrim y de todos los controles flotantes
 
 
+def _historial_de_ejemplo(ventana: MainWindow) -> None:
+    """Las mismas filas que el rail del mockup, salvo la de «Destacado», que
+    es un estado que no existe hasta la F7.
+
+    Se empujan a mano en vez de simular las acciones: `load_clips` limpia el
+    historial, así que cualquier cosa hecha antes se perdería.
+    """
+    from clasificador_video.history import HistoryEntry
+
+    for etiqueta, detalle, color in (
+        ("IN/OUT", "→ clip 085", theme.TRIM_COLOR),
+        ("Reject", "→ clip 084", theme.REJECT_COLOR),
+        ("Comedor", "→ 4 clips", theme.room_color(CUARTOS.index("Comedor"))),
+        ("Recámara 1", "→ 5 clips", theme.room_color(CUARTOS.index("Recámara 1"))),
+    ):
+        ventana.history.push(HistoryEntry(etiqueta, detalle, color, antes={}))
+    ventana._refresh_history()
+
+
 def _clips() -> tuple[list[Clip], dict[int, tuple[int, int]], dict[int, float]]:
     clips: list[Clip] = []
     tamanos: dict[int, tuple[int, int]] = {}
@@ -168,6 +187,7 @@ def construir_ventana_de_ejemplo() -> MainWindow:
     # sin importación real la barra de estado sale sin ruta y no se puede
     # comparar contra el mockup, que sí muestra una
     ventana.status_bar.set_volume(VOLUMEN)
+    _historial_de_ejemplo(ventana)
 
     # miniaturas sintéticas, sin lanzar mpv
     for indice, clip in enumerate(clips):

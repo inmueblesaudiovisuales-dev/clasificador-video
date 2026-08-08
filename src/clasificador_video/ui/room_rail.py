@@ -8,6 +8,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QMenu,
     QPushButton,
+    QSizePolicy,
     QVBoxLayout,
     QWidget,
 )
@@ -15,7 +16,8 @@ from PySide6.QtWidgets import (
 from clasificador_video.ui import theme
 from clasificador_video.ui.text import ElidedLabel
 
-MAX_TECLAS = 9  # los atajos numericos llegan hasta el noveno cuarto
+MAX_TECLAS = 9      # los atajos numericos llegan hasta el noveno cuarto
+MAX_HISTORIAL = 4   # el rail mide 200 px: mas filas empujan la lista de cuartos
 
 
 class _BarraProgreso(QWidget):
@@ -207,6 +209,68 @@ class _FilaCuarto(QWidget):
         self.remove_requested.emit(self.nombre)
 
 
+class _FilaHistorial(QWidget):
+    """Una accion deshecha: color de lo que paso, que paso, y el boton.
+
+    El mockup resalta la primera fila --tinte ambar y borde izquierdo-- porque
+    es la que deshace `⌘Z`: sin eso, la lista no dice cual de las cuatro se va
+    a ir si aprietas la tecla.
+    """
+
+    revert_requested = Signal(int)
+
+    def __init__(self, entry, es_primera: bool, parent=None):
+        super().__init__(parent)
+        self.setObjectName("histRow")
+        self.setAttribute(Qt.WA_StyledBackground, True)
+        self.setProperty("top", es_primera)
+        self.etiqueta = entry.etiqueta
+        self._entry_id = entry.id
+
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(10 if es_primera else 12, 6, 12, 6)
+        layout.setSpacing(8)
+
+        self.swatch = QLabel("")
+        self.swatch.setFixedSize(3, 12)
+        self.swatch.setAttribute(Qt.WA_StyledBackground, True)
+        self.swatch.setStyleSheet(
+            f"background-color: {entry.color}; border-radius: 2px;"
+        )
+
+        # dos etiquetas y no una: el mockup pone QUE paso en negritas y claro,
+        # y sobre que en gris. Elide la primera --el nombre del cuarto es lo
+        # que puede ser largo-- y deja el detalle entero, que es lo corto.
+        self.what_label = ElidedLabel(entry.etiqueta)
+        self.what_label.setObjectName("histWhat")
+        self.detail_label = QLabel(entry.detalle)
+        self.detail_label.setObjectName("histDetail")
+
+        self.undo_button = QPushButton("↺")
+        self.undo_button.setObjectName("histUndo")
+        self.undo_button.setFixedSize(18, 18)
+        # sin esto, la barra espaciadora activa el boton enfocado en vez de
+        # reproducir el video
+        self.undo_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self.undo_button.setToolTip(f"Revertir: {entry.etiqueta} {entry.detalle}")
+        self.undo_button.clicked.connect(
+            lambda: self.revert_requested.emit(self._entry_id)
+        )
+
+        # `Maximum` deja que la etiqueta se ENCOJA y elida cuando el nombre del
+        # cuarto es largo, pero nunca que crezca mas alla de su texto: con
+        # stretch normal se comeria el espacio libre y empujaria el detalle
+        # contra el boton, en vez de dejarlo pegado como el mockup.
+        self.what_label.setSizePolicy(
+            QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Preferred
+        )
+        layout.addWidget(self.swatch)
+        layout.addWidget(self.what_label, stretch=1)
+        layout.addWidget(self.detail_label)
+        layout.addStretch(1)
+        layout.addWidget(self.undo_button)
+
+
 class RoomRail(QWidget):
     """Columna izquierda de 200 px: progreso y cuartos.
 
@@ -220,6 +284,7 @@ class RoomRail(QWidget):
     room_renamed = Signal(str, str)
     room_moved = Signal(str, int)
     room_removed = Signal(str)
+    revert_requested = Signal(int)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -302,6 +367,33 @@ class RoomRail(QWidget):
         self._rooms_layout.addWidget(self.new_room_row)
         raiz.addWidget(self._rooms_container, stretch=1)
 
+        # --- historial, entre los cuartos y el pie ---
+        self.history_panel = QWidget()
+        self.history_panel.setObjectName("historyPanel")
+        self._history_layout = QVBoxLayout(self.history_panel)
+        self._history_layout.setContentsMargins(0, 0, 0, 6)
+        self._history_layout.setSpacing(0)
+
+        cabecera_hist = QWidget()
+        cabecera_hist.setFixedHeight(30)
+        chl = QHBoxLayout(cabecera_hist)
+        chl.setContentsMargins(12, 0, 12, 0)
+        self.history_caption = QLabel("HISTORIAL")
+        self.history_caption.setObjectName("railHeader")
+        theme.apply_letter_spacing(self.history_caption)
+        self.history_key = QLabel("⌘Z")
+        self.history_key.setObjectName("keyCap")
+        self.history_key.setFixedSize(24, 15)
+        self.history_key.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.history_key.setProperty("sin_tecla", False)
+        chl.addWidget(self.history_caption)
+        chl.addStretch(1)
+        chl.addWidget(self.history_key)
+        self._history_layout.addWidget(cabecera_hist)
+        self.history_panel.hide()  # al abrir la app no hay nada que deshacer
+        self.history_rows: list[_FilaHistorial] = []
+        raiz.addWidget(self.history_panel)
+
         # --- importar, al pie ---
         self.import_button = QPushButton("Importar carpetas…")
         self.import_button.setObjectName("importButton")
@@ -343,6 +435,19 @@ class RoomRail(QWidget):
         modal, que en un test cuelga."""
         if nombre.strip():
             self.room_created.emit(nombre.strip())
+
+    def set_history(self, entries: list) -> None:
+        """Las ultimas acciones, la mas reciente arriba. Se le pasa la lista
+        completa del `History`; aca se recorta a lo que entra en el rail."""
+        for fila in self.history_rows:
+            fila.setParent(None)
+        self.history_rows = []
+        for posicion, entrada in enumerate(entries[:MAX_HISTORIAL]):
+            fila = _FilaHistorial(entrada, es_primera=(posicion == 0))
+            fila.revert_requested.connect(self.revert_requested.emit)
+            self._history_layout.addWidget(fila)
+            self.history_rows.append(fila)
+        self.history_panel.setVisible(bool(self.history_rows))
 
     def set_progress(self, clasificados: int, total: int, pendientes: int = 0) -> None:
         self.progress_big.setText(str(clasificados))

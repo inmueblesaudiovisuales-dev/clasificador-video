@@ -285,6 +285,38 @@ def build_stylesheet() -> str:
         background-color: {BG_SURFACE_2};
         border-radius: 1px;
     }}
+    QWidget#historyPanel {{
+        border-top: 1px solid {LINE_SOFT};
+    }}
+    QWidget#histRow[top="true"] {{
+        background-color: {con_alfa_qss(CURRENT_COLOR, 18)};
+        border-left: 2px solid {CURRENT_COLOR};
+    }}
+    QLabel#histWhat {{
+        background-color: transparent;
+        color: {TEXT};
+        font-size: {FONT_SMALL}px;
+        font-weight: 600;
+    }}
+    QLabel#histDetail {{
+        background-color: transparent;
+        color: {TEXT_2};
+        font-size: {FONT_SMALL}px;
+    }}
+    QPushButton#histUndo {{
+        background-color: transparent;
+        border: none;
+        /* sin esto hereda `padding: 8px 14px` de la regla generica de
+           QPushButton: el sizeHint se va a 38x29, el boton esta fijo en
+           18x18 y el glifo se recorta entero -- no se ve nada. */
+        padding: 0px;
+        color: {TEXT_3};
+        font-size: {FONT_SMALL}px;
+    }}
+    QPushButton#histUndo:hover {{
+        color: {TEXT};
+    }}
+
     QPushButton#newRoomRow {{
         background-color: transparent;
         border: 1px dashed {LINE};
@@ -458,6 +490,32 @@ def build_stylesheet() -> str:
     }}
     QWidget#toolIndicator[on="true"][canal="reject"] QLabel {{
         color: {REJECT_COLOR};
+    }}
+
+    QWidget#toolDivider {{
+        background-color: {LINE};
+    }}
+    QPushButton#toolButton {{
+        background-color: {BG_SURFACE_1};
+        border: 1px solid {LINE};
+        border-radius: {RADIUS_LG}px;
+        padding: 0px;
+    }}
+    QPushButton#toolButton:hover:enabled {{
+        border-color: {CURRENT_COLOR};
+    }}
+    QPushButton#toolButton QLabel {{
+        background-color: transparent;
+        color: {TEXT_3};
+        font-size: {FONT_MICRO}px;
+        font-weight: 650;
+    }}
+    QPushButton#toolButton:enabled QLabel#toolButtonGlyph {{
+        color: {TEXT_2};
+        font-size: {FONT_BODY}px;
+    }}
+    QPushButton#toolButton:!enabled {{
+        border-color: {LINE_SOFT};
     }}
 
     QWidget#clipSheet {{

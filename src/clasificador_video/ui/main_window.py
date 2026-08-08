@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (
 )
 
 from clasificador_video.autosave import save_session
+from clasificador_video.history import History, HistoryEntry
 from clasificador_video.ingest import IngestTree
 from clasificador_video.keyboard import KeyboardRouter
 from clasificador_video.manifest import Clip, Manifest
@@ -35,6 +36,15 @@ from clasificador_video.ui.title_bar import TitleBar
 from clasificador_video.ui.tool_column import ToolColumn
 from clasificador_video.ui.video_stage import VideoStage
 from clasificador_video.ui.video_widget import format_timecode
+
+def _copiar(valor):
+    """Copia los valores mutables que guarda el historial.
+
+    `categoria_path` es una lista: guardar la referencia haria que el
+    "antes" mutara junto con el clip y deshacer no hiciera nada.
+    """
+    return list(valor) if isinstance(valor, list) else valor
+
 
 class _AutosaveWriteJob(QRunnable):
     """Escribe la sesion a disco fuera del hilo de la UI -- antes
@@ -122,6 +132,7 @@ class MainWindow(QWidget):
         self.clips: list[Clip] = []
         self.current_index = 0
         self.selected_indices: list[int] = []
+        self.history = History()
         self._router = KeyboardRouter(active_rooms=room_selection.active_rooms())
         self._probe_clip = probe_clip          # inyectable para tests
         self._thumbnail_cache_root = thumbnail_cache_root or default_cache_root()
@@ -162,6 +173,7 @@ class MainWindow(QWidget):
         self.room_rail.room_renamed.connect(self._on_room_renamed)
         self.room_rail.room_moved.connect(self._on_room_moved)
         self.room_rail.room_removed.connect(self._on_room_removed)
+        self.room_rail.revert_requested.connect(self.revert)
 
         self.video_stage = VideoStage(mpv_factory=video_factory)
         self.video_stage.quality.selected.connect(self._on_quality_changed)
@@ -170,6 +182,7 @@ class MainWindow(QWidget):
         self.scrub_bar.seek_requested.connect(self._on_scrub_seek)
 
         self.tool_column = ToolColumn()
+        self.tool_column.undo_requested.connect(self.undo)
 
         self.clip_sheet = ClipSheet()
         self.clip_sheet.clip_clicked.connect(self.select_clip)
@@ -250,6 +263,8 @@ class MainWindow(QWidget):
             # existir de verdad. QKeySequence.SelectAll ya es ⌘A en macOS y
             # Ctrl+A en el resto, sin escribir el modificador a mano.
             (QKeySequence.StandardKey.SelectAll, self.select_current_group),
+            # StandardKey.Undo ya es ⌘Z en macOS y Ctrl+Z en el resto
+            (QKeySequence.StandardKey.Undo, self.undo),
         ]
         for digit in "123456789":
             shortcuts.append((digit, lambda d=digit: self.handle_key_press(d)))
@@ -282,18 +297,93 @@ class MainWindow(QWidget):
         de una sola tecla. Es lo que anuncia el encabezado de cada grupo."""
         self.clip_sheet.select_current_group()
 
-    def _bulk_targets(self) -> list[Clip]:
+    def _bulk_target_indices(self) -> list[int]:
         """Clips a los que aplicar una asignacion de cuarto: si hay mas de
         un clip seleccionado, todos ellos; si no, solo el clip actual."""
         if len(self.selected_indices) > 1:
-            return [self.clips[i] for i in self.selected_indices if 0 <= i < len(self.clips)]
+            return [i for i in self.selected_indices if 0 <= i < len(self.clips)]
         if self.current_clip is not None:
-            return [self.current_clip]
+            return [self.current_index]
         return []
 
+    def _bulk_targets(self) -> list[Clip]:
+        return [self.clips[i] for i in self._bulk_target_indices()]
+
     def _apply_categoria_to_targets(self, path: list[str]) -> None:
-        for clip in self._bulk_targets():
-            clip.categoria_path = list(path)
+        indices = self._bulk_target_indices()
+        if not indices:
+            return
+        cuarto = path[-1]
+        self._registrar(
+            etiqueta=cuarto,
+            detalle=self._detalle(indices),
+            color=self._color_de_cuarto(path[0]),
+            clips=indices,
+            campos=("categoria_path",),
+        )
+        for indice in indices:
+            self.clips[indice].categoria_path = list(path)
+
+    # ------------------------------------------------------------------
+    # historial: registrar antes de mutar, deshacer despues
+    # ------------------------------------------------------------------
+
+    def _detalle(self, indices: list[int]) -> str:
+        """`→ clip 093` o `→ 6 clips`, como las filas del mockup."""
+        if len(indices) == 1:
+            return f"→ clip {self.clips[indices[0]].orden:03d}"
+        return f"→ {len(indices)} clips"
+
+    def _color_de_cuarto(self, cuarto: str) -> str:
+        rooms = self.room_selection.active_rooms()
+        return theme.room_color(rooms.index(cuarto)) if cuarto in rooms else theme.TEXT_3
+
+    def _registrar(self, etiqueta: str, detalle: str, color: str,
+                   clips: list[int], campos: tuple[str, ...],
+                   rooms_antes: list[str] | None = None) -> None:
+        """Guarda el estado ANTERIOR de `campos` en `clips`.
+
+        Se llama SIEMPRE antes de mutar, nunca despues -- si no, guarda el
+        estado nuevo y deshacer no hace nada. Y guarda solo los campos que la
+        accion toca: con el clip entero, revertir una asignacion de cuarto se
+        llevaria puesto el pick que se marco despues.
+        """
+        antes = {
+            indice: {campo: _copiar(getattr(self.clips[indice], campo)) for campo in campos}
+            for indice in clips
+            if 0 <= indice < len(self.clips)
+        }
+        self.history.push(HistoryEntry(etiqueta, detalle, color, antes, rooms_antes))
+        self._refresh_history()
+
+    def _refresh_history(self) -> None:
+        self.room_rail.set_history(self.history.entries())
+        self.tool_column.set_can_undo(self.history.can_undo())
+
+    def undo(self) -> None:
+        """`⌘Z`: deshace la accion de arriba del historial."""
+        self._aplicar_entrada(self.history.undo_last())
+
+    def revert(self, entry_id: int) -> None:
+        """El boton `↺` de una fila cualquiera, no solo la de arriba."""
+        self._aplicar_entrada(self.history.revert(entry_id))
+
+    def _aplicar_entrada(self, entrada: HistoryEntry | None) -> None:
+        if entrada is None:
+            return
+        for indice, campos in entrada.antes.items():
+            if 0 <= indice < len(self.clips):
+                for campo, valor in campos.items():
+                    setattr(self.clips[indice], campo, _copiar(valor))
+        if entrada.rooms_antes is not None:
+            seleccion = RoomSelection()
+            for cuarto in entrada.rooms_antes:
+                seleccion.add(cuarto)
+            self.room_selection = seleccion
+            self._router.active_rooms = seleccion.active_rooms()
+        self._refresh_sheet()
+        self._refresh_history()
+        self._autosave()
 
     # ------------------------------------------------------------------
     # refresco de la UI
@@ -397,12 +487,26 @@ class MainWindow(QWidget):
         self._sync_rooms()
 
     def _on_room_removed(self, nombre: str) -> None:
+        # la unica operacion del rail que destruye trabajo, y por eso la unica
+        # que deja entrada en el historial: crear, renombrar y mover no pierden
+        # datos y se revierten a mano en un gesto
+        afectados = [
+            i for i, c in enumerate(self.clips)
+            if c.categoria_path and c.categoria_path[0] == nombre
+        ]
+        self._registrar(
+            etiqueta=nombre,
+            detalle="cuarto borrado",
+            color=self._color_de_cuarto(nombre),
+            clips=afectados,
+            campos=("categoria_path",),
+            rooms_antes=self.room_selection.active_rooms(),
+        )
         self.room_selection.remove(nombre)
         # sus clips vuelven a la cola de trabajo, que es donde tienen que
         # estar: son clips que hay que volver a decidir, no clips perdidos
-        for clip in self.clips:
-            if clip.categoria_path and clip.categoria_path[0] == nombre:
-                clip.categoria_path = []
+        for indice in afectados:
+            self.clips[indice].categoria_path = []
         self._sync_rooms()
 
     def _tick_saved_indicator(self) -> None:
@@ -465,6 +569,10 @@ class MainWindow(QWidget):
     def load_clips(self, clips: list[Clip]) -> None:
         self.clips = clips
         self.current_index = 0
+        # el historial guarda INDICES de clip: con material nuevo apuntarian
+        # a otros clips, asi que lo de antes ya no aplica a nada
+        self.history.clear()
+        self._refresh_history()
         self._refresh_sheet(force_rebuild=True)
         if clips:
             self.video_widget.open_clip(clips[0].ruta)
@@ -580,19 +688,28 @@ class MainWindow(QWidget):
     def handle_key_press(self, key: str) -> None:
         if self.current_clip is None:
             return
-        if key == "i":
-            self.current_clip.in_frame = self.video_widget.player.mark_in(self.current_clip.fps)
-            self._refresh_sheet()
-            self._autosave()
-            return
-        if key == "o":
-            self.current_clip.out_frame = self.video_widget.player.mark_out(self.current_clip.fps)
-            self._refresh_sheet()
-            self._autosave()
-            return
-        if key == "u":
-            self.current_clip.in_frame = None
-            self.current_clip.out_frame = None
+        if key in ("i", "o", "u"):
+            campos = {"i": ("in_frame",), "o": ("out_frame",)}.get(
+                key, ("in_frame", "out_frame")
+            )
+            self._registrar(
+                etiqueta="IN/OUT",
+                detalle=self._detalle([self.current_index]),
+                color=theme.TRIM_COLOR,
+                clips=[self.current_index],
+                campos=campos,
+            )
+            if key == "i":
+                self.current_clip.in_frame = self.video_widget.player.mark_in(
+                    self.current_clip.fps
+                )
+            elif key == "o":
+                self.current_clip.out_frame = self.video_widget.player.mark_out(
+                    self.current_clip.fps
+                )
+            else:
+                self.current_clip.in_frame = None
+                self.current_clip.out_frame = None
             self._refresh_sheet()
             self._autosave()
             return
@@ -604,6 +721,15 @@ class MainWindow(QWidget):
             return
         action = self._router.resolve_action_key(key)
         if action is not None:
+            self._registrar(
+                etiqueta={"pick": "Pick", "reject": "Reject"}.get(action, action.title()),
+                detalle=self._detalle([self.current_index]),
+                color={"pick": theme.PICK_COLOR, "reject": theme.REJECT_COLOR}.get(
+                    action, theme.TEXT_3
+                ),
+                clips=[self.current_index],
+                campos=("flag",),
+            )
             self.current_clip.flag = action
             self._refresh_sheet()
             self._autosave()

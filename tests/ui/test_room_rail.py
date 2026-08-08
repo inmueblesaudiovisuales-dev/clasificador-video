@@ -217,3 +217,120 @@ def test_la_fila_de_nuevo_cuarto_queda_siempre_al_pie_de_la_lista(qtbot):
 def test_el_banner_de_subcuarto_ya_no_existe(qtbot):
     """Murio con los subcuartos en la F3."""
     assert not hasattr(_rail(qtbot), "subroom_banner")
+
+
+# --- F4: el historial al pie del rail ---------------------------------------
+
+
+def _entrada(etiqueta="Cocina", detalle="→ 6 clips", color=None):
+    from clasificador_video.history import HistoryEntry
+    return HistoryEntry(etiqueta=etiqueta, detalle=detalle,
+                        color=color or theme.room_color(0), antes={})
+
+
+def test_el_historial_muestra_lo_ultimo_arriba(qtbot):
+    rail = _rail(qtbot)
+    rail.set_history([_entrada("Sala"), _entrada("Cocina")])
+    assert [f.etiqueta for f in rail.history_rows] == ["Sala", "Cocina"]
+
+
+def test_la_primera_fila_va_resaltada_porque_es_la_que_deshace_cmd_z(qtbot):
+    rail = _rail(qtbot)
+    rail.set_history([_entrada("Sala"), _entrada("Cocina")])
+    assert rail.history_rows[0].property("top") is True
+    assert rail.history_rows[1].property("top") is False
+
+
+def test_el_historial_no_muestra_mas_de_cuatro_filas(qtbot):
+    """El rail mide 200 px: mas filas empujan la lista de cuartos."""
+    from clasificador_video.ui.room_rail import MAX_HISTORIAL
+    rail = _rail(qtbot)
+    rail.set_history([_entrada(str(i)) for i in range(10)])
+    assert len(rail.history_rows) == MAX_HISTORIAL
+
+
+def test_cada_fila_lleva_el_color_de_su_accion(qtbot):
+    rail = _rail(qtbot)
+    rail.set_history([_entrada(color=theme.REJECT_COLOR)])
+    assert theme.REJECT_COLOR in rail.history_rows[0].swatch.styleSheet()
+
+
+def test_la_fila_dice_que_paso_y_sobre_cuantos_clips(qtbot):
+    """Dos etiquetas: QUE paso va en negritas y claro, sobre QUE en gris."""
+    rail = _rail(qtbot)
+    rail.set_history([_entrada("Baño 1", "→ 6 clips")])
+    fila = rail.history_rows[0]
+    assert fila.what_label.full_text() == "Baño 1"
+    assert fila.detail_label.text() == "→ 6 clips"
+
+
+def test_revertir_una_fila_emite_su_id(qtbot):
+    rail = _rail(qtbot)
+    entrada = _entrada()
+    rail.set_history([entrada])
+    with qtbot.waitSignal(rail.revert_requested) as blocker:
+        rail.history_rows[0].undo_button.click()
+    assert blocker.args == [entrada.id]
+
+
+def test_sin_historial_el_panel_se_esconde_entero(qtbot):
+    """Un panel vacio con su linea separadora es ruido: al abrir la app no
+    hay nada que deshacer."""
+    rail = _rail(qtbot)
+    rail.set_history([])
+    assert rail.history_panel.isHidden()
+    rail.set_history([_entrada()])
+    assert not rail.history_panel.isHidden()
+
+
+def test_repoblar_el_historial_no_acumula_filas(qtbot):
+    rail = _rail(qtbot)
+    rail.set_history([_entrada("A"), _entrada("B")])
+    rail.set_history([_entrada("C")])
+    assert [f.etiqueta for f in rail.history_rows] == ["C"]
+
+
+def test_un_texto_largo_se_elide_en_vez_de_desbordar(qtbot):
+    rail = _rail(qtbot)
+    rail.set_history([_entrada("Recámara principal con vestidor y terraza")])
+    rail.show()
+    qtbot.waitExposed(rail)
+    assert rail.history_rows[0].what_label.text().endswith("…")
+
+
+def test_los_botones_de_revertir_no_se_roban_el_foco(qtbot):
+    """Con foco, la barra espaciadora los activaria en vez de reproducir."""
+    from PySide6.QtCore import Qt
+    rail = _rail(qtbot)
+    rail.set_history([_entrada()])
+    assert rail.history_rows[0].undo_button.focusPolicy() == Qt.FocusPolicy.NoFocus
+
+
+def test_el_historial_lleva_su_encabezado_con_la_tecla(qtbot):
+    """El mockup lo encabeza con `Historial` y un keycap `⌘Z`: sin eso, las
+    filas no dicen que la tecla las deshace."""
+    rail = _rail(qtbot)
+    rail.set_history([_entrada()])
+    assert rail.history_caption.text() == "HISTORIAL"
+    assert rail.history_key.text() == "⌘Z"
+    assert rail.history_key.objectName() == "keyCap"
+
+
+def test_el_glifo_de_revertir_se_dibuja_de_verdad(qtbot):
+    """La regla generica de QPushButton trae `padding: 8px 14px`. Heredarlo
+    manda el sizeHint del boton a 38x29 contra un tamaño fijo de 18x18, y el
+    glifo `↺` se recorta ENTERO: la fila se veia sin boton. Solo se detecta
+    mirando pixeles con la hoja de estilos puesta -- el sizeHint sin estilos
+    no dice nada.
+    """
+    from PySide6.QtWidgets import QApplication
+
+    QApplication.instance().setStyleSheet(theme.build_stylesheet())
+    rail = _rail(qtbot)
+    rail.set_history([_entrada()])
+    rail.show()
+    qtbot.waitExposed(rail)
+    imagen = rail.history_rows[0].undo_button.grab().toImage()
+    colores = {imagen.pixelColor(x, y).name()
+               for x in range(imagen.width()) for y in range(imagen.height())}
+    assert len(colores) > 1, "el boton salio de un solo color: el glifo no se dibujo"

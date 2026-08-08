@@ -1057,3 +1057,157 @@ def test_cmd_a_selecciona_el_grupo_y_permite_asignarlo_de_una(qtbot):
     assert window.selected_indices == [0, 1, 2]   # los tres sin clasificar
     window.handle_key_press("2")
     assert [c.categoria_path for c in window.clips] == [["Cocina"]] * 3
+
+
+# --- F4: deshacer con historial visible -------------------------------------
+
+
+def test_asignar_un_cuarto_deja_entrada_en_el_historial(qtbot):
+    window = _window(qtbot, rooms=("Cocina",))
+    window.load_clips([_clip(93)])
+    window.handle_key_press("1")
+    entrada = window.history.entries()[0]
+    assert entrada.etiqueta == "Cocina"
+    assert "clip 093" in entrada.detalle
+    assert entrada.color == theme.room_color(0)
+
+
+def test_deshacer_devuelve_el_clip_a_sin_clasificar(qtbot):
+    window = _window(qtbot, rooms=("Cocina",))
+    window.load_clips([_clip()])
+    window.handle_key_press("1")
+    window.undo()
+    assert window.clips[0].categoria_path == []
+    assert window.history.entries() == []
+
+
+def test_deshacer_una_asignacion_en_lote_es_UNA_sola_accion(qtbot):
+    """Equivocarse asignando seis clips a la vez es un error seis veces mas
+    caro: tiene que costar un ⌘Z, no seis."""
+    window = _window(qtbot, rooms=("Cocina",))
+    window.load_clips([_clip(i) for i in range(1, 7)])
+    window.select_clip(0)
+    window.select_current_group()
+    window.handle_key_press("1")
+    assert "6 clips" in window.history.entries()[0].detalle
+    window.undo()
+    assert [c.categoria_path for c in window.clips] == [[]] * 6
+
+
+def test_deshacer_un_pick_no_toca_el_cuarto(qtbot):
+    """Cada entrada guarda SOLO el campo que su accion cambio."""
+    window = _window(qtbot, rooms=("Cocina",))
+    window.load_clips([_clip()])
+    window.handle_key_press("1")
+    window.handle_key_press("p")
+    window.undo()
+    assert window.clips[0].flag == "none"
+    assert window.clips[0].categoria_path == ["Cocina"]   # sobrevive
+
+
+def test_revertir_una_entrada_vieja_no_pisa_una_accion_posterior(qtbot):
+    """El caso que obliga a guardar campos parciales: asignar cuarto a dos,
+    marcar pick en uno, revertir la asignacion -> el pick sigue ahi."""
+    window = _window(qtbot, rooms=("Cocina",))
+    window.load_clips([_clip(1), _clip(2)])
+    window.select_clip(0)
+    window.select_current_group()
+    window.handle_key_press("1")            # los dos a Cocina
+    asignacion = window.history.entries()[0]
+    window.clip_sheet.set_selected({0})
+    window.select_clip(0)
+    window.handle_key_press("p")            # pick en el primero
+    window.revert(asignacion.id)
+    assert window.clips[0].categoria_path == []
+    assert window.clips[0].flag == "pick"   # NO se lo llevo puesto
+
+
+def test_deshacer_no_comparte_la_lista_con_el_clip(qtbot):
+    """`categoria_path` es una lista: guardar la referencia en vez de una
+    copia haria que el «antes» mutara junto con el clip y deshacer no
+    hiciera nada."""
+    window = _window(qtbot, rooms=("Cocina", "Sala"))
+    window.load_clips([_clip()])
+    window.handle_key_press("1")
+    window.handle_key_press("2")
+    window.undo()
+    assert window.clips[0].categoria_path == ["Cocina"]
+
+
+def test_deshacer_in_out_restaura_solo_el_extremo_que_se_marco(qtbot):
+    window = _window_with_video(qtbot)
+    window.load_clips([_clip()])
+    window.video_widget.player._mpv.time_pos = 2.0
+    window.handle_key_press("i")
+    window.handle_key_press("o")
+    window.undo()                            # deshace el OUT
+    assert window.clips[0].out_frame is None
+    assert window.clips[0].in_frame is not None
+
+
+def test_deshacer_el_borrado_de_in_out_los_devuelve(qtbot):
+    window = _window_with_video(qtbot)
+    window.load_clips([_clip()])
+    window.video_widget.player._mpv.time_pos = 2.0
+    window.handle_key_press("i")
+    window.handle_key_press("o")
+    window.handle_key_press("u")
+    window.undo()
+    assert window.clips[0].in_frame is not None
+    assert window.clips[0].out_frame is not None
+
+
+def test_borrar_un_cuarto_se_puede_deshacer_entero(qtbot):
+    """Es la unica operacion del rail que destruye trabajo: desclasifica
+    todos sus clips."""
+    window = _window(qtbot, rooms=("Cocina", "Sala"))
+    window.load_clips([_clip()])
+    window.handle_key_press("1")
+    window.room_rail.room_removed.emit("Cocina")
+    assert window.clips[0].categoria_path == []
+    window.undo()
+    assert window.room_selection.active_rooms() == ["Cocina", "Sala"]
+    assert window.clips[0].categoria_path == ["Cocina"]
+    assert window._router.active_rooms == ["Cocina", "Sala"]
+
+
+def test_crear_y_renombrar_no_ensucian_el_historial(qtbot):
+    """No pierden datos y se revierten a mano en un gesto."""
+    window = _window(qtbot, rooms=("Cocina",))
+    window.room_rail.room_created.emit("Alberca")
+    window.room_rail.room_renamed.emit("Alberca", "Piscina")
+    window.room_rail.room_moved.emit("Piscina", -1)
+    assert window.history.entries() == []
+
+
+def test_deshacer_sin_nada_que_deshacer_no_revienta(qtbot):
+    window = _window(qtbot, rooms=("Cocina",))
+    window.load_clips([_clip()])
+    window.undo()
+
+
+def test_el_historial_se_ve_en_el_rail(qtbot):
+    window = _window(qtbot, rooms=("Cocina",))
+    window.load_clips([_clip()])
+    window.handle_key_press("1")
+    assert window.room_rail.history_rows[0].etiqueta == "Cocina"
+    window.undo()
+    assert window.room_rail.history_rows == []
+
+
+def test_el_boton_de_revertir_del_rail_deshace_esa_accion(qtbot):
+    window = _window(qtbot, rooms=("Cocina",))
+    window.load_clips([_clip()])
+    window.handle_key_press("1")
+    window.room_rail.history_rows[0].undo_button.click()
+    assert window.clips[0].categoria_path == []
+
+
+def test_importar_material_nuevo_vacia_el_historial(qtbot):
+    """Lo de antes ya no aplica a nada: los indices apuntarian a otros
+    clips."""
+    window = _window(qtbot, rooms=("Cocina",))
+    window.load_clips([_clip()])
+    window.handle_key_press("1")
+    window.load_clips([_clip(5), _clip(6)])
+    assert window.history.entries() == []
