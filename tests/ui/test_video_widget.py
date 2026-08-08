@@ -31,6 +31,12 @@ class FakeMpv:
 
     def command(self, *args):
         self.commands.append(args)
+        # mpv implementa `frame-step` como "despausar, mostrar un cuadro,
+        # volver a pausar": queda pausado SOLO. El doble lo imita para que un
+        # test no pueda pasar con una implementacion que ademas escribe
+        # `pause`, que contra mpv real aborta el paso (medido el 2026-08-08).
+        if args and args[0] in ("frame-step", "frame-back-step"):
+            self.pause = True
 
 
 def test_video_widget_crea_el_player_con_hwdec_y_vo_libmpv(qtbot):

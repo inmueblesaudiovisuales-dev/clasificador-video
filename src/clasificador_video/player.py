@@ -101,15 +101,44 @@ class MpvPlayer:
             raise ValueError(f"porcentaje de arranque fuera de rango: {percent}")
         self._mpv.start = f"{percent}%"
 
-    def step_frame(self, delta: int) -> None:
-        """Un cuadro adelante (`delta > 0`) o atras. mpv pausa solo al hacerlo,
-        y el estado que reporta la app tiene que coincidir o el boton de play
-        muestra lo contrario de lo que hace el video.
+    def step_frame(self, delta: int, fps: float | None = None) -> None:
+        """Un cuadro adelante (`delta > 0`) o atras.
+
+        Los dos sentidos NO usan el mismo mecanismo, y la asimetria esta
+        medida contra mpv real (2026-08-08, clip de la FX30 a 59.94 fps):
+
+        - **Adelante va con `frame-step`**, que es exacto y barato: diez
+          pulsaciones seguidas dieron diez cuadros, uno por una.
+        - **Atras va con un seek exacto de un cuadro**, no con
+          `frame-back-step`. Ese comando obliga a mpv a retroceder y volver a
+          decodificar, y tarda ~0.25 s: a ritmo humano (una pulsacion cada
+          0.2 s) **cinco pulsaciones retrocedieron UN cuadro**, porque las
+          que llegan mientras la anterior sigue en vuelo se pierden. Con el
+          seek exacto, las mismas cinco pulsaciones dan cinco cuadros.
+
+        **No se escribe `pause` DESPUES de `frame-step`.** mpv lo implementa
+        como "despausar, mostrar un cuadro, volver a pausar", asi que esa
+        escritura le cae encima y aborta el paso: el cuadro no avanza. Tampoco
+        hace falta -- queda pausado solo. Para el seek es al reves: pausar
+        ANTES es seguro y evita que retroceder deje el video corriendo.
         """
         if delta == 0:
             return
-        self._mpv.command("frame-step" if delta > 0 else "frame-back-step")
+        if delta > 0:
+            self._mpv.command("frame-step")
+            return
+        cuadro = 1.0 / self._fps_efectivo(fps)
         self._mpv.pause = True
+        self._mpv.command("seek", -cuadro, "relative", "exact")
+
+    def _fps_efectivo(self, fps: float | None) -> float:
+        """Los fps con que retroceder un cuadro. Se prefiere lo que reporta
+        mpv del archivo abierto: es el dato real, contra el que la app trae
+        de ffprobe al importar. 30 solo como ultimo recurso, para no dividir
+        entre cero con una sesion restaurada sin fps.
+        """
+        del_archivo = getattr(self._mpv, "container_fps", None)
+        return del_archivo or fps or 30.0
 
     def set_quality(self, profile_name: str) -> None:
         if profile_name not in QUALITY_PROFILES:

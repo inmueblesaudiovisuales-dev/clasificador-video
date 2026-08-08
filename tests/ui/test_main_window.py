@@ -1,6 +1,8 @@
 # tests/ui/test_main_window.py
 from pathlib import Path
 
+import pytest
+
 from clasificador_video.manifest import Clip
 from clasificador_video.player import QUALITY_PROFILES
 from clasificador_video.rooms import RoomSelection
@@ -23,6 +25,12 @@ class FakeMpvForWindow:
 
     def command(self, *args):
         self.commands.append(args)
+        # mpv implementa `frame-step` como "despausar, mostrar un cuadro,
+        # volver a pausar": queda pausado SOLO. El doble lo imita para que un
+        # test no pueda pasar con una implementacion que ademas escribe
+        # `pause`, que contra mpv real aborta el paso (medido el 2026-08-08).
+        if args and args[0] in ("frame-step", "frame-back-step"):
+            self.pause = True
 
 
 def _seleccion(rooms) -> RoomSelection:
@@ -1698,4 +1706,63 @@ def test_las_teclas_de_reproduccion_estan_registradas(qtbot):
     window = _window_with_video(qtbot)
     registrados = {s.key().toString() for s in window._shortcuts}
     for tecla in ("L", "K"):
+        assert tecla in registrados, f"{tecla} se maneja pero no está registrada"
+
+
+# --- F6 Task 5: `,` y `.` cuadro por cuadro ----------------------------------
+
+
+def test_coma_y_punto_mueven_un_cuadro(qtbot):
+    """Los dos sentidos no usan el mismo mecanismo, y esta medido contra mpv
+    real: adelante `frame-step`, atras un seek exacto (ver player.py)."""
+    window = _window_with_video(qtbot)
+    window.load_clips([_clip(1)])
+    window.handle_key_press(".")
+    window.handle_key_press(",")
+    comandos = window.video_widget.player._mpv.commands
+    assert comandos[-2] == ("frame-step",)
+    assert comandos[-1][0] == "seek" and comandos[-1][1] < 0
+
+
+def test_retroceder_un_cuadro_usa_los_fps_del_clip(qtbot):
+    """Si la ventana no le pasara los fps, el paso saldria del default y en un
+    clip a 60 fps retroceder saltaria el doble de lo que deberia."""
+    window = _window_with_video(qtbot)
+    window.load_clips([_clip(1, fps=59.94)])
+    window.handle_key_press(",")
+    salto = window.video_widget.player._mpv.commands[-1][1]
+    assert salto == pytest.approx(-1 / 59.94)
+
+
+def test_el_timecode_se_actualiza_al_avanzar_un_cuadro(qtbot):
+    """Marcar in/out con precision exige ver el numero moverse: si el
+    timecode se quedara donde estaba, el cuadro a cuadro seria a ciegas."""
+    window = _window_with_video(qtbot)
+    window.load_clips([_clip(1)])
+    window.video_widget.player._mpv.time_pos = 1.0
+    window.handle_key_press(".")
+    assert window.video_stage.timecode_label.text() != ""
+    assert window.video_stage.frame_label.text() == "f 30"   # 1.0 s a 30 fps
+
+
+def test_avanzar_un_cuadro_apaga_el_badge_auto(qtbot):
+    """`.` pausa el video (lo hace mpv solo). Si el badge siguiera prendido
+    diria que esta corriendo solo algo que esta detenido."""
+    window = _window_with_video(qtbot)
+    window.load_clips([_clip(1)])
+    window.handle_key_press(".")
+    assert window.video_stage.badges.auto_badge.isHidden()
+
+
+def test_las_teclas_de_cuadro_sin_clips_no_revientan(qtbot):
+    window = _window_with_video(qtbot)
+    window.handle_key_press(".")
+    window.handle_key_press(",")
+
+
+def test_las_teclas_de_cuadro_estan_registradas(qtbot):
+    """La fila de teclas del video las anuncia: tienen que existir."""
+    window = _window_with_video(qtbot)
+    registrados = {s.key().toString() for s in window._shortcuts}
+    for tecla in (",", "."):
         assert tecla in registrados, f"{tecla} se maneja pero no está registrada"

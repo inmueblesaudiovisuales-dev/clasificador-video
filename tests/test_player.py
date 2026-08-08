@@ -22,6 +22,12 @@ class FakeMpv:
 
     def command(self, *args):
         self.commands.append(args)
+        # mpv implementa `frame-step` como "despausar, mostrar un cuadro,
+        # volver a pausar": queda pausado SOLO. El doble lo imita para que un
+        # test no pueda pasar con una implementacion que ademas escribe
+        # `pause`, que contra mpv real aborta el paso (medido el 2026-08-08).
+        if args and args[0] in ("frame-step", "frame-back-step"):
+            self.pause = True
 
 
 def test_mpv_player_se_inicializa_con_hwdec_videotoolbox():
@@ -229,13 +235,54 @@ def test_un_porcentaje_de_arranque_fuera_de_rango_se_rechaza():
         player.set_start_percent(-1)
 
 
-def test_avanzar_y_retroceder_un_cuadro():
-    """`,` y `.` son la convencion de Premiere y se usan para marcar in/out
-    con precision."""
+def test_avanzar_un_cuadro_usa_frame_step():
+    """`.` es la convencion de Premiere y se usa para marcar in/out con
+    precision. Adelante mpv es exacto y barato."""
     player = MpvPlayer(mpv_factory=FakeMpv)
     player.step_frame(1)
-    player.step_frame(-1)
-    assert player._mpv.commands == [("frame-step",), ("frame-back-step",)]
+    assert player._mpv.commands == [("frame-step",)]
+
+
+def test_retroceder_un_cuadro_usa_un_seek_exacto_y_no_frame_back_step():
+    """Medido contra mpv real (2026-08-08, FX30 a 59.94 fps):
+    `frame-back-step` obliga a retroceder y redecodificar, y tarda ~0.25 s.
+    A ritmo humano --una pulsacion cada 0.2 s-- CINCO pulsaciones
+    retrocedieron UN cuadro: las que llegan mientras la anterior sigue en
+    vuelo se pierden. Con el seek exacto, las mismas cinco dan cinco cuadros.
+    """
+    player = MpvPlayer(mpv_factory=FakeMpv)
+    player.step_frame(-1, fps=30.0)
+    comando = player._mpv.commands[-1]
+    assert comando[0] == "seek"
+    assert comando[1] == pytest.approx(-1 / 30.0)
+    assert comando[2:] == ("relative", "exact")
+    assert not any(c[0] == "frame-back-step" for c in player._mpv.commands)
+
+
+def test_retroceder_prefiere_los_fps_que_reporta_mpv():
+    """El archivo manda: la app trae los fps de ffprobe al importar, pero el
+    que decodifica es mpv. Un clip a 59.94 con la sesion diciendo 30 dejaria
+    el paso al doble de largo."""
+    player = MpvPlayer(mpv_factory=FakeMpv)
+    player._mpv.container_fps = 59.94
+    player.step_frame(-1, fps=30.0)
+    assert player._mpv.commands[-1][1] == pytest.approx(-1 / 59.94)
+
+
+def test_retroceder_sin_fps_por_ningun_lado_no_divide_entre_cero():
+    """Sesion restaurada sin fps y mpv que todavia no reporta el archivo."""
+    player = MpvPlayer(mpv_factory=FakeMpv)
+    player.step_frame(-1, fps=None)
+    assert player._mpv.commands[-1][1] < 0
+
+
+def test_retroceder_pausa_ANTES_del_salto():
+    """Al reves que `frame-step`: pausar antes de un seek es seguro --no lo
+    aborta-- y evita que retroceder deje el video corriendo."""
+    player = MpvPlayer(mpv_factory=FakeMpv)
+    player.play()
+    player.step_frame(-1, fps=30.0)
+    assert player.is_paused
 
 
 def test_avanzar_un_cuadro_pausa_la_reproduccion():
@@ -275,3 +322,36 @@ def test_la_velocidad_sobrevive_al_cambio_de_clip():
     player.set_speed(4.0)
     player.open(Path("/shooting/C0013.MP4"))
     assert player.speed == 4.0
+
+
+def test_pasar_de_cuadro_no_le_escribe_pause_a_mpv():
+    """Contra mpv real, escribir `pause = True` justo despues de `frame-step`
+    ABORTA el paso: el cuadro no avanza. mpv implementa el comando como
+    "despausar, mostrar un cuadro, volver a pausar", asi que la escritura le
+    cae encima. Medido el 2026-08-08 con un clip de la FX30 a 59.94 fps: con
+    la linea, tres pasos seguidos quedaron los tres en el mismo cuadro.
+
+    Este test existe para que nadie la reponga "para que el estado quede
+    consistente": el doble de pruebas ya imita a mpv y pausa solo.
+    """
+    escrituras = []
+
+    class MpvQueRegistraPause(FakeMpv):
+        # sin la emulacion de `command`: aqui se mide lo que escribe
+        # MpvPlayer, no lo que haria mpv por su cuenta
+        def command(self, *args):
+            self.commands.append(args)
+
+        @property
+        def pause(self):
+            return self._pause
+
+        @pause.setter
+        def pause(self, valor):
+            self._pause = valor
+            escrituras.append(valor)
+
+    player = MpvPlayer(mpv_factory=MpvQueRegistraPause)
+    escrituras.clear()          # el constructor escribe pause = True a proposito
+    player.step_frame(1)
+    assert escrituras == [], "step_frame no debe escribirle `pause` a mpv"

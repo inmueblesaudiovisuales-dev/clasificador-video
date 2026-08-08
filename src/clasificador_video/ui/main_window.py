@@ -289,6 +289,9 @@ class MainWindow(QWidget):
             ("L", lambda: self.handle_key_press("l")),
             ("K", lambda: self.handle_key_press("k")),
             ("J", lambda: self.handle_key_press("j")),
+            # cuadro a cuadro, tambien como en Premiere
+            (",", lambda: self.handle_key_press(",")),
+            (".", lambda: self.handle_key_press(".")),
             # la hoja lo anuncia en el encabezado de cada grupo: tiene que
             # existir de verdad. QKeySequence.SelectAll ya es ⌘A en macOS y
             # Ctrl+A en el resto, sin escribir el modificador a mano.
@@ -828,6 +831,20 @@ class MainWindow(QWidget):
         self._aplicar_velocidad(SPEED_PROFILES[0])
         self.video_widget.player.pause()
 
+    def _pasar_cuadro(self, delta: int) -> None:
+        """`.` adelante, `,` atras. La convencion de Premiere, y la unica
+        forma de marcar in/out en el cuadro exacto.
+
+        Refresca el pie a mano en vez de esperar al tick del playhead: el
+        tick corre cada 100 ms y el cuadro a cuadro se usa apretando la tecla
+        varias veces seguidas -- con el retardo, el numero va siempre un
+        cuadro atras de lo que ves.
+        """
+        if self.current_clip is None:
+            return
+        self.video_widget.player.step_frame(delta, self.current_clip.fps)
+        self._tick_playhead()
+
     def _aplicar_velocidad(self, velocidad: float) -> None:
         """Un solo lugar mueve las DOS vistas del mismo dato -- el
         reproductor y el control segmentado. Que se contradigan es un bug que
@@ -862,6 +879,9 @@ class MainWindow(QWidget):
             # reservada para reproducir hacia atras. No se construye --en
             # recorridos de inmuebles no aporta-- pero tampoco se le da otro
             # significado, o el dia que sirva ya estaria ocupada.
+            return
+        if key in (",", "."):
+            self._pasar_cuadro(1 if key == "." else -1)
             return
         if self.current_clip is None:
             return
