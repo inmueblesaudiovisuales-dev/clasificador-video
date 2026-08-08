@@ -431,3 +431,75 @@ def test_las_filas_de_cuarto_se_pueden_enfocar(qtbot):
     rail = _rail(qtbot)
     rail.set_rooms(["Cocina"], {})
     assert rail.rows[0].focusPolicy() == Qt.FocusPolicy.StrongFocus
+
+
+# --- no reconstruir lo que no cambió ----------------------------------------
+#
+# `_refresh_rail` corre en CADA tecla. Reconstruir filas, leyenda, barra e
+# historial en cada una tiraba ~21 widgets por tecla que nunca se liberaban:
+# medido, 1237 widgets de más tras 60 teclas.
+
+
+def test_repoblar_con_los_mismos_cuartos_no_recrea_las_filas(qtbot):
+    rail = _rail(qtbot)
+    rail.set_rooms(["Cocina", "Sala"], {"Cocina": 1, "Sala": 2})
+    antes = list(rail.rows)
+    rail.set_rooms(["Cocina", "Sala"], {"Cocina": 5, "Sala": 2})
+    assert rail.rows == antes, "recreo las filas sin que cambiara la lista"
+    assert rail.rows[0].count_label.text() == "5", "pero el conteo sí se actualiza"
+
+
+def test_cambiar_la_lista_de_cuartos_si_reconstruye(qtbot):
+    rail = _rail(qtbot)
+    rail.set_rooms(["Cocina"], {})
+    rail.set_rooms(["Cocina", "Sala"], {})
+    assert [f.nombre for f in rail.rows] == ["Cocina", "Sala"]
+
+
+def test_renombrar_un_cuarto_si_reconstruye(qtbot):
+    rail = _rail(qtbot)
+    rail.set_rooms(["Cocina"], {})
+    rail.set_rooms(["Cocineta"], {})
+    assert [f.nombre for f in rail.rows] == ["Cocineta"]
+
+
+def test_la_leyenda_no_se_recrea_si_los_numeros_no_cambian(qtbot):
+    rail = _rail(qtbot)
+    rail.set_flags(41, 9, 12)
+    antes = list(rail.leyenda.puntos)
+    rail.set_flags(41, 9, 12)
+    assert rail.leyenda.puntos == antes
+
+
+def test_la_leyenda_se_actualiza_sin_recrearse(qtbot):
+    rail = _rail(qtbot)
+    rail.set_flags(41, 9, 12)
+    antes = list(rail.leyenda.puntos)
+    rail.set_flags(42, 9, 11)
+    assert rail.leyenda.puntos == antes, "recrear no hace falta: cambia el texto"
+    assert [p.text() for p in rail.leyenda.puntos] == ["42", "9", "11"]
+
+
+def test_la_barra_de_progreso_no_se_recrea_si_no_cambio(qtbot):
+    rail = _rail(qtbot)
+    rail.set_progress(10, 20, 10)
+    rail.set_rooms(["Cocina"], {"Cocina": 10})
+    antes = list(rail.progress_bar._tramos)
+    rail.set_rooms(["Cocina"], {"Cocina": 10})
+    assert rail.progress_bar._tramos == antes
+
+
+def test_el_historial_no_se_recrea_si_son_las_mismas_entradas(qtbot):
+    rail = _rail(qtbot)
+    entradas = [_entrada("Cocina"), _entrada("Sala")]
+    rail.set_history(entradas)
+    antes = list(rail.history_rows)
+    rail.set_history(entradas)
+    assert rail.history_rows == antes
+
+
+def test_el_historial_si_se_rehace_cuando_cambia(qtbot):
+    rail = _rail(qtbot)
+    rail.set_history([_entrada("Cocina")])
+    rail.set_history([_entrada("Sala"), _entrada("Cocina")])
+    assert [f.etiqueta for f in rail.history_rows] == ["Sala", "Cocina"]

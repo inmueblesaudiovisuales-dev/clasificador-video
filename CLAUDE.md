@@ -39,13 +39,16 @@ se toque el archivo.
   donde `<modelo>` es el que realmente hizo el trabajo (`Claude Opus 5`,
   `Claude Sonnet 5`, etc.). No dejarlo fijo en un modelo: la atribución tiene
   que ser real.
-- **Tests**:
+- **Tests** — la suite corre **completa**:
   ```bash
-  QT_QPA_PLATFORM=offscreen .venv/bin/pytest tests/ --ignore=tests/test_app.py -q
+  QT_QPA_PLATFORM=offscreen .venv/bin/pytest tests/ -q
   ```
-  `tests/test_app.py` tiene un cuelgue preexistente en entornos sin pantalla
-  real (limitación del `QOpenGLWidget` de video bajo `offscreen`, confirmada
-  en varias sesiones) — no perseguirlo, no es un bug a resolver.
+  Hasta agosto de 2026 esto llevaba `--ignore=tests/test_app.py`, porque ese
+  archivo colgaba bajo `offscreen`. **Ya no cuelga**: la F3 lo reescribió —el
+  diálogo de configuración que abría con `exec()` murió con ella— y desde
+  entonces corre en medio segundo. Comprobado con cinco corridas completas el
+  2026-08-08. Si alguna vez vuelve a colgarse, es un bug a resolver, no una
+  limitación a esquivar.
 - **Verificación visual real, no solo tests**: nunca afirmar que algo se ve
   bien sin haber visto el pixel. El medio depende del artefacto:
   - **Widget de PySide6** — construir una `MainWindow`/widget de prueba, usar

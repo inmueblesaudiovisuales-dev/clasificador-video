@@ -32,9 +32,17 @@ class _BarraProgreso(QWidget):
         self._layout.setSpacing(1)
         self._tramos: list[QWidget] = []
 
+    _ultimos: tuple | None = None
+
     def set_counts(self, counts: list[int], pendientes: int) -> None:
+        # los tramos solo dependen de estos numeros: si no cambiaron, la barra
+        # ya esta dibujada y recrearla deja widgets huerfanos
+        if self._ultimos == (tuple(counts), pendientes):
+            return
+        self._ultimos = (tuple(counts), pendientes)
         for tramo in self._tramos:
             tramo.setParent(None)
+            tramo.deleteLater()
         self._tramos = []
         for indice, cuantos in enumerate(counts):
             if cuantos <= 0:
@@ -86,8 +94,24 @@ class _Leyenda(QWidget):
         self._cuadros: list[QLabel] = []
 
     def set_estados(self, estados: list[tuple[int, str, str]]) -> None:
+        # si la estructura es la misma --y lo es siempre, salvo cuando la F7
+        # agregue el chip de destacados-- basta con cambiar textos y colores.
+        # Recrear los widgets en cada tecla los dejaba huerfanos.
+        if len(estados) == len(self.puntos):
+            for punto, cuadro, (cuantos, color, que_es) in zip(
+                self.puntos, self._cuadros, estados
+            ):
+                punto.setText(str(cuantos))
+                punto.setToolTip(f"{cuantos} {que_es}")
+                cuadro.setToolTip(punto.toolTip())
+                estilo = f"background-color: {color}; border-radius: 2px;"
+                if cuadro.styleSheet() != estilo:
+                    cuadro.setStyleSheet(estilo)
+            return
+
         for widget in self.puntos + self._cuadros:
             widget.setParent(None)
+            widget.deleteLater()
         self.puntos = []
         self._cuadros = []
         while self._layout.count():
@@ -262,7 +286,7 @@ class _FilaHistorial(QWidget):
         self.setAttribute(Qt.WA_StyledBackground, True)
         self.setProperty("top", es_primera)
         self.etiqueta = entry.etiqueta
-        self._entry_id = entry.id
+        self.entry_id = entry.id
 
         layout = QHBoxLayout(self)
         layout.setContentsMargins(10 if es_primera else 12, 6, 12, 6)
@@ -291,7 +315,7 @@ class _FilaHistorial(QWidget):
         self.undo_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self.undo_button.setToolTip(f"Revertir: {entry.etiqueta} {entry.detalle}")
         self.undo_button.clicked.connect(
-            lambda: self.revert_requested.emit(self._entry_id)
+            lambda: self.revert_requested.emit(self.entry_id)
         )
 
         # `Maximum` deja que la etiqueta se ENCOJA y elida cuando el nombre del
@@ -443,8 +467,24 @@ class RoomRail(QWidget):
         raiz.addWidget(pie)
 
     def set_rooms(self, rooms: list[str], counts: dict[str, int]) -> None:
+        """Repuebla el rail. Si la LISTA no cambió, solo refresca conteos.
+
+        `MainWindow._refresh_rail` corre en cada tecla. Reconstruir las filas
+        cada vez tiraba widgets huerfanos que no se liberaban: medido, 1237 de
+        mas tras 60 teclas. Y lo que cambia al clasificar es el conteo, no la
+        lista de cuartos.
+        """
+        if [f.nombre for f in self.rows] == list(rooms):
+            for fila in self.rows:
+                fila.count_label.setText(str(counts.get(fila.nombre, 0)))
+            self.progress_bar.set_counts(
+                [counts.get(c, 0) for c in rooms], self._pendientes
+            )
+            return
+
         for fila in self.rows:
             fila.setParent(None)
+            fila.deleteLater()
         self.rows = []
         # la fila de "nuevo cuarto" se saca y se vuelve a poner al final, para
         # que siempre quede debajo del ultimo cuarto
@@ -498,8 +538,14 @@ class RoomRail(QWidget):
     def set_history(self, entries: list) -> None:
         """Las ultimas acciones, la mas reciente arriba. Se le pasa la lista
         completa del `History`; aca se recorta a lo que entra en el rail."""
+        # mismas entradas, mismas filas: `_refresh_history` corre en cada
+        # accion y casi siempre el historial no cambio
+        ids = [e.id for e in entries[:MAX_HISTORIAL]]
+        if ids == [f.entry_id for f in self.history_rows]:
+            return
         for fila in self.history_rows:
             fila.setParent(None)
+            fila.deleteLater()
         self.history_rows = []
         for posicion, entrada in enumerate(entries[:MAX_HISTORIAL]):
             fila = _FilaHistorial(entrada, es_primera=(posicion == 0))

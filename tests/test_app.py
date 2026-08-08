@@ -1,15 +1,15 @@
 # tests/test_app.py
 #
-# OJO: este archivo se EXCLUYE de la corrida normal por un cuelgue
-# preexistente en entornos sin pantalla real (el QOpenGLWidget de video bajo
-# `offscreen`), no porque esté roto:
+# Este archivo estuvo EXCLUIDO de la corrida durante meses por un cuelgue
+# bajo `offscreen`. **Ya no cuelga**: la F3 lo reescribió —el diálogo de
+# configuración de cuartos, que abría con `exec()` y bloqueaba, murió con
+# ella— y desde entonces corre en medio segundo. Comprobado con cinco
+# corridas de la suite completa el 2026-08-08.
 #
-#     QT_QPA_PLATFORM=offscreen .venv/bin/pytest tests/ --ignore=tests/test_app.py -q
+#     QT_QPA_PLATFORM=offscreen .venv/bin/pytest tests/ -q
 #
-# Igual se mantiene al día: si queda obsoleto, la próxima persona que lo
-# corra no va a saber si falla por el cuelgue conocido o porque de verdad se
-# rompió algo. Ya pasó dos veces — afirmaba un color que ya no existía en
-# theme.py, y después un `room_list_widget` que murió con la F2.
+# Si alguna vez vuelve a colgarse, es un bug a resolver, no una limitación a
+# esquivar. Cubre el arranque de la app, que ningún otro test toca.
 import json
 
 from PySide6.QtWidgets import QMessageBox
