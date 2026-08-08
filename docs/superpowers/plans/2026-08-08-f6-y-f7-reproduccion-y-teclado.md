@@ -137,10 +137,13 @@ def test_avanzar_un_cuadro_pausa_la_reproduccion():
 - [ ] **Step 2: Implementar** — `SPEED_PROFILES = (1.0, 2.0, 4.0)`,
   `set_speed`, propiedad `speed`, `set_start_percent`, `step_frame(delta)`.
 
-  > **Verificar contra python-mpv al implementar, no contra la memoria**: que
-  > `start` se pueda escribir como propiedad después de construir el
-  > reproductor, y que `frame-back-step` exista con ese nombre. Los dos se
-  > comprueban con el mpv real de `sample-media/`, no con el doble.
+  > **Ya verificado contra mpv real** (2026-08-08, con
+  > `sample-media/clips/20260804_PIB0589.MP4`, HEVC 10-bit de 6 s):
+  > `start = "25%"` se escribe antes de cargar **y también con el archivo ya
+  > cargado**, y mpv aterriza en 1.5015 s de 6.006 s — el 25% exacto. `speed`
+  > se lee y se escribe, incluso reproduciendo. `frame-step` y
+  > `frame-back-step` existen con ese nombre, y `frame-step` deja el
+  > reproductor pausado. Nada de esto es una apuesta.
 
 - [ ] **Step 3: Verificar** — `pytest tests/test_player.py -q` en verde.
 
@@ -309,6 +312,25 @@ def test_la_velocidad_se_conserva_al_cambiar_de_clip(qtbot):
 ```
 
 - [ ] **Step 2: Implementar.**
+
+  > **Registrar los atajos, no solo manejarlos.** Los tests de arriba llaman a
+  > `handle_key_press("l")` directo, así que **pasan aunque la tecla no exista
+  > para el usuario**. `L`, `K` y —en la Task 5— `,` y `.` tienen que entrar en
+  > `_install_shortcuts`. Es la misma clase de agujero que dejó `⌘Z`, `⌘A`,
+  > `⌘E` y `⌘R` anunciados y ausentes: cuatro veces en este proyecto.
+
+```python
+# tests/ui/test_main_window.py  (agregar)
+
+def test_las_teclas_de_reproduccion_estan_registradas(qtbot):
+    """Un test que llama a `handle_key_press` pasa aunque la tecla no exista
+    para el usuario: lo que la conecta es `_install_shortcuts`."""
+    window = _window_with_video(qtbot)
+    registrados = {s.key().toString() for s in window._shortcuts}
+    for tecla in ("L", "K", ",", "."):
+        assert tecla in registrados, f"{tecla} se maneja pero no está registrada"
+```
+
 - [ ] **Step 3: Verificar.**
 
 ---
@@ -350,17 +372,24 @@ también: su cuerpo redondeado se agarra mejor con el mouse que una línea de
 
 def test_la_barra_dibuja_el_rango_como_bloque_lleno(qtbot):
     """El mockup usa una banda de 26 px, no una linea: el rango marcado se
-    tiene que leer como una ZONA, no como un subrayado."""
+    tiene que leer como una ZONA, no como un subrayado.
+
+    Se mide a `y = alto - 5`, ABAJO del riel. Ahi hoy no hay nada dibujado ni
+    dentro ni fuera del rango, asi que la diferencia solo puede venir de la
+    banda nueva. **Ojo con medir cerca del centro**: entre `track_y - 9` y
+    `track_y` viven las marcas de tiempo, y ahi dentro y fuera YA se ven
+    distintos -- un test puesto en `y = 6` pasa hoy mismo, sin haber
+    construido nada. (Comprobado en la auditoria de este plan.)
+    """
     barra = _scrub(qtbot, duracion=20.0)
-    barra.set_in_out(150, 450, 30.0)
     barra.resize(400, 26)
+    barra.set_in_out(150, 450, 30.0)
     imagen = barra.grab().toImage()
     escala = imagen.width() / max(barra.width(), 1)
-    # dentro del rango, arriba y abajo del centro, tiene que haber color de
-    # trim; con una linea, arriba solo habria fondo
-    medio_x = round(200 * escala)
-    assert imagen.pixelColor(medio_x, round(6 * escala)).name() != \
-           imagen.pixelColor(round(20 * escala), round(6 * escala)).name()
+    y = round((barra.height() - 5) * escala)
+    dentro = imagen.pixelColor(round(200 * escala), y).name()
+    fuera = imagen.pixelColor(round(20 * escala), y).name()
+    assert dentro != fuera, "el rango no se lee como zona abajo del riel"
 
 
 def test_las_manijas_de_in_y_out_llevan_su_letra(qtbot):
@@ -419,10 +448,19 @@ def test_el_renglon_de_teclas_esta_bajo_la_barra(qtbot):
 
 def test_el_nombre_de_archivo_va_como_texto_sobre_un_scrim(qtbot):
     """El mockup no lo mete en pastilla: lo pone sobre un degradado que
-    arranca en el borde de arriba."""
-    stage = _stage(qtbot)
+    arranca en el borde de arriba.
+
+    Se comprueba contra el QSS del tema y no contra `file_label.styleSheet()`,
+    que devuelve **cadena vacia**: el fondo lo pone la hoja global. Una
+    asercion sobre esa cadena pasa hoy mismo sin haber cambiado nada.
+    (Comprobado en la auditoria de este plan.)
+    """
+    from clasificador_video.ui import theme
+
+    stage = _stage_visible(qtbot)
     assert stage.top_scrim.y() == 0
-    assert "background" not in stage.file_label.styleSheet()
+    bloque = theme.build_stylesheet().split("QLabel#overlayFile")[1].split("}")[0]
+    assert "background-color" not in bloque
 ```
 
 - [ ] **Step 2: Implementar** — `ScrubBar.paintEvent` se reescribe con la
@@ -1004,3 +1042,49 @@ El test `test_en_solo_video_el_video_usa_todo_el_ancho_que_puede` lo cubre.
 propiedad de python-mpv después de construir el reproductor, y que
 `frame-back-step` exista con ese nombre. Las dos necesitan un mpv real con
 material de `sample-media/`, y quedan como primer paso de la Task 1.
+
+---
+
+## Segunda auditoría del plan de la F6 — 2026-08-08
+
+Hecha ejecutando, contra **mpv real** y contra los widgets de verdad.
+
+### Lo que quedó demostrado
+
+Las tres apuestas sobre mpv, probadas con
+`sample-media/clips/20260804_PIB0589.MP4` (HEVC 10-bit, 6 s, vertical):
+
+| Apuesta | Resultado |
+|---|---|
+| `start = "25%"` se puede escribir | **Sí**, antes de cargar y con el archivo ya cargado. mpv aterriza en 1.5015 s de 6.006 s: el 25% exacto |
+| `speed` se lee y se escribe | **Sí**, incluso con el video corriendo |
+| `frame-step` y `frame-back-step` existen | **Sí**, con esos nombres. Y `frame-step` deja el reproductor pausado |
+
+La Task 1 deja de ser una apuesta.
+
+### Tres fallas del plan, todas de la misma familia
+
+**Tests que pasan sin que la función exista.** Es lo que este proyecto ya
+sufrió cuatro veces con atajos anunciados y ausentes.
+
+1. **El test de píxel de la barra medía una marca de tiempo, no la banda.**
+   A `y = 6` viven las marcas adaptativas, así que dentro y fuera del rango
+   **ya se ven distintos hoy**: el test pasaba sin construir nada. Se mueve a
+   `y = alto - 5`, abajo del riel, donde hoy no hay nada dibujado.
+
+2. **`"background" not in file_label.styleSheet()` no prueba nada.** Ese
+   método devuelve cadena vacía: el fondo lo pone la hoja de estilos global.
+   La aserción pasa hoy mismo. Ahora se comprueba contra el bloque
+   `QLabel#overlayFile` del tema.
+
+3. **El plan no decía registrar los atajos nuevos.** Todos los tests llamaban
+   a `handle_key_press("l")` directo, que funciona aunque `L` no exista para
+   el usuario. Se agrega el paso y un test que lo vigila.
+
+### Lo que enseña
+
+**Un test escrito contra una API que todavía no existe no se puede ejecutar,
+pero sí se puede razonar sobre qué mediría.** Las tres fallas se encontraron
+preguntando «¿esto pasaría hoy, sin implementar nada?» y comprobándolo. Vale
+la pena hacerlo con todo test de píxel y con toda aserción sobre un método de
+Qt que uno no usa a diario.
