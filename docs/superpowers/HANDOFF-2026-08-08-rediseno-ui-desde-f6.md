@@ -86,8 +86,9 @@ no los números ni la lista de ejecución.
 
 ## 4. Dónde está todo hoy
 
-- Rama `master`, árbol limpio. **476 tests en verde.**
-- Último commit: `ce97ae7` (este handoff).
+- Rama `master`, árbol limpio. **476 tests en verde** — ese es el número de
+  partida de la F6; si al empezar no da 476, algo pasó y hay que averiguar qué
+  antes de escribir código.
 - Fases hechas: **F0** (spike del overlay), **F1** (tokens y arnés), **F2**
   (esqueleto), **F2.1** (tarjetas completas), **F3** (cuartos planos),
   **F4** (deshacer con historial), **F5** (filtros como cola).
@@ -123,8 +124,9 @@ Lógica pura, sin Qt y con sus propios tests: `history.py` (la pila de deshacer)
 
 ## 5. Tu primera tarea: la F6
 
-Está toda en el plan (§3, doc 3). Es **la fase más grande del rediseño**:
-catorce renglones. Autoplay, velocidad `J K L`, arranque al 25%, precarga,
+Está toda en el plan (§3, doc 3), en sus **Tasks 1 a 7** — las 8 a la 13 son la
+F7. Es **la fase más grande del rediseño**: autoplay, velocidad `J K L`,
+arranque al 25%, precarga,
 `,`/`.` cuadro a cuadro, y **el pie del video entero rehecho** —barra de
 reproducción con forma de banda, pastilla de rango, renglón de teclas, contador
 de cuadro—.
@@ -155,7 +157,10 @@ el código nuevo antes de planear la F8.
 
 Esto **no es trabajo de la F6**. Está aquí para que reconozcas a qué fase
 pertenece cada cosa que te encuentres en el mockup, y no la adelantes ni la des
-por olvidada. El detalle está en el `ANALISIS` post-F5, §6 y §7.
+por olvidada. El detalle está en dos lados: el `ANALISIS` post-F5 (§6 y §7)
+tiene el inventario de lo que falta con su fase, y el propio plan de la F6/F7
+cierra con un **bosquejo de la F8, la F9 y la F10** que conviene leer antes de
+planearlas.
 
 | Fase | Qué trae |
 |---|---|
