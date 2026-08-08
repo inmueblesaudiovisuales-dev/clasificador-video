@@ -282,6 +282,138 @@ def build_stylesheet() -> str:
         color: {TEXT};
     }}
 
+    QWidget#titleBar {{
+        background-color: {BG_SURFACE_0};
+        border-bottom: 1px solid {LINE};
+    }}
+    QLabel#appMark {{
+        background-color: {CURRENT_COLOR};
+        border-radius: {RADIUS_SM}px;
+    }}
+    QLabel#projectLabel {{
+        color: {TEXT};
+        font-size: {FONT_TITLE}px;
+        font-weight: 600;
+    }}
+    QLabel#projectSubtitle {{
+        color: {TEXT_3};
+        font-size: {FONT_SMALL}px;
+    }}
+    QLabel#savedLed {{
+        background-color: {PICK_COLOR};
+        border-radius: 3px;
+    }}
+    QPushButton#railButton {{
+        background-color: {BG_SURFACE_2};
+        border: 1px solid {LINE};
+        border-radius: {RADIUS_MD}px;
+        padding: 4px 11px;
+        color: {TEXT};
+        font-size: {FONT_SMALL}px;
+        font-weight: 550;
+    }}
+    QPushButton#railButton:hover {{
+        background-color: {BG_SURFACE_1};
+    }}
+
+    QWidget#statusBar {{
+        background-color: {BG_SURFACE_0};
+        border-top: 1px solid {LINE};
+    }}
+    QLabel#statusMono {{
+        color: {TEXT_3};
+        font-family: {MONO_FONT};
+        font-size: {FONT_MICRO}px;
+    }}
+
+    QWidget#roomRail {{
+        background-color: {BG_SURFACE_0};
+        border-right: 1px solid {LINE};
+    }}
+    QLabel#railHeader {{
+        color: {TEXT_3};
+        font-size: {FONT_MICRO}px;
+        font-weight: 650;
+    }}
+    QLabel#progressBig {{
+        color: {TEXT};
+        font-family: {MONO_FONT};
+        font-size: {FONT_BIG}px;
+        font-weight: 600;
+    }}
+    QLabel#progressTotal {{
+        color: {TEXT_3};
+        font-family: {MONO_FONT};
+        font-size: {FONT_SMALL}px;
+    }}
+    QWidget#roomRow {{
+        border-radius: {RADIUS_MD}px;
+    }}
+    QWidget#roomRow[actual="true"] {{
+        background-color: {BG_SURFACE_2};
+    }}
+    QLabel#roomName {{
+        color: {TEXT};
+        font-size: {FONT_BODY}px;
+    }}
+    QLabel#roomCount {{
+        color: {TEXT_3};
+        font-family: {MONO_FONT};
+        font-size: {FONT_MICRO}px;
+    }}
+    QLabel#keyCap {{
+        background-color: {BG_SURFACE_2};
+        border: 1px solid {LINE};
+        border-radius: {RADIUS_SM}px;
+        color: {TEXT_2};
+        font-family: {MONO_FONT};
+        font-size: {FONT_MICRO}px;
+        font-weight: 600;
+    }}
+    QLabel#keyCap[sin_tecla="true"] {{
+        background-color: transparent;
+        color: transparent;
+    }}
+
+    QWidget#toolColumn {{
+        background-color: {BG_SURFACE_0};
+        border-left: 1px solid {LINE};
+        border-right: 1px solid {LINE};
+    }}
+    QLabel#toolCaption {{
+        color: {TEXT_3};
+        font-size: {FONT_MICRO}px;
+        font-weight: 650;
+    }}
+    QWidget#toolIndicator {{
+        background-color: {BG_SURFACE_1};
+        border: 1px solid {LINE};
+        border-radius: {RADIUS_LG}px;
+    }}
+    QWidget#toolIndicator QLabel {{
+        color: {TEXT_3};
+        font-size: {FONT_MICRO}px;
+        font-weight: 650;
+    }}
+    QWidget#toolIndicator[on="true"][canal="rango"] {{
+        border-color: {TRIM_COLOR};
+    }}
+    QWidget#toolIndicator[on="true"][canal="rango"] QLabel {{
+        color: {TRIM_COLOR};
+    }}
+    QWidget#toolIndicator[on="true"][canal="pick"] {{
+        border-color: {PICK_COLOR};
+    }}
+    QWidget#toolIndicator[on="true"][canal="pick"] QLabel {{
+        color: {PICK_COLOR};
+    }}
+    QWidget#toolIndicator[on="true"][canal="reject"] {{
+        border-color: {REJECT_COLOR};
+    }}
+    QWidget#toolIndicator[on="true"][canal="reject"] QLabel {{
+        color: {REJECT_COLOR};
+    }}
+
     QLabel#overlayScrim {{
         background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
             stop:0 {OVERLAY_SCRIM_FROM}, stop:1 {OVERLAY_SCRIM_TO});
