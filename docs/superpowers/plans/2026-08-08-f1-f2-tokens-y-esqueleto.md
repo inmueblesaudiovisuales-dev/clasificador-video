@@ -363,11 +363,17 @@ def test_ningun_modulo_declara_colores_fuera_del_tema():
 - Create: `scripts/comparar_con_mockup.py`
 - Test: `tests/test_comparar_con_mockup.py`
 
-El arnés corre **tres procesos separados a propósito**: `QtWebEngine` exige
-`AA_ShareOpenGLContexts` y la app fija un `QSurfaceFormat` Core 3.3 para mpv.
-Mezclar ambas cosas en una sola `QApplication` es pedir un conflicto de
-contexto de OpenGL. Cada render vive en su propio proceso; el padre solo
-compone dos PNG.
+**El mockup se renderiza con Chrome sin cabeza, no con `QtWebEngine`.**
+Verificado el 2026-08-08 en esta máquina:
+
+- `QWebEngineView` **no carga** el `file://` del mockup — `loadFinished` llega
+  con `ok=False` y `grab()` devuelve una imagen de 0×0. Descartado.
+- Chrome sin cabeza produce el PNG correcto de 1600×1000, con 507 colores
+  distintos y `#101216` (el `--surface-0` del mockup) como color dominante.
+
+Como el mockup tiene dos pantallas apiladas con encabezados, el arnés escribe
+una **copia temporal** del HTML con un `<style>` y un `<script>` inyectados que
+dejan visible solo la pantalla pedida. **Nunca se modifica el mockup original.**
 
 - [ ] **Step 1: Escribir el test que falla** (solo la parte pura; los renders
       necesitan GUI y se verifican a mano)
@@ -384,15 +390,30 @@ _spec = importlib.util.spec_from_file_location(
 comparar = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(comparar)
 
-
-def test_js_de_aislamiento_deja_una_sola_pantalla():
-    js = comparar.js_aislar_pantalla(0)
-    assert ".window" in js
-    assert "[0]" in js
+HTML_MINIMO = "<html><head><title>x</title></head><body></body></html>"
 
 
-def test_js_de_aislamiento_puede_pedir_la_segunda_pantalla():
-    assert "[1]" in comparar.js_aislar_pantalla(1)
+def test_la_inyeccion_deja_visible_solo_la_pantalla_pedida():
+    html = comparar.html_aislado(HTML_MINIMO, 0)
+    assert ".window.__solo" in html
+    assert "querySelectorAll('.window')[0]" in html
+
+
+def test_la_inyeccion_puede_pedir_la_segunda_pantalla():
+    assert "[1]" in comparar.html_aislado(HTML_MINIMO, 1)
+
+
+def test_la_inyeccion_no_toca_el_cuerpo_del_documento():
+    """Se inyecta en <head>: el mockup original nunca se modifica y la
+    copia tiene que seguir siendo el mismo documento."""
+    html = comparar.html_aislado(HTML_MINIMO, 0)
+    assert html.count("<body>") == 1
+    assert html.index("__solo") < html.index("</head>")
+
+
+def test_la_inyeccion_esconde_los_encabezados_y_el_relleno():
+    html = comparar.html_aislado(HTML_MINIMO, 0)
+    assert ".caption{display:none!important}" in html.replace(" ", "")
 
 
 def test_geometria_del_lienzo_es_la_suma_mas_la_separacion():
@@ -419,73 +440,99 @@ def test_geometria_del_lienzo_usa_el_alto_mayor():
 Renderiza el mockup HTML y la ventana real de la app al mismo tamaño y
 escribe un PNG con las dos, lado a lado.
 
-    .venv/bin/python scripts/comparar_con_mockup.py --salida /ruta/comp.png
+    .venv/bin/python scripts/comparar_con_mockup.py --salida /tmp/comp.png
 
-Corre tres procesos a proposito: QtWebEngine necesita
-AA_ShareOpenGLContexts y la app fija un QSurfaceFormat Core 3.3 para mpv.
-Mezclarlos en una sola QApplication es pedir un conflicto de contexto GL.
+El mockup se rinde con Chrome sin cabeza. QtWebEngine se probó y se
+descartó: no carga el file:// del mockup (loadFinished llega con ok=False
+y grab() devuelve 0x0). Verificado el 2026-08-08.
 """
 from __future__ import annotations
 
 import argparse
+import os
+import shutil
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 RAIZ = Path(__file__).resolve().parents[1]
 MOCKUP = RAIZ / "docs" / "superpowers" / "mockups" / "rediseno-2026-08-08" / "mockup.html"
 ANCHO, ALTO = 1600, 1000
 
+CHROME_CANDIDATOS = [
+    os.environ.get("CHROME_BIN", ""),
+    "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+    "/Applications/Chromium.app/Contents/MacOS/Chromium",
+    shutil.which("google-chrome") or "",
+    shutil.which("chromium") or "",
+]
 
-def js_aislar_pantalla(indice: int) -> str:
-    """El mockup tiene dos pantallas apiladas con encabezados. Deja solo
-    la pedida, pegada a la esquina, para poder capturarla exacta."""
-    return f"""
-    (function () {{
-      var w = document.querySelectorAll('.window')[{indice}];
-      document.body.innerHTML = '';
-      document.body.appendChild(w);
-      document.body.style.margin = '0';
-      document.body.style.padding = '0';
-      document.body.style.gap = '0';
-      document.body.style.display = 'block';
-      w.style.borderRadius = '0';
-      w.style.boxShadow = 'none';
-    }})();
+
+def buscar_chrome() -> str:
+    for ruta in CHROME_CANDIDATOS:
+        if ruta and Path(ruta).exists():
+            return ruta
+    raise SystemExit(
+        "No encontré Chrome ni Chromium. Instalá uno o exportá CHROME_BIN."
+    )
+
+
+def html_aislado(html: str, pantalla: int) -> str:
+    """Devuelve el HTML del mockup con un <style> y un <script> inyectados
+    en el <head> que dejan visible una sola pantalla, pegada a la esquina.
+
+    Se trabaja sobre una COPIA: el mockup original nunca se modifica.
     """
+    inyeccion = (
+        "<style>"
+        "body{padding:0!important;gap:0!important;background:#000!important}"
+        ".caption{display:none!important}"
+        ".window{display:none!important}"
+        ".window.__solo{display:flex!important;border-radius:0!important;"
+        "box-shadow:none!important}"
+        "</style>"
+        "<script>document.addEventListener('DOMContentLoaded',function(){"
+        f"document.querySelectorAll('.window')[{pantalla}]"
+        ".classList.add('__solo');});</script>"
+    )
+    return html.replace("</head>", inyeccion + "</head>", 1)
 
 
 def geometria_lienzo(a: tuple[int, int], b: tuple[int, int], separacion: int) -> tuple[int, int]:
     return a[0] + separacion + b[0], max(a[1], b[1])
 
 
-def _render_mockup(salida: Path, indice: int) -> None:
-    from PySide6.QtCore import QCoreApplication, Qt, QUrl, QTimer
+def render_mockup(salida: Path, pantalla: int) -> None:
+    copia = Path(tempfile.mkdtemp()) / "mockup_solo.html"
+    copia.write_text(
+        html_aislado(MOCKUP.read_text(encoding="utf-8"), pantalla), encoding="utf-8"
+    )
+    subprocess.run(
+        [
+            buscar_chrome(),
+            "--headless=new",
+            "--disable-gpu",
+            "--hide-scrollbars",
+            "--no-first-run",
+            "--no-default-browser-check",
+            "--disable-extensions",
+            "--force-device-scale-factor=1",
+            f"--window-size={ANCHO},{ALTO}",
+            "--virtual-time-budget=3000",
+            f"--screenshot={salida}",
+            f"file://{copia}",
+        ],
+        capture_output=True,  # Chrome escupe ruido irrelevante en stderr
+        check=False,          # su codigo de salida no es confiable
+    )
+    if not salida.exists():
+        raise SystemExit(f"Chrome no escribió {salida}")
+
+
+def render_app(salida: Path) -> None:
     from PySide6.QtWidgets import QApplication
-    QCoreApplication.setAttribute(Qt.AA_ShareOpenGLContexts)
-    app = QApplication(sys.argv[:1])
-    from PySide6.QtWebEngineWidgets import QWebEngineView
 
-    vista = QWebEngineView()
-    vista.resize(ANCHO, ALTO)
-    vista.show()
-
-    def al_cargar(ok: bool) -> None:
-        if not ok:
-            print("no cargo el mockup", file=sys.stderr)
-            app.exit(1)
-            return
-        vista.page().runJavaScript(js_aislar_pantalla(indice))
-        # el JS reflowea: dar un respiro antes de capturar
-        QTimer.singleShot(600, lambda: (vista.grab().save(str(salida)), app.quit()))
-
-    vista.loadFinished.connect(al_cargar)
-    vista.load(QUrl.fromLocalFile(str(MOCKUP)))
-    sys.exit(app.exec())
-
-
-def _render_app(salida: Path) -> None:
-    from PySide6.QtWidgets import QApplication
     from clasificador_video.app import configure_gl_surface_format
     from clasificador_video.ui.theme import build_stylesheet
     # `scripts/` no es un paquete y al correr `python scripts/x.py` el
@@ -495,7 +542,7 @@ def _render_app(salida: Path) -> None:
     from _datos_de_ejemplo import construir_ventana_de_ejemplo
 
     configure_gl_surface_format()
-    app = QApplication(sys.argv[:1])
+    app = QApplication.instance() or QApplication(sys.argv[:1])
     app.setStyleSheet(build_stylesheet())
     ventana = construir_ventana_de_ejemplo()
     ventana.resize(ANCHO, ALTO)
@@ -504,13 +551,13 @@ def _render_app(salida: Path) -> None:
     ventana.grab().save(str(salida))
 
 
-def _componer(izq: Path, der: Path, salida: Path, separacion: int = 40) -> None:
-    from PySide6.QtGui import QColor, QGuiApplication, QImage, QPainter
-    QGuiApplication(sys.argv[:1])
+def componer(izq: Path, der: Path, salida: Path, separacion: int = 40) -> None:
+    from PySide6.QtGui import QColor, QImage, QPainter
+
     a, b = QImage(str(izq)), QImage(str(der))
     ancho, alto = geometria_lienzo((a.width(), a.height()), (b.width(), b.height()), separacion)
     lienzo = QImage(ancho, alto, QImage.Format_RGB32)
-    lienzo.fill(QColor("#000000"))
+    lienzo.fill(QColor("black"))
     p = QPainter(lienzo)
     p.drawImage(0, 0, a)
     p.drawImage(a.width() + separacion, 0, b)
@@ -521,33 +568,27 @@ def _componer(izq: Path, der: Path, salida: Path, separacion: int = 40) -> None:
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--salida", required=True, type=Path)
-    ap.add_argument("--pantalla", type=int, default=0,
-                    help="0 = modo clip, 1 = modo hoja")
-    ap.add_argument("--render-mockup", type=Path, help="uso interno")
-    ap.add_argument("--render-app", type=Path, help="uso interno")
+    ap.add_argument("--pantalla", type=int, default=0, help="0 = modo clip, 1 = modo hoja")
     args = ap.parse_args()
 
-    if args.render_mockup:
-        _render_mockup(args.render_mockup, args.pantalla)
-        return
-    if args.render_app:
-        _render_app(args.render_app)
-        return
-
-    tmp = args.salida.parent
-    izq, der = tmp / "_mockup.png", tmp / "_app.png"
-    yo = [sys.executable, __file__, "--salida", str(args.salida)]
-    subprocess.run(yo + ["--render-mockup", str(izq), "--pantalla", str(args.pantalla)], check=True)
-    subprocess.run(yo + ["--render-app", str(der)], check=True)
-    _componer(izq, der, args.salida)
-    izq.unlink(missing_ok=True)
-    der.unlink(missing_ok=True)
+    tmp = Path(tempfile.mkdtemp())
+    izq, der = tmp / "mockup.png", tmp / "app.png"
+    render_mockup(izq, args.pantalla)   # subproceso de Chrome, antes de crear la QApplication
+    render_app(der)                     # la QApplication vive solo en este proceso
+    componer(izq, der, args.salida)
     print(f"comparación escrita en {args.salida}")
 
 
 if __name__ == "__main__":
     main()
 ```
+
+**Orden de las llamadas, no es casual:** `render_mockup` va primero porque
+lanza un subproceso externo y no necesita `QApplication`. Después
+`render_app` crea la única `QApplication` del proceso, con el
+`QSurfaceFormat` Core 3.3 que mpv exige. `componer` reusa esa misma
+`QApplication` — por eso ya no crea un `QGuiApplication` propio, que
+chocaría con la existente.
 
 - [ ] **Step 4: Crear `scripts/_datos_de_ejemplo.py`** con
       `construir_ventana_de_ejemplo() -> MainWindow`: una `MainWindow` con
@@ -794,6 +835,16 @@ def _stage(qtbot) -> VideoStage:
     return stage
 
 
+def _stage_visible(qtbot) -> VideoStage:
+    """`qtbot.addWidget` NO muestra el widget: sin `show()` previo,
+    `waitExposed` se queda esperando para siempre. Y sin exponer, el
+    layout nunca corre y `stage.video` conserva su tamaño inicial."""
+    stage = _stage(qtbot)
+    stage.show()
+    qtbot.waitExposed(stage)
+    return stage
+
+
 def test_la_scrub_bar_es_hija_del_video_no_hermana(qtbot):
     """Si fuera hermana volveria a ser una banda y le robaria altura."""
     stage = _stage(qtbot)
@@ -819,8 +870,7 @@ def test_la_scrub_bar_si_recibe_mouse(qtbot):
 
 def test_los_overlays_se_reposicionan_al_cambiar_el_tamano(qtbot):
     from clasificador_video.ui import theme
-    stage = _stage(qtbot)
-    qtbot.waitExposed(stage)
+    stage = _stage_visible(qtbot)
     stage.resize(400, 600)
     qtbot.wait(50)
     esperado = stage.video.width() - 2 * theme.OVERLAY_MARGIN
@@ -829,8 +879,7 @@ def test_los_overlays_se_reposicionan_al_cambiar_el_tamano(qtbot):
 
 def test_la_scrub_bar_queda_pegada_al_borde_inferior(qtbot):
     from clasificador_video.ui import theme
-    stage = _stage(qtbot)
-    qtbot.waitExposed(stage)
+    stage = _stage_visible(qtbot)
     stage.resize(529, 940)
     qtbot.wait(50)
     borde = stage.scrub_bar.y() + stage.scrub_bar.height()
@@ -1190,6 +1239,59 @@ maestro): `legend_label`, `ingest_list`, `ingest_title_label`,
 hasta la F3, que es la que arranca los subcuartos de raíz. Se cuelgan de
 `RoomRail` como banner temporal.
 
+#### `app.py` también se rompe — no está solo en `main_window.py`
+
+`_restore_session` (`app.py:70-78`) manipula **dos widgets que esta tarea
+borra**:
+
+```python
+window.room_list_widget.clear()
+window.room_list_widget.addItems(window.room_selection.active_rooms())
+window.legend_label.setText(_build_legend_text(...))
+```
+
+Con la ventana nueva eso es un `AttributeError` **al recuperar una sesión
+guardada**, que es justo el camino que casi nunca se prueba a mano porque hay
+que tener una sesión a medias en disco. Y `tests/test_app.py` —que sí lo
+cubre— está excluido del comando de tests por su cuelgue preexistente, así que
+**nadie se iba a enterar hasta que le pasara a Bruno**.
+
+Reemplazo: `window.room_rail.set_rooms(window.room_selection.active_rooms(), {})`
+y borrar la línea de la leyenda junto con el import de `_build_legend_text`.
+
+**Limitación aceptada:** una sesión restaurada no vuelve a correr `ffprobe`,
+así que `_clip_sizes` queda vacío y todos los clips se dimensionan como 16:9
+hasta reimportar. Es el mismo comportamiento que ya tiene `_clip_durations`
+hoy. Se resuelve en la F9, junto con los proxies.
+
+#### Mapa de los métodos de la `MainWindow` vieja
+
+Los 783 renglones actuales tienen métodos que no son widgets y que el plan no
+puede dejar sin destino, o sobreviven de contrabando:
+
+| Método actual | Destino |
+|---|---|
+| `_build_legend_text` | **Se borra.** La leyenda de una línea no existe en el mockup |
+| `_build_room_row_widget` | Se muda a `RoomRail` como fila interna |
+| `_refresh_room_counts` | Se muda a `RoomRail.set_rooms(rooms, counts)` |
+| `_update_toolbar_stats` | Se parte: progreso → `RoomRail`, aviso → `StatusBar` |
+| `_update_inspector` | Se parte: nombre y datos técnicos → `StatusBar`, cuarto y estado → badges del `VideoStage` |
+| `_update_scrub_time_label` | Se muda a los overlays del `VideoStage` |
+| `_update_scrub_bar` | Se queda en `MainWindow`, apuntando a `video_stage.scrub_bar` |
+| `_tick_playhead` | Se queda igual |
+| `_tick_saved_indicator` | Llama a `title_bar.set_saved_seconds(...)` |
+| `_update_subroom_banner` | Se queda hasta la F3, apuntando al banner del `RoomRail` |
+| `_on_quality_changed` | Se reconecta a `SegmentedControl.selected` en vez de `QComboBox.currentTextChanged` |
+| `_refresh_filmstrip` | Pasa a `_refresh_sheet`, hablándole a `ClipSheet` |
+| `_on_import_folders`, `_refresh_ingest_list` | `_on_import_folders` se queda (lo dispara `RoomRail`); `_refresh_ingest_list` **se borra** con el panel |
+| `handle_key_press`, `handle_arrow`, `select_clip`, `_bulk_targets`, `_apply_categoria_to_targets`, autosave, `_schedule_thumbnails`, `_on_thumbnail_ready`, `_on_export_manifest`, `attach_subroom_or_resolve`, `_ask_parent_room`, `closeEvent` | Se quedan sin cambios de comportamiento |
+
+**Detalle de foco:** con botones reales en la barra de título y el rail, la
+tecla `Espacio` puede activar el botón que tenga el foco en vez de
+reproducir. Todo botón decorativo o de acción poco frecuente lleva
+`setFocusPolicy(Qt.NoFocus)`. Hoy no pasa porque casi no hay botones enfocables
+en el camino del teclado.
+
 - [ ] **Step 1: Correr la suite y capturar la lista exacta de tests rotos.**
       Esperados (conteo de referencias hechas sobre el árbol actual):
       `legend_label` 6, `import_button` 3, `ingest_list` 3,
@@ -1278,9 +1380,16 @@ def test_cambiar_de_clip_reajusta_el_ancho_del_video(qtbot):
 ```
 
 - [ ] **Step 4: Reescribir `main_window.py`.**
-- [ ] **Step 5: Borrar los alias de compatibilidad de `theme.py`** y ajustar
+- [ ] **Step 5: Arreglar `app.py::_restore_session`** y actualizar
+      `tests/test_app.py` aunque esté excluido del comando: si se deja
+      desactualizado, la próxima persona que lo corra no va a saber si falla
+      por el cuelgue conocido o porque de verdad se rompió algo.
+- [ ] **Step 6: Borrar los alias de compatibilidad de `theme.py`** y ajustar
       los imports que quedaron.
-- [ ] **Step 6: Correr la suite completa.** Verde.
+- [ ] **Step 7: Probar a mano el camino de sesión restaurada**, que ningún
+      test del comando habitual cubre: abrir la app, clasificar algo, cerrarla,
+      volver a abrirla y aceptar la recuperación.
+- [ ] **Step 8: Correr la suite completa.** Verde.
 
 ---
 
