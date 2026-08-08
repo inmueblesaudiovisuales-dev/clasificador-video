@@ -419,3 +419,66 @@ def test_el_in_out_sigue_pegado_al_borde_derecho_al_crecer(qtbot):
     qtbot.wait(20)
     derecha = stage.io_label.x() + stage.io_label.width()
     assert stage.video.width() - derecha == theme.OVERLAY_MARGIN
+
+
+def test_la_fila_de_teclas_se_esconde_si_no_cabe_junto_a_la_pastilla(qtbot):
+    """Bug real encontrado revisando la F6: los dos van en la misma fila --la
+    pastilla a la izquierda, las teclas a la derecha-- y con un video angosto
+    se encimaban, dejando las dos ilegibles.
+
+    Se esconde la FILA DE TECLAS y no la pastilla: la pastilla dice cuanto
+    dura el rango que marcaste, la fila es un recordatorio de teclas que ya
+    te sabes.
+    """
+    stage = _stage_visible(qtbot)
+    # el orden importa y es el de la app: primero queda el tamaño, y la
+    # pastilla aparece DESPUES, al abrir un clip que trae rango marcado. Con
+    # la comprobacion solo en el acomodo por tamaño, este test pasaba y la
+    # app seguia rota.
+    stage.resize(300, 700)
+    qtbot.wait(50)
+    stage.set_range_pill(7.13, 212, 18.37)
+    qtbot.wait(20)
+    assert stage.keys_hint.isHidden()
+
+    stage.resize(900, 700)          # con espacio de sobra, vuelve
+    qtbot.wait(50)
+    assert not stage.keys_hint.isHidden()
+
+
+def test_sin_pastilla_la_fila_de_teclas_se_queda(qtbot):
+    """Sin rango marcado la pastilla no ocupa nada, asi que no hay conflicto
+    y el recordatorio se ve completo."""
+    stage = _stage_visible(qtbot)
+    stage.set_range_pill(None, None, 18.37)
+    stage.resize(400, 700)
+    qtbot.wait(50)
+    assert not stage.keys_hint.isHidden()
+
+
+def test_la_fila_del_timecode_no_se_encima_con_el_in_out(qtbot):
+    """Timecode + numero de cuadro a la izquierda, IN/OUT a la derecha. En un
+    video angosto tambien pueden chocar."""
+    stage = _stage_visible(qtbot)
+    stage.set_timecode("00:00:09:23", frame=293)
+    stage.set_in_out_labels("00:04:12", "00:11:16")
+    stage.resize(340, 700)
+    qtbot.wait(50)
+    if not stage.io_label.isHidden():
+        izquierda = stage.frame_label.x() + stage.frame_label.width()
+        assert stage.io_label.x() >= izquierda
+
+
+def test_al_borrar_el_rango_vuelve_la_fila_de_teclas(qtbot):
+    """`U` borra el in/out: la pastilla desaparece y libera el renglon, asi
+    que el recordatorio de teclas tiene que volver. Sin esto se iba con el
+    primer rango y no volvia en toda la sesion."""
+    stage = _stage_visible(qtbot)
+    stage.resize(300, 700)
+    qtbot.wait(50)
+    stage.set_range_pill(7.13, 212, 18.37)
+    qtbot.wait(20)
+    assert stage.keys_hint.isHidden()
+    stage.set_range_pill(None, None, 18.37)
+    qtbot.wait(20)
+    assert not stage.keys_hint.isHidden()

@@ -234,7 +234,11 @@ class VideoStage(QWidget):
         probar la pastilla sin armar un clip entero.
         """
         if rango_segundos is None or cuadros is None:
-            self.range_pill.hide()
+            if not self.range_pill.isHidden():
+                self.range_pill.hide()
+                # sin pastilla se libera el renglon: la fila de teclas, que
+                # quiza se habia escondido para no encimarse, puede volver
+                self._colocar_textos_del_pie()
             return
         if not fps:
             fps = cuadros / rango_segundos if rango_segundos > 0 else 0.0
@@ -243,10 +247,14 @@ class VideoStage(QWidget):
             f"  ·  {cuadros} f"
             f"  ·  total {formato_corto(total_segundos, fps)}"
         )
-        if texto != self.range_pill.text():
-            self.range_pill.setText(texto)
-            self._colocar_textos_del_pie()
+        cambio = texto != self.range_pill.text() or self.range_pill.isHidden()
+        self.range_pill.setText(texto)
+        # `show()` ANTES de re-acomodar: el acomodo decide si la fila de teclas
+        # cabe al lado de la pastilla, y con la pastilla todavia escondida
+        # concluiria que si -- y se encimarian.
         self.range_pill.show()
+        if cambio:
+            self._colocar_textos_del_pie()
 
     @staticmethod
     def width_for(height: int, aspect_ratio: float) -> int:
@@ -291,9 +299,33 @@ class VideoStage(QWidget):
         self.io_label.adjustSize()
         self.io_label.move(ancho - M - self.io_label.width(),
                            base - self.io_label.height() - 2)
+        # y se esconde si choca con el timecode. De los tres datos de la fila
+        # es el unico que se ve en otro lado: las manijas de la barra dicen
+        # donde empieza y termina el rango, y la pastilla cuanto dura. El
+        # numero de cuadro, en cambio, no aparece en ningun otro sitio.
+        fin_izquierda = self.frame_label.x() + self.frame_label.width()
+        self.io_label.setVisible(
+            not self.io_label.text() == "" and self.io_label.x() >= fin_izquierda + 10
+        )
 
         self.range_pill.adjustSize()
         self.range_pill.move(M, self.keys_hint.y())
+
+        # Pastilla y fila de teclas comparten el renglon de abajo, y con un
+        # video angosto se encimaban dejando las dos ilegibles. Se esconde la
+        # FILA DE TECLAS: la pastilla dice cuanto dura el rango que marcaste,
+        # la fila es un recordatorio de teclas que ya te sabes. Vuelve sola en
+        # cuanto hay lugar.
+        #
+        # Va aqui y no solo en `_place_overlays` porque la pastilla aparece
+        # DESPUES del ultimo cambio de tamaño --al abrir un clip con rango--,
+        # y ahi ya nadie volveria a comprobar el choque.
+        if self.range_pill.isHidden():
+            estorba = False
+        else:
+            fin_pastilla = self.range_pill.x() + self.range_pill.width()
+            estorba = fin_pastilla + 12 > ancho - M - self.keys_hint.sizeHint().width()
+        self.keys_hint.setVisible(not estorba)
 
     def _place_overlays(self) -> None:
         ancho, alto = self.video.width(), self.video.height()
