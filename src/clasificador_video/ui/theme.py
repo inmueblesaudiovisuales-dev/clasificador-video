@@ -435,6 +435,12 @@ def build_stylesheet() -> str:
     QWidget#roomRow[actual="true"] {{
         background-color: {BG_SURFACE_2};
     }}
+    /* `⌘R` trae el foco aca: sin marca visible no se sabe sobre que fila
+       actuan ⏎, ⌫ y ⌥↑/⌥↓ */
+    QWidget#roomRow:focus {{
+        background-color: {BG_SURFACE_1};
+        border: 1px solid {CURRENT_COLOR};
+    }}
     /* transparentes a proposito: la regla global de QWidget les pinta el
        fondo de la app, y sobre la fila resaltada del cuarto actual eso se
        ve como recuadros oscuros alrededor del nombre y del conteo. */

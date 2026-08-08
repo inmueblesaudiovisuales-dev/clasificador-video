@@ -334,3 +334,100 @@ def test_el_glifo_de_revertir_se_dibuja_de_verdad(qtbot):
     colores = {imagen.pixelColor(x, y).name()
                for x in range(imagen.width()) for y in range(imagen.height())}
     assert len(colores) > 1, "el boton salio de un solo color: el glifo no se dibujo"
+
+
+# --- ⌘R: manejar los cuartos sin mouse --------------------------------------
+
+
+def test_enfocar_el_rail_pone_el_foco_en_el_primer_cuarto(qtbot):
+    rail = _rail(qtbot)
+    rail.set_rooms(["Cocina", "Sala"], {})
+    rail.show()
+    qtbot.waitExposed(rail)
+    rail.focus_rooms()
+    assert rail.focusWidget() is rail.rows[0]
+
+
+def test_sin_cuartos_enfocar_el_rail_abre_el_dialogo_de_crear(qtbot, monkeypatch):
+    """Enfocar una lista vacia no sirve de nada: lo unico que se puede hacer
+    ahi es crear el primero."""
+    rail = _rail(qtbot)
+    llamado = []
+    monkeypatch.setattr(rail, "_pedir_cuarto_nuevo", lambda: llamado.append(True))
+    rail.focus_rooms()
+    assert llamado == [True]
+
+
+def test_las_flechas_mueven_el_foco_entre_cuartos(qtbot):
+    from PySide6.QtCore import Qt
+
+    rail = _rail(qtbot)
+    rail.set_rooms(["Cocina", "Sala", "Baño"], {})
+    rail.show()
+    qtbot.waitExposed(rail)
+    rail.focus_rooms()
+    qtbot.keyClick(rail.rows[0], Qt.Key.Key_Down)
+    assert rail.focusWidget() is rail.rows[1]
+    qtbot.keyClick(rail.rows[1], Qt.Key.Key_Up)
+    assert rail.focusWidget() is rail.rows[0]
+
+
+def test_el_foco_no_se_sale_por_los_extremos(qtbot):
+    from PySide6.QtCore import Qt
+
+    rail = _rail(qtbot)
+    rail.set_rooms(["Cocina", "Sala"], {})
+    rail.show()
+    qtbot.waitExposed(rail)
+    rail.focus_rooms()
+    qtbot.keyClick(rail.rows[0], Qt.Key.Key_Up)
+    assert rail.focusWidget() is rail.rows[0]
+
+
+def test_borrar_pide_eliminar_el_cuarto_enfocado(qtbot):
+    from PySide6.QtCore import Qt
+
+    rail = _rail(qtbot)
+    rail.set_rooms(["Cocina", "Sala"], {})
+    rail.show()
+    qtbot.waitExposed(rail)
+    rail.focus_rooms()
+    with qtbot.waitSignal(rail.room_removed) as blocker:
+        qtbot.keyClick(rail.rows[0], Qt.Key.Key_Backspace)
+    assert blocker.args == ["Cocina"]
+
+
+def test_alt_con_flecha_reordena_el_cuarto_enfocado(qtbot):
+    """Reordenar ES cambiar la tecla, asi que va con modificador: una flecha
+    sola solo mueve el foco."""
+    from PySide6.QtCore import Qt
+
+    rail = _rail(qtbot)
+    rail.set_rooms(["Cocina", "Sala"], {})
+    rail.show()
+    qtbot.waitExposed(rail)
+    rail.focus_rooms()
+    with qtbot.waitSignal(rail.room_moved) as blocker:
+        qtbot.keyClick(rail.rows[0], Qt.Key.Key_Down, Qt.KeyboardModifier.AltModifier)
+    assert blocker.args == ["Cocina", 1]
+
+
+def test_la_fila_enfocada_se_ve(qtbot):
+    """Un foco invisible es peor que no tenerlo: no sabes sobre que fila
+    actuan ⏎, ⌫ y ⌥↑/⌥↓.
+
+    Se comprueba la REGLA de estilo y no el pixel: el pseudo-estado `:focus`
+    solo se pinta con la ventana activa, y bajo `offscreen` no la hay. Que la
+    fila se vea distinta al enfocarla queda como prueba a mano.
+    """
+    hoja = theme.build_stylesheet()
+    assert "QWidget#roomRow:focus" in hoja
+    assert theme.CURRENT_COLOR in hoja.split("QWidget#roomRow:focus")[1][:200]
+
+
+def test_las_filas_de_cuarto_se_pueden_enfocar(qtbot):
+    from PySide6.QtCore import Qt
+
+    rail = _rail(qtbot)
+    rail.set_rooms(["Cocina"], {})
+    assert rail.rows[0].focusPolicy() == Qt.FocusPolicy.StrongFocus

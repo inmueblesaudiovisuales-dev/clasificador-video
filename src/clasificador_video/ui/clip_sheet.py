@@ -577,15 +577,14 @@ class ClipSheet(QWidget):
         """
         filas: list[QHBoxLayout] = []
         self.chips: dict[str, _Chip] = {}
-        self._grupos: dict[str, QButtonGroup] = {}
 
-        for grupo, titulo, opciones in (
-            ("mostrar", "MOSTRAR", [
+        for titulo, opciones in (
+            ("MOSTRAR", [
                 ("todos", "Todos"),
                 ("sin_clasificar", "Sin clasificar"),
                 ("clasificados", "Clasificados"),
             ]),
-            ("estado", "ESTADO", [
+            ("ESTADO", [
                 ("todos_estado", "Todos"),
                 ("solo_picks", "Solo picks"),
                 ("ocultar_rejects", "Ocultar rejects"),
@@ -607,7 +606,6 @@ class ClipSheet(QWidget):
                 botones.addButton(chip)
                 fila.addWidget(chip)
                 self.chips[clave] = chip
-            self._grupos[grupo] = botones
             fila.addStretch(1)
             filas.append(fila)
 

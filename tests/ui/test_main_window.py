@@ -1393,3 +1393,25 @@ def test_el_aviso_tambien_marca_el_chip_como_el_que_define_la_cola(qtbot):
     _cuatro(window)
     window.status_bar.unclassified_clicked.emit()
     assert window.clip_sheet.chips["sin_clasificar"].property("q") is True
+
+
+def test_los_atajos_anunciados_en_la_interfaz_existen(qtbot):
+    """La barra de titulo anuncia `⌘E` y la hoja `⌘A`; el rail, `⌘Z`. Un
+    atajo dibujado que no responde es la clase de detalle que hace desconfiar
+    de una herramienta -- y ya se coló tres veces en este rediseño."""
+    from PySide6.QtGui import QKeySequence
+
+    window = _window(qtbot, rooms=("Cocina",))
+    registrados = {s.key().toString() for s in window._shortcuts}
+    for anunciado in ("Ctrl+E", "Ctrl+R", "Ctrl+A", "Ctrl+Z"):
+        assert anunciado in registrados, f"{anunciado} se anuncia y no existe"
+    assert QKeySequence(QKeySequence.StandardKey.SelectAll).toString() == "Ctrl+A"
+
+
+def test_el_boton_de_cuartos_lleva_el_foco_al_rail(qtbot):
+    """Estuvo muerto desde la F2: emitia una señal que nadie escuchaba."""
+    window = _window(qtbot, rooms=("Cocina", "Sala"))
+    window.show()
+    qtbot.waitExposed(window)
+    window.title_bar.rooms_button.click()
+    assert window.room_rail.focusWidget() is window.room_rail.rows[0]

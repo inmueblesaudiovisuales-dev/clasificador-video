@@ -176,6 +176,10 @@ class MainWindow(QWidget):
         self.room_rail.room_moved.connect(self._on_room_moved)
         self.room_rail.room_removed.connect(self._on_room_removed)
         self.room_rail.revert_requested.connect(self.revert)
+        # el boton «Cuartos ⌘R» estuvo muerto desde la F2: emitia una señal
+        # que nadie escuchaba. Ahora lleva el foco al rail, para renombrar,
+        # reordenar y crear cuartos sin tocar el mouse.
+        self.title_bar.rooms_requested.connect(self.room_rail.focus_rooms)
 
         self.video_stage = VideoStage(mpv_factory=video_factory)
         self.video_stage.quality.selected.connect(self._on_quality_changed)
@@ -269,6 +273,10 @@ class MainWindow(QWidget):
             (QKeySequence.StandardKey.SelectAll, self.select_current_group),
             # StandardKey.Undo ya es ⌘Z en macOS y Ctrl+Z en el resto
             (QKeySequence.StandardKey.Undo, self.undo),
+            # la barra de titulo anuncia `⌘E` en el boton de exportar desde la
+            # F2 y el atajo no existia
+            ("Ctrl+E", self._on_export_manifest),
+            ("Ctrl+R", self.room_rail.focus_rooms),
         ]
         for digit in "123456789":
             shortcuts.append((digit, lambda d=digit: self.handle_key_press(d)))

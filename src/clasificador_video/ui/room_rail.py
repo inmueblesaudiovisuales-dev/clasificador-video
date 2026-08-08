@@ -134,6 +134,7 @@ class _FilaCuarto(QWidget):
     rename_requested = Signal(str, str)   # nombre viejo, nombre nuevo
     move_requested = Signal(str, int)     # nombre, -1 arriba / +1 abajo
     remove_requested = Signal(str)
+    mover_foco_requested = Signal(object, int)   # fila, direccion
 
     def __init__(self, numero: int | None, nombre: str, color: str, cuantos: int, parent=None):
         super().__init__(parent)
@@ -141,6 +142,10 @@ class _FilaCuarto(QWidget):
         self.setAttribute(Qt.WA_StyledBackground, True)
         self.setFixedHeight(29)
         self.nombre = nombre
+        # enfocable para poder manejar los cuartos sin mouse (`⌘R`). Es un
+        # QWidget y no un boton, asi que la barra espaciadora no lo "activa":
+        # sigue reproduciendo el video aunque el rail tenga el foco.
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
 
         layout = QHBoxLayout(self)
         layout.setContentsMargins(6, 0, 6, 0)
@@ -187,6 +192,38 @@ class _FilaCuarto(QWidget):
 
     def mouseDoubleClickEvent(self, event) -> None:  # noqa: N802 -- override de Qt
         self._pedir_nombre()
+
+    def keyPressEvent(self, event) -> None:  # noqa: N802 -- override de Qt
+        """Manejar los cuartos sin mouse, con la fila enfocada.
+
+        Reordenar lleva modificador porque **cambia la tecla del cuarto**: una
+        flecha sola solo mueve el foco, que no cambia nada.
+        """
+        tecla = event.key()
+        con_alt = bool(event.modifiers() & Qt.KeyboardModifier.AltModifier)
+        if tecla in (Qt.Key.Key_Up, Qt.Key.Key_Down):
+            delta = -1 if tecla == Qt.Key.Key_Up else 1
+            if con_alt:
+                self.pedir_mover(delta)
+            else:
+                self.mover_foco_requested.emit(self, delta)
+            event.accept()
+            return
+        if tecla in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
+            self._pedir_nombre()
+            event.accept()
+            return
+        if tecla in (Qt.Key.Key_Backspace, Qt.Key.Key_Delete):
+            self.pedir_eliminar()
+            event.accept()
+            return
+        super().keyPressEvent(event)
+
+    # La marca visual del foco la pone QSS con el pseudo-estado `:focus` (ver
+    # `theme.build_stylesheet`). Se probo con una propiedad dinamica y
+    # `focusInEvent`, y no sirve: ese evento solo se entrega cuando la ventana
+    # esta ACTIVA, asi que bajo `offscreen` nunca llegaba y el estilo quedaba
+    # sin aplicar en los tests. Con `:focus` lo maneja Qt y sobra el codigo.
 
     def _pedir_nombre(self) -> None:
         nuevo, ok = QInputDialog.getText(
@@ -418,12 +455,34 @@ class RoomRail(QWidget):
             fila.rename_requested.connect(self.room_renamed.emit)
             fila.move_requested.connect(self.room_moved.emit)
             fila.remove_requested.connect(self.room_removed.emit)
+            fila.mover_foco_requested.connect(self._mover_foco)
             self._rooms_layout.addWidget(fila)
             self.rows.append(fila)
         self._rooms_layout.addWidget(self.new_room_row)
         self.progress_bar.set_counts(
             [counts.get(c, 0) for c in rooms], self._pendientes
         )
+
+    def focus_rooms(self) -> None:
+        """`⌘R`: manejar los cuartos sin tocar el mouse.
+
+        Con la fila enfocada: `↑`/`↓` mueven el foco, `⌥↑`/`⌥↓` reordenan
+        --que es cambiar la tecla--, `⏎` renombra y `⌫` elimina.
+
+        Con el rail vacio no tiene sentido enfocar nada: lo unico que se puede
+        hacer es crear el primero, asi que se abre ese dialogo directo.
+        """
+        if not self.rows:
+            self._pedir_cuarto_nuevo()
+            return
+        self.rows[0].setFocus(Qt.FocusReason.ShortcutFocusReason)
+
+    def _mover_foco(self, fila, delta: int) -> None:
+        if fila not in self.rows:
+            return
+        destino = self.rows.index(fila) + delta
+        if 0 <= destino < len(self.rows):   # en los extremos no se sale
+            self.rows[destino].setFocus(Qt.FocusReason.OtherFocusReason)
 
     def _pedir_cuarto_nuevo(self) -> None:
         nombre, ok = QInputDialog.getText(self, "Nuevo cuarto", "Nombre del cuarto:")

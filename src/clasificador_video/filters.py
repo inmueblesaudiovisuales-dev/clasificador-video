@@ -5,12 +5,6 @@ import unicodedata
 from dataclasses import dataclass
 from pathlib import Path
 
-# Los dos grupos del mockup. El chip `solo_destacados` entra en la F7, cuando
-# exista el estado "destacado": aca no se inventa.
-MOSTRAR = ("todos", "sin_clasificar", "clasificados")
-ESTADO = ("todos", "solo_picks", "ocultar_rejects", "sin_marcar")
-
-
 def _sin_acentos(texto: str) -> str:
     """`recamara` tiene que encontrar `Recámara 1`: en un teclado apurado
     nadie escribe los acentos."""
@@ -30,6 +24,12 @@ class FilterState:
     separado se desincronizan.
     """
 
+    # Los valores validos de `mostrar` son "todos", "sin_clasificar" y
+    # "clasificados"; los de `estado`, "todos", "solo_picks",
+    # "ocultar_rejects" y "sin_marcar". Cualquier otro no filtra nada, a
+    # proposito: esconder clips por un nombre que el modulo no conoce seria
+    # peor que no filtrar. El chip `solo_destacados` entra en la F7, con el
+    # estado "destacado".
     mostrar: str = "todos"
     estado: str = "todos"
     busqueda: str = ""

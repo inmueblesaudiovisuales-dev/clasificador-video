@@ -217,6 +217,16 @@ La app abre lista para trabajar; no hay paso previo de "elige los cuartos".
 El rail izquierdo se edita en el lugar —renombrar, reordenar (que es cambiar
 qué tecla le toca a cada uno), borrar— y los cuartos se crean sobre la marcha.
 
+Con el mouse: click derecho abre el menú y doble click renombra. Sin mouse:
+`⌘R` lleva el foco al rail y ahí `↑`/`↓` mueven el foco, `⌥↑`/`⌥↓` reordenan,
+`⏎` renombra y `⌫` elimina. **Reordenar lleva modificador a propósito**: una
+flecha sola solo mueve el foco, que no cambia nada, mientras que reordenar le
+cambia la tecla a un cuarto.
+
+Esto es distinto de la paleta `⏎`, y por eso son dos teclas y no una: la
+paleta **asigna** un cuarto a un clip —la operación que se hace 128 veces—,
+mientras que `⌘R` **administra la lista**, que se toca una vez por shooting.
+
 Nueve teclas no alcanzan con cuartos planos. En vez de un segundo banco de
 atajos —memorizar dieciocho combinaciones es peor que el problema— hay una
 **paleta de asignación rápida**: `⏎` abre un campo, tecleas dos o tres letras,
@@ -275,6 +285,11 @@ memoria.
 | mantener `1`–`9` + arrastrar | pincel de cuarto |
 | `⌘Z` | deshacer |
 | arrastre · `⇧`+click · `⌘A` | selección múltiple |
+| `⌘E` | exportar el manifest |
+| `⌘R` | manejar los cuartos sin mouse: lleva el foco al rail |
+| en el rail: `↑` `↓` | mover el foco entre cuartos |
+| en el rail: `⌥↑` `⌥↓` | reordenar — que es cambiar la tecla del cuarto |
+| en el rail: `⏎` · `⌫` | renombrar · eliminar el cuarto enfocado |
 
 **No hay tecla de "neutral"** *para el flag*: `P` sobre un clip que ya es pick
 lo devuelve a neutral, igual `X`. El **rango** sí tiene la suya —`U` borra el
