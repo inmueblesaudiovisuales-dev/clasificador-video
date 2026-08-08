@@ -38,6 +38,12 @@ from clasificador_video.ui.tool_column import ToolColumn
 from clasificador_video.ui.video_stage import VideoStage
 from clasificador_video.ui.video_widget import format_timecode
 
+# Donde arranca cada clip. El principio de un recorrido siempre es la camara
+# acomodandose, y el frame de portada de la hoja sale del mismo punto
+# (DECISIONES.md): al llegar al clip ves lo mismo que viste en la miniatura.
+START_PERCENT = 25
+
+
 def _copiar(valor):
     """Copia los valores mutables que guarda el historial.
 
@@ -135,6 +141,9 @@ class MainWindow(QWidget):
         self.selected_indices: list[int] = []
         self.history = History()
         self.filters = FilterState()
+        # el clip actual arranco solo (y el badge `▶ auto` esta prendido).
+        # Se apaga en cuanto pausas y no vuelve hasta el siguiente clip.
+        self._auto_reproduciendo = False
         self._router = KeyboardRouter(active_rooms=room_selection.active_rooms())
         self._probe_clip = probe_clip          # inyectable para tests
         self._thumbnail_cache_root = thumbnail_cache_root or default_cache_root()
@@ -635,6 +644,12 @@ class MainWindow(QWidget):
             return
         self.scrub_bar.set_position(self.video_widget.player.position)
         self._update_timecode()
+        # El badge `▶ auto` miente en cuanto pausas: lo que arranco solo ya no
+        # esta corriendo. Y no vuelve al reanudar a mano -- eso ya lo
+        # arrancaste tu. Se apaga hasta el proximo cambio de clip.
+        if self._auto_reproduciendo and self.video_widget.player.is_paused:
+            self._auto_reproduciendo = False
+            self.video_stage.badges.set_auto(False)
 
     def _on_scrub_seek_started(self) -> None:
         self.video_widget.player.pause()
@@ -656,8 +671,7 @@ class MainWindow(QWidget):
         self.history.clear()
         self._refresh_history()
         self._refresh_sheet(force_rebuild=True)
-        if clips:
-            self.video_widget.open_clip(clips[0].ruta)
+        self._abrir_clip_actual()
         self._resize_video_stage()
         self._autosave()
 
@@ -838,20 +852,38 @@ class MainWindow(QWidget):
         else:
             anteriores = [i for i in indices if i < self.current_index]
             self.current_index = anteriores[-1] if anteriores else indices[0]
-        clip = self.current_clip
-        if clip is not None:
-            self.video_widget.open_clip(clip.ruta)
+        self._abrir_clip_actual()
         self._refresh_sheet()
         self._resize_video_stage()
         self._autosave()
+
+    def _abrir_clip_actual(self) -> None:
+        """El unico camino por el que se abre un clip.
+
+        Los tres lugares que abren clip --`load_clips`, `select_clip` y
+        `handle_arrow`-- pasan por aqui a proposito: si el autoplay se
+        agregara en dos de los tres, el tercero quedaria mudo sin dar ningun
+        sintoma visible. Hay un test que lo vigila.
+
+        El arranque al 25% se pide ANTES de abrir: `start` la resuelve mpv al
+        cargar el archivo. Un seek despues llegaria antes de que mpv reporte
+        la duracion, que es asincrona.
+        """
+        clip = self.current_clip
+        if clip is None:
+            return
+        player = self.video_widget.player
+        player.set_start_percent(START_PERCENT)
+        self.video_widget.open_clip(clip.ruta)
+        player.play()
+        self._auto_reproduciendo = True
+        self.video_stage.badges.set_auto(True)
 
     def select_clip(self, index: int) -> None:
         if not (0 <= index < len(self.clips)):
             return
         self.current_index = index
-        clip = self.current_clip
-        if clip is not None:
-            self.video_widget.open_clip(clip.ruta)
+        self._abrir_clip_actual()
         # No reconstruir la hoja aqui: la seleccion solo cambia el clip
         # actual (borde), no los datos de ningun clip. Reconstruir destruye
         # y reemplaza los widgets --incluyendo el que esta dentro de su

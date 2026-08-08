@@ -1,7 +1,7 @@
 from PySide6.QtCore import Qt
 
 from clasificador_video.ui import theme
-from clasificador_video.ui.video_stage import VideoStage
+from clasificador_video.ui.video_stage import BADGE_TEXT_MIX, VideoStage
 
 
 class FakeMpv:
@@ -162,3 +162,46 @@ def test_ancho_para_aspecto_horizontal():
 
 def test_ancho_nunca_es_cero():
     assert VideoStage.width_for(0, 9 / 16) >= 1
+
+
+# --- F6 Task 2: el badge `▶ auto` --------------------------------------------
+
+
+def test_el_badge_auto_arranca_apagado(qtbot):
+    """Nace escondido: hasta que un clip no arranque solo, no hay nada que
+    anunciar."""
+    stage = _stage(qtbot)
+    assert stage.badges.auto_badge.isHidden()
+
+
+def test_el_badge_auto_se_prende_y_se_apaga(qtbot):
+    stage = _stage(qtbot)
+    stage.badges.set_auto(True)
+    assert not stage.badges.auto_badge.isHidden()
+    stage.badges.set_auto(False)
+    assert stage.badges.auto_badge.isHidden()
+
+
+def test_el_badge_auto_dice_lo_mismo_que_el_mockup(qtbot):
+    """En mayusculas: el mockup lo escribe en minusculas pero lo pinta con
+    `text-transform: uppercase`, y QSS no tiene esa propiedad. Comparado
+    contra el pixel del arnes, no contra el HTML."""
+    stage = _stage(qtbot)
+    stage.badges.set_auto(True)
+    assert stage.badges.auto_badge.text() == "▶ AUTO"
+
+
+def test_el_badge_auto_usa_el_color_del_acento_y_no_el_de_un_estado(qtbot):
+    """No es pick ni reject: es un aviso de lo que hace el reproductor. Con
+    PICK_COLOR se leeria como un estado del clip (theme.py, separacion por
+    canal semantico)."""
+    stage = _stage(qtbot)
+    stage.badges.set_auto(True)
+    hoja = stage.badges.auto_badge.styleSheet()
+    # el borde sale como `rgba(r, g, b, a)`, no en hexadecimal: se compara
+    # contra los componentes, no contra el token escrito
+    r, g, b = (int(theme.CURRENT_COLOR[i:i + 2], 16) for i in (1, 3, 5))
+    assert f"rgba({r}, {g}, {b}," in hoja
+    assert theme.aclarar(theme.CURRENT_COLOR, BADGE_TEXT_MIX) in hoja
+    assert theme.PICK_COLOR not in hoja
+    assert theme.REJECT_COLOR not in hoja

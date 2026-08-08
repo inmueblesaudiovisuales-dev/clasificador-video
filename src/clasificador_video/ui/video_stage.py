@@ -25,7 +25,7 @@ class _BadgeRow(QWidget):
     etiqueta gris (`▌ COMEDOR    ● PICK`) y con eso tiro el color, que es
     justo el canal que hace legible el estado sin leer.
 
-    Los badges `▶ auto` y `Proxy 1080p` del mockup son de la F6 y la F9.
+    El badge `Proxy 1080p` del mockup es de la F9.
     """
 
     def __init__(self, parent=None):
@@ -38,8 +38,23 @@ class _BadgeRow(QWidget):
         self.flag_badge = QLabel("")
         self.flag_badge.setObjectName("overlayBadges")
         self.flag_badge.hide()
+        # `▶ auto`: avisa que el clip arranco solo. Va con el color del acento
+        # y no con uno de estado -- no dice nada del clip, dice lo que esta
+        # haciendo el reproductor (separacion por canal semantico, theme.py).
+        # en mayusculas como los otros dos: el mockup las aplica con CSS
+        # (`text-transform`), que en QSS no existe -- van escritas asi
+        self.auto_badge = QLabel("▶ AUTO")
+        self.auto_badge.setObjectName("overlayBadges")
+        self.auto_badge.setStyleSheet(
+            self._estilo(
+                theme.aclarar(theme.CURRENT_COLOR, BADGE_TEXT_MIX),
+                theme.CURRENT_COLOR,
+            )
+        )
+        self.auto_badge.hide()
         layout.addWidget(self.room_badge)
         layout.addWidget(self.flag_badge)
+        layout.addWidget(self.auto_badge)
 
     def set_room(self, nombre: str | None, color: str | None) -> None:
         if not nombre or not color:
@@ -67,6 +82,14 @@ class _BadgeRow(QWidget):
         self.flag_badge.setText(texto)
         self.flag_badge.setStyleSheet(self._estilo(color, color))
         self.flag_badge.show()
+
+    def set_auto(self, encendido: bool) -> None:
+        """Se llama seguido (una vez por tick del playhead), asi que sale
+        temprano si no hay nada que cambiar: `show()`/`hide()` sobre un widget
+        que ya esta como se pide dispara relayout del renglon de badges."""
+        if encendido == (not self.auto_badge.isHidden()):
+            return
+        self.auto_badge.setVisible(encendido)
 
     @staticmethod
     def _estilo(texto: str, borde: str) -> str:

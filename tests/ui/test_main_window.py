@@ -1498,3 +1498,102 @@ def test_el_clip_vertical_sigue_midiendo_529(qtbot):
     qtbot.wait(10)
     assert window.video_stage.width() == 529
     assert window.width() == 1600
+
+
+# --- F6 Task 2: autoplay y arranque al 25% -----------------------------------
+
+
+def test_cambiar_de_clip_lo_deja_reproduciendo(qtbot):
+    """Apretar espacio 128 veces es puro peaje."""
+    window = _window_with_video(qtbot)
+    window.load_clips([_clip(1), _clip(2)])
+    window.handle_arrow("next")
+    assert not window.video_widget.player.is_paused
+
+
+def test_seleccionar_un_clip_de_la_hoja_tambien_lo_reproduce(qtbot):
+    window = _window_with_video(qtbot)
+    window.load_clips([_clip(1), _clip(2)])
+    window.video_widget.player.pause()
+    window.select_clip(1)
+    assert not window.video_widget.player.is_paused
+
+
+def test_el_primer_clip_del_shooting_tambien_arranca_solo(qtbot):
+    """Si `load_clips` fuera la excepcion, el primer clip de cada shooting
+    seria el unico donde hay que apretar espacio -- justo el peaje que esta
+    fase existe para quitar."""
+    window = _window_with_video(qtbot)
+    window.load_clips([_clip(1)])
+    assert not window.video_widget.player.is_paused
+
+
+def test_cada_clip_arranca_al_25_por_ciento(qtbot):
+    window = _window_with_video(qtbot)
+    window.load_clips([_clip(1)])
+    window.select_clip(0)
+    assert window.video_widget.player._mpv.start == "25%"
+
+
+def test_los_tres_caminos_que_abren_un_clip_hacen_lo_mismo(qtbot):
+    """Guarda contra deriva: `load_clips`, `select_clip` y `handle_arrow`
+    abren clip cada uno por su lado. Si el autoplay se agrega en dos de los
+    tres, el tercero queda muerto sin dar ningun sintoma visible."""
+    caminos = {
+        "load_clips": lambda w: w.load_clips([_clip(1), _clip(2)]),
+        "select_clip": lambda w: w.select_clip(1),
+        "handle_arrow": lambda w: w.handle_arrow("next"),
+    }
+    for nombre, abrir in caminos.items():
+        window = _window_with_video(qtbot)
+        window.load_clips([_clip(1), _clip(2)])
+        # se deja el reproductor en el estado contrario al esperado, para que
+        # el test no pueda pasar por lo que hizo la carga inicial
+        window.video_widget.player.pause()
+        window.video_widget.player._mpv.start = None
+        window.video_stage.badges.set_auto(False)
+
+        abrir(window)
+
+        assert window.video_widget.player._mpv.start == "25%", nombre
+        assert not window.video_widget.player.is_paused, nombre
+        assert not window.video_stage.badges.auto_badge.isHidden(), nombre
+
+
+def test_el_badge_auto_avisa_que_arranco_solo(qtbot):
+    window = _window_with_video(qtbot)
+    window.load_clips([_clip(1)])
+    window.select_clip(0)
+    assert not window.video_stage.badges.auto_badge.isHidden()
+
+
+def test_el_badge_auto_se_apaga_al_pausar_a_mano(qtbot):
+    """Si sigue prendido con el video pausado, miente."""
+    window = _window_with_video(qtbot)
+    window.load_clips([_clip(1)])
+    window.select_clip(0)
+    window.video_widget.toggle_play()
+    window._tick_playhead()
+    assert window.video_stage.badges.auto_badge.isHidden()
+
+
+def test_el_badge_auto_no_vuelve_al_reanudar_a_mano(qtbot):
+    """Una vez que tocaste el espacio, la reproduccion ya no es automatica.
+    Si el badge volviera, diria 'arranco solo' de algo que arrancaste tu."""
+    window = _window_with_video(qtbot)
+    window.load_clips([_clip(1)])
+    window.select_clip(0)
+    window.video_widget.toggle_play()   # pausa
+    window._tick_playhead()
+    window.video_widget.toggle_play()   # reanuda a mano
+    window._tick_playhead()
+    assert window.video_stage.badges.auto_badge.isHidden()
+
+
+def test_el_badge_auto_vuelve_al_cambiar_de_clip(qtbot):
+    window = _window_with_video(qtbot)
+    window.load_clips([_clip(1), _clip(2)])
+    window.video_widget.toggle_play()
+    window._tick_playhead()
+    window.handle_arrow("next")
+    assert not window.video_stage.badges.auto_badge.isHidden()
