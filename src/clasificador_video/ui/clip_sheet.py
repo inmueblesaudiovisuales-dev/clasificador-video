@@ -243,7 +243,13 @@ class ClipCard(QWidget):
             total = clip.duration_frames
             inicio = (clip.in_frame or 0) / total
             fin = clip.out_frame / total if clip.out_frame is not None else 1.0
-            rango = (max(0.0, min(1.0, inicio)), max(0.0, min(1.0, fin)))
+            inicio = max(0.0, min(1.0, inicio))
+            fin = max(0.0, min(1.0, fin))
+            # ordenados: marcar `O` y despues `I` mas adelante deja el out
+            # ANTES del in, y sin esto salia un rango invertido que se pintaba
+            # como una astilla de 1 px. La ScrubBar ya lo resuelve con min/max
+            # y las dos vistas del mismo dato tienen que coincidir.
+            rango = (min(inicio, fin), max(inicio, fin))
         return {
             "numero": f"{clip.numero:03d}",
             "duracion": self.texto_duracion(),

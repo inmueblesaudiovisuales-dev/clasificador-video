@@ -681,3 +681,13 @@ def test_al_encoger_la_hoja_las_tarjetas_se_reacomodan(qtbot):
         f"las tarjetas ocupan {usado} px en una hoja de {sheet.width()}"
     )
     assert sheet.item_widgets[0].width() != anchas or columnas < 5
+
+
+def test_marcar_OUT_antes_que_IN_dibuja_el_rango_igual(qtbot):
+    """Pasa en cuanto marcas `O` y despues `I` mas adelante. La ScrubBar lo
+    resuelve con min/max y dibuja el rango bien; la tarjeta calculaba
+    (0.5, 0.125) --inicio despues del fin-- y pintaba una astilla de 1 px.
+    Dos vistas del mismo dato no pueden decir cosas distintas.
+    """
+    plan = _card(in_frame=400, out_frame=100, duration_frames=800).plan_de_pintado()
+    assert plan["rango"] == (0.125, 0.5)
