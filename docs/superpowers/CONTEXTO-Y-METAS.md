@@ -20,7 +20,7 @@ pulido de lo que ya existe y features nuevas que todavía no se construyeron.
 - **Layout para orientación vertical** — hoy la app está pensada para clips
   horizontales; falta un layout que funcione bien con material vertical
   (relevante porque parte del material real es vertical, ver
-  `docs/superpowers/HALLAZGOS-2026-08-05-rotacion-vertical.md` para el
+  `docs/superpowers/archive/HALLAZGOS-2026-08-05-rotacion-vertical.md` para el
   contexto de por qué la rotación importa tanto en este proyecto).
 - **Mejor performance de reproducción, menos latencia frame por frame** — la
   navegación cuadro a cuadro (marcar in/out con precisión) tiene que sentirse

@@ -3,7 +3,7 @@
 **Actualizado 2026-08-06.** El método de copiar la carpeta a mano a
 `.../UXP/Plugins/External/<id>_<version>` **no funciona** como instalación de
 producción — se probó en vivo y Premiere nunca lo registró (detalle completo
-en `docs/superpowers/HANDOFF-2026-08-06-plugin-terminado.md` y en el spec,
+en `docs/superpowers/archive/HANDOFF-2026-08-06-plugin-terminado.md` y en el spec,
 §12). La vía real, validada en vivo, es empaquetar como `.ccx` e instalar con
 UPIA.
 

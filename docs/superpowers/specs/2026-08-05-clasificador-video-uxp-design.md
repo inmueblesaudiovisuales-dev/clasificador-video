@@ -2,7 +2,7 @@
 
 ## 1. Qué cambia respecto al spec anterior
 
-Este spec **reemplaza** `2026-08-05-clasificador-video-design.md` (el spec basado en xmeml). Se descubrió durante pruebas reales que Adobe Premiere Pro **nunca lee el archivo de video al importar un xmeml** — arma el clip solo con lo declarado en el XML, y no existe ninguna etiqueta de rotación en ese formato ni en el modelo de interpretación de material de Premiere. Un clip vertical (grabado con rotación de cámara) siempre se ve acostado al importarlo por xmeml, sin solución posible dentro de ese formato (evidencia completa en `docs/superpowers/HALLAZGOS-2026-08-05-rotacion-vertical.md`).
+Este spec **reemplaza** `2026-08-05-clasificador-video-design.md` (el spec basado en xmeml). Se descubrió durante pruebas reales que Adobe Premiere Pro **nunca lee el archivo de video al importar un xmeml** — arma el clip solo con lo declarado en el XML, y no existe ninguna etiqueta de rotación en ese formato ni en el modelo de interpretación de material de Premiere. Un clip vertical (grabado con rotación de cámara) siempre se ve acostado al importarlo por xmeml, sin solución posible dentro de ese formato (evidencia completa en `docs/superpowers/archive/HALLAZGOS-2026-08-05-rotacion-vertical.md`).
 
 **La salida encontrada y validada con clips reales:** un plugin UXP dentro de Premiere, usando `project.importFiles()` — el mismo camino que usa Premiere cuando arrastras un archivo a mano — sí respeta la rotación. Sobre esa base, se confirmó (con los 3 clips reales de prueba, verticales, en una sola corrida) que la misma vía también permite: bins anidados, in/out directo sobre el clip, y color de etiqueta — las cuatro cosas que este proyecto necesita, a la vez, sin errores.
 

@@ -1,4 +1,4 @@
-# Handoff — Sesiones 2026-08-06 (F1, F2) + sesión de corrección de bugs — Clasificador de Video
+# [RESUELTO — la Fase 3 mencionada aquí como pendiente ya se ejecutó, ver docs/superpowers/plans/2026-08-06-app-externa-clasificador-fase3.md] Handoff — Sesiones 2026-08-06 (F1, F2) + sesión de corrección de bugs — Clasificador de Video
 
 ## 1. Resumen
 

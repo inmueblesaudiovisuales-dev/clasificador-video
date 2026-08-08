@@ -8,7 +8,7 @@ Tienes libertad creativa total sobre color, tipografía, layout, iconografía, j
 
 ## 1. Aislamiento de trabajo — lee esto antes de tocar un solo archivo
 
-Hay **otra sesión de Claude Code trabajando en paralelo, en el mismo repo, sobre un bug real de crash** (ver `docs/superpowers/HANDOFF-2026-08-06-crash-al-importar.md`). Esa sesión tiene cambios sin commitear ahora mismo en `src/clasificador_video/ui/filmstrip.py` y `src/clasificador_video/ui/main_window.py` (entre otros) — el filmstrip clickeable y un fix de condición de carrera. Si trabajas directo sobre el working tree de `master`, **vas a pisar ese trabajo o generar conflictos feos.**
+Hay **otra sesión de Claude Code trabajando en paralelo, en el mismo repo, sobre un bug real de crash** (ver `docs/superpowers/archive/HANDOFF-2026-08-06-crash-al-importar.md`). Esa sesión tiene cambios sin commitear ahora mismo en `src/clasificador_video/ui/filmstrip.py` y `src/clasificador_video/ui/main_window.py` (entre otros) — el filmstrip clickeable y un fix de condición de carrera. Si trabajas directo sobre el working tree de `master`, **vas a pisar ese trabajo o generar conflictos feos.**
 
 Antes de escribir una sola línea de QSS o Python:
 
@@ -40,7 +40,7 @@ No empieces escribiendo QSS directo sobre la app real — iterar sobre PySide6/Q
 2. **Construye cada dirección como un mockup HTML/CSS autocontenido**, cubriendo al menos la ventana principal completa (las tres zonas + filmstrip con varios clips en distintos estados) y el diálogo de configurar cuartos. Usa `docs/superpowers/plans/` o una carpeta nueva tipo `.superpowers/brainstorm/<fecha>-rediseno/` para guardarlos, siguiendo la convención ya usada en este repo.
 3. **Preséntale las direcciones a Bruno con tu recomendación explícita** — no un simple "aquí tienes 3 opciones, tú decides": di cuál te parece la mejor y por qué, igual que decidirías tú si fuera tu propio proyecto. Esto es una sesión con Bruno despierto y disponible — a diferencia del handoff de reconstrucción de video de hoy en la madrugada, aquí **sí debes pausar y esperar su aprobación explícita de una dirección** antes de tocar el código real de la app. No implementes las cuatro direcciones en la app ni elijas tú solo cuál va — eso es justo la decisión que Bruno quiere tomar él.
 4. **Una vez aprobada una dirección**, impleméntala en `theme.py` / QSS / los widgets de UI (`objectName`, layout, spaciado) del código real. No toques lógica de negocio ni el manejo de eventos/señales existente salvo que sea estrictamente necesario para el diseño (ej. agregar un `objectName` nuevo para poder styleear algo específico está bien; cambiar qué hace un botón al hacer click no lo está).
-5. **Verifica visualmente en la app real antes de dar por terminado**, no en el mockup HTML — un mockup estático no prueba que QSS se comporte igual dentro de Qt (ver el bug real de doble-caja documentado en `HANDOFF-2026-08-06-arreglar-video-y-diseno.md` §3.3, causado justo por una diferencia entre "cómo se ve el QSS en teoría" y "cómo lo pinta Qt de verdad"). Usa capturas reales:
+5. **Verifica visualmente en la app real antes de dar por terminado**, no en el mockup HTML — un mockup estático no prueba que QSS se comporte igual dentro de Qt (ver el bug real de doble-caja documentado en `docs/superpowers/archive/HANDOFF-2026-08-06-arreglar-video-y-diseno.md` §3.3, causado justo por una diferencia entre "cómo se ve el QSS en teoría" y "cómo lo pinta Qt de verdad"). Usa capturas reales:
    ```python
    pixmap = window.grab()
    pixmap.save("/tmp/verificacion.png")

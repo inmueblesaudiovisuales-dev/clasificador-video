@@ -52,4 +52,4 @@ forma de declarar rotación — un clip vertical (cámara rotada, el caso normal
 acá con la Sony FX30) siempre queda acostado. La vía real es el plugin UXP en
 `uxp-plugin/`, que usa `project.importFiles()` (el mismo camino que usa
 Premiere al arrastrar un archivo a mano) y sí respeta la rotación. Detalle
-completo en `docs/superpowers/HALLAZGOS-2026-08-05-rotacion-vertical.md`.
+completo en `docs/superpowers/archive/HALLAZGOS-2026-08-05-rotacion-vertical.md`.

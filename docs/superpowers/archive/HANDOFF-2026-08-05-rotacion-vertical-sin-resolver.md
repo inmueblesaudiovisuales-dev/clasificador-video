@@ -1,4 +1,4 @@
-# Handoff: video vertical se ve horizontal al importar el xmeml en Premiere — SIN RESOLVER
+# [RESUELTO — ver HALLAZGOS-2026-08-05-rotacion-vertical.md] Handoff: video vertical se ve horizontal al importar el xmeml en Premiere
 
 ## 1. Contexto del proyecto (para orientarte rápido)
 

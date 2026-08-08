@@ -29,7 +29,7 @@
 - **`ScrubBar` usa `QPainter` custom en `paintEvent`, no QSS dinámico.** QSS
   aplicado por-widget en elementos que se repintan seguido (scrub bar con
   playhead animado) es un antipatrón de performance en Qt — decisión
-  deliberada, ver `docs/superpowers/HANDOFF-2026-08-06-arreglar-video-y-diseno.md`.
+  deliberada, ver `docs/superpowers/archive/HANDOFF-2026-08-06-arreglar-video-y-diseno.md`.
 - **Separación de color por canal semántico** (`src/clasificador_video/ui/theme.py`):
   - `PICK_COLOR`/`REJECT_COLOR`/`CURRENT_COLOR` — estado del clip. Nunca se
     reusan para identidad de cuarto.

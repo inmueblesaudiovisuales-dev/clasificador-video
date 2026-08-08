@@ -2,7 +2,7 @@
 
 ## 0. Contexto y alcance
 
-Handoff previo (`docs/superpowers/HANDOFF-2026-08-06-mejorar-scrub-bar-in-out.md`) pedía
+Handoff previo (`docs/superpowers/archive/HANDOFF-2026-08-06-mejorar-scrub-bar-in-out.md`) pedía
 tres cosas sobre la `ScrubBar` (línea de tiempo bajo el video): timecode visible, frame
 visible, y que el marcador de IN aparezca sin esperar al OUT. Ese handoff marcaba
 explícitamente **no agregar interacción de click/drag sin confirmar con Bruno primero**.
