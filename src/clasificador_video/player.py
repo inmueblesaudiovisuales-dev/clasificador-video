@@ -11,6 +11,9 @@ QUALITY_PROFILES: dict[str, float] = {
     "1/8": 0.125,
 }
 
+# Las tres del mockup. `L` cicla entre ellas en este orden y vuelve al inicio.
+SPEED_PROFILES: tuple[float, ...] = (1.0, 2.0, 4.0)
+
 
 class MpvPlayer:
     """Envoltura delgada sobre python-mpv (spec §6): hwdec=videotoolbox
@@ -73,6 +76,40 @@ class MpvPlayer:
         por el seek con mouse de la ScrubBar (ver ui/video_widget.py)."""
         target = max(0.0, min(seconds, self.duration))
         self._mpv.time_pos = target
+
+    @property
+    def speed(self) -> float:
+        """Velocidad de reproduccion. 1.0 si mpv todavia no la reporta o si el
+        doble de pruebas no la define -- es el default real de mpv."""
+        return getattr(self._mpv, "speed", None) or 1.0
+
+    def set_speed(self, speed: float) -> None:
+        """Verificado contra mpv real (2026-08-08): `speed` se escribe incluso
+        reproduciendo, y se conserva al cargar otro archivo -- por eso la
+        velocidad no se reaplica en cada cambio de clip."""
+        if speed not in SPEED_PROFILES:
+            raise ValueError(f"velocidad desconocida: {speed}")
+        self._mpv.speed = speed
+
+    def set_start_percent(self, percent: int) -> None:
+        """Donde arranca cada clip al abrirse. Se usa la opcion `start` y no un
+        `seek` posterior: mpv reporta la duracion de forma asincrona, asi que
+        un seek justo despues de abrir llega antes de que la duracion exista.
+        `start` la resuelve mpv al cargar, cuando ya sabe cuanto dura.
+        """
+        if not 0 <= percent <= 100:
+            raise ValueError(f"porcentaje de arranque fuera de rango: {percent}")
+        self._mpv.start = f"{percent}%"
+
+    def step_frame(self, delta: int) -> None:
+        """Un cuadro adelante (`delta > 0`) o atras. mpv pausa solo al hacerlo,
+        y el estado que reporta la app tiene que coincidir o el boton de play
+        muestra lo contrario de lo que hace el video.
+        """
+        if delta == 0:
+            return
+        self._mpv.command("frame-step" if delta > 0 else "frame-back-step")
+        self._mpv.pause = True
 
     def set_quality(self, profile_name: str) -> None:
         if profile_name not in QUALITY_PROFILES:

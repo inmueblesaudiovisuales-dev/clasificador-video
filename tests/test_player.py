@@ -1,7 +1,9 @@
 # tests/test_player.py
 from pathlib import Path
 
-from clasificador_video.player import MpvPlayer, QUALITY_PROFILES
+import pytest
+
+from clasificador_video.player import MpvPlayer, QUALITY_PROFILES, SPEED_PROFILES
 
 
 class FakeMpv:
@@ -174,3 +176,102 @@ def test_marcar_in_recien_abierto_el_clip_no_revienta():
     player._mpv.time_pos = None
     assert player.mark_in(fps=30.0) == 0
     assert player.mark_out(fps=30.0) == 0
+
+
+# --- F6 Task 1: lo que mpv ya sabe hacer y MpvPlayer no exponia -------------
+
+
+def test_la_velocidad_se_le_pide_a_mpv():
+    """Para juzgar un recorrido no hace falta verlo a velocidad real."""
+    player = MpvPlayer(mpv_factory=FakeMpv)
+    player.set_speed(2.0)
+    assert player._mpv.speed == 2.0
+    assert player.speed == 2.0
+
+
+def test_la_velocidad_arranca_en_uno():
+    assert MpvPlayer(mpv_factory=FakeMpv).speed == 1.0
+
+
+def test_una_velocidad_que_no_esta_en_la_lista_se_rechaza():
+    """Mismo criterio que el selector de calidad: fallar fuerte y no dejar
+    el reproductor en un estado que la UI no sabe mostrar."""
+    with pytest.raises(ValueError):
+        MpvPlayer(mpv_factory=FakeMpv).set_speed(3.0)
+
+
+def test_los_perfiles_de_velocidad_son_los_tres_del_mockup():
+    assert SPEED_PROFILES == (1.0, 2.0, 4.0)
+
+
+def test_el_arranque_al_25_por_ciento_se_le_pide_a_mpv():
+    """El principio de un recorrido siempre es la camara acomodandose. Se usa
+    la opcion `start` y no un seek: mpv reporta la duracion de forma
+    asincrona, y un seek justo despues de abrir llega antes de que exista."""
+    player = MpvPlayer(mpv_factory=FakeMpv)
+    player.set_start_percent(25)
+    assert player._mpv.start == "25%"
+
+
+def test_arrancar_desde_el_principio_se_puede_pedir_igual():
+    player = MpvPlayer(mpv_factory=FakeMpv)
+    player.set_start_percent(0)
+    assert player._mpv.start == "0%"
+
+
+def test_un_porcentaje_de_arranque_fuera_de_rango_se_rechaza():
+    """Un `start` de 120% deja a mpv en un estado que la app no sabe mostrar:
+    mejor reventar aqui que abrir un clip en negro sin explicacion."""
+    player = MpvPlayer(mpv_factory=FakeMpv)
+    with pytest.raises(ValueError):
+        player.set_start_percent(120)
+    with pytest.raises(ValueError):
+        player.set_start_percent(-1)
+
+
+def test_avanzar_y_retroceder_un_cuadro():
+    """`,` y `.` son la convencion de Premiere y se usan para marcar in/out
+    con precision."""
+    player = MpvPlayer(mpv_factory=FakeMpv)
+    player.step_frame(1)
+    player.step_frame(-1)
+    assert player._mpv.commands == [("frame-step",), ("frame-back-step",)]
+
+
+def test_avanzar_un_cuadro_pausa_la_reproduccion():
+    """Avanzar cuadro a cuadro mientras corre no tiene sentido: mpv lo pausa
+    solo, y el estado que reporta la app tiene que coincidir."""
+    player = MpvPlayer(mpv_factory=FakeMpv)
+    player.play()
+    player.step_frame(1)
+    assert player.is_paused
+
+
+def test_retroceder_un_cuadro_tambien_pausa():
+    """mpv pausa con `frame-back-step` igual que con `frame-step`; si la app
+    solo reflejara uno de los dos, el boton de play mostraria lo contrario de
+    lo que hace el video."""
+    player = MpvPlayer(mpv_factory=FakeMpv)
+    player.play()
+    player.step_frame(-1)
+    assert player.is_paused
+
+
+def test_avanzar_cero_cuadros_no_le_manda_nada_a_mpv():
+    """Estado limite: `step_frame(0)` no tiene direccion. Sin esta guarda
+    caeria en `frame-back-step`, que retrocede -- lo contrario de no moverse."""
+    player = MpvPlayer(mpv_factory=FakeMpv)
+    player.play()
+    player.step_frame(0)
+    assert player._mpv.commands == []
+    assert not player.is_paused
+
+
+def test_la_velocidad_sobrevive_al_cambio_de_clip():
+    """Si al abrir el clip siguiente la velocidad volviera a 1x, la tecla `L`
+    habria que apretarla en cada clip. Se verifico contra mpv real que la
+    propiedad se conserva al cargar otro archivo."""
+    player = MpvPlayer(mpv_factory=FakeMpv)
+    player.set_speed(4.0)
+    player.open(Path("/shooting/C0013.MP4"))
+    assert player.speed == 4.0
