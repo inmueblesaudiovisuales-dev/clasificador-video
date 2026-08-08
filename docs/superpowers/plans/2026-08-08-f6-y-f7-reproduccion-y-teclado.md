@@ -369,6 +369,19 @@ también: su cuerpo redondeado se agarra mejor con el mouse que una línea de
 
 ```python
 # tests/ui/test_video_widget.py  (agregar)
+#
+# El helper NO existe: hoy cada test arma su `ScrubBar()` a mano. Se agrega
+# primero, o los cinco de abajo revientan con NameError -- que es rojo, pero
+# del rojo equivocado. (Detectado extrayendo los tests del plan y
+# corriendolos contra el codigo de hoy.)
+
+def _scrub(qtbot, duracion: float = 0.0, ancho: int = 400) -> ScrubBar:
+    barra = ScrubBar()
+    qtbot.addWidget(barra)
+    barra.resize(ancho, SCRUB_HEIGHT)
+    barra.set_duration(duracion)
+    return barra
+
 
 def test_la_barra_dibuja_el_rango_como_bloque_lleno(qtbot):
     """El mockup usa una banda de 26 px, no una linea: el rango marcado se
@@ -446,6 +459,17 @@ def test_el_renglon_de_teclas_esta_bajo_la_barra(qtbot):
     assert stage.keys_hint.y() > stage.scrub_bar.y()
 
 
+def test_la_columna_de_herramientas_recuerda_que_el_espacio_reproduce(qtbot):
+    """El `.toolhint` del mockup, al pie de la columna. Es la unica pista de
+    que la barra espaciadora hace algo: el resto de la columna son estados
+    del clip con su tecla al lado, y `espacio` no tiene indicador propio."""
+    from clasificador_video.ui.tool_column import ToolColumn
+
+    columna = ToolColumn()
+    qtbot.addWidget(columna)
+    assert "espacio" in columna.play_hint.text()
+
+
 def test_el_nombre_de_archivo_va_como_texto_sobre_un_scrim(qtbot):
     """El mockup no lo mete en pastilla: lo pone sobre un degradado que
     arranca en el borde de arriba.
@@ -466,7 +490,8 @@ def test_el_nombre_de_archivo_va_como_texto_sobre_un_scrim(qtbot):
 - [ ] **Step 2: Implementar** — `ScrubBar.paintEvent` se reescribe con la
   banda; `etiquetas_de_manija()` expone qué manijas hay para poder probarlo sin
   contar píxeles. En `VideoStage`: `frame_label`, `range_pill`, `keys_hint`,
-  `top_scrim`, y `_place_overlays` los ubica.
+  `top_scrim`, y `_place_overlays` los ubica. En `ToolColumn`: `play_hint`, al
+  pie, con el `espacio ▶ ‖` del mockup.
 
 - [ ] **Step 3: Verificar** — arnés con `--recorte` sobre el pie del video,
   **mirando la imagen**, con in/out puesto y sin él.
@@ -539,7 +564,6 @@ con el que estás mirando.
 ## Task 7: Cierre de la F6
 
 - [ ] Suite en verde.
-- [ ] `espacio ▶ ‖` al pie de la columna de herramientas.
 - [ ] Campos y métodos que nadie lee, y **señales declaradas sin conectar** —
       el detector que encontró el botón muerto en el punto de control.
 - [ ] Arnés corrido, imagen **mirada**, recortes del pie del video y de la
@@ -1088,3 +1112,44 @@ pero sí se puede razonar sobre qué mediría.** Las tres fallas se encontraron
 preguntando «¿esto pasaría hoy, sin implementar nada?» y comprobándolo. Vale
 la pena hacerlo con todo test de píxel y con toda aserción sobre un método de
 Qt que uno no usa a diario.
+
+---
+
+## Tercera auditoría del plan de la F6 — 2026-08-08
+
+Ángulo nuevo y mecánico: **se extrajeron los 31 tests de la F6 del propio plan
+y se corrieron contra el código de hoy.** Un test que pasa antes de implementar
+nada no sirve; uno que falla por el motivo equivocado, tampoco.
+
+**Resultado: los 31 fallan.** Ninguno es vacuo — las dos aserciones huecas que
+encontró la segunda auditoría ya estaban corregidas. Pero el *motivo* del fallo
+delató dos cosas:
+
+| Motivo del fallo | Cuántos | Qué significa |
+|---|---|---|
+| `AttributeError` sobre la API que se va a construir | 24 | Rojo correcto: es TDD |
+| `assert not True` | 2 | Rojo correcto: la función no existe todavía |
+| **`NameError: _scrub`** | **5** | **Rojo equivocado**: el helper no existe |
+
+### Falla 1: cinco tests usaban un helper inexistente
+
+`tests/ui/test_video_widget.py` arma su `ScrubBar()` a mano en cada test; no
+hay `_scrub`. Los cinco tests de la barra habrían reventado con `NameError`
+—que es rojo, pero del rojo que no enseña nada—. El plan ahora define el
+helper antes de usarlo. Es la misma falla que la auditoría de la F3 encontró
+con `_window(rooms=)` y `_clip`: **al escribir tests para un archivo que uno no
+tiene delante, es fácil inventarle helpers.**
+
+### Falla 2: el `espacio ▶ ‖` no tenía tarea
+
+Existía **solo como un renglón en la lista de cierre de la F7**. Un elemento de
+interfaz que aparece únicamente en un checklist termina de dos maneras: se
+olvida, o se construye a las apuradas el último día sin test. Ahora tiene su
+test y su paso de implementación dentro de la Task 4.
+
+### Lo que enseña
+
+**Los tests de un plan se pueden ejecutar antes de escribir una sola línea de
+producción.** Cuesta cinco minutos, y distingue tres cosas que a simple vista
+se ven igual: el test que ya pasa (inútil), el que falla porque falta la
+función (correcto) y el que falla porque está roto (engañoso).
