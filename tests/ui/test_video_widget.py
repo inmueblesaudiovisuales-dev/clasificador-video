@@ -317,18 +317,19 @@ def test_scrub_bar_tiene_la_altura_del_tema(qtbot):
 
 
 def test_scrub_bar_dibuja_marca_mayor_en_cada_intervalo(qtbot):
+    """Las marcas se mudaron al PIE de la banda en la F6 (es donde las pone el
+    mockup). Siguen siendo adaptativas: lo que cambio es donde se dibujan, no
+    como se calculan -- por eso este test se reescribio en vez de borrarse."""
     bar = ScrubBar()
     qtbot.addWidget(bar)
     bar.resize(200, 34)
     bar.set_duration(10.0)
     bar.show()
     qtbot.waitExposed(bar)
-    pixmap = bar.grab()
-    img = pixmap.toImage()
-    track_y = bar.height() // 2
+    img = bar.grab().toImage()
     left, usable = 6, 200 - 12
     x_5s = left + round((5.0 / 10.0) * usable)
-    color = img.pixelColor(x_5s, track_y - 8)
+    color = img.pixelColor(x_5s, bar.height() - 3)
     assert color.name() == TICK_MAJOR_COLOR
 
 
@@ -407,3 +408,175 @@ def test_set_over_video_se_puede_apagar(qtbot):
     bar.set_over_video(True)
     bar.set_over_video(False)
     assert bar.track_color().alpha() == 255
+
+
+# --- F6 Task 4: lo que la barra NO puede perder al reescribirla ---------------
+#
+# Estos cinco se escriben ANTES de tocar `paintEvent` y pasan con el codigo
+# viejo: son la red que evita repetir lo de la barra de rango de las tarjetas,
+# que "sobrevivio tres auditorias del plan y murio en la implementacion".
+
+
+def _scrub(qtbot, duracion: float = 0.0, ancho: int = 400) -> ScrubBar:
+    barra = ScrubBar()
+    qtbot.addWidget(barra)
+    barra.resize(ancho, SCRUB_HEIGHT)
+    barra.set_duration(duracion)
+    return barra
+
+
+def test_la_banda_sigue_siendo_translucida_sobre_el_video(qtbot):
+    """Una banda opaca de 26 px tapa una franja del video: exactamente lo
+    que este rediseño existe para no hacer."""
+    from clasificador_video.ui.theme import TRACK_OVER_VIDEO_RGBA
+
+    barra = _scrub(qtbot, duracion=20.0)
+    barra.set_over_video(True)
+    assert barra.track_color().alpha() == TRACK_OVER_VIDEO_RGBA[3]
+    assert barra.track_color().alpha() < 255
+
+
+def test_la_barra_sigue_pidiendo_fondo_translucido(qtbot):
+    """Hallazgo de la F0: sin `WA_TranslucentBackground` un widget de QPainter
+    sobre el video pinta fondo opaco donde no dibuja."""
+    from PySide6.QtCore import Qt as _Qt
+    from clasificador_video.ui.video_stage import VideoStage
+
+    class _M:
+        def __init__(self, **kw):
+            self.pause = True
+            self.time_pos = 0.0
+
+        def play(self, p):
+            pass
+
+    stage = VideoStage(mpv_factory=_M)
+    qtbot.addWidget(stage)
+    assert stage.scrub_bar.testAttribute(_Qt.WA_TranslucentBackground)
+
+
+def test_el_seek_con_mouse_sigue_siendo_exacto(qtbot):
+    """`_x_for` y `_seconds_for_x` tienen que quedar inversas: si el playhead
+    no cae donde hiciste click, la barra deja de servir para marcar in/out."""
+    barra = _scrub(qtbot, duracion=18.37)
+    for x in (6, 150, 251, 394):
+        assert barra._x_for(barra._seconds_for_x(x), 6, barra.width() - 12) == x
+
+
+def test_las_marcas_de_tiempo_adaptativas_sobreviven(qtbot):
+    """Son mejores que las del mockup --escalan de 0.2 s a 24 h sin pasar de
+    25 marcas-- y el plan maestro permite conservarlas."""
+    barra = _scrub(qtbot, duracion=20.0)
+    barra.resize(400, 26)
+    assert len(barra._major_tick_seconds()) > 1
+
+
+def test_las_marcas_siguen_escalando_de_un_clip_corto_a_uno_larguisimo(qtbot):
+    barra = _scrub(qtbot, duracion=20.0)
+    barra.resize(400, 26)
+    for duracion in (0.2, 6.0, 120.0, 3600.0, 86400.0):
+        barra.set_duration(duracion)
+        assert len(barra._major_tick_seconds()) <= 25, duracion
+
+
+def test_el_seek_con_mouse_sigue_emitiendo_sus_dos_señales(qtbot):
+    """Click y arrastre: `seek_started` abre el gesto y `seek_requested` lleva
+    los segundos. Reescribir el pintado no puede llevarselas."""
+    barra = _scrub(qtbot, duracion=20.0)
+    empezados, pedidos = [], []
+    barra.seek_started.connect(lambda: empezados.append(1))
+    barra.seek_requested.connect(pedidos.append)
+    qtbot.mousePress(barra, Qt.LeftButton, pos=QPoint(200, 13))
+    assert empezados == [1]
+    assert len(pedidos) == 1 and 0 < pedidos[0] < 20.0
+
+
+# --- F6 Task 4: la barra cambia de forma, no de funcion ----------------------
+
+
+def test_la_barra_dibuja_el_rango_como_bloque_lleno(qtbot):
+    """El mockup usa una banda de 26 px, no una linea: el rango marcado se
+    tiene que leer como una ZONA, no como un subrayado.
+
+    Se mide a `y = alto - 5`, ABAJO del riel viejo. Ahi con el codigo anterior
+    no hay nada dibujado ni dentro ni fuera del rango, asi que la diferencia
+    solo puede venir de la banda nueva. Medir cerca del centro no sirve: entre
+    `track_y - 9` y `track_y` viven las marcas de tiempo, y ahi dentro y fuera
+    YA se ven distintos.
+    """
+    barra = _scrub(qtbot, duracion=20.0)
+    barra.resize(400, 26)
+    barra.set_in_out(150, 450, 30.0)
+    imagen = barra.grab().toImage()
+    escala = imagen.width() / max(barra.width(), 1)
+    y = round((barra.height() - 5) * escala)
+    dentro = imagen.pixelColor(round(200 * escala), y).name()
+    fuera = imagen.pixelColor(round(20 * escala), y).name()
+    assert dentro != fuera, "el rango no se lee como zona abajo del riel"
+
+
+def test_lo_que_queda_fuera_del_rango_se_oscurece(qtbot):
+    """El mockup tapa lo de afuera con `rgba(0,0,0,.42)`: el rango no solo se
+    pinta, tambien se apaga lo que no vas a usar."""
+    barra = _scrub(qtbot, duracion=20.0)
+    barra.resize(400, 26)
+    imagen_sin = barra.grab().toImage()
+    barra.set_in_out(150, 450, 30.0)
+    imagen_con = barra.grab().toImage()
+    escala = imagen_sin.width() / max(barra.width(), 1)
+    y = round((barra.height() - 5) * escala)
+    x = round(20 * escala)          # bien a la izquierda del IN
+    assert imagen_sin.pixelColor(x, y) != imagen_con.pixelColor(x, y)
+
+
+def test_las_manijas_de_in_y_out_llevan_su_letra(qtbot):
+    barra = _scrub(qtbot, duracion=20.0)
+    barra.set_in_out(150, 450, 30.0)
+    assert barra.etiquetas_de_manija() == ["I", "O"]
+
+
+def test_sin_rango_no_hay_manijas(qtbot):
+    assert _scrub(qtbot, duracion=20.0).etiquetas_de_manija() == []
+
+
+def test_solo_in_marcado_dibuja_solo_su_manija(qtbot):
+    """Cada extremo se dibuja apenas existe, sin esperar al otro: marcar I
+    tiene que verse en el momento."""
+    barra = _scrub(qtbot, duracion=20.0)
+    barra.set_in_out(150, None, 30.0)
+    assert barra.etiquetas_de_manija() == ["I"]
+
+
+def test_solo_out_marcado_dibuja_solo_su_manija(qtbot):
+    barra = _scrub(qtbot, duracion=20.0)
+    barra.set_in_out(None, 450, 30.0)
+    assert barra.etiquetas_de_manija() == ["O"]
+
+
+def test_un_rango_invertido_no_rompe_las_manijas(qtbot):
+    """Marcar `O` antes que `I` deja out < in. La tarjeta ya tuvo este bug:
+    pintaba un rango de ancho negativo y desaparecia."""
+    barra = _scrub(qtbot, duracion=20.0)
+    barra.set_in_out(450, 150, 30.0)
+    assert barra.etiquetas_de_manija() == ["I", "O"]
+    barra.grab()   # no revienta
+
+
+def test_sin_fps_no_se_dibujan_manijas(qtbot):
+    """Sesion restaurada sin volver a correr ffprobe: hay frames pero no hay
+    fps con que convertirlos a segundos."""
+    barra = _scrub(qtbot, duracion=20.0)
+    barra.set_in_out(150, 450, 0.0)
+    assert barra.etiquetas_de_manija() == []
+
+
+def test_las_marcas_se_aclaran_cuando_van_sobre_el_video(qtbot):
+    """Mismo motivo que el riel: los grises del tema estan pensados para fondo
+    oscuro. Sobre una pared blanca --la mitad del material de inmuebles-- unas
+    marcas #454d59 se leen como rayas negras encima de la imagen."""
+    barra = _scrub(qtbot, duracion=20.0)
+    mayor_panel, menor_panel = barra.tick_colors()
+    barra.set_over_video(True)
+    mayor_video, menor_video = barra.tick_colors()
+    assert mayor_panel.alpha() == 255 and mayor_video.alpha() < 255
+    assert menor_video.alpha() < mayor_video.alpha()

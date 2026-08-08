@@ -5,19 +5,29 @@ from ctypes import c_char_p, c_void_p
 from pathlib import Path
 from typing import Callable
 
-from PySide6.QtCore import QObject, Qt, Signal
-from PySide6.QtGui import QBrush, QColor, QLinearGradient, QOpenGLContext, QPainter, QPainterPath, QPen
+from PySide6.QtCore import QObject, QRectF, Qt, Signal
+from PySide6.QtGui import QBrush, QColor, QFont, QLinearGradient, QOpenGLContext, QPainter, QPainterPath, QPen
 from PySide6.QtOpenGLWidgets import QOpenGLWidget
 from PySide6.QtWidgets import QWidget
 
 from clasificador_video.player import MpvPlayer
 from clasificador_video.ui.theme import (
+    BG_APP,
+    con_alfa,
     CURRENT_COLOR,
     LINE,
     PLAYHEAD_HIGHLIGHT,
     TICK_MAJOR_COLOR,
+    TICK_MAJOR_OVER_VIDEO_RGBA,
     TICK_MINOR_COLOR,
+    TICK_MINOR_OVER_VIDEO_RGBA,
+    HANDLE_LABEL_PX,
+    SCRUB_HANDLE_WIDTH,
     SCRUB_HEIGHT,
+    SCRUB_OUTSIDE_RGBA,
+    SCRUB_RADIUS,
+    SCRUB_TICKS_HEIGHT,
+    SCRUB_TRIM_FILL_ALPHA,
     TRACK_OVER_VIDEO_RGBA,
     TRIM_COLOR,
 )
@@ -175,11 +185,13 @@ def tick_interval_seconds(duration: float, usable_width: int) -> float:
 
 
 class ScrubBar(QWidget):
-    """Linea de tiempo del clip actual, tipo Source Monitor de Premiere:
-    un track con el playhead y, cuando hay marca de in/out, brackets en
-    los extremos -- cada uno se dibuja apenas su marcador existe, sin
-    esperar al otro -- para que marcar in/out (teclas I/O) se vea en el
-    momento, no solo se guarde en silencio.
+    """Linea de tiempo del clip actual, tipo Source Monitor de Premiere.
+
+    Desde la F6 es una BANDA de 26 px, no una linea: el rango marcado se lee
+    como una zona llena, lo que queda fuera se oscurece, y cada extremo lleva
+    una manija con su letra (`I` / `O`). Cada manija se dibuja apenas su
+    marcador existe, sin esperar al otro, para que marcar in/out (teclas I/O)
+    se vea en el momento y no solo se guarde en silencio.
 
     Responde a click y arrastre con el mouse (emite `seek_started` al
     empezar el gesto y `seek_requested(seconds)` en cada evento) para
@@ -216,6 +228,15 @@ class ScrubBar(QWidget):
         if self._over_video:
             return QColor(*TRACK_OVER_VIDEO_RGBA)
         return QColor(LINE)
+
+    def tick_colors(self) -> tuple[QColor, QColor]:
+        """(mayor, menor). Mismo motivo que `track_color`: los grises oscuros
+        del tema estan pensados para fondo oscuro y sobre el video se leen
+        como rayas negras -- peor todavia sobre una pared blanca."""
+        if self._over_video:
+            return (QColor(*TICK_MAJOR_OVER_VIDEO_RGBA),
+                    QColor(*TICK_MINOR_OVER_VIDEO_RGBA))
+        return (QColor(TICK_MAJOR_COLOR), QColor(TICK_MINOR_COLOR))
 
     def set_duration(self, seconds: float) -> None:
         self._duration = max(seconds, 0.0)
@@ -262,6 +283,31 @@ class ScrubBar(QWidget):
             t = interval * n
         return ticks
 
+    def _x_de_marca(self, frame: int | None) -> int | None:
+        """Posicion horizontal de un extremo del rango, o None si no se puede
+        calcular. Sin `fps` no hay conversion posible: pasa con una sesion
+        restaurada de disco donde no se volvio a correr ffprobe.
+        """
+        if frame is None or not self._fps or self._duration <= 0:
+            return None
+        left, right = 6, self.width() - 6
+        return self._x_for(frame / self._fps, left, max(right - left, 1))
+
+    def etiquetas_de_manija(self) -> list[str]:
+        """Que manijas hay que dibujar, en orden. Existe para poder probar la
+        barra sin contar pixeles: `["I"]`, `["O"]`, `["I", "O"]` o `[]`.
+
+        Va por marca EXISTENTE, no por rango completo: cada extremo se dibuja
+        apenas se marca, sin esperar al otro, para que apretar `I` se vea en
+        el momento y no solo se guarde en silencio.
+        """
+        etiquetas = []
+        if self._x_de_marca(self._in_frame) is not None:
+            etiquetas.append("I")
+        if self._x_de_marca(self._out_frame) is not None:
+            etiquetas.append("O")
+        return etiquetas
+
     def _playhead_body_path(self, x: float, track_y: int) -> QPainterPath:
         half = 6.5
         body_h = 7
@@ -292,52 +338,83 @@ class ScrubBar(QWidget):
         return path
 
     def paintEvent(self, event) -> None:  # noqa: N802 -- override de Qt
+        """La banda del mockup: 26 px de alto, translucida sobre el video.
+
+        Cambia la FORMA, no la funcion. Lo que se conserva a proposito y esta
+        cubierto por tests escritos antes de esta reescritura: el riel
+        translucido (una banda opaca taparia una franja de imagen, que es el
+        problema que este rediseño existe para resolver), el seek con mouse,
+        las marcas de tiempo adaptativas --mejores que las fijas del mockup--
+        y el playhead con cuerpo redondeado, que se agarra mejor con el mouse
+        que la linea de 2 px del diseño.
+        """
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         left, right = 6, self.width() - 6
         usable_width = max(right - left, 1)
-        track_y = self.height() // 2
+        alto = self.height()
+        track_y = alto // 2
+        # la banda ocupa el widget completo entre los margenes laterales; el
+        # recorte redondeado hace que nada de lo de adentro se salga
+        banda = QRectF(left, 0, usable_width, alto)
+        camino_banda = QPainterPath()
+        camino_banda.addRoundedRect(banda, SCRUB_RADIUS, SCRUB_RADIUS)
 
-        painter.setPen(QPen(self.track_color(), 3))
-        painter.drawLine(left, track_y, right, track_y)
+        painter.save()
+        painter.setClipPath(camino_banda)
+        painter.fillPath(camino_banda, self.track_color())
 
         if self._duration > 0:
+            in_x = self._x_de_marca(self._in_frame)
+            out_x = self._x_de_marca(self._out_frame)
+            # invertido (marcaste O antes que I) se normaliza aqui: pintar un
+            # ancho negativo hace desaparecer la zona -- la tarjeta ya tuvo
+            # exactamente este bug
+            if in_x is not None and out_x is not None:
+                x1, x2 = min(in_x, out_x), max(in_x, out_x)
+                painter.fillRect(
+                    QRectF(x1, 0, x2 - x1, alto),
+                    QColor(*con_alfa(TRIM_COLOR, SCRUB_TRIM_FILL_ALPHA)),
+                )
+                # y lo de afuera se apaga: el rango no solo se pinta, tambien
+                # se baja lo que no vas a usar
+                fuera = QColor(*SCRUB_OUTSIDE_RGBA)
+                painter.fillRect(QRectF(left, 0, x1 - left, alto), fuera)
+                painter.fillRect(QRectF(x2, 0, right - x2, alto), fuera)
+
             major_ticks = self._major_tick_seconds()
             if len(major_ticks) >= 1:
+                # las marcas van ABAJO de la banda, como en el mockup, pero el
+                # intervalo lo sigue eligiendo `tick_interval_seconds`
                 painter.setRenderHint(QPainter.RenderHint.Antialiasing, False)
-                minor_pen = QPen(QColor(TICK_MINOR_COLOR), 1)
-                major_pen = QPen(QColor(TICK_MAJOR_COLOR), 1)
+                base = alto
+                color_mayor, color_menor = self.tick_colors()
+                minor_pen = QPen(color_menor, 1)
+                major_pen = QPen(color_mayor, 1)
                 for i, t in enumerate(major_ticks):
                     tx = self._x_for(t, left, usable_width)
                     painter.setPen(major_pen)
-                    painter.drawLine(tx, track_y - 9, tx, track_y)
+                    painter.drawLine(tx, base - SCRUB_TICKS_HEIGHT, tx, base)
                     if i + 1 < len(major_ticks):
-                        next_t = major_ticks[i + 1]
-                        interval = next_t - t
+                        interval = major_ticks[i + 1] - t
                         painter.setPen(minor_pen)
                         for frac in (1, 2, 3, 4):
-                            minor_t = t + interval * frac / 5
-                            mx = self._x_for(minor_t, left, usable_width)
-                            painter.drawLine(mx, track_y - 5, mx, track_y)
+                            mx = self._x_for(t + interval * frac / 5, left, usable_width)
+                            painter.drawLine(mx, base - SCRUB_TICKS_HEIGHT // 2, mx, base)
                 painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
 
-            in_x = out_x = None
-            if self._in_frame is not None and self._fps:
-                in_x = self._x_for(self._in_frame / self._fps, left, usable_width)
-            if self._out_frame is not None and self._fps:
-                out_x = self._x_for(self._out_frame / self._fps, left, usable_width)
-
-            if in_x is not None and out_x is not None:
-                x1, x2 = min(in_x, out_x), max(in_x, out_x)
-                painter.setPen(QPen(QColor(TRIM_COLOR), 4))
-                painter.drawLine(x1, track_y, x2, track_y)
-
-            bracket_pen = QPen(QColor(TRIM_COLOR), 3)
-            painter.setPen(bracket_pen)
-            if in_x is not None:
-                painter.drawLine(in_x, track_y - 8, in_x, track_y + 8)
-            if out_x is not None:
-                painter.drawLine(out_x, track_y - 8, out_x, track_y + 8)
+            # manijas: una barrita del color del rango con su letra arriba
+            painter.setRenderHint(QPainter.RenderHint.Antialiasing, False)
+            for x_manija, letra in ((in_x, "I"), (out_x, "O")):
+                if x_manija is None:
+                    continue
+                painter.fillRect(
+                    QRectF(x_manija - SCRUB_HANDLE_WIDTH / 2, 0,
+                           SCRUB_HANDLE_WIDTH, alto),
+                    QColor(TRIM_COLOR),
+                )
+                self._dibujar_letra_de_manija(painter, x_manija, letra, right)
+            painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
 
             x = self._x_for(self._position, left, usable_width)
             body_path = self._playhead_body_path(x, track_y)
@@ -352,9 +429,35 @@ class ScrubBar(QWidget):
             painter.drawPath(point_path)
             painter.setBrush(Qt.BrushStyle.NoBrush)
             painter.setPen(QPen(QColor(CURRENT_COLOR), 2))
-            painter.drawLine(round(x), track_y, round(x), self.height() - 2)
+            painter.drawLine(round(x), track_y, round(x), alto)
 
+        painter.restore()
         painter.end()
+
+    def _dibujar_letra_de_manija(self, painter: QPainter, x: int, letra: str,
+                                 right: int) -> None:
+        """La `I` / `O` del mockup: fondo del color del rango y letra oscura.
+
+        Va pegada al lado de ADENTRO del rango. Puesta siempre a la derecha,
+        la `O` de un rango que llega al final del clip quedaria cortada por el
+        borde de la banda.
+        """
+        ancho, alto_caja = 11, 10
+        hacia_la_izquierda = letra == "O" or x + ancho > right
+        x0 = x - ancho if hacia_la_izquierda else x
+        caja = QRectF(x0, 0, ancho, alto_caja)
+        painter.fillRect(caja, QColor(TRIM_COLOR))
+        # se guarda y restaura la fuente ENTERA, no su tamaño: una fuente
+        # definida en pixeles reporta `pointSize() == -1`, y devolverle ese
+        # -1 es un valor invalido que Qt rechaza con una advertencia.
+        fuente_previa = painter.font()
+        fuente = QFont(fuente_previa)
+        fuente.setPixelSize(HANDLE_LABEL_PX)
+        fuente.setBold(True)
+        painter.setFont(fuente)
+        painter.setPen(QColor(BG_APP))
+        painter.drawText(caja, Qt.AlignmentFlag.AlignCenter, letra)
+        painter.setFont(fuente_previa)
 
     def mousePressEvent(self, event) -> None:  # noqa: N802 -- override de Qt
         if event.button() != Qt.MouseButton.LeftButton or self._duration <= 0:

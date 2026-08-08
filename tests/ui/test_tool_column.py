@@ -105,3 +105,12 @@ def test_deshacer_es_un_boton_y_no_un_indicador(qtbot):
     estado del clip, este ES una accion."""
     from PySide6.QtWidgets import QAbstractButton
     assert isinstance(_col(qtbot).undo_button, QAbstractButton)
+
+
+def test_la_columna_recuerda_que_el_espacio_reproduce(qtbot):
+    """El `.toolhint` del mockup, al pie de la columna. Es la unica pista de
+    que la barra espaciadora hace algo: el resto de la columna son estados del
+    clip con su tecla al lado, y `espacio` no tiene indicador propio."""
+    columna = ToolColumn()
+    qtbot.addWidget(columna)
+    assert "espacio" in columna.play_hint.text()

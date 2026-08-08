@@ -755,10 +755,15 @@ def test_timecode_overlay_muestra_in_y_out(qtbot):
     ]
     window.load_clips(clips)
     window._update_scrub_bar()
-    text = window.video_stage.timecode_label.text()
-    assert "IN 00:10:00" in text
-    assert "OUT 00:30:00" in text
-    assert "rango 20s" in text
+    # desde la F6 el pie son tres piezas y no una etiqueta con todo pegado:
+    # el IN/OUT en timecode arriba a la derecha, y el resumen del rango en su
+    # pastilla abajo. Los dos datos siguen visibles, en su lugar del mockup.
+    io = window.video_stage.io_label.text()
+    assert "IN 00:10:00" in io
+    assert "OUT 00:30:00" in io
+    pastilla = window.video_stage.range_pill.text()
+    assert "600 f" in pastilla        # 900 - 300 cuadros
+    assert "rango 20:00" in pastilla  # 20 s justos, sin cuadros sueltos
 
 
 def test_timecode_overlay_sin_in_ni_out_no_muestra_esos_segmentos(qtbot):

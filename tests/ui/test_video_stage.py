@@ -122,12 +122,17 @@ def test_los_overlays_se_reposicionan_al_cambiar_el_tamano(qtbot):
     assert stage.scrub_bar.width() == esperado
 
 
-def test_la_scrub_bar_queda_pegada_al_borde_inferior(qtbot):
+def test_el_pie_del_video_queda_pegado_al_borde_inferior(qtbot):
+    """Hasta la F6 la barra era lo ultimo del pie. Ahora abajo van la pastilla
+    de rango y la fila de teclas, como en el mockup, asi que quien tiene que
+    respetar el margen es la fila de abajo -- no la barra."""
     stage = _stage_visible(qtbot)
     stage.resize(529, 940)
     qtbot.wait(50)
-    borde = stage.scrub_bar.y() + stage.scrub_bar.height()
+    borde = max(stage.keys_hint.y() + stage.keys_hint.height(),
+                stage.range_pill.y() + stage.range_pill.height())
     assert stage.video.height() - borde == theme.OVERLAY_MARGIN
+    assert stage.scrub_bar.y() + stage.scrub_bar.height() < borde
 
 
 def test_el_nombre_de_archivo_va_arriba_a_la_izquierda(qtbot):
@@ -261,3 +266,111 @@ def test_el_control_de_velocidad_conserva_su_caja(qtbot):
             or ("speedSegmented" in linea and "segmentedControl" in linea)]
     assert caja, "el control de velocidad no hereda la caja del segmentado"
     assert stage.speed.objectName() == "speedSegmented"
+
+
+# --- F6 Task 4: el pie del video, completo -----------------------------------
+
+
+def test_el_timecode_lleva_el_numero_de_cuadro(qtbot):
+    """El mockup pone `f 293` al lado del timecode: marcar in/out por cuadro
+    exacto exige ver el numero de cuadro, no solo el tiempo."""
+    stage = _stage(qtbot)
+    stage.set_timecode("00:00:09:23", frame=293)
+    assert "f 293" in stage.frame_label.text()
+
+
+def test_sin_clip_el_timecode_y_el_cuadro_quedan_vacios(qtbot):
+    stage = _stage(qtbot)
+    stage.set_timecode("00:00:09:23", frame=293)
+    stage.set_timecode("", frame=None)
+    assert stage.timecode_label.text() == ""
+    assert stage.frame_label.text() == ""
+
+
+def test_la_pastilla_de_rango_dice_largo_cuadros_y_total(qtbot):
+    stage = _stage(qtbot)
+    stage.set_range_pill(rango_segundos=7.13, cuadros=212, total_segundos=18.37)
+    texto = stage.range_pill.text()
+    assert "212 f" in texto and "18:11" in texto
+
+
+def test_sin_rango_marcado_la_pastilla_no_se_ve(qtbot):
+    stage = _stage(qtbot)
+    stage.set_range_pill(None, None, total_segundos=18.37)
+    assert stage.range_pill.isHidden()
+
+
+def test_la_pastilla_de_rango_reaparece_al_volver_a_marcar(qtbot):
+    """Esconder y mostrar es un camino de ida y vuelta: si solo se escondiera,
+    marcar in/out despues de borrarlo no mostraria nada."""
+    stage = _stage(qtbot)
+    stage.set_range_pill(None, None, total_segundos=18.37)
+    stage.set_range_pill(7.13, 212, total_segundos=18.37)
+    assert not stage.range_pill.isHidden()
+
+
+def test_el_renglon_de_teclas_esta_bajo_la_barra(qtbot):
+    """El mockup lo pone ahi: es la chuleta de lo que se puede hacer sobre el
+    video sin tocar el mouse."""
+    stage = _stage_visible(qtbot)
+    qtbot.wait(50)
+    assert stage.keys_hint.y() > stage.scrub_bar.y()
+
+
+def test_el_renglon_de_teclas_nombra_las_teclas_que_existen(qtbot):
+    """Anunciar una tecla que no hace nada es el bug que este proyecto ya
+    tuvo cuatro veces. Las de esta fila son de la F6."""
+    stage = _stage(qtbot)
+    texto = stage.keys_hint.text()
+    for tecla in ("←", "→", ",", "."):
+        assert tecla in texto
+
+
+def test_el_scrim_de_arriba_arranca_en_el_borde(qtbot):
+    stage = _stage_visible(qtbot)
+    qtbot.wait(50)
+    assert stage.top_scrim.y() == 0
+    assert stage.top_scrim.width() == stage.video.width()
+
+
+def test_el_nombre_de_archivo_va_como_texto_sobre_un_scrim(qtbot):
+    """El mockup no lo mete en pastilla: lo pone sobre un degradado que
+    arranca en el borde de arriba.
+
+    Se comprueba contra el QSS del tema y no contra `file_label.styleSheet()`,
+    que devuelve cadena vacia --el fondo lo pone la hoja global--: una
+    asercion sobre esa cadena pasaria sin haber cambiado nada.
+
+    El plan pedia que la regla NO tuviera `background-color`. Resulto al
+    reves: sin esa propiedad la etiqueta hereda la global `QWidget`, que es
+    opaca, y sale con una caja negra peor que la pastilla que se le quito.
+    Lo que hay que exigir es que sea TRANSPARENTE.
+    """
+    stage = _stage_visible(qtbot)
+    bloque = theme.build_stylesheet().split("QLabel#overlayFile {")[1].split("}")[0]
+    assert "background-color: transparent" in bloque
+    assert theme.OVERLAY_BG not in bloque      # ni pastilla ni borde
+    assert "border:" not in bloque
+
+
+def test_el_pie_no_captura_el_mouse(qtbot):
+    """Todo lo del pie es informativo menos la barra: si capturaran el mouse,
+    el click para hacer seek se quedaria en una etiqueta."""
+    stage = _stage(qtbot)
+    for widget in (stage.frame_label, stage.range_pill, stage.keys_hint,
+                   stage.top_scrim):
+        assert widget.testAttribute(Qt.WA_TransparentForMouseEvents), \
+            widget.objectName()
+
+
+def test_las_etiquetas_del_pie_declaran_fondo_transparente(qtbot):
+    """La hoja global tiene `QWidget { background-color: ... }`, que alcanza
+    tambien a las QLabel. Una etiqueta del pie que no declare transparente
+    sale con su propia caja negra encima del video -- se ve feo y tapa
+    imagen. Ya paso al construir el pie: `f 293` e `IN 00:04:12` aparecieron
+    dentro de cajas que el mockup no tiene."""
+    hoja = theme.build_stylesheet()
+    for nombre in ("overlayFile", "overlayFrame", "overlayInOut",
+                   "overlayKeys", "overlayTimecode"):
+        bloque = hoja.split(f"QLabel#{nombre} {{")[1].split("}")[0]
+        assert "background-color: transparent" in bloque, nombre

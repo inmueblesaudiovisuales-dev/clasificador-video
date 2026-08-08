@@ -117,6 +117,14 @@ class ToolColumn(QWidget):
 
         layout.addStretch(1)
 
+        # El `.toolhint` del mockup, al pie. Es la unica pista de que la barra
+        # espaciadora hace algo: el resto de la columna son estados del clip
+        # con su tecla al lado, y `espacio` no tiene indicador propio.
+        self.play_hint = QLabel("espacio\n▶ ‖")
+        self.play_hint.setObjectName("toolHint")
+        self.play_hint.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(self.play_hint)
+
     def _divisor(self) -> QWidget:
         linea = QWidget()
         linea.setObjectName("toolDivider")

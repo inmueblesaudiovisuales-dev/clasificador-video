@@ -7,7 +7,7 @@ from PySide6.QtWidgets import QHBoxLayout, QLabel, QVBoxLayout, QWidget
 from clasificador_video.player import SPEED_PROFILES
 from clasificador_video.ui import theme
 from clasificador_video.ui.segmented import SegmentedControl
-from clasificador_video.ui.video_widget import ScrubBar, VideoWidget
+from clasificador_video.ui.video_widget import ScrubBar, VideoWidget, format_timecode
 
 M = theme.OVERLAY_MARGIN
 SCRIM_HEIGHT = 150
@@ -17,6 +17,28 @@ SCRIM_HEIGHT = 150
 # usa exactamente esta division (punto saturado, texto claro).
 BADGE_TEXT_MIX = 0.35
 BADGE_BORDER_ALPHA = 140
+
+
+# La chuleta bajo la barra. Solo teclas que EXISTEN: anunciar una que no hace
+# nada es el bug que este proyecto ya tuvo cuatro veces. `F` y `esc` los agrega
+# la F7 y la F8, cuando existan.
+KEYS_HINT_TEXT = "←  →  cola  ·  ,  .  cuadro  ·  L  K  velocidad"
+TOP_SCRIM_HEIGHT = 90
+
+
+def formato_corto(segundos: float, fps: float) -> str:
+    """`SS:FF` para lo que dura menos de un minuto, `MM:SS:FF` para lo demas.
+
+    El mockup escribe `total 18:11` --18 segundos y 11 cuadros--: un `00:` de
+    minutos adelante seria ruido en clips de recorrido, que casi nunca pasan
+    del minuto. Pero un clip largo SI necesita los minutos, asi que aparecen
+    solos cuando hacen falta.
+    """
+    if fps <= 0:
+        return "--:--"
+    completo = format_timecode(round(segundos * fps), fps)
+    minutos, resto = completo.split(":", 1)
+    return resto if minutos == "00" else completo
 
 
 def etiqueta_de_velocidad(velocidad: float) -> str:
@@ -144,7 +166,27 @@ class VideoStage(QWidget):
         self.scrub_bar = ScrubBar(self.video)
         self.scrub_bar.set_over_video(True)
 
-        for pasivo in (self.file_label, self.badges, self.scrim, self.timecode_label):
+        # --- el pie del video: una sola pieza en el mockup ---
+        # degradado de arriba, para que el nombre de archivo se lea sin
+        # meterlo en una pastilla (asi lo hace el mockup)
+        self.top_scrim = QLabel("", self.video)
+        self.top_scrim.setObjectName("overlayTopScrim")
+        self.frame_label = QLabel("", self.video)
+        self.frame_label.setObjectName("overlayFrame")
+        # IN/OUT en timecode, a la derecha de la misma fila. El mockup los
+        # tiene y son OTRO dato que la pastilla: la pastilla dice cuanto dura
+        # el rango, esto dice donde empieza y donde termina.
+        self.io_label = QLabel("", self.video)
+        self.io_label.setObjectName("overlayInOut")
+        self.range_pill = QLabel("", self.video)
+        self.range_pill.setObjectName("rangePill")
+        self.range_pill.hide()          # sin rango marcado no hay nada que decir
+        self.keys_hint = QLabel(KEYS_HINT_TEXT, self.video)
+        self.keys_hint.setObjectName("overlayKeys")
+
+        for pasivo in (self.file_label, self.badges, self.scrim, self.timecode_label,
+                       self.top_scrim, self.frame_label, self.range_pill,
+                       self.keys_hint, self.io_label):
             # el click y el arrastre tienen que llegar a la scrub bar y al
             # video, no quedarse en una etiqueta decorativa
             pasivo.setAttribute(Qt.WA_TransparentForMouseEvents, True)
@@ -155,6 +197,43 @@ class VideoStage(QWidget):
         # El padre recibe resizeEvent ANTES de que el hijo cambie de tamaño:
         # posicionar ahi deja los overlays corridos un cuadro.
         self.video.installEventFilter(self)
+
+    def set_timecode(self, texto: str, frame: int | None) -> None:
+        """El timecode grande y su numero de cuadro. Sin clip los dos quedan
+        vacios: dejar un `f 293` viejo al lado de un timecode en blanco es
+        peor que no mostrar nada."""
+        self.timecode_label.setText(texto)
+        self.frame_label.setText(f"f {frame}" if frame is not None else "")
+
+    def set_in_out_labels(self, in_tc: str | None, out_tc: str | None) -> None:
+        """`IN 00:04:12   OUT 00:11:16` a la derecha de la fila del timecode.
+        Cada extremo aparece apenas se marca, sin esperar al otro."""
+        partes = []
+        if in_tc:
+            partes.append(f"IN {in_tc}")
+        if out_tc:
+            partes.append(f"OUT {out_tc}")
+        self.io_label.setText("   ".join(partes))
+
+    def set_range_pill(self, rango_segundos: float | None, cuadros: int | None,
+                       total_segundos: float, fps: float | None = None) -> None:
+        """`rango 07:04 · 212 f · total 18:11`, o nada si no hay rango.
+
+        `fps` se puede omitir: se deduce de cuadros/segundos. La ventana le
+        pasa el real, que es el del clip; la deduccion existe para poder
+        probar la pastilla sin armar un clip entero.
+        """
+        if rango_segundos is None or cuadros is None:
+            self.range_pill.hide()
+            return
+        if not fps:
+            fps = cuadros / rango_segundos if rango_segundos > 0 else 0.0
+        self.range_pill.setText(
+            f"rango {formato_corto(rango_segundos, fps)}"
+            f"  ·  {cuadros} f"
+            f"  ·  total {formato_corto(total_segundos, fps)}"
+        )
+        self.range_pill.show()
 
     @staticmethod
     def width_for(height: int, aspect_ratio: float) -> int:
@@ -170,6 +249,7 @@ class VideoStage(QWidget):
         ancho, alto = self.video.width(), self.video.height()
 
         self.scrim.setGeometry(0, alto - SCRIM_HEIGHT, ancho, SCRIM_HEIGHT)
+        self.top_scrim.setGeometry(0, 0, ancho, TOP_SCRIM_HEIGHT)
 
         self.file_label.adjustSize()
         self.file_label.move(M, M)
@@ -185,16 +265,43 @@ class VideoStage(QWidget):
         self.speed.adjustSize()
         self.speed.move(self.quality.x() - self.speed.width() - 8, M)
 
+        # El pie se arma de ABAJO hacia arriba: la fila de teclas y la
+        # pastilla van pegadas al borde inferior, la barra encima, y el
+        # timecode arriba de todo. Al reves habria que saber de antemano
+        # cuanto mide cada cosa.
+        self.keys_hint.adjustSize()
+        self.range_pill.adjustSize()
+        fila_baja = max(self.keys_hint.height(), self.range_pill.height())
+        y_fila_baja = alto - M - fila_baja
+        self.keys_hint.move(ancho - M - self.keys_hint.width(), y_fila_baja)
+        self.range_pill.move(M, y_fila_baja)
+
         self.scrub_bar.setGeometry(
-            M, alto - M - theme.SCRUB_HEIGHT, ancho - 2 * M, theme.SCRUB_HEIGHT
+            M, y_fila_baja - 7 - theme.SCRUB_HEIGHT,
+            ancho - 2 * M, theme.SCRUB_HEIGHT,
         )
 
         self.timecode_label.adjustSize()
-        self.timecode_label.move(
-            M, self.scrub_bar.y() - 8 - self.timecode_label.height()
+        self.frame_label.adjustSize()
+        y_timecode = self.scrub_bar.y() - 8 - self.timecode_label.height()
+        self.timecode_label.move(M, y_timecode)
+        # el numero de cuadro se alinea con la BASE del timecode, no con su
+        # tope: son dos tamaños muy distintos y alinearlos arriba los deja
+        # visualmente flotando
+        self.frame_label.move(
+            M + self.timecode_label.width() + 9,
+            y_timecode + self.timecode_label.height() - self.frame_label.height() - 2,
+        )
+
+        self.io_label.adjustSize()
+        self.io_label.move(
+            ancho - M - self.io_label.width(),
+            y_timecode + self.timecode_label.height() - self.io_label.height() - 2,
         )
 
         self.scrim.lower()
+        self.top_scrim.lower()
         for encima in (self.file_label, self.badges, self.quality, self.speed,
-                       self.timecode_label, self.scrub_bar):
+                       self.timecode_label, self.frame_label, self.io_label,
+                       self.range_pill, self.keys_hint, self.scrub_bar):
             encima.raise_()

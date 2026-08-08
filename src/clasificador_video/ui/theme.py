@@ -92,6 +92,22 @@ SPEED_ON_TEXT_MIX = 0.5
 # como en el mockup (`rgba(10,12,15,.6)`): opaco taparia imagen, y sin fondo
 # los numeros claros desaparecen sobre una pared blanca.
 OVERLAY_BOX_ALPHA = 153   # 0.6 * 255
+# --- la banda de reproduccion (ScrubBar) ---
+# Lo que queda FUERA del rango marcado se apaga: el rango no solo se pinta,
+# tambien se baja lo que no vas a usar. `rgba(0,0,0,.42)` del mockup.
+SCRUB_OUTSIDE_RGBA = (0, 0, 0, 107)
+# Relleno de la zona marcada. Translucido a proposito: encima va la imagen.
+SCRUB_TRIM_FILL_ALPHA = 107      # rgba(109,140,245,.42)
+SCRUB_HANDLE_WIDTH = 2
+SCRUB_TICKS_HEIGHT = 6           # las marcas viven abajo, como en el mockup
+SCRUB_RADIUS = 4
+HANDLE_LABEL_PX = 9        # la letra I/O de las manijas, en pixeles
+# Las marcas de tiempo tienen DOS juegos de color, por el mismo motivo que el
+# riel: TICK_*_COLOR son grises oscuros pensados para fondo oscuro, y sobre el
+# video --donde la banda es translucida y la imagen puede ser una pared
+# blanca-- se leen como rayas negras. El mockup las pone claras.
+TICK_MAJOR_OVER_VIDEO_RGBA = (255, 255, 255, 36)   # rgba(255,255,255,.14)
+TICK_MINOR_OVER_VIDEO_RGBA = (255, 255, 255, 20)
 
 # --- radios ---
 RADIUS_SM = 4
@@ -501,6 +517,11 @@ def build_stylesheet() -> str:
         font-size: {FONT_MICRO}px;
         font-weight: 650;
     }}
+    QLabel#toolHint {{
+        color: {TEXT_3};
+        font-family: {MONO_FONT};
+        font-size: {FONT_MICRO}px;
+    }}
     QWidget#toolIndicator {{
         background-color: {BG_SURFACE_1};
         border: 1px solid {LINE};
@@ -647,10 +668,49 @@ def build_stylesheet() -> str:
             stop:0 {OVERLAY_SCRIM_FROM}, stop:1 {OVERLAY_SCRIM_TO});
         border: none;
     }}
+    /* El de arriba va al reves: opaco en el borde y transparente hacia
+       abajo, para que el nombre de archivo y los badges se lean sobre
+       cualquier imagen sin meterlos en pastillas. */
+    QLabel#overlayTopScrim {{
+        background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+            stop:0 {OVERLAY_SCRIM_TO}, stop:1 {OVERLAY_SCRIM_FROM});
+        border: none;
+    }}
+    /* `background-color: transparent` NO es redundante: la regla global
+       `QWidget` de arriba pinta fondo opaco en TODO, incluidas las QLabel.
+       Sin esta linea cada etiqueta del pie sale con su propia caja negra
+       encima del video -- pasa al construir el pie de la F6. */
+    QLabel#overlayFrame {{
+        background-color: transparent;
+        color: {TEXT_2};
+        font-family: {MONO_FONT};
+        font-size: {FONT_SMALL}px;
+    }}
+    QLabel#overlayInOut {{
+        background-color: transparent;
+        color: {aclarar(TRIM_COLOR, 0.45)};
+        font-family: {MONO_FONT};
+        font-size: {FONT_SMALL}px;
+    }}
+    QLabel#overlayKeys {{
+        background-color: transparent;
+        color: {TEXT_2};
+        font-size: {FONT_SMALL}px;
+    }}
+    QLabel#rangePill {{
+        background-color: {con_alfa_qss(TRIM_COLOR, 46)};
+        border: 1px solid {con_alfa_qss(TRIM_COLOR, 102)};
+        border-radius: {RADIUS_SM}px;
+        padding: 3px 7px;
+        color: {aclarar(TRIM_COLOR, 0.45)};
+        font-family: {MONO_FONT};
+        font-size: {FONT_MICRO}px;
+    }}
+    /* Sin pastilla a proposito: el mockup lo pone como texto sobre el
+       degradado de arriba (`overlayTopScrim`). Una pastilla mas encima del
+       scrim son dos fondos apilados para el mismo texto. */
     QLabel#overlayFile {{
-        background-color: {OVERLAY_BG};
-        border: 1px solid {OVERLAY_BORDER};
-        border-radius: {RADIUS_MD}px;
+        background-color: transparent;
         padding: 5px 10px;
         color: {TEXT};
         font-family: {MONO_FONT};

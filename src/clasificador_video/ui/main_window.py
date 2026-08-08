@@ -627,23 +627,38 @@ class MainWindow(QWidget):
 
     def _update_timecode(self) -> None:
         """El timecode va SOBRE la imagen: marcar in/out por frame exacto
-        exige mirar imagen y numero sin saltar la vista."""
+        exige mirar imagen y numero sin saltar la vista.
+
+        Desde la F6 el pie son tres piezas y no una etiqueta con todo pegado:
+        el timecode grande, el numero de cuadro al lado, y la pastilla con el
+        resumen del rango. El IN/OUT en texto se fue con la pastilla: es el
+        mismo dato dicho dos veces, y la barra ya lo muestra con sus manijas.
+        """
         clip = self.current_clip
+        stage = self.video_stage
         if clip is None:
-            self.video_stage.timecode_label.setText("")
+            stage.set_timecode("", None)
+            stage.set_in_out_labels(None, None)
+            stage.set_range_pill(None, None, 0.0)
             return
         fps = clip.fps
-        position = self.video_widget.player.position
-        pos_frame = round(position * fps) if fps > 0 else 0
-        partes = [format_timecode(pos_frame, fps)]
-        if clip.in_frame is not None:
-            partes.append(f"IN {format_timecode(clip.in_frame, fps)}")
-        if clip.out_frame is not None:
-            partes.append(f"OUT {format_timecode(clip.out_frame, fps)}")
+        pos_frame = round(self.video_widget.player.position * fps) if fps > 0 else 0
+        stage.set_timecode(format_timecode(pos_frame, fps), pos_frame)
+        stage.set_in_out_labels(
+            format_timecode(clip.in_frame, fps) if clip.in_frame is not None else None,
+            format_timecode(clip.out_frame, fps) if clip.out_frame is not None else None,
+        )
+
+        total = self.video_widget.player.duration or self._clip_durations.get(
+            self.current_index, 0.0
+        )
         if clip.in_frame is not None and clip.out_frame is not None and fps > 0:
-            segundos = abs(clip.out_frame - clip.in_frame) / fps
-            partes.append(f"rango {round(segundos)}s")
-        self.video_stage.timecode_label.setText("   ".join(partes))
+            # `abs`: marcar `O` antes que `I` deja out < in, y un rango de
+            # "-212 cuadros" no significa nada
+            cuadros = abs(clip.out_frame - clip.in_frame)
+            stage.set_range_pill(cuadros / fps, cuadros, total, fps)
+        else:
+            stage.set_range_pill(None, None, total, fps)
 
     def _tick_playhead(self) -> None:
         if self.current_clip is None:

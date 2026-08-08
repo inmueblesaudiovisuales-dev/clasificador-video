@@ -153,7 +153,12 @@ def _clips() -> tuple[list[Clip], dict[int, tuple[int, int]], dict[int, float]]:
             clip.flag = "pick"
         elif indice < PICKS + REJECTS:
             clip.flag = "reject"
-        if indice % 3 == 0:
+        # 132 y 344 a 29.97 fps son IN 00:00:04:12 y OUT 00:00:11:16, los dos
+        # timecodes que muestra el mockup. El clip ACTUAL tiene que ser uno de
+        # los que lo llevan, o el arnes compara un pie con rango marcado
+        # (izquierda) contra uno sin nada (derecha) -- y la zona de rango, las
+        # manijas y la pastilla quedan sin comparar.
+        if indice % 3 == 0 or indice == CLIP_ACTUAL:
             clip.in_frame, clip.out_frame = 132, 344
         clips.append(clip)
         # mayoria verticales, como el material real de la FX30, e
