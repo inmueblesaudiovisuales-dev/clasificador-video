@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Callable
 
 from PySide6.QtCore import QObject, Qt, Signal
-from PySide6.QtGui import QColor, QOpenGLContext, QPainter, QPen
+from PySide6.QtGui import QBrush, QColor, QLinearGradient, QOpenGLContext, QPainter, QPainterPath, QPen
 from PySide6.QtOpenGLWidgets import QOpenGLWidget
 from PySide6.QtWidgets import QWidget
 
@@ -238,6 +238,35 @@ class ScrubBar(QWidget):
             t = interval * n
         return ticks
 
+    def _playhead_body_path(self, x: float, track_y: int) -> QPainterPath:
+        half = 6.5
+        body_h = 7
+        point_h = 6
+        r = 2.5
+        body_bottom = track_y - point_h
+        body_top = body_bottom - body_h
+        path = QPainterPath()
+        path.moveTo(x - half + r, body_top)
+        path.lineTo(x + half - r, body_top)
+        path.quadTo(x + half, body_top, x + half, body_top + r)
+        path.lineTo(x + half, body_bottom)
+        path.lineTo(x - half, body_bottom)
+        path.lineTo(x - half, body_top + r)
+        path.quadTo(x - half, body_top, x - half + r, body_top)
+        path.closeSubpath()
+        return path
+
+    def _playhead_point_path(self, x: float, track_y: int) -> QPainterPath:
+        half = 6.5
+        point_h = 6
+        body_bottom = track_y - point_h
+        path = QPainterPath()
+        path.moveTo(x - half, body_bottom)
+        path.lineTo(x + half, body_bottom)
+        path.lineTo(x, track_y)
+        path.closeSubpath()
+        return path
+
     def paintEvent(self, event) -> None:  # noqa: N802 -- override de Qt
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
@@ -287,8 +316,19 @@ class ScrubBar(QWidget):
                 painter.drawLine(out_x, track_y - 8, out_x, track_y + 8)
 
             x = self._x_for(self._position, left, usable_width)
+            body_path = self._playhead_body_path(x, track_y)
+            point_path = self._playhead_point_path(x, track_y)
+            gradient = QLinearGradient(0, track_y - 13, 0, track_y - 6)
+            gradient.setColorAt(0.0, QColor("#ff9d5c"))
+            gradient.setColorAt(1.0, QColor(ACCENT))
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.setBrush(QBrush(gradient))
+            painter.drawPath(body_path)
+            painter.setBrush(QColor(ACCENT))
+            painter.drawPath(point_path)
+            painter.setBrush(Qt.BrushStyle.NoBrush)
             painter.setPen(QPen(QColor(ACCENT), 2))
-            painter.drawLine(x, 2, x, self.height() - 2)
+            painter.drawLine(round(x), track_y, round(x), self.height() - 2)
 
         painter.end()
 

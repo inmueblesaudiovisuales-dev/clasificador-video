@@ -321,3 +321,53 @@ def test_scrub_bar_dibuja_marca_mayor_en_cada_intervalo(qtbot):
     x_5s = left + round((5.0 / 10.0) * usable)
     color = img.pixelColor(x_5s, track_y - 8)
     assert color.name() == "#55555c"
+
+
+def test_playhead_ya_no_es_linea_recta_de_punta_a_punta(qtbot):
+    bar = ScrubBar()
+    qtbot.addWidget(bar)
+    bar.resize(200, 34)
+    bar.set_duration(60.0)
+    bar.set_position(30.0)
+    bar.show()
+    qtbot.waitExposed(bar)
+    pixmap = bar.grab()
+    img = pixmap.toImage()
+    left, usable = 6, 200 - 12
+    x = left + round((30.0 / 60.0) * usable)
+    color_arriba = img.pixelColor(x, 2)
+    assert color_arriba.name() != "#ff8a3d"
+
+
+def test_playhead_tiene_linea_fina_bajando_desde_la_casita(qtbot):
+    bar = ScrubBar()
+    qtbot.addWidget(bar)
+    bar.resize(200, 34)
+    bar.set_duration(60.0)
+    bar.set_position(30.0)
+    bar.show()
+    qtbot.waitExposed(bar)
+    pixmap = bar.grab()
+    img = pixmap.toImage()
+    left, usable = 6, 200 - 12
+    x = left + round((30.0 / 60.0) * usable)
+    track_y = bar.height() // 2
+    color_abajo = img.pixelColor(x, track_y + 10)
+    assert color_abajo.name() == "#ff8a3d"
+
+
+def test_playhead_punta_toca_track_y_en_la_posicion_correcta(qtbot):
+    bar = ScrubBar()
+    qtbot.addWidget(bar)
+    bar.resize(200, 34)
+    bar.set_duration(60.0)
+    bar.set_position(30.0)
+    bar.show()
+    qtbot.waitExposed(bar)
+    pixmap = bar.grab()
+    img = pixmap.toImage()
+    left, usable = 6, 200 - 12
+    x = left + round((30.0 / 60.0) * usable)
+    track_y = bar.height() // 2
+    color_punta = img.pixelColor(x, track_y - 1)
+    assert color_punta.name() == "#ff8a3d"
