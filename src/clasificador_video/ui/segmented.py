@@ -15,9 +15,19 @@ class SegmentedControl(QWidget):
 
     selected = Signal(str)
 
-    def __init__(self, options: list[str], parent=None):
+    def __init__(self, options: list[str], parent=None,
+                 object_name: str = "segmentedControl"):
         super().__init__(parent)
-        self.setObjectName("segmentedControl")
+        # el nombre distingue variantes en la hoja de estilos: el control de
+        # velocidad pinta su segmento activo en ambar (ver theme.py), y eso
+        # se resuelve con un selector de descendencia, no con QSS por widget.
+        self.setObjectName(object_name)
+        # Sin esta bandera un QWidget puro IGNORA el `background-color` de
+        # QSS: solo pintan los widgets que ya dibujan fondo (QPushButton y
+        # compania). El control quedaba sin su caja oscura y sobre una pared
+        # blanca --que en fotografia de inmuebles es la mitad del material--
+        # los numeros claros se volvian ilegibles. Venia asi desde la F2.
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         layout = QHBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)

@@ -82,6 +82,16 @@ TOOLCOL_WIDTH = 56
 SHEET_MIN_WIDTH = 340
 OVERLAY_MARGIN = 13       # margen de los controles flotantes sobre el video
 SCRUB_HEIGHT = 26
+# El segmento activo de VELOCIDAD va en ambar, no en el gris del resto de los
+# controles segmentados (el mockup los separa: `.seg b.on` contra
+# `.seg.speed b.on`). No es decoracion: reproducir a 2x o 4x cambia lo que
+# estas viendo y es facil olvidarlo, asi que el estado tiene que gritar.
+SPEED_ON_ALPHA = 77       # rgba(232,163,61,.3) del mockup
+SPEED_ON_TEXT_MIX = 0.5
+# Fondo de los controles que flotan sobre el video. Translucido a proposito,
+# como en el mockup (`rgba(10,12,15,.6)`): opaco taparia imagen, y sin fondo
+# los numeros claros desaparecen sobre una pared blanca.
+OVERLAY_BOX_ALPHA = 153   # 0.6 * 255
 
 # --- radios ---
 RADIUS_SM = 4
@@ -341,8 +351,13 @@ def build_stylesheet() -> str:
         color: {TEXT_2};
     }}
 
-    QWidget#segmentedControl {{
-        background-color: {BG_SURFACE_1};
+    /* Los dos nombres comparten la caja: el de velocidad solo se separa en
+       el color del segmento activo (ver mas abajo). Si esta regla nombrara
+       solo a `segmentedControl`, el de velocidad se quedaria sin su fondo
+       oscuro y los numeros flotarian ilegibles sobre el video -- paso al
+       construirlo. */
+    QWidget#segmentedControl, QWidget#speedSegmented {{
+        background-color: {con_alfa_qss(BG_APP, OVERLAY_BOX_ALPHA)};
         border: 1px solid {LINE};
         border-radius: {RADIUS_MD}px;
     }}
@@ -360,6 +375,13 @@ def build_stylesheet() -> str:
     QPushButton#segmentedButton:checked {{
         background-color: {BG_SURFACE_2};
         color: {TEXT};
+    }}
+    /* selector de descendencia: el control de velocidad lleva su propio
+       objectName y sus botones siguen siendo `segmentedButton`, asi que
+       heredan todo menos el color del segmento activo. */
+    QWidget#speedSegmented QPushButton#segmentedButton:checked {{
+        background-color: {con_alfa_qss(CURRENT_COLOR, SPEED_ON_ALPHA)};
+        color: {aclarar(CURRENT_COLOR, SPEED_ON_TEXT_MIX)};
     }}
 
     QWidget#titleBar {{

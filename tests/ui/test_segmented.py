@@ -63,3 +63,14 @@ def test_tiene_objectnames_para_el_tema(qtbot):
     qtbot.addWidget(seg)
     assert seg.objectName() == "segmentedControl"
     assert seg.buttons[0].objectName() == "segmentedButton"
+
+
+def test_el_control_pinta_su_fondo(qtbot):
+    """Un QWidget puro ignora `background-color` de QSS sin esta bandera.
+    Sin ella el control queda sin caja y sobre una pared blanca --la mitad
+    del material de inmuebles-- los numeros claros se vuelven ilegibles.
+    Venia asi desde la F2, en los dos controles."""
+    from PySide6.QtCore import Qt
+    control = SegmentedControl(["Full", "1/2"])
+    qtbot.addWidget(control)
+    assert control.testAttribute(Qt.WidgetAttribute.WA_StyledBackground)

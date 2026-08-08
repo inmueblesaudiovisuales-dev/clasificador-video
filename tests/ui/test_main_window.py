@@ -1597,3 +1597,100 @@ def test_el_badge_auto_vuelve_al_cambiar_de_clip(qtbot):
     window._tick_playhead()
     window.handle_arrow("next")
     assert not window.video_stage.badges.auto_badge.isHidden()
+
+
+# --- F6 Task 3: velocidad con `J K L` ----------------------------------------
+
+
+def test_L_acelera_y_cicla(qtbot):
+    """La convencion de Premiere: repetir `L` va 1× → 2× → 4× → 1×."""
+    window = _window_with_video(qtbot)
+    window.load_clips([_clip(1)])
+    for esperada in (2.0, 4.0, 1.0):
+        window.handle_key_press("l")
+        assert window.video_widget.player.speed == esperada
+
+
+def test_L_tambien_arranca_la_reproduccion(qtbot):
+    """Es lo que hace en Premiere y lo que uno espera al apretarla."""
+    window = _window_with_video(qtbot)
+    window.load_clips([_clip(1)])
+    window.video_widget.player.pause()
+    window.handle_key_press("l")
+    assert not window.video_widget.player.is_paused
+
+
+def test_K_frena_de_un_golpe(qtbot):
+    """Vuelve a 1× Y pausa, sin importar donde estabas."""
+    window = _window_with_video(qtbot)
+    window.load_clips([_clip(1)])
+    window.handle_key_press("l")
+    window.handle_key_press("l")
+    window.handle_key_press("k")
+    assert window.video_widget.player.speed == 1.0
+    assert window.video_widget.player.is_paused
+    # y el control tiene que decir lo mismo: dos vistas del mismo dato que se
+    # contradicen es el bug que ya aparecio en la tarjeta y la barra de rango
+    assert window.video_stage.speed.current() == "1×"
+
+
+def test_J_no_hace_nada_todavia(qtbot):
+    """Reservada para reproducir hacia atras: no se construye, pero tampoco se
+    le da otro significado."""
+    window = _window_with_video(qtbot)
+    window.load_clips([_clip(1)])
+    window.handle_key_press("l")
+    window.handle_key_press("j")
+    assert window.video_widget.player.speed == 2.0
+
+
+def test_el_control_de_velocidad_refleja_la_tecla(qtbot):
+    """Si el segmento no sigue a `L`, el control y el video dicen cosas
+    distintas."""
+    window = _window_with_video(qtbot)
+    window.load_clips([_clip(1)])
+    window.handle_key_press("l")
+    assert window.video_stage.speed.current() == "2×"
+
+
+def test_tocar_el_control_se_lo_pide_al_reproductor(qtbot):
+    window = _window_with_video(qtbot)
+    window.load_clips([_clip(1)])
+    window.video_stage.speed.selected.emit("2×")
+    assert window.video_widget.player.speed == 2.0
+
+
+def test_la_velocidad_se_conserva_al_cambiar_de_clip(qtbot):
+    """Si volviera a 1× en cada clip, habria que reelegirla 128 veces."""
+    window = _window_with_video(qtbot)
+    window.load_clips([_clip(1), _clip(2)])
+    window.video_stage.speed.selected.emit("4×")
+    window.handle_arrow("next")
+    assert window.video_widget.player.speed == 4.0
+    assert window.video_stage.speed.current() == "4×"
+
+
+def test_K_sobre_un_video_ya_pausado_lo_deja_pausado(qtbot):
+    """`K` es el freno, no un interruptor: apretarla dos veces no reproduce."""
+    window = _window_with_video(qtbot)
+    window.load_clips([_clip(1)])
+    window.handle_key_press("k")
+    window.handle_key_press("k")
+    assert window.video_widget.player.is_paused
+
+
+def test_las_teclas_de_velocidad_sin_clips_no_revientan(qtbot):
+    """La app abre sin material: apretar `L` antes de importar nada no puede
+    tirar la ventana."""
+    window = _window_with_video(qtbot)
+    window.handle_key_press("l")
+    window.handle_key_press("k")
+
+
+def test_las_teclas_de_reproduccion_estan_registradas(qtbot):
+    """Un test que llama a `handle_key_press` pasa aunque la tecla no exista
+    para el usuario: lo que la conecta es `_install_shortcuts`."""
+    window = _window_with_video(qtbot)
+    registrados = {s.key().toString() for s in window._shortcuts}
+    for tecla in ("L", "K"):
+        assert tecla in registrados, f"{tecla} se maneja pero no está registrada"

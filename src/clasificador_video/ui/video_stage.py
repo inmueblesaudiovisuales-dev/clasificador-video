@@ -4,6 +4,7 @@ from __future__ import annotations
 from PySide6.QtCore import QEvent, QObject, Qt
 from PySide6.QtWidgets import QHBoxLayout, QLabel, QVBoxLayout, QWidget
 
+from clasificador_video.player import SPEED_PROFILES
 from clasificador_video.ui import theme
 from clasificador_video.ui.segmented import SegmentedControl
 from clasificador_video.ui.video_widget import ScrubBar, VideoWidget
@@ -16,6 +17,12 @@ SCRIM_HEIGHT = 150
 # usa exactamente esta division (punto saturado, texto claro).
 BADGE_TEXT_MIX = 0.35
 BADGE_BORDER_ALPHA = 140
+
+
+def etiqueta_de_velocidad(velocidad: float) -> str:
+    """`1.0` → `1×`. El signo es `×` (multiplicacion), no la letra equis:
+    asi lo escribe el mockup y asi se lee en cualquier NLE."""
+    return f"{velocidad:g}×"
 
 
 class _BadgeRow(QWidget):
@@ -125,6 +132,14 @@ class VideoStage(QWidget):
         self.badges = _BadgeRow(self.video)
         self.timecode_label = QLabel("", self.video)
         self.timecode_label.setObjectName("overlayTimecode")
+        # Las etiquetas salen de los perfiles del reproductor, no escritas a
+        # mano: si alguna vez se agrega una velocidad, el control la muestra
+        # sin que haya que acordarse de tocar dos archivos.
+        self.speed = SegmentedControl(
+            [etiqueta_de_velocidad(v) for v in SPEED_PROFILES],
+            self.video,
+            object_name="speedSegmented",
+        )
         self.quality = SegmentedControl(["Full", "1/2", "1/4", "1/8"], self.video)
         self.scrub_bar = ScrubBar(self.video)
         self.scrub_bar.set_over_video(True)
@@ -165,6 +180,11 @@ class VideoStage(QWidget):
         self.quality.adjustSize()
         self.quality.move(ancho - self.quality.width() - M, M)
 
+        # a la izquierda del de calidad, en la misma fila -- es su lugar en
+        # el mockup, y los dos son controles del reproductor
+        self.speed.adjustSize()
+        self.speed.move(self.quality.x() - self.speed.width() - 8, M)
+
         self.scrub_bar.setGeometry(
             M, alto - M - theme.SCRUB_HEIGHT, ancho - 2 * M, theme.SCRUB_HEIGHT
         )
@@ -175,6 +195,6 @@ class VideoStage(QWidget):
         )
 
         self.scrim.lower()
-        for encima in (self.file_label, self.badges, self.quality,
+        for encima in (self.file_label, self.badges, self.quality, self.speed,
                        self.timecode_label, self.scrub_bar):
             encima.raise_()

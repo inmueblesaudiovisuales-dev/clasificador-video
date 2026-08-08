@@ -205,3 +205,59 @@ def test_el_badge_auto_usa_el_color_del_acento_y_no_el_de_un_estado(qtbot):
     assert theme.aclarar(theme.CURRENT_COLOR, BADGE_TEXT_MIX) in hoja
     assert theme.PICK_COLOR not in hoja
     assert theme.REJECT_COLOR not in hoja
+
+
+# --- F6 Task 3: el control de velocidad --------------------------------------
+
+
+def test_el_control_de_velocidad_tiene_las_tres_del_mockup(qtbot):
+    stage = _stage(qtbot)
+    assert [b.text() for b in stage.speed.buttons] == ["1×", "2×", "4×"]
+
+
+def test_el_control_de_velocidad_arranca_en_1x(qtbot):
+    assert _stage(qtbot).speed.current() == "1×"
+
+
+def test_el_control_de_velocidad_recibe_mouse(qtbot):
+    """Es interactivo como el de calidad: si fuera transparente al mouse, se
+    veria y no se podria tocar."""
+    stage = _stage(qtbot)
+    assert not stage.speed.testAttribute(Qt.WA_TransparentForMouseEvents)
+
+
+def test_el_control_de_velocidad_va_a_la_izquierda_del_de_calidad(qtbot):
+    """Ese es su lugar en el mockup, y los dos viven en la misma fila."""
+    stage = _stage_visible(qtbot)
+    qtbot.wait(50)
+    assert stage.speed.x() + stage.speed.width() <= stage.quality.x()
+    assert stage.speed.y() == stage.quality.y()
+
+
+def test_el_segmento_activo_de_velocidad_va_en_ambar_y_no_en_gris(qtbot):
+    """El mockup los separa a proposito (`.seg b.on` contra `.seg.speed
+    b.on`): estar en 2× o 4× cambia lo que ves y es facil olvidarlo, asi que
+    el estado tiene que gritar. Si el control perdiera su objectName, la
+    regla de descendencia deja de aplicar sin ningun otro sintoma."""
+    from clasificador_video.ui.theme import build_stylesheet
+    stage = _stage(qtbot)
+    assert stage.speed.objectName() == "speedSegmented"
+    regla = "QWidget#speedSegmented QPushButton#segmentedButton:checked"
+    hoja = build_stylesheet()
+    assert regla in hoja
+    assert theme.aclarar(theme.CURRENT_COLOR, theme.SPEED_ON_TEXT_MIX) in hoja
+
+
+def test_el_control_de_velocidad_conserva_su_caja(qtbot):
+    """Regresion real al construirlo: darle objectName propio lo saco de la
+    regla del contenedor y los numeros quedaron flotando sobre el video, sin
+    fondo oscuro ni borde. Un control que se ve bien sobre un video oscuro y
+    desaparece sobre uno claro."""
+    from clasificador_video.ui.theme import build_stylesheet
+    stage = _stage(qtbot)
+    hoja = build_stylesheet()
+    caja = [linea for linea in hoja.splitlines()
+            if "QWidget#speedSegmented {" in linea
+            or ("speedSegmented" in linea and "segmentedControl" in linea)]
+    assert caja, "el control de velocidad no hereda la caja del segmentado"
+    assert stage.speed.objectName() == "speedSegmented"

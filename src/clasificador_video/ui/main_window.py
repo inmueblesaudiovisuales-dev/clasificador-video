@@ -21,6 +21,7 @@ from clasificador_video.history import History, HistoryEntry
 from clasificador_video.ingest import IngestTree
 from clasificador_video.keyboard import KeyboardRouter
 from clasificador_video.manifest import Clip, Manifest
+from clasificador_video.player import SPEED_PROFILES
 from clasificador_video.probe import probe_clip
 from clasificador_video.rooms import RoomSelection
 from clasificador_video.thumbnails import (
@@ -35,7 +36,7 @@ from clasificador_video.ui.room_rail import RoomRail
 from clasificador_video.ui.status_bar import StatusBar
 from clasificador_video.ui.title_bar import TitleBar
 from clasificador_video.ui.tool_column import ToolColumn
-from clasificador_video.ui.video_stage import VideoStage
+from clasificador_video.ui.video_stage import VideoStage, etiqueta_de_velocidad
 from clasificador_video.ui.video_widget import format_timecode
 
 # Donde arranca cada clip. El principio de un recorrido siempre es la camara
@@ -192,6 +193,7 @@ class MainWindow(QWidget):
 
         self.video_stage = VideoStage(mpv_factory=video_factory)
         self.video_stage.quality.selected.connect(self._on_quality_changed)
+        self.video_stage.speed.selected.connect(self._on_speed_changed)
         self.scrub_bar = self.video_stage.scrub_bar
         self.scrub_bar.seek_started.connect(self._on_scrub_seek_started)
         self.scrub_bar.seek_requested.connect(self._on_scrub_seek)
@@ -283,6 +285,10 @@ class MainWindow(QWidget):
             ("P", lambda: self.handle_key_press("p")),
             ("X", lambda: self.handle_key_press("x")),
             ("U", lambda: self.handle_key_press("u")),
+            # `J K L`: la convencion de Premiere, Avid y Resolve
+            ("L", lambda: self.handle_key_press("l")),
+            ("K", lambda: self.handle_key_press("k")),
+            ("J", lambda: self.handle_key_press("j")),
             # la hoja lo anuncia en el encabezado de cada grupo: tiene que
             # existir de verdad. QKeySequence.SelectAll ya es ⌘A en macOS y
             # Ctrl+A en el resto, sin escribir el modificador a mano.
@@ -781,7 +787,67 @@ class MainWindow(QWidget):
     # acciones
     # ------------------------------------------------------------------
 
+    # ------------------------------------------------------------------
+    # velocidad: `J K L`, la convencion de Premiere
+    # ------------------------------------------------------------------
+
+    def _acelerar(self) -> None:
+        """`L`: cicla 1× → 2× → 4× → 1× y arranca si estaba pausado.
+
+        Arrancar es parte de lo que hace `L` en Premiere, Avid y Resolve: si
+        solo cambiara el numero, apretarla sobre un video pausado no haria
+        nada visible.
+        """
+        actual = self.video_widget.player.speed
+        perfiles = SPEED_PROFILES
+        siguiente = perfiles[(perfiles.index(actual) + 1) % len(perfiles)] \
+            if actual in perfiles else perfiles[0]
+        self._aplicar_velocidad(siguiente)
+        self.video_widget.player.play()
+
+    def _frenar(self) -> None:
+        """`K`: vuelve a 1× y pausa de un golpe, sin importar donde estabas.
+
+        No es un interruptor: sobre un video ya pausado lo deja pausado.
+        """
+        self._aplicar_velocidad(SPEED_PROFILES[0])
+        self.video_widget.player.pause()
+
+    def _aplicar_velocidad(self, velocidad: float) -> None:
+        """Un solo lugar mueve las DOS vistas del mismo dato -- el
+        reproductor y el control segmentado. Que se contradigan es un bug que
+        este proyecto ya tuvo dos veces (la tarjeta y la barra de rango)."""
+        self.video_widget.player.set_speed(velocidad)
+        self.video_stage.speed.set_current(etiqueta_de_velocidad(velocidad))
+
+    def _on_speed_changed(self, etiqueta: str) -> None:
+        """Del control segmentado al reproductor. La etiqueta se traduce
+        buscando en los perfiles, no parseando el texto.
+
+        Pasa por `_aplicar_velocidad` --que tambien sincroniza el control--
+        aunque venga del control mismo: al hacer click Qt ya lo dejo marcado
+        y volver a marcarlo no cuesta nada, pero asi las dos vistas convergen
+        venga el cambio de donde venga.
+        """
+        for velocidad in SPEED_PROFILES:
+            if etiqueta_de_velocidad(velocidad) == etiqueta:
+                self._aplicar_velocidad(velocidad)
+                return
+
     def handle_key_press(self, key: str) -> None:
+        # `L` y `K` van ANTES del corte por clip nulo: la app abre sin
+        # material y apretarlas no puede depender de que ya hayas importado.
+        if key == "l":
+            self._acelerar()
+            return
+        if key == "k":
+            self._frenar()
+            return
+        if key == "j":
+            # reservada para reproducir hacia atras. No se construye --en
+            # recorridos de inmuebles no aporta-- pero tampoco se le da otro
+            # significado, o el dia que sirva ya estaria ocupada.
+            return
         if self.current_clip is None:
             return
         if key in ("i", "o", "u"):
