@@ -49,13 +49,12 @@ Punto de partida: **442 tests en verde**, commit `1327195`.
    contexto por defecto de un `QShortcut` es `WindowShortcut`, o sea que se
    dispara con cualquier foco de la ventana. La paleta se lo robaría. Está en
    la Task 11.
-
-6. **Las teclas se pasan a `handle_key_press` como cadena**, y hoy son de un
+4. **Las teclas se pasan a `handle_key_press` como cadena**, y hoy son de un
    solo carácter. `⇧P` entra como el token `"shift+p"`; no existe una `"⇧p"`.
-4. **`destacado` es aditivo en el contrato con Premiere.** El plugin mapea
+5. **`destacado` es aditivo en el contrato con Premiere.** El plugin mapea
    `pick→FOREST`, `reject→ROSE` e **ignora lo que no conoce**. No hay que tocar
    `Clip.to_dict()` ni el manifest.
-5. **Ningún atajo se dibuja sin registrarse.** Ya hay un test que lo vigila
+6. **Ningún atajo se dibuja sin registrarse.** Ya hay un test que lo vigila
    (`test_los_atajos_anunciados_en_la_interfaz_existen`); las teclas nuevas de
    estas dos fases entran ahí.
 
