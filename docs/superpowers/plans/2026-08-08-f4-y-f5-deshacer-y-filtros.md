@@ -571,7 +571,7 @@ encontrar `Recámara 1`, o en un teclado apurado no sirve para nada.
 El chip `★ solo destacados` del mockup **no se construye**: no existe el estado
 hasta la F7.
 
-- [ ] **Step 1: Escribir los tests que fallan**
+- [x] **Step 1: Escribir los tests que fallan**
 
 ```python
 # tests/test_filters.py
@@ -665,12 +665,12 @@ def test_la_cola_nunca_reordena_los_clips():
     assert cola(CLIPS, revueltos) == sorted(cola(CLIPS, revueltos))
 ```
 
-- [ ] **Step 2: Implementar** — `FilterState` como `dataclass` con
+- [x] **Step 2: Implementar** — `FilterState` como `dataclass` con
   `mostrar`, `estado`, `busqueda`; `cola(clips, state) -> list[int]`;
   `contar(clips) -> dict[str, int]`. La normalización de acentos con
   `unicodedata.normalize("NFD", …)` y descarte de las marcas diacríticas.
 
-- [ ] **Step 3: Verificar.**
+- [x] **Step 3: Verificar.**
 
 ---
 
@@ -688,7 +688,7 @@ filtros y el chip de cola.
 **No se construyen los dos iconos de vista** del mockup: no hay ninguna
 decisión detrás de ellos (ver el análisis post-F3 §1.9).
 
-- [ ] **Step 1: Escribir los tests que fallan**
+- [x] **Step 1: Escribir los tests que fallan**
 
 ```python
 # tests/ui/test_clip_sheet.py  (agregar)
@@ -756,12 +756,12 @@ def test_no_se_construyen_los_iconos_de_vista(qtbot):
     assert not hasattr(_sheet(qtbot, []), "view_toggle")
 ```
 
-- [ ] **Step 2: Implementar** — `_Chip(QPushButton)` chequeable, agrupados en
+- [x] **Step 2: Implementar** — `_Chip(QPushButton)` chequeable, agrupados en
   dos `QButtonGroup` exclusivos; `search_input` (`QLineEdit` con placeholder
   `Buscar clip o cuarto…`); `queue_chip`; señal
   `filters_changed = Signal(object)` que emite el `FilterState`.
 
-- [ ] **Step 3: Verificar** — tests, arnés y recorte del encabezado.
+- [x] **Step 3: Verificar** — tests, arnés y recorte del encabezado.
 
 ---
 
@@ -776,7 +776,7 @@ def test_no_se_construyen_los_iconos_de_vista(qtbot):
 `setVisible(False)` y se saltea en `_relayout`; los bloques que quedan sin
 tarjetas visibles se esconden enteros.
 
-- [ ] **Step 1: Escribir los tests que fallan**
+- [x] **Step 1: Escribir los tests que fallan**
 
 ```python
 # tests/ui/test_clip_sheet.py  (agregar)
@@ -826,7 +826,7 @@ def test_cmd_a_selecciona_solo_lo_visible_del_grupo(qtbot):
     assert sheet.selected_indices() == [0, 2]
 ```
 
-- [ ] **Step 2: Implementar** — `set_visible_indices(indices)` guarda un
+- [x] **Step 2: Implementar** — `set_visible_indices(indices)` guarda un
   `set`, esconde las tarjetas que no están **y llama a `_relayout`**;
   `_relayout` saltea las escondidas al asignar fila y columna;
   `select_current_group` lo respeta.
@@ -838,7 +838,7 @@ def test_cmd_a_selecciona_solo_lo_visible_del_grupo(qtbot):
   > eso `set_visible_indices` **tiene** que disparar `_relayout`; si alguien lo
   > «optimiza» quitándolo, la hoja queda con agujeros.
 
-- [ ] **Step 3: Verificar.**
+- [x] **Step 3: Verificar.**
 
 ---
 
@@ -868,7 +868,7 @@ avanzar. Se implementa aquí porque «avanzar» significa «el siguiente de la
 cola», que es justo lo que esta fase construye. **Solo avanza cuando se actúa
 sobre un clip**: con seis seleccionados, avanzar sería un salto sin sentido.
 
-- [ ] **Step 1: Escribir los tests que fallan**
+- [x] **Step 1: Escribir los tests que fallan**
 
 ```python
 # tests/ui/test_main_window.py  (agregar)
@@ -990,7 +990,7 @@ def test_sin_pendientes_el_aviso_desaparece(qtbot):
     assert barra.unclassified_label.text() == ""
 ```
 
-- [ ] **Step 2: Implementar** — `MainWindow.filters` (`FilterState`),
+- [x] **Step 2: Implementar** — `MainWindow.filters` (`FilterState`),
   `set_filters()`, y `_queue()` que devuelve `cola(self.clips, self.filters)`.
   `handle_arrow` se mueve sobre esa lista; si el índice actual no está en ella,
   busca el siguiente (o anterior) mayor (o menor) que él. El aviso de la barra
@@ -1000,18 +1000,18 @@ def test_sin_pendientes_el_aviso_desaparece(qtbot):
   > selección vieja escondida por un filtro recibiría la asignación sin que la
   > veas.
 
-- [ ] **Step 3: Verificar** — suite en verde y prueba a mano del flujo entero:
+- [x] **Step 3: Verificar** — suite en verde y prueba a mano del flujo entero:
   prender «Sin clasificar», recorrer con `→` clasificando, y ver que la cola se
   vacía y el chip llega a cero.
 
 ## Task 10: Cierre de la F5
 
-- [ ] Suite en verde.
-- [ ] Campos y métodos que nadie lee, buscados con `grep`.
-- [ ] Arnés corrido, imagen **mirada**, y recortes del encabezado de la hoja y
+- [x] Suite en verde.
+- [x] Campos y métodos que nadie lee, buscados con `grep`.
+- [x] Arnés corrido, imagen **mirada**, y recortes del encabezado de la hoja y
       de la barra de estado contra el mockup.
-- [ ] Punto de control: rehacer el análisis antes de planear la F6 y la F7.
-- [ ] Commit en español mexicano.
+- [x] Punto de control: rehacer el análisis antes de planear la F6 y la F7.
+- [x] Commit en español mexicano.
 
 ---
 
@@ -1145,3 +1145,48 @@ spike seguían siendo ciertas al implementar.
 
 **Pendiente de prueba a mano en la Mac de Bruno**: que `⌘Z` y `⌘A` respondan a
 la tecla física. Un entorno `offscreen` no recibe pulsaciones reales.
+
+---
+
+## Resultado de la F5 — 2026-08-08
+
+Implementada en el commit `723f43c`. **432 tests en verde.**
+
+**Lo que se desvió del plan:**
+
+1. **La barra de filtros va en dos renglones, uno por grupo.** El mockup los
+   pone en una sola fila con `flex-wrap: wrap`; en Qt esa fila **exige** su
+   ancho completo. Con los conteos reales pedía 838 px contra los 789 que
+   tiene la hoja, y ese mínimo se propagaba hasta la ventana: crecía a 1649 px
+   y ya no podía encoger — un trinquete que le robaba 49 px al video, que es
+   justo lo que este rediseño existe para proteger.
+
+   Se intentó primero un `FlowLayout` a medida, que es lo que el mockup
+   declara. **Segfaultea**: los `QLayoutItem` que Qt pasa a un `addItem`
+   sobrescrito quedan con la propiedad del lado de Python y se liberan bajo
+   los pies del layout. No vale la pena pelear con eso por una fila de chips.
+   Dos renglones lo resuelven, y con holgura para el chip de destacados que
+   agrega la F7 — que con la fila única habría vuelto a romperlo.
+
+2. **El área de scroll propagaba el mínimo de las tarjetas.** Como usan
+   `setFixedSize`, el mínimo de la grilla crecía con ellas y llegaba hasta la
+   ventana. Con `QSizePolicy.Ignored` en horizontal, la hoja vuelve a absorber
+   lo que sobra en vez de reclamarlo. **Era un bug latente anterior a la F5**:
+   la ventana podía crecer y nunca encoger.
+
+3. **El chip que define la cola va en ámbar** (`.fchip.on.q` del mockup, que
+   el plan no había recogido). No es decoración: el ámbar es el color de la
+   cola en toda la app, y verlo en el chip dice «por aquí se mueven las
+   flechas ahora». Al conectarlo apareció que `setChecked` no emite `clicked`,
+   así que la vía del aviso de la barra de estado no marcaba el chip.
+
+4. **El buscador va a 230 px fijos.** Con `stretch` competía con el espaciador
+   por el sobrante y se quedaba en 120 px, donde no cabe ni el placeholder.
+
+5. **Si el clip actual quedó fuera del filtro, el visor no inventa posición**:
+   dice «12 en la cola» en vez de «0 de 12». El plan no cubría ese caso y pasa
+   todo el tiempo — apenas resuelves un clip sale de la cola.
+
+**Lo que confirmó la auditoría previa**: las tres correcciones del spike
+—esconder no compacta la grilla, el chip activo no se apaga al reclickearlo, y
+el test de la flecha conflaba el avance automático— seguían siendo ciertas.
