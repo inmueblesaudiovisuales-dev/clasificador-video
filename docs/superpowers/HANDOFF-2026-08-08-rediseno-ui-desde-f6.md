@@ -43,8 +43,10 @@ Bruno pidió un rediseño desde cero de la interfaz. El motivo concreto: **el
 video vertical se veía chico**, rodeado de franjas negras, y ver el video
 grande es *la* razón por la que existe esta app en vez de usar Premiere.
 
-Hay un **mockup HTML** que es la fuente de verdad visual, y un
-`DECISIONES.md` que es la fuente de verdad del comportamiento.
+La fuente de verdad visual es
+`docs/superpowers/mockups/rediseno-2026-08-08/mockup.html` —tiene las dos
+pantallas, clip y hoja— y la del comportamiento es el `DECISIONES.md` que está
+a su lado. El material real para probar vive en `sample-media/clips/`.
 
 **La queja de Bruno que ordena todo el trabajo:**
 
@@ -64,11 +66,23 @@ burocracia: son la respuesta directa a esa queja.
 | 2 | `docs/superpowers/mockups/rediseno-2026-08-08/DECISIONES.md` | **El comportamiento acordado**, con el porqué de cada cosa y lo que se evaluó y descartó |
 | 3 | `docs/superpowers/plans/2026-08-08-f6-y-f7-reproduccion-y-teclado.md` | **Tu plan de trabajo.** Tareas numeradas, tests antes que código, y cinco auditorías al final |
 | 4 | `docs/superpowers/ANALISIS-2026-08-08-post-f5.md` | El punto de control vigente: qué falta, qué tiene dueño, y las revisiones de la F1 a la F5 |
-| 5 | `docs/superpowers/plans/2026-08-08-rediseno-ui-fidelidad-al-mockup.md` | El plan maestro: los candados y la lista de ejecución |
+| 5 | `docs/superpowers/plans/2026-08-08-rediseno-ui-fidelidad-al-mockup.md` | El plan maestro: los candados y el porqué del método. **Su numeración de fases quedó vieja — ver el aviso de abajo** |
 | 6 | `README.md` y `docs/superpowers/CONTEXTO-Y-METAS.md` | Qué es la app y hacia dónde va |
 
 **No leas** `docs/superpowers/archive/` salvo que busques una decisión
 histórica concreta.
+
+### ⚠️ La numeración de fases del plan maestro está vieja
+
+El plan maestro se escribió antes de empezar y **las fases se renumeraron sobre
+la marcha**. Ahí adentro «F6» quiere decir *deshacer* (que ya está hecho, y en
+esta numeración es la F4) y «F8» quiere decir *reproducción* (que es la F6, la
+que vas a hacer). Su lista de ejecución de la §3 también quedó vieja: manda
+renglones a fases que ya pasaron.
+
+**La numeración válida es la de este handoff y la del `ANALISIS` post-F5**, que
+es el documento más reciente. Del plan maestro, lee los candados y el método —
+no los números ni la lista de ejecución.
 
 ## 4. Dónde está todo hoy
 
@@ -136,6 +150,23 @@ de widget.
 
 Después de la F6 y la F7 toca **punto de control**: rehacer el análisis contra
 el código nuevo antes de planear la F8.
+
+### Lo que viene después — para no construirlo antes de tiempo
+
+Esto **no es trabajo de la F6**. Está aquí para que reconozcas a qué fase
+pertenece cada cosa que te encuentres en el mockup, y no la adelantes ni la des
+por olvidada. El detalle está en el `ANALISIS` post-F5, §6 y §7.
+
+| Fase | Qué trae |
+|---|---|
+| **F7 — Resto del teclado** | `S` («igual al anterior») con su fila fija, la paleta `⏎` para buscar y crear cuartos, el estado **destacado** `⇧P` con todas sus caras (badge, indicador, glifo en la tarjeta, chip en la leyenda y en los filtros), `F` para solo video, y que `P`/`X` vuelvan a neutral |
+| **F8 — Modo hoja y pincel** | `⇥` para alternar, hoja a pantalla completa, el pincel de cuarto, `+`/`−` para el tamaño de miniatura, marquesina, `esc`, doble click, la barrita al escrubear una miniatura, la barra de selección múltiple y la portada al 25% |
+| **F9 — Proxies y orientación** | Aquí muere el `orientacion="horizontal"` hardcodeado, y el badge de proxy muestra datos reales |
+| **F10 — Barrido final** | La lista de ejecución vacía, comparación final de las dos pantallas, y toda diferencia contra el mockup arreglada o justificada por escrito |
+
+**Dos cosas con dueño que parecen código muerto y no lo son**:
+`theme.STAR_COLOR` (es el destacado de la F7) y los tokens de la hoja completa
+(son de la F8). No los borres «limpiando».
 
 ## 6. Los cuatro candados anti-deriva
 
