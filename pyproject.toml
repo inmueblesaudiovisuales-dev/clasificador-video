@@ -6,6 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "clasificador-video"
 version = "0.1.0"
 description = "App externa del clasificador de video para bienes raíces"
+readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
     "PySide6>=6.7",
