@@ -34,6 +34,11 @@ Contra el mockup, verificado en la comparación lado a lado:
 | Scrub de miniatura con el mouse | ✅ conservado |
 | Selección múltiple, asignación en lote, autoguardado | ✅ conservado |
 
+> **Estado al 2026-08-08, tras implementar la F2.1** (commit `00e5d9d`): las
+> §2, §3 y §4 de este documento están **resueltas**. Lo que quedó distinto del
+> mockup a propósito está en la §8, al final, con su fase. La §5 (lista de
+> ejecución) quedó actualizada: sus dos renglones de la F2.1 están tachados.
+
 ## 2. La regresión: las tarjetas perdieron información
 
 **El hallazgo importante de este análisis.** La `ClipCard` muestra únicamente
@@ -105,8 +110,8 @@ Lo que quedó del plan maestro, más lo que la F2 dejó provisional.
 | `RoomRail.subroom_banner` | `ui/room_rail.py` | F3 |
 | `REPEATABLE_ROOMS`, `set_count` | `rooms.py` | F3 |
 | `orientacion="horizontal"` hardcodeado | `ui/main_window.py` | F9 |
-| Campos muertos de `ClipThumbnail` | `ui/clip_sheet.py` | **F2.1** |
-| `RANGE_TRACK_COLOR` y `FLAG_NONE_COLOR` sin usar | `ui/theme.py` | **F2.1** |
+| ~~Campos muertos de `ClipThumbnail`~~ | ~~`ui/clip_sheet.py`~~ | ✅ F2.1 |
+| ~~`RANGE_TRACK_COLOR` y `FLAG_NONE_COLOR` sin usar~~ | ~~`ui/theme.py`~~ | ✅ F2.1 |
 
 Ya vacío de la lista original: `legend_label`, `ingest_list`,
 `ingest_title_label`, `inspector_panel`, `scrub_time_label`, `top_bar`,
@@ -146,3 +151,23 @@ Cambia respecto de lo escrito antes de implementar:
 - **La comparación general no alcanza; hay que ampliar regiones.** La
   regresión de las tarjetas era invisible en la vista completa y obvia en el
   recorte. El arnés debería tener un modo de recorte.
+  → **Hecho en la F2.1**: `--recorte X,Y,ANCHO,ALTO --zoom N`, que amplía la
+  misma región de las dos mitades.
+
+## 8. Cierre de la F2.1: lo que quedó distinto a propósito
+
+Mirado con el arnés a 1600×1000 y con cuatro recortes ampliados —tarjetas,
+rail, badges sobre el video y una captura directa de cuatro `ClipCard` con
+estados distintos—. Lo que **no** coincide con el mockup, y por qué:
+
+| Diferencia | Por qué se deja | Fase |
+|---|---|---|
+| El visor dice `87 / 128`; el mockup, `3 de 12 en la cola` | La cola filtrada no existe todavía | F5 |
+| El nombre de archivo va en una pastilla; el mockup lo pone como texto plano sobre un scrim superior | Esa fila del mockup lleva además el control de velocidad, que no existe hasta la F6. Se rehace entera una sola vez, no dos | F6 |
+| No hay barrita ni timecode al escrubear una miniatura | El scrub funciona desde la F2; falta su indicador visual | F8 |
+| La leyenda del rail no tiene el chip `6 dest.` | No existe el estado «destacado» | F7 |
+| Faltan los badges `▶ auto` y `Proxy 1080p` sobre el video | Autoplay y proxies | F6 / F9 |
+| El texto del badge de cuarto sale algo menos saturado que el del mockup | El mockup eligió el suyo a mano para un solo cuarto; la app lo deriva para los nueve mezclando con blanco, y mezclar desatura. El **punto** sí va con el color puro, que es lo que hace que el badge se lea de color | — asumida |
+| La barra de filtros y el historial del rail no existen | Son la F5 y la F4 | F4 / F5 |
+
+Nada de esto es deriva: son huecos de fases que todavía no se construyeron.
