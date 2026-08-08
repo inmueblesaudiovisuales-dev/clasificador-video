@@ -30,6 +30,17 @@ class RoomSelection:
         if room and room not in self._order:
             self._order.append(room)
 
+    def insert_at(self, posicion: int, room: str) -> None:
+        """Mete un cuarto en una posicion concreta.
+
+        Existe para deshacer un borrado: el cuarto tiene que volver A SU
+        LUGAR, porque la posicion es lo que le da la tecla. Reagregarlo con
+        `add` lo mandaria al final y le cambiaria el atajo por sorpresa.
+        """
+        room = room.strip()
+        if room and room not in self._order:
+            self._order.insert(max(0, min(posicion, len(self._order))), room)
+
     def rename(self, room: str, nuevo: str) -> None:
         """Cambia el nombre SIN cambiar la posicion: renombrar no puede
         cambiarle la tecla a un cuarto por sorpresa."""

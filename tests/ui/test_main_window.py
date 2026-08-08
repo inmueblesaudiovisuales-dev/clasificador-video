@@ -1415,3 +1415,29 @@ def test_el_boton_de_cuartos_lleva_el_foco_al_rail(qtbot):
     qtbot.waitExposed(window)
     window.title_bar.rooms_button.click()
     assert window.room_rail.focusWidget() is window.room_rail.rows[0]
+
+
+def test_deshacer_un_borrado_no_se_lleva_los_cuartos_creados_despues(qtbot):
+    """Guardar la lista entera y restaurarla borraba todo lo hecho en el
+    medio. Se guarda el cuarto y su posicion, y se reinserta ahi."""
+    window = _window(qtbot, rooms=("Cocina", "Sala"))
+    window.load_clips([_clip(1)])
+    window.select_clip(0)
+    window.handle_key_press("1")
+    window.room_rail.room_removed.emit("Cocina")
+    window.room_rail.room_created.emit("Alberca")
+    window.undo()
+    assert window.room_selection.active_rooms() == ["Cocina", "Sala", "Alberca"]
+    assert window.clips[0].categoria_path == ["Cocina"]
+
+
+def test_deshacer_un_borrado_le_devuelve_su_tecla(qtbot):
+    """El cuarto vuelve a su POSICION, que es lo que le da la tecla."""
+    window = _window(qtbot, rooms=("Cocina", "Sala", "Baño 1"))
+    window.load_clips([_clip(1)])
+    window.room_rail.room_removed.emit("Sala")
+    window.undo()
+    assert window.room_selection.active_rooms() == ["Cocina", "Sala", "Baño 1"]
+    window.select_clip(0)
+    window.handle_key_press("2")
+    assert window.clips[0].categoria_path == ["Sala"]

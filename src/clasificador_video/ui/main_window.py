@@ -396,7 +396,7 @@ class MainWindow(QWidget):
 
     def _registrar(self, etiqueta: str, detalle: str, color: str,
                    clips: list[int], campos: tuple[str, ...],
-                   rooms_antes: list[str] | None = None) -> None:
+                   cuarto_borrado: tuple[str, int] | None = None) -> None:
         """Guarda el estado ANTERIOR de `campos` en `clips`.
 
         Se llama SIEMPRE antes de mutar, nunca despues -- si no, guarda el
@@ -409,7 +409,7 @@ class MainWindow(QWidget):
             for indice in clips
             if 0 <= indice < len(self.clips)
         }
-        self.history.push(HistoryEntry(etiqueta, detalle, color, antes, rooms_antes))
+        self.history.push(HistoryEntry(etiqueta, detalle, color, antes, cuarto_borrado))
         self._refresh_history()
 
     def _refresh_history(self) -> None:
@@ -431,12 +431,13 @@ class MainWindow(QWidget):
             if 0 <= indice < len(self.clips):
                 for campo, valor in campos.items():
                     setattr(self.clips[indice], campo, _copiar(valor))
-        if entrada.rooms_antes is not None:
-            seleccion = RoomSelection()
-            for cuarto in entrada.rooms_antes:
-                seleccion.add(cuarto)
-            self.room_selection = seleccion
-            self._router.active_rooms = seleccion.active_rooms()
+        if entrada.cuarto_borrado is not None:
+            # se REINSERTA en su posicion, que es lo que le da la tecla.
+            # Restaurar la lista entera --como hacia antes-- se llevaba puesto
+            # todo lo creado despues del borrado.
+            nombre, posicion = entrada.cuarto_borrado
+            self.room_selection.insert_at(posicion, nombre)
+            self._router.active_rooms = self.room_selection.active_rooms()
         self._refresh_sheet()
         self._refresh_history()
         self._autosave()
@@ -567,13 +568,14 @@ class MainWindow(QWidget):
             i for i, c in enumerate(self.clips)
             if c.categoria_path and c.categoria_path[0] == nombre
         ]
+        rooms = self.room_selection.active_rooms()
         self._registrar(
             etiqueta=nombre,
             detalle="cuarto borrado",
             color=self._color_de_cuarto(nombre),
             clips=afectados,
             campos=("categoria_path",),
-            rooms_antes=self.room_selection.active_rooms(),
+            cuarto_borrado=(nombre, rooms.index(nombre)) if nombre in rooms else None,
         )
         self.room_selection.remove(nombre)
         # sus clips vuelven a la cola de trabajo, que es donde tienen que

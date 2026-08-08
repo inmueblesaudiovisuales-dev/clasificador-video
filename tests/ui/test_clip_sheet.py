@@ -552,3 +552,90 @@ def test_el_chip_que_define_la_cola_se_marca_aparte(qtbot):
     assert sheet.chips["todos"].property("q") is not True
     sheet.chips["todos"].click()
     assert sheet.chips["sin_clasificar"].property("q") is False
+
+
+def test_recolocar_sin_cambios_no_hace_trabajo(qtbot):
+    """Con 128 clips, re-colocar la hoja cuesta ~12 ms. La F5 lo disparaba
+    CUATRO veces por cada tecla de cuarto —dos dentro del refresco y dos mas
+    por el avance automatico—, y esta app existe para ser rapida.
+
+    Si nada que afecte al acomodo cambio, no hay nada que hacer; si cambia,
+    se hace una sola vez.
+    """
+    sheet = _sheet(qtbot, [_clip(i, "Sala") for i in range(20)])
+    sheet.resize(815, 900)
+    sheet._relayout()                      # queda al dia
+
+    hechos = []
+    original = type(sheet)._acomodar_de_verdad
+    type(sheet)._acomodar_de_verdad = lambda s: (hechos.append(1), original(s))[1]
+    try:
+        sheet._relayout()
+        sheet._relayout()
+        sheet._relayout()
+        assert hechos == [], "recoloco sin que cambiara nada"
+        sheet.set_visible_indices([0, 1])   # ahora si cambia
+        assert len(hechos) == 1, f"un cambio real recoloco {len(hechos)} veces"
+    finally:
+        type(sheet)._acomodar_de_verdad = original
+
+
+def test_un_cambio_de_grupo_si_recoloca(qtbot):
+    """El atajo no puede tragarse un cambio real."""
+    clips = [_clip(0, "Sala"), _clip(1, "Sala")]
+    sheet = _sheet(qtbot, clips)
+    sheet.resize(815, 900)
+    sheet._relayout()
+    clips[0] = _clip(0, "Cocina")
+    sheet.update_clips(clips)
+    assert set(sheet.group_titles()) == {"Sala", "Cocina"}
+
+
+def test_esconder_por_filtro_si_recoloca(qtbot):
+    sheet = _sheet(qtbot, [_clip(i, "Sala") for i in range(4)])
+    sheet.resize(815, 900)
+    sheet._relayout()
+    sheet.set_visible_indices([0, 1])
+    bloque = sheet._ordered_blocks()[0]
+    assert bloque.count_label.text() == "2"
+
+
+def test_cambiar_el_ancho_si_recoloca(qtbot):
+    """El area de scroll acomoda su contenido en el ciclo de eventos: sin
+    procesarlos, `_content.width()` sigue siendo el de antes y la firma no
+    cambiaria."""
+    sheet = _sheet(qtbot, [_clip(i, "Sala") for i in range(4)])
+    # sin mostrar, el area de scroll nunca acomoda su viewport y
+    # `_content.width()` se queda con el valor inicial
+    sheet.show()
+    qtbot.waitExposed(sheet)
+    sheet.resize(815, 900)
+    qtbot.wait(10)
+    sheet._relayout()
+    ancho_antes = sheet.item_widgets[0].width()
+    sheet.resize(420, 900)
+    qtbot.wait(10)
+    sheet._relayout()
+    assert sheet.item_widgets[0].width() != ancho_antes
+
+
+def test_no_se_reestiliza_una_tarjeta_que_no_cambio(qtbot):
+    """`setStyleSheet` es carisimo en Qt: vuelve a parsear la hoja y repolish
+    el widget. Medido con 128 clips, una sola tecla de cuarto lo llamaba 768
+    veces --las 128 tarjetas, seis veces cada una-- y se llevaba el 84% del
+    tiempo de la tecla. Es la accion mas frecuente de la app.
+    """
+    sheet = _sheet(qtbot, [_clip(i, "Sala") for i in range(10)])
+    tarjeta = sheet.item_widgets[0]
+    llamadas = []
+    original = type(tarjeta).setStyleSheet
+    type(tarjeta).setStyleSheet = lambda s, hoja: (llamadas.append(hoja), original(s, hoja))[1]
+    try:
+        tarjeta.set_visual_state(is_current=False, is_selected=False)
+        tarjeta.set_visual_state(is_current=False, is_selected=False)
+        tarjeta.set_visual_state(is_current=False, is_selected=False)
+        assert llamadas == [], "reestilizo sin que cambiara el estado"
+        tarjeta.set_visual_state(is_current=True, is_selected=False)
+        assert len(llamadas) == 1, "un cambio real tiene que reestilizar una vez"
+    finally:
+        type(tarjeta).setStyleSheet = original

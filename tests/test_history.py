@@ -79,14 +79,19 @@ def test_la_entrada_sabe_que_campos_restaurar():
     assert e.antes == {3: {"flag": "none"}}
 
 
-def test_una_entrada_puede_recordar_la_lista_de_cuartos():
+def test_una_entrada_puede_recordar_el_cuarto_borrado_y_su_posicion():
     """Borrar un cuarto desde el rail hay que poder deshacerlo entero: el
-    cuarto vuelve a la lista Y sus clips vuelven a tenerlo."""
+    cuarto vuelve a la lista Y sus clips vuelven a tenerlo.
+
+    Se guarda `(nombre, posicion)` y no la lista entera: restaurar la lista
+    completa se llevaba puesto todo lo creado despues del borrado. Y la
+    posicion importa porque es lo que le da la tecla al cuarto.
+    """
     e = HistoryEntry(etiqueta="Cocina", detalle="cuarto borrado", color="#c0885a",
                      antes={0: {"categoria_path": ["Cocina"]}},
-                     rooms_antes=["Cocina", "Sala"])
-    assert e.rooms_antes == ["Cocina", "Sala"]
-    assert _entrada().rooms_antes is None
+                     cuarto_borrado=("Cocina", 0))
+    assert e.cuarto_borrado == ("Cocina", 0)
+    assert _entrada().cuarto_borrado is None
 
 
 def test_vaciar_el_historial():

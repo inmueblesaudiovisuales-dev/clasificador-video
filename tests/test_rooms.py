@@ -85,3 +85,28 @@ def test_ya_no_hay_cuartos_repetibles_ni_catalogo_maestro():
     assert not hasattr(rooms, "MASTER_ROOM_LIST")
     assert not hasattr(RoomSelection, "set_count")
     assert not hasattr(RoomSelection, "toggle")
+
+
+def test_insertar_un_cuarto_en_una_posicion():
+    """Deshacer un borrado tiene que devolver el cuarto A SU LUGAR, para que
+    recupere su tecla, sin tocar los demas."""
+    sel = RoomSelection()
+    for cuarto in ("Cocina", "Sala", "Baño"):
+        sel.add(cuarto)
+    sel.remove("Sala")
+    sel.insert_at(1, "Sala")
+    assert sel.active_rooms() == ["Cocina", "Sala", "Baño"]
+
+
+def test_insertar_fuera_de_rango_lo_pone_al_final():
+    sel = RoomSelection()
+    sel.add("Cocina")
+    sel.insert_at(99, "Alberca")
+    assert sel.active_rooms() == ["Cocina", "Alberca"]
+
+
+def test_insertar_uno_que_ya_existe_no_lo_duplica():
+    sel = RoomSelection()
+    sel.add("Cocina")
+    sel.insert_at(0, "Cocina")
+    assert sel.active_rooms() == ["Cocina"]

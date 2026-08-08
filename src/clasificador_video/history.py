@@ -21,15 +21,18 @@ class HistoryEntry:
     marco despues sobre uno de esos seis. Con campos parciales, cada entrada
     solo pisa lo suyo.
 
-    `rooms_antes` solo lo usa el borrado de un cuarto, que ademas de
-    desclasificar clips saca el cuarto de la lista.
+    `cuarto_borrado` solo lo usa el borrado de un cuarto, que ademas de
+    desclasificar clips lo saca de la lista. Guarda `(nombre, posicion)` y no
+    la lista entera: restaurar la lista completa se llevaba puesto todo lo
+    creado despues del borrado. La posicion importa porque es lo que le da la
+    tecla al cuarto.
     """
 
     etiqueta: str          # "Baño 1", "Reject", "IN/OUT"
     detalle: str           # "→ 6 clips", "→ clip 086"
     color: str             # cuadrito de la fila: color de cuarto o de estado
     antes: dict[int, dict]
-    rooms_antes: list[str] | None = None
+    cuarto_borrado: tuple[str, int] | None = None
     id: int = field(default_factory=lambda: next(_ids))
 
 

@@ -200,6 +200,7 @@ class ClipCard(QWidget):
         self._scaled_cache: dict[int, object] = {}
         self._poster_index = 0
         self._shown_index: int | None = None
+        self._estilo_actual: str | None = None
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -355,9 +356,17 @@ class ClipCard(QWidget):
             partes.append(f"border: 1px solid {theme.LINE_SOFT};")
         if seleccionada:
             partes.append(f"background-color: {theme.SELECTION_WASH};")
-        self.setStyleSheet(
+        hoja = (
             "#clipCard { " + " ".join(partes) + " } #clipCard QLabel { border: none; }"
         )
+        # `setStyleSheet` es carisimo: vuelve a parsear la hoja y repolish el
+        # widget. Con 128 clips, UNA tecla de cuarto lo llamaba 768 veces --las
+        # 128 tarjetas, seis veces cada una, cambiaran o no-- y se llevaba el
+        # 84% del tiempo de la tecla mas frecuente de la app. Medido con
+        # cProfile el 2026-08-08.
+        if hoja != self._estilo_actual:
+            self._estilo_actual = hoja
+            self.setStyleSheet(hoja)
         self._overlay.update()  # el estado tambien cambia lo que va encima
 
 
@@ -472,6 +481,8 @@ class ClipSheet(QWidget):
         # None = no hay filtro. Un `set` vacio es distinto: filtro que no deja
         # pasar nada, y la hoja tiene que verse vacia de verdad.
         self._visible: set[int] | None = None
+        # ultimo acomodo hecho, para no repetirlo cuando nada cambio
+        self._firma: tuple | None = None
 
         raiz = QVBoxLayout(self)
         raiz.setContentsMargins(0, 0, 0, 0)
@@ -681,6 +692,8 @@ class ClipSheet(QWidget):
         # el filtro guarda INDICES: con otra lista de clips apuntarian a
         # cualquier cosa. Quien filtre vuelve a llamar a set_visible_indices.
         self._visible = None
+        # las tarjetas son OTRAS: la firma anterior no dice nada de estas
+        self._firma = None
         self._regroup()
         self.title_label.setText(f"CLIPS · {len(clips)}")
         self.set_selected(set())
@@ -759,7 +772,34 @@ class ClipSheet(QWidget):
         for titulo in titulos:
             self._content_layout.addWidget(self._blocks[titulo])
 
+    def _firma_de_acomodo(self) -> tuple:
+        """Todo lo que decide DONDE y de que tamaño va cada tarjeta.
+
+        Si no cambio nada de esto, re-colocar da exactamente el mismo
+        resultado y es trabajo tirado.
+        """
+        return (
+            self._content.width() or self.width(),
+            tuple(
+                (self._group_of(card.clip), self._es_visible(i), card.clip.aspect_ratio)
+                for i, card in enumerate(self.item_widgets)
+            ),
+        )
+
     def _relayout(self) -> None:
+        """Punto de entrada barato: si nada cambio, no hace nada.
+
+        Con 128 clips, re-colocar cuesta ~12 ms. Una tecla de cuarto disparaba
+        CUATRO re-colocados —dos dentro del refresco de la hoja y dos mas por
+        el avance automatico de la F5—, y esta app existe para ser rapida.
+        """
+        firma = self._firma_de_acomodo()
+        if firma == self._firma:
+            return
+        self._firma = firma
+        self._acomodar_de_verdad()
+
+    def _acomodar_de_verdad(self) -> None:
         ancho_util = max(self._content.width() or self.width(), MIN_TILE_WIDTH)
         ancho_util -= 26  # margenes del contenido
         columnas = max(1, (ancho_util + GAP) // (MIN_TILE_WIDTH + GAP))
