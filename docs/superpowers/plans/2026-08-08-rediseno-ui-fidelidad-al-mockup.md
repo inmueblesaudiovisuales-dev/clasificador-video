@@ -202,6 +202,23 @@ scrub bar, selección múltiple, asignación en lote, autoguardado, exportar.
 
 Es la fase más grande y no se puede partir sin caer en el estado híbrido.
 
+> **Revisado el 2026-08-08**, al escribir el plan detallado
+> ([`2026-08-08-f1-f2-tokens-y-esqueleto.md`](2026-08-08-f1-f2-tokens-y-esqueleto.md)).
+> Dos cambios en las fases de abajo:
+>
+> 1. **La vieja F4 ("miniaturas verticales y agrupación") se disolvió**: la F2
+>    se quedó con las tiles de proporción real y con la agrupación por cuarto,
+>    porque sin eso la comparación lado a lado de la F2 difiere en toda la
+>    columna derecha y el Candado 3 deja de servir para juzgar la fase. Los
+>    encabezados pegajosos se fueron con los filtros, que es donde rinden.
+> 2. **Deshacer se adelantó**, antes que los filtros y que la conexión de
+>    proxies: hoy la app anuncia `Ctrl+Z` en su leyenda y no lo tiene. Es la
+>    única promesa rota que ve el usuario. Los proxies, que son invisibles y no
+>    bloquean nada, se atrasaron al final.
+>
+> La numeración de abajo quedó como estaba para no romper referencias; la
+> secuencia vigente es la de "Lo que sigue, en breve" del plan detallado.
+
 ### F3 — Cuartos planos
 
 - Quitar subcuartos de raíz (toda su parte de la lista de ejecución).
@@ -262,6 +279,18 @@ con los cinco requisitos de DECISIONES.md, `+`/`−` para el tamaño de miniatur
 - Comparación final lado a lado de las dos pantallas.
 - Cualquier diferencia contra el mockup queda escrita y justificada, o
   arreglada.
+
+### Punto de control obligatorio al cerrar la F2
+
+Este plan y el detallado **solo son confiables hasta el final de la F2**. Todo
+lo posterior se engancha a clases y señales que la F2 inventa y que hoy no
+existen.
+
+Antes de escribir una línea de la F3: rehacer el análisis de la app contra el
+mockup sobre el código nuevo, revisar el orden de las fases restantes con lo
+aprendido, actualizar la lista de ejecución de la §3, y recién entonces
+escribir el plan detallado de las dos fases siguientes. Ver la sección final
+del plan detallado.
 
 ## 5. Reglas de la partida
 

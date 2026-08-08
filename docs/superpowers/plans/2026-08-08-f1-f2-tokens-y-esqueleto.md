@@ -42,10 +42,12 @@ QT_QPA_PLATFORM=offscreen .venv/bin/pytest tests/ --ignore=tests/test_app.py -q
 
 1. **Al terminar la F1 la app se va a ver peor.** Paleta nueva sobre layout
    viejo. Es esperado, dura una fase y no se "arregla" tocando colores.
-2. **La F2 no se puede partir en commits que dejen la app a medias.** Se
-   construyen los widgets nuevos, se ensambla la ventana nueva y se borra la
-   vieja. Si se hace por pedazos, se vive en el híbrido que este rediseño
-   existe para evitar.
+2. **La F2 sí se parte en commits; lo que no se parte es lo que ve el
+   usuario.** Las Tasks 2 a 8 crean archivos nuevos que todavía nadie usa: cada
+   una puede ser su propio commit verde sin cambiar en nada la app que corre.
+   La atómica es la **Task 9**, que ensambla la ventana nueva y borra la vieja
+   en un solo commit. Así el trabajo queda revisable por partes sin vivir ni un
+   día en el híbrido de "mitad viejo, mitad nuevo".
 3. **Ningún archivo nuevo va a la raíz.** Widgets a `src/clasificador_video/ui/`,
    el arnés a `scripts/`, temporales al scratchpad de la sesión.
 4. **Nada de features nuevas.** La F2 porta lo que ya funciona. Filtros,
@@ -486,7 +488,11 @@ def _render_app(salida: Path) -> None:
     from PySide6.QtWidgets import QApplication
     from clasificador_video.app import configure_gl_surface_format
     from clasificador_video.ui.theme import build_stylesheet
-    from scripts._datos_de_ejemplo import construir_ventana_de_ejemplo
+    # `scripts/` no es un paquete y al correr `python scripts/x.py` el
+    # sys.path[0] es `scripts/`, no la raiz del repo: el import va plano.
+    # (`clasificador_video` si resuelve, porque el proyecto esta instalado
+    # en modo editable en el venv.)
+    from _datos_de_ejemplo import construir_ventana_de_ejemplo
 
     configure_gl_surface_format()
     app = QApplication(sys.argv[:1])
@@ -551,6 +557,19 @@ if __name__ == "__main__":
       (116 clasificados, 41 pick, 9 reject, 12 sin clasificar) y el clip 87
       como actual. **Los mismos datos que el mockup, o la comparación no
       sirve.**
+
+      Tres cosas que hay que resolver aquí o la imagen sale engañosa:
+
+      1. **Miniaturas sintéticas, no `mpv`.** Extraer miniaturas de verdad
+         necesita archivos reales y tarda; sin ellas las tarjetas salen
+         vacías y la mitad derecha de la comparación no dice nada. Se pintan
+         `QPixmap` con un degradado del color del cuarto —el mismo truco que
+         usa el mockup— y se inyectan con `set_frames()`.
+      2. **Mezcla de orientaciones**, no todo apaisado: el mockup muestra
+         verticales y horizontales conviviendo. Poblar `_clip_sizes` con
+         `(2160, 3840)` y `(3840, 2160)` alternados según el mockup.
+      3. **Nada de tocar el caché real** de `~/.cache/clasificador_video`:
+         pasar un `thumbnail_cache_root` temporal.
 
 - [ ] **Step 5: Correr el arnés a mano y mirar la imagen.**
 
@@ -1077,8 +1096,19 @@ Lo que **cambia**:
 |---|---|
 | `setFixedHeight(220)` | sin alto fijo; ocupa la columna completa |
 | Tile fija 150×80 apaisada | tile de proporción real del clip |
-| Grilla plana | grilla plana **también en la F2** (los grupos son la F4) |
+| Grilla plana | **agrupada por cuarto**, con encabezado por grupo |
 | Etiqueta de cuarto bajo la miniatura | franja de color + glifo, como el mockup |
+
+**Por qué la agrupación entra aquí y no más adelante:** el mockup muestra la
+hoja agrupada (`SIN CLASIFICAR 12`, `COCINA 24`). Si la F2 entrega una grilla
+plana, la comparación lado a lado va a diferir en toda la columna derecha y el
+Candado 3 deja de servir para juzgar la fase. Agrupar por `categoria_path[0]`
+son unas decenas de renglones y usa datos que ya existen.
+
+Lo que **no** entra aquí es que los encabezados sean **pegajosos** al scroll:
+eso necesita un widget que escuche el scroll y rinde de verdad cuando hay
+filtros. Queda para la fase de filtros. Al cerrar la F2, los encabezados se
+desplazan con el contenido: es una diferencia esperada y anotada.
 
 **La proporción de cada tarjeta se calcula, no se declara**: QSS no tiene
 `aspect-ratio`. `ClipCard.setFixedSize(ancho, round(ancho / aspecto))`, con el
@@ -1296,10 +1326,78 @@ def test_cambiar_de_clip_reajusta_el_ancho_del_video(qtbot):
 
 ---
 
-## Lo que esta fase deja pendiente a propósito
+## Diferencias esperadas al cerrar la F2
 
-Para que nadie lo lea como un olvido: agrupación por cuarto y encabezados
-pegajosos (F4), `match_proxies` y orientación del manifest (F5), deshacer e
-historial (F6), filtros y cola de navegación (F7), autoplay, velocidad,
-precarga y frame por frame (F8), flags en lote, `S`, destacado y paleta `⏎`
-(F9), modo hoja y pincel (F10). Los subcuartos siguen vivos hasta la F3.
+El Candado 3 dice que la fase no cierra hasta haber comparado la imagen contra
+el mockup. Para que ese criterio no sea ambiguo, **estas son las únicas
+diferencias admisibles**. Cualquier otra es un defecto a arreglar antes de
+cerrar la fase.
+
+| Diferencia | Por qué | Se resuelve en |
+|---|---|---|
+| No hay conmutador Clip/Hoja en la barra de título | El modo hoja no existe todavía | F8 |
+| Los encabezados de grupo se van con el scroll en vez de quedarse pegados | Necesita un widget que escuche el scroll; rinde con filtros | F5 |
+| No hay barra de filtros ni chip de cola | | F5 |
+| No hay historial de deshacer en el rail | El bloque queda reservado en el `RoomRail` | F4 |
+| No hay badge de "destacado" ni selector de velocidad | | F6, F7 |
+| El póster de la miniatura es el frame del medio, no el del 25% | | F6 |
+| El badge de proxy no muestra datos reales | `match_proxies` sigue desconectado | F9 |
+| Los badges no tienen desenfoque de fondo | QSS no tiene `backdrop-filter`; se compensa con más opacidad | nunca |
+| Sigue existiendo el banner de subcuarto | Los subcuartos mueren en la F3 | F3 |
+
+## Lo que sigue, en breve
+
+Resumen para tener el mapa; **el detalle de cada una se escribe cuando toque**,
+no ahora.
+
+- **F3 — Cuartos planos.** Arrancar los subcuartos de `keyboard.py`,
+  `rooms.py`, `main_window.py` y borrar `category_path.py` completo. Rail de
+  cuartos editable en vivo (renombrar, reordenar, borrar). Quitar el diálogo de
+  configuración inicial y su exigencia en `arrancar()`. Terminada cuando
+  presionar `3` con "Recámara 1" clasifica y avanza.
+- **F4 — Deshacer.** Pila de undo con acciones agrupadas (una asignación en
+  lote = una entrada), historial visible en el rail con revertir por fila, y
+  `Ctrl+Z` registrado de verdad. Se adelanta respecto del orden anterior
+  porque hoy la app **anuncia** deshacer en su leyenda y no lo tiene: es la
+  única promesa rota que ve el usuario.
+- **F5 — Filtros como cola.** Barra de dos grupos (Mostrar / Estado), `←/→`
+  recorriendo solo el conjunto filtrado, indicador "N de M en la cola", badge
+  de sin clasificar clickeable, y aquí sí los encabezados pegajosos.
+- **F6 — Reproducción rápida.** Autoplay al cambiar de clip, velocidad
+  1×/2×/4× reusando `SegmentedControl`, arranque al 25%, póster de miniatura al
+  25%, precarga del siguiente clip, `,`/`.` frame por frame.
+- **F7 — El resto del teclado.** Flags en lote, `S` igual al anterior, estado
+  destacado (`⇧P`), paleta `⏎` para buscar y crear cuartos, `F` solo video.
+- **F8 — Modo hoja y pincel.** `⇥` para alternar, hoja a pantalla completa,
+  conmutador en la barra de título, pincel de cuarto con los cinco requisitos
+  de `DECISIONES.md`, `+`/`−` para el tamaño de miniatura.
+- **F9 — Datos que faltan.** Conectar `match_proxies()` a la importación y
+  derivar la orientación del manifest del material. Se atrasa a propósito: es
+  invisible para el usuario y no bloquea nada.
+- **F10 — Barrido final.** Lista de ejecución vacía, comparación final de las
+  dos pantallas, diferencias escritas y justificadas.
+
+> El plan maestro tenía once fases y esta revisión las deja en once contando la
+> F0 y la F1: se disolvió la vieja F4 ("miniaturas verticales y agrupación")
+> porque la F2 se quedó con su contenido, y se adelantó deshacer.
+
+## Pendiente obligatorio: reanalizar al cerrar la F2
+
+**Este plan solo es confiable hasta el final de la F2.** De la F3 en adelante,
+todo se engancha a clases, señales y widgets que la F2 inventa, y hoy no
+existen. El resumen de arriba es un mapa, no un plan.
+
+Al terminar la F2, antes de escribir una línea de la F3, hay que:
+
+1. **Rehacer el análisis** de la app contra el mockup, como el de
+   `ANALISIS-2026-08-08-app-actual-vs-mockup.md`, ahora contra el código nuevo.
+2. **Revisar el orden de las fases que quedan** con lo que se haya aprendido —
+   esta misma revisión ya movió agrupación y deshacer de lugar, y es probable
+   que vuelva a pasar.
+3. **Actualizar la lista de ejecución** del plan maestro: tachar lo muerto y
+   agregar lo que la F2 haya dejado provisional.
+4. **Recién entonces** escribir el plan detallado de la F3 y la F4.
+
+Escribir hoy el detalle de la F3 en adelante sería inventar una API y
+descubrir después que no calza. Un plan desactualizado tiene autoridad y se
+sigue en vez de pensarlo: es peor que no tenerlo.
