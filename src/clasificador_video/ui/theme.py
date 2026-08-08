@@ -285,13 +285,18 @@ def build_stylesheet() -> str:
         background-color: {BG_SURFACE_2};
         border-radius: 1px;
     }}
-    QLabel#subroomBanner {{
-        background-color: {BG_SURFACE_2};
-        color: {CURRENT_COLOR};
-        border: 1px solid {CURRENT_COLOR};
-        border-radius: {RADIUS_SM}px;
-        padding: 6px 14px;
-        font-weight: 600;
+    QPushButton#newRoomRow {{
+        background-color: transparent;
+        border: 1px dashed {LINE};
+        border-radius: {RADIUS_MD}px;
+        color: {TEXT_3};
+        font-size: {FONT_SMALL}px;
+        text-align: left;
+        padding: 0 6px;
+    }}
+    QPushButton#newRoomRow:hover {{
+        background-color: {BG_SURFACE_1};
+        color: {TEXT_2};
     }}
 
     QWidget#segmentedControl {{
@@ -388,11 +393,16 @@ def build_stylesheet() -> str:
     QWidget#roomRow[actual="true"] {{
         background-color: {BG_SURFACE_2};
     }}
+    /* transparentes a proposito: la regla global de QWidget les pinta el
+       fondo de la app, y sobre la fila resaltada del cuarto actual eso se
+       ve como recuadros oscuros alrededor del nombre y del conteo. */
     QLabel#roomName {{
+        background-color: transparent;
         color: {TEXT};
         font-size: {FONT_BODY}px;
     }}
     QLabel#roomCount {{
+        background-color: transparent;
         color: {TEXT_3};
         font-family: {MONO_FONT};
         font-size: {FONT_MICRO}px;

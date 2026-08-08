@@ -5,43 +5,37 @@ ACTION_KEYS = {"p": "pick", "x": "reject", "u": "none"}
 
 
 class KeyboardRouter:
-    """Traduce teclas 1-9 y P/X/U a acciones (spec §5).
+    """Traduce teclas 1-9 y P/X/U a acciones.
 
-    Si el cuarto activo en la tecla presionada tiene subcuartos conocidos,
-    la primera tecla NO resuelve un cuarto -- entra en 'pending_parent' y
-    espera la siguiente tecla (que elige el subcuarto), sin limite de
-    tiempo entre ambas, tal como especifica el spec.
+    **Una tecla, un cuarto, sin estado intermedio.** Hasta la F3 la primera
+    tecla podia no resolver nada y quedarse esperando una segunda para elegir
+    un subcuarto (`Recamara 1` → `Baño`), sin limite de tiempo entre ambas.
+    Eso se fue con los subcuartos: son cuartos planos y `Baño 1` es un cuarto
+    como cualquier otro (ver DECISIONES.md, "Cuartos: planos, sin techo, sin
+    configuracion inicial").
+
+    `active_rooms` es la lista viva de la sesion: su ORDEN es el que asigna
+    las teclas, asi que cada vez que el rail crea, mueve o borra un cuarto
+    hay que volver a pasarla.
     """
 
-    def __init__(self, active_rooms: list[str], subrooms: dict[str, list[str]] | None = None):
+    def __init__(self, active_rooms: list[str]):
         self.active_rooms = active_rooms
-        self.subrooms = subrooms or {}
-        self.pending_parent: str | None = None
 
     def resolve_room_key(self, key: str) -> list[str] | None:
+        """Devuelve el `categoria_path` del cuarto, o None si la tecla no es
+        de cuarto.
+
+        Sigue siendo una LISTA aunque los cuartos sean planos: es el contrato
+        del manifest con el plugin de Premiere, que ya maneja el caso de un
+        solo elemento, y no hay ninguna razon para tocarlo.
+        """
         if not key.isdigit():
             return None
         index = int(key) - 1
         if index < 0 or index >= len(self.active_rooms):
             return None
-        room = self.active_rooms[index]
-        if room in self.subrooms and self.subrooms[room]:
-            self.pending_parent = room
-            return None
-        return [room]
-
-    def resolve_subroom_key(self, key: str) -> list[str] | None:
-        if self.pending_parent is None:
-            return None
-        options = self.subrooms.get(self.pending_parent, [])
-        if not key.isdigit():
-            return None
-        index = int(key) - 1
-        if index < 0 or index >= len(options):
-            return None
-        parent = self.pending_parent
-        self.pending_parent = None
-        return [parent, options[index]]
+        return [self.active_rooms[index]]
 
     def resolve_action_key(self, key: str) -> str | None:
         return ACTION_KEYS.get(key.lower())

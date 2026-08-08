@@ -16,7 +16,6 @@ from PySide6.QtCore import QPointF, Qt
 from PySide6.QtGui import QColor, QLinearGradient, QPainter, QPixmap
 from PySide6.QtWidgets import QLabel
 
-from clasificador_video.category_path import CategoryTree
 from clasificador_video.manifest import Clip
 from clasificador_video.rooms import RoomSelection
 from clasificador_video.ui import theme
@@ -150,12 +149,11 @@ def _clips() -> tuple[list[Clip], dict[int, tuple[int, int]], dict[int, float]]:
 def construir_ventana_de_ejemplo() -> MainWindow:
     seleccion = RoomSelection()
     for cuarto in CUARTOS:
-        seleccion.toggle(cuarto)
+        seleccion.add(cuarto)
 
     ventana = MainWindow(
         project_name="Casa Lomas de Chapultepec",
         room_selection=seleccion,
-        category_tree=CategoryTree(),
         video_factory=_MpvFalso,
         # nunca tocar el cache real de ~/.cache/clasificador_video
         thumbnail_cache_root=Path(tempfile.mkdtemp()),
@@ -163,10 +161,7 @@ def construir_ventana_de_ejemplo() -> MainWindow:
 
     clips, tamanos, duraciones = _clips()
     ventana._clip_durations = duraciones
-    # `_clip_sizes` lo introduce la Task 1 de la F2; hasta entonces esto no
-    # existe y no pasa nada, el arnés no lo necesita para renderizar.
-    if hasattr(ventana, "_clip_sizes"):
-        ventana._clip_sizes = tamanos
+    ventana._clip_sizes = tamanos
     ventana.load_clips(clips)
     ventana.current_index = CLIP_ACTUAL
     ventana.select_clip(CLIP_ACTUAL)

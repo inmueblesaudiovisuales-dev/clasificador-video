@@ -6,15 +6,13 @@ from pathlib import Path
 from typing import Callable
 
 from PySide6.QtGui import QSurfaceFormat
-from PySide6.QtWidgets import QApplication, QDialog, QMessageBox
+from PySide6.QtWidgets import QApplication, QMessageBox
 
 from clasificador_video.autosave import load_session
-from clasificador_video.category_path import CategoryTree
 from clasificador_video.keyboard import KeyboardRouter
 from clasificador_video.manifest import Clip
 from clasificador_video.rooms import RoomSelection
 from clasificador_video.ui.main_window import MainWindow
-from clasificador_video.ui.room_config_dialog import RoomConfigDialog
 from clasificador_video.ui.theme import build_stylesheet
 
 SESSION_PATH = Path.home() / ".clasificador_video" / "sesion.json"
@@ -38,15 +36,25 @@ def configure_gl_surface_format() -> None:
 def _rebuild_room_selection(rooms: list[str]) -> RoomSelection:
     sel = RoomSelection()
     for room in rooms:
-        sel.toggle(room)
+        sel.add(room)
     return sel
+
+
+def _aplanar_categoria(path: list) -> list[str]:
+    """Sesiones guardadas antes de la F3 pueden traer `["Recámara 1", "Baño"]`.
+
+    Se conserva el CUARTO PADRE, que sigue existiendo en el rail, y se
+    descarta el subcuarto, que ya no es representable. Tirar el clip entero
+    o dejarlo sin clasificar seria peor: el editor ya tomo esa decision.
+    """
+    return [str(path[0])] if path else []
 
 
 def _clip_from_dict(d: dict) -> Clip:
     return Clip(
         orden=d["orden"],
         ruta=Path(d["ruta"]),
-        categoria_path=list(d.get("categoria_path") or []),
+        categoria_path=_aplanar_categoria(list(d.get("categoria_path") or [])),
         fps=d["fps"],
         in_frame=d.get("in_frame"),
         out_frame=d.get("out_frame"),
@@ -68,14 +76,9 @@ def _restore_session(window: MainWindow, session_path: Path) -> None:
     ):
         return
     window.room_selection = _rebuild_room_selection(data.get("rooms", []))
-    tree_data = data.get("category_tree", {})
-    for parent, subrooms in tree_data.items():
-        for subroom in subrooms:
-            window.category_tree.attach_subroom(parent, subroom)
-    window._router = KeyboardRouter(
-        active_rooms=window.room_selection.active_rooms(),
-        subrooms=dict(tree_data),
-    )
+    # `category_tree` de sesiones viejas se ignora a proposito: los
+    # subcuartos murieron en la F3 y los paths se aplanan al cuarto padre.
+    window._router = KeyboardRouter(active_rooms=window.room_selection.active_rooms())
     window.load_clips([_clip_from_dict(d) for d in data.get("clips", [])])
     window._schedule_thumbnails()
 
@@ -83,19 +86,19 @@ def _restore_session(window: MainWindow, session_path: Path) -> None:
 def arrancar(
     video_factory: Callable[..., object] | None = None,
     session_path: Path | None = None,
-) -> MainWindow | None:
-    """Abre el dialogo de cuartos; si el usuario acepta, construye la
-    ventana principal con esa seleccion. None si cancela.
+) -> MainWindow:
+    """Construye la ventana principal, lista para trabajar.
+
+    Ya no hay paso previo de "elige los cuartos": la app abre con el rail
+    vacio y los cuartos se crean sobre la marcha (DECISIONES.md, "Cuartos:
+    planos, sin techo, sin configuracion inicial"). Por eso tampoco puede
+    devolver None: no hay nada que cancelar.
     """
     if session_path is None:
         session_path = SESSION_PATH
-    dialog = RoomConfigDialog(project_name="Shooting sin nombre")
-    if dialog.exec() != QDialog.Accepted:
-        return None
     window = MainWindow(
         project_name="Shooting sin nombre",
-        room_selection=dialog.selection,
-        category_tree=CategoryTree(),
+        room_selection=RoomSelection(),
         video_factory=video_factory,
     )
     window.session_path = session_path
@@ -110,8 +113,6 @@ def main() -> None:
     app = QApplication.instance() or QApplication(sys.argv)
     app.setStyleSheet(build_stylesheet())
     window = arrancar()
-    if window is None:
-        sys.exit(0)
     window.show()
     if window.clips:
         window.video_widget.open_clip(window.clips[0].ruta)

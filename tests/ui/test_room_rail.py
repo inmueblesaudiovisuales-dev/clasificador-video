@@ -145,3 +145,75 @@ def test_no_hay_panel_de_material_importado(qtbot):
     en el mockup."""
     rail = _rail(qtbot)
     assert not hasattr(rail, "ingest_list")
+
+
+# --- F3: el rail se edita en el lugar ---------------------------------------
+#
+# Menu contextual y doble click, no arrastrar: son acciones de una vez por
+# shooting. Decidido con Bruno el 2026-08-08.
+
+
+def test_el_rail_arranca_vacio_y_no_pretende_que_haya_cuartos(qtbot):
+    """La app abre lista para trabajar: sin paso previo de configuracion."""
+    rail = _rail(qtbot)
+    assert rail.rows == []
+    assert not rail.new_room_row.isHidden()
+
+
+def test_crear_un_cuarto_emite_su_nombre(qtbot):
+    rail = _rail(qtbot)
+    with qtbot.waitSignal(rail.room_created) as blocker:
+        rail._crear_cuarto("Alberca")
+    assert blocker.args == ["Alberca"]
+
+
+def test_crear_un_cuarto_con_nombre_vacio_no_emite_nada(qtbot):
+    rail = _rail(qtbot)
+    with qtbot.assertNotEmitted(rail.room_created):
+        rail._crear_cuarto("   ")
+
+
+def test_renombrar_emite_el_nombre_viejo_y_el_nuevo(qtbot):
+    rail = _rail(qtbot)
+    rail.set_rooms(["Cocina", "Sala"], {})
+    with qtbot.waitSignal(rail.room_renamed) as blocker:
+        rail.rows[0].pedir_renombrar("Cocina chica")
+    assert blocker.args == ["Cocina", "Cocina chica"]
+
+
+def test_renombrar_al_mismo_nombre_no_emite_nada(qtbot):
+    rail = _rail(qtbot)
+    rail.set_rooms(["Cocina"], {})
+    with qtbot.assertNotEmitted(rail.room_renamed):
+        rail.rows[0].pedir_renombrar("Cocina")
+        rail.rows[0].pedir_renombrar("  ")
+
+
+def test_mover_emite_el_cuarto_y_la_direccion(qtbot):
+    rail = _rail(qtbot)
+    rail.set_rooms(["Cocina", "Sala"], {})
+    with qtbot.waitSignal(rail.room_moved) as blocker:
+        rail.rows[1].pedir_mover(-1)
+    assert blocker.args == ["Sala", -1]
+
+
+def test_eliminar_emite_el_cuarto(qtbot):
+    rail = _rail(qtbot)
+    rail.set_rooms(["Cocina", "Sala"], {})
+    with qtbot.waitSignal(rail.room_removed) as blocker:
+        rail.rows[0].pedir_eliminar()
+    assert blocker.args == ["Cocina"]
+
+
+def test_la_fila_de_nuevo_cuarto_queda_siempre_al_pie_de_la_lista(qtbot):
+    rail = _rail(qtbot)
+    rail.set_rooms(["Cocina", "Sala"], {})
+    layout = rail._rooms_layout
+    assert layout.itemAt(layout.count() - 1).widget() is rail.new_room_row
+    rail.set_rooms(["Cocina", "Sala", "Baño"], {})
+    assert layout.itemAt(layout.count() - 1).widget() is rail.new_room_row
+
+
+def test_el_banner_de_subcuarto_ya_no_existe(qtbot):
+    """Murio con los subcuartos en la F3."""
+    assert not hasattr(_rail(qtbot), "subroom_banner")

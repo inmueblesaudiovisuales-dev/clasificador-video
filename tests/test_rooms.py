@@ -1,48 +1,87 @@
 # tests/test_rooms.py
-from clasificador_video.rooms import MASTER_ROOM_LIST, RoomSelection
+from clasificador_video.rooms import RoomSelection
 
 
-def test_master_room_list_tiene_los_17_cuartos_del_spec():
-    assert len(MASTER_ROOM_LIST) == 17
-    assert "Cocina" in MASTER_ROOM_LIST
-    assert "Dron/Aérea" in MASTER_ROOM_LIST
-
-
-def test_seleccionar_cuarto_simple_lo_agrega_una_vez():
+def test_agregar_un_cuarto_lo_pone_al_final():
     sel = RoomSelection()
-    sel.toggle("Cocina")
+    sel.add("Alberca")
+    sel.add("Fachada")
+    assert sel.active_rooms() == ["Alberca", "Fachada"]
+
+
+def test_no_se_puede_crear_dos_veces_el_mismo_cuarto():
+    """La tecla la da la posicion: dos cuartos con el mismo nombre serian
+    dos teclas que hacen lo mismo y un grupo partido en la hoja."""
+    sel = RoomSelection()
+    sel.add("Cocina")
+    sel.add("Cocina")
     assert sel.active_rooms() == ["Cocina"]
 
 
-def test_deseleccionar_lo_quita():
+def test_un_nombre_en_blanco_no_crea_nada():
     sel = RoomSelection()
-    sel.toggle("Cocina")
-    sel.toggle("Cocina")
+    sel.add("   ")
     assert sel.active_rooms() == []
 
 
-def test_cuarto_repetible_con_count_2_numera_automatico():
+def test_renombrar_conserva_la_posicion_y_por_lo_tanto_la_tecla():
     sel = RoomSelection()
-    sel.set_count("Recámara", 2)
-    assert sel.active_rooms() == ["Recámara 1", "Recámara 2"]
+    for cuarto in ("Cocina", "Sala", "Baño"):
+        sel.add(cuarto)
+    sel.rename("Sala", "Sala de TV")
+    assert sel.active_rooms() == ["Cocina", "Sala de TV", "Baño"]
 
 
-def test_cuarto_repetible_con_count_0_no_aparece():
+def test_renombrar_a_un_nombre_que_ya_existe_no_hace_nada():
     sel = RoomSelection()
-    sel.set_count("Recámara", 2)
-    sel.set_count("Recámara", 0)
-    assert sel.active_rooms() == []
+    sel.add("Cocina")
+    sel.add("Sala")
+    sel.rename("Sala", "Cocina")
+    assert sel.active_rooms() == ["Cocina", "Sala"]
 
 
-def test_cuarto_personalizado_se_agrega_al_final():
+def test_mover_un_cuarto_cambia_su_tecla():
+    """Reordenar ES cambiar la tecla: no hay otra cosa que reordenar."""
     sel = RoomSelection()
-    sel.toggle("Sala")
-    sel.add_custom("Bodega")
-    assert sel.active_rooms() == ["Sala", "Bodega"]
+    for cuarto in ("Cocina", "Sala", "Baño"):
+        sel.add(cuarto)
+    sel.move("Baño", -1)
+    assert sel.active_rooms() == ["Cocina", "Baño", "Sala"]
 
 
-def test_orden_de_seleccion_se_respeta_en_active_rooms():
+def test_mover_en_los_extremos_no_hace_nada_y_no_revienta():
     sel = RoomSelection()
-    sel.toggle("Alberca")
-    sel.toggle("Fachada")
-    assert sel.active_rooms() == ["Alberca", "Fachada"]
+    sel.add("Cocina")
+    sel.move("Cocina", -1)
+    sel.move("Cocina", +1)
+    assert sel.active_rooms() == ["Cocina"]
+
+
+def test_eliminar_saca_el_cuarto_y_corre_las_teclas():
+    sel = RoomSelection()
+    for cuarto in ("Cocina", "Sala", "Baño"):
+        sel.add(cuarto)
+    sel.remove("Cocina")
+    assert sel.active_rooms() == ["Sala", "Baño"]
+
+
+def test_operar_sobre_un_cuarto_que_no_existe_no_revienta():
+    sel = RoomSelection()
+    sel.add("Cocina")
+    sel.rename("Fantasma", "Otro")
+    sel.move("Fantasma", 1)
+    sel.remove("Fantasma")
+    assert sel.active_rooms() == ["Cocina"]
+
+
+def test_ya_no_hay_cuartos_repetibles_ni_catalogo_maestro():
+    """Los cuartos son planos y se crean sobre la marcha: 'Recámara 1' es un
+    nombre, no una instancia numerada de un cuarto plantilla. Y no hay
+    catalogo previo porque no hay paso previo (DECISIONES.md, 'Cuartos:
+    planos, sin techo, sin configuracion inicial')."""
+    import clasificador_video.rooms as rooms
+
+    assert not hasattr(rooms, "REPEATABLE_ROOMS")
+    assert not hasattr(rooms, "MASTER_ROOM_LIST")
+    assert not hasattr(RoomSelection, "set_count")
+    assert not hasattr(RoomSelection, "toggle")

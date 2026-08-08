@@ -4,7 +4,9 @@ from __future__ import annotations
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QHBoxLayout,
+    QInputDialog,
     QLabel,
+    QMenu,
     QPushButton,
     QVBoxLayout,
     QWidget,
@@ -117,7 +119,19 @@ class _Leyenda(QWidget):
 
 
 class _FilaCuarto(QWidget):
-    """Tecla + color de identidad + nombre elidido + conteo."""
+    """Tecla + color de identidad + nombre elidido + conteo.
+
+    Se edita EN EL LUGAR: click derecho abre renombrar / subir / bajar /
+    eliminar, y doble click renombra. Se eligio menu contextual y no
+    arrastrar porque son acciones de una vez por shooting --no merecen
+    atajos nuevos ni el riesgo del drag-and-drop dentro de un QVBoxLayout--
+    y porque "Subir"/"Bajar" deja explicito que reordenar ES cambiar que
+    tecla le toca a cada cuarto. Decidido con Bruno el 2026-08-08.
+    """
+
+    rename_requested = Signal(str, str)   # nombre viejo, nombre nuevo
+    move_requested = Signal(str, int)     # nombre, -1 arriba / +1 abajo
+    remove_requested = Signal(str)
 
     def __init__(self, numero: int | None, nombre: str, color: str, cuantos: int, parent=None):
         super().__init__(parent)
@@ -153,6 +167,45 @@ class _FilaCuarto(QWidget):
         layout.addWidget(self.name_label, stretch=1)
         layout.addWidget(self.count_label)
 
+    # --- edicion en el lugar ---------------------------------------------
+
+    def contextMenuEvent(self, event) -> None:  # noqa: N802 -- override de Qt
+        menu = QMenu(self)
+        acciones = [
+            (menu.addAction("Renombrar…"), self._pedir_nombre),
+            (menu.addAction("Subir"), lambda: self.pedir_mover(-1)),
+            (menu.addAction("Bajar"), lambda: self.pedir_mover(+1)),
+            (menu.addAction("Eliminar"), self.pedir_eliminar),
+        ]
+        elegida = menu.exec(event.globalPos())
+        for accion, handler in acciones:
+            if elegida is accion:
+                handler()
+                return
+
+    def mouseDoubleClickEvent(self, event) -> None:  # noqa: N802 -- override de Qt
+        self._pedir_nombre()
+
+    def _pedir_nombre(self) -> None:
+        nuevo, ok = QInputDialog.getText(
+            self, "Renombrar cuarto", "Nuevo nombre:", text=self.nombre
+        )
+        if ok:
+            self.pedir_renombrar(nuevo)
+
+    # Los tres `pedir_*` existen aparte de los dialogos para poder probar la
+    # decision sin abrir una ventana modal, que en un test cuelga.
+    def pedir_renombrar(self, nuevo: str) -> None:
+        nuevo = nuevo.strip()
+        if nuevo and nuevo != self.nombre:
+            self.rename_requested.emit(self.nombre, nuevo)
+
+    def pedir_mover(self, delta: int) -> None:
+        self.move_requested.emit(self.nombre, delta)
+
+    def pedir_eliminar(self) -> None:
+        self.remove_requested.emit(self.nombre)
+
 
 class RoomRail(QWidget):
     """Columna izquierda de 200 px: progreso y cuartos.
@@ -163,6 +216,10 @@ class RoomRail(QWidget):
     """
 
     import_requested = Signal()
+    room_created = Signal(str)
+    room_renamed = Signal(str, str)
+    room_moved = Signal(str, int)
+    room_removed = Signal(str)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -227,20 +284,23 @@ class RoomRail(QWidget):
         encabezado.setFixedHeight(30)
         raiz.addWidget(encabezado)
 
-        # --- banner de subcuarto (temporal: muere en la F3) ---
-        self.subroom_banner = QLabel("")
-        self.subroom_banner.setObjectName("subroomBanner")
-        self.subroom_banner.hide()
-        raiz.addWidget(self.subroom_banner)
-
         # --- lista de cuartos ---
         self._rooms_container = QWidget()
         self._rooms_layout = QVBoxLayout(self._rooms_container)
         self._rooms_layout.setContentsMargins(7, 6, 7, 6)
         self._rooms_layout.setSpacing(0)
         self._rooms_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
-        raiz.addWidget(self._rooms_container, stretch=1)
         self.rows: list[_FilaCuarto] = []
+
+        # La app abre con el rail VACIO: no hay paso previo de configuracion
+        # y los cuartos se crean sobre la marcha desde aca (DECISIONES.md).
+        self.new_room_row = QPushButton("+  Nuevo cuarto")
+        self.new_room_row.setObjectName("newRoomRow")
+        self.new_room_row.setFixedHeight(29)
+        self.new_room_row.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self.new_room_row.clicked.connect(self._pedir_cuarto_nuevo)
+        self._rooms_layout.addWidget(self.new_room_row)
+        raiz.addWidget(self._rooms_container, stretch=1)
 
         # --- importar, al pie ---
         self.import_button = QPushButton("Importar carpetas…")
@@ -257,14 +317,32 @@ class RoomRail(QWidget):
         for fila in self.rows:
             fila.setParent(None)
         self.rows = []
+        # la fila de "nuevo cuarto" se saca y se vuelve a poner al final, para
+        # que siempre quede debajo del ultimo cuarto
+        self._rooms_layout.removeWidget(self.new_room_row)
         for indice, cuarto in enumerate(rooms):
             numero = indice + 1 if indice < MAX_TECLAS else None
             fila = _FilaCuarto(numero, cuarto, theme.room_color(indice), counts.get(cuarto, 0))
+            fila.rename_requested.connect(self.room_renamed.emit)
+            fila.move_requested.connect(self.room_moved.emit)
+            fila.remove_requested.connect(self.room_removed.emit)
             self._rooms_layout.addWidget(fila)
             self.rows.append(fila)
+        self._rooms_layout.addWidget(self.new_room_row)
         self.progress_bar.set_counts(
             [counts.get(c, 0) for c in rooms], self._pendientes
         )
+
+    def _pedir_cuarto_nuevo(self) -> None:
+        nombre, ok = QInputDialog.getText(self, "Nuevo cuarto", "Nombre del cuarto:")
+        if ok:
+            self._crear_cuarto(nombre)
+
+    def _crear_cuarto(self, nombre: str) -> None:
+        """Aparte del dialogo para poder probarlo sin abrir una ventana
+        modal, que en un test cuelga."""
+        if nombre.strip():
+            self.room_created.emit(nombre.strip())
 
     def set_progress(self, clasificados: int, total: int, pendientes: int = 0) -> None:
         self.progress_big.setText(str(clasificados))

@@ -16,7 +16,6 @@ from PySide6.QtWidgets import (
 )
 
 from clasificador_video.autosave import save_session
-from clasificador_video.category_path import CategoryTree
 from clasificador_video.ingest import IngestTree
 from clasificador_video.keyboard import KeyboardRouter
 from clasificador_video.manifest import Clip, Manifest
@@ -36,14 +35,6 @@ from clasificador_video.ui.title_bar import TitleBar
 from clasificador_video.ui.tool_column import ToolColumn
 from clasificador_video.ui.video_stage import VideoStage
 from clasificador_video.ui.video_widget import format_timecode
-
-SUBROOM_CANDIDATES = ["Baño", "Closet", "Terraza"]
-
-
-def _es_room_numerado(room: str) -> bool:
-    partes = room.split()
-    return bool(partes) and partes[-1].isdigit()
-
 
 class _AutosaveWriteJob(QRunnable):
     """Escribe la sesion a disco fuera del hilo de la UI -- antes
@@ -120,7 +111,6 @@ class MainWindow(QWidget):
         self,
         project_name: str,
         room_selection: RoomSelection,
-        category_tree: CategoryTree,
         video_factory: Callable[..., object] | None = None,
         parent=None,
         thumbnail_cache_root: Path | None = None,
@@ -129,7 +119,6 @@ class MainWindow(QWidget):
         self.setWindowTitle(project_name)
         self.project_name = project_name
         self.room_selection = room_selection
-        self.category_tree = category_tree
         self.clips: list[Clip] = []
         self.current_index = 0
         self.selected_indices: list[int] = []
@@ -169,6 +158,10 @@ class MainWindow(QWidget):
 
         self.room_rail = RoomRail()
         self.room_rail.import_requested.connect(self._on_import_folders)
+        self.room_rail.room_created.connect(self._on_room_created)
+        self.room_rail.room_renamed.connect(self._on_room_renamed)
+        self.room_rail.room_moved.connect(self._on_room_moved)
+        self.room_rail.room_removed.connect(self._on_room_removed)
 
         self.video_stage = VideoStage(mpv_factory=video_factory)
         self.video_stage.quality.selected.connect(self._on_quality_changed)
@@ -355,15 +348,53 @@ class MainWindow(QWidget):
         self.tool_column.set_range(clip.in_frame, clip.out_frame)
         self.tool_column.set_flag(clip.flag)
 
-    def _update_subroom_banner(self) -> None:
-        parent = self._router.pending_parent
-        banner = self.room_rail.subroom_banner
-        if parent is None:
-            banner.hide()
-            return
-        options = "   ".join(f"{i} {name}" for i, name in enumerate(SUBROOM_CANDIDATES, start=1))
-        banner.setText(f"Elige subcuarto: {options}")
-        banner.show()
+    # ------------------------------------------------------------------
+    # el rail edita los cuartos en el lugar
+    # ------------------------------------------------------------------
+
+    def _sync_rooms(self) -> None:
+        """Vuelve a pasarle al router la lista de cuartos.
+
+        Obligatorio despues de CUALQUIER cambio del rail: el router se
+        construye una sola vez y se queda con la lista que le dieron. Si no
+        se vuelve a pasar, las teclas siguen apuntando a la lista vieja y no
+        dan ningun sintoma visible -- clasifican al cuarto equivocado en
+        silencio.
+        """
+        self._router.active_rooms = self.room_selection.active_rooms()
+        self._refresh_sheet()
+        self._autosave()
+
+    def _on_room_created(self, nombre: str) -> None:
+        self.room_selection.add(nombre)
+        self._sync_rooms()
+
+    def _on_room_renamed(self, viejo: str, nuevo: str) -> None:
+        antes = self.room_selection.active_rooms()
+        self.room_selection.rename(viejo, nuevo)
+        if self.room_selection.active_rooms() == antes:
+            return  # el nombre estaba repetido o vacio: no se toca nada
+        # los clips ya clasificados viajan con el nombre: si no, quedarian
+        # apuntando a un cuarto que ya no existe y desaparecerian del rail
+        # sin haberse movido a ningun lado
+        for clip in self.clips:
+            if clip.categoria_path and clip.categoria_path[0] == viejo:
+                clip.categoria_path = [nuevo]
+        self._sync_rooms()
+
+    def _on_room_moved(self, nombre: str, delta: int) -> None:
+        # reordenar cambia la TECLA, no a que cuarto pertenece cada clip
+        self.room_selection.move(nombre, delta)
+        self._sync_rooms()
+
+    def _on_room_removed(self, nombre: str) -> None:
+        self.room_selection.remove(nombre)
+        # sus clips vuelven a la cola de trabajo, que es donde tienen que
+        # estar: son clips que hay que volver a decidir, no clips perdidos
+        for clip in self.clips:
+            if clip.categoria_path and clip.categoria_path[0] == nombre:
+                clip.categoria_path = []
+        self._sync_rooms()
 
     def _tick_saved_indicator(self) -> None:
         if self._last_saved_at is None:
@@ -441,15 +472,11 @@ class MainWindow(QWidget):
     def _write_autosave_now(self) -> None:
         if self.session_path is None:
             return
-        tree = {}
-        for parent in self.room_selection.active_rooms():
-            known = self.category_tree.known_subrooms_for(parent)
-            if known:
-                tree[parent] = known
+        # sin `category_tree`: los subcuartos murieron en la F3. Una sesion
+        # vieja que lo traiga se ignora al cargar (ver app.py).
         data = {
             "proyecto": self.project_name,
             "rooms": self.room_selection.active_rooms(),
-            "category_tree": tree,
             "clips": [c.to_dict() for c in self.clips],
         }
         self._autosave_pool.start(_AutosaveWriteJob(self.session_path, data))
@@ -544,10 +571,6 @@ class MainWindow(QWidget):
     def handle_key_press(self, key: str) -> None:
         if self.current_clip is None:
             return
-        if self._router.pending_parent is not None:
-            self._handle_subroom_key(key)
-            self._autosave()
-            return
         if key == "i":
             self.current_clip.in_frame = self.video_widget.player.mark_in(self.current_clip.fps)
             self._refresh_sheet()
@@ -564,14 +587,6 @@ class MainWindow(QWidget):
             self._refresh_sheet()
             self._autosave()
             return
-        if key.isdigit() and self._router.pending_parent is None:
-            index = int(key) - 1
-            if 0 <= index < len(self._router.active_rooms):
-                room = self._router.active_rooms[index]
-                if _es_room_numerado(room) and not self._router.subrooms.get(room):
-                    self._router.pending_parent = room
-                    self._update_subroom_banner()
-                    return  # la tecla siguiente elige el subcuarto
         room_path = self._router.resolve_room_key(key)
         if room_path is not None:
             self._apply_categoria_to_targets(room_path)
@@ -583,23 +598,6 @@ class MainWindow(QWidget):
             self.current_clip.flag = action
             self._refresh_sheet()
             self._autosave()
-
-    def _handle_subroom_key(self, key: str) -> None:
-        sub_path = self._router.resolve_subroom_key(key)
-        if sub_path is not None:
-            self._apply_categoria_to_targets(sub_path)
-            self._refresh_sheet()
-            self._autosave()
-            self._update_subroom_banner()
-            return
-        if key.isdigit():
-            index = int(key) - 1
-            if 0 <= index < len(SUBROOM_CANDIDATES):
-                self.attach_subroom_or_resolve(SUBROOM_CANDIDATES[index])
-                self._update_subroom_banner()
-                return
-        self._router.pending_parent = None  # la tecla no era de subcuarto
-        self._update_subroom_banner()
 
     def handle_arrow(self, direction: str) -> None:
         if not self.clips:
@@ -633,39 +631,6 @@ class MainWindow(QWidget):
         self._update_scrub_bar()
         self._resize_video_stage()
         self._autosave()
-
-    def attach_subroom_or_resolve(self, subroom: str) -> list[str] | None:
-        """Resuelve el path completo del subcuarto y lo asigna al clip
-        actual (spec app-externa §5)."""
-        if self.current_clip is None:
-            return None
-        for parent in self.room_selection.active_rooms():
-            if subroom in self.category_tree.known_subrooms_for(parent):
-                path = self.category_tree.path_for(parent, subroom=subroom)
-                self._apply_categoria_to_targets(path)
-                self._refresh_sheet()
-                return path
-        parent = self._ask_parent_room(subroom)
-        if parent is None:
-            return None
-        self.category_tree.attach_subroom(parent, subroom)
-        self._router.subrooms[parent] = self.category_tree.known_subrooms_for(parent)
-        path = self.category_tree.path_for(parent, subroom=subroom)
-        self._apply_categoria_to_targets(path)
-        self._refresh_sheet()
-        self._autosave()
-        return path
-
-    def _ask_parent_room(self, subroom: str) -> str | None:
-        from PySide6.QtWidgets import QInputDialog
-
-        rooms = self.room_selection.active_rooms()
-        if not rooms:
-            return None
-        parent, ok = QInputDialog.getItem(
-            self, "Subcuarto", f"¿A qué cuarto cuelga '{subroom}'?", rooms, 0, False
-        )
-        return parent if ok else None
 
     def _on_quality_changed(self, profile_name: str) -> None:
         self.video_widget.player.set_quality(profile_name)

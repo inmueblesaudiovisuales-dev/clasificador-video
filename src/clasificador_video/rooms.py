@@ -1,62 +1,55 @@
 # src/clasificador_video/rooms.py
 from __future__ import annotations
 
-MASTER_ROOM_LIST: list[str] = [
-    "Fachada",
-    "Sala",
-    "Comedor",
-    "Cocina",
-    "Recámara",
-    "Baño",
-    "Estudio/Oficina",
-    "Alberca",
-    "Jardín/Patio",
-    "Terraza",
-    "Roof garden",
-    "Garage/Cochera",
-    "Vestíbulo/Hall",
-    "Área de servicio",
-    "Dron/Aérea",
-    "Amenidades comunes",
-    "B-roll/Detalles",
-]
-
-REPEATABLE_ROOMS = {"Recámara", "Baño"}
-
 
 class RoomSelection:
-    """Estado del dialogo 'configurar cuartos' (spec app-externa §5).
+    """Los cuartos de la sesion, planos y en orden.
 
-    Guarda el orden en que se van activando los cuartos -- ese orden es el
-    que se le presenta al usuario despues como columna de cuartos.
+    **El orden ES la asignacion de teclas**: el primero contesta a `1`, el
+    segundo a `2`, y del decimo en adelante no hay tecla numerica (el rail lo
+    muestra con el badge vacio en vez de mentir con un numero que no
+    funciona). Por eso `move` no es cosmetico: reordenar es la unica forma de
+    cambiar que tecla le toca a cada cuarto.
+
+    Antes de la F3 esto era el estado del dialogo "configurar cuartos", con
+    un catalogo fijo de 17 y cuartos "repetibles" que se numeraban solos
+    (`Recamara 1`, `Recamara 2`). Los subcuartos se fueron con esa idea: hoy
+    `Recamara 1` es un nombre y nada mas, y los cuartos se crean sobre la
+    marcha desde el rail, sin paso previo de configuracion
+    (ver DECISIONES.md, "Cuartos: planos, sin techo, sin configuracion
+    inicial").
     """
 
     def __init__(self) -> None:
         self._order: list[str] = []
-        self._counts: dict[str, int] = {}
 
-    def toggle(self, room: str) -> None:
-        if room in self._order:
-            self._order.remove(room)
-        else:
+    def add(self, room: str) -> None:
+        room = room.strip()
+        # dos cuartos con el mismo nombre serian dos teclas que hacen lo
+        # mismo y un grupo partido en dos en la hoja de contactos
+        if room and room not in self._order:
             self._order.append(room)
 
-    def set_count(self, room: str, count: int) -> None:
-        assert room in REPEATABLE_ROOMS, f"'{room}' no es un cuarto repetible"
-        self._counts[room] = count
+    def rename(self, room: str, nuevo: str) -> None:
+        """Cambia el nombre SIN cambiar la posicion: renombrar no puede
+        cambiarle la tecla a un cuarto por sorpresa."""
+        nuevo = nuevo.strip()
+        if not nuevo or nuevo in self._order or room not in self._order:
+            return
+        self._order[self._order.index(room)] = nuevo
+
+    def move(self, room: str, delta: int) -> None:
+        if room not in self._order:
+            return
+        origen = self._order.index(room)
+        destino = origen + delta
+        if not 0 <= destino < len(self._order):
+            return  # en los extremos no pasa nada, no se envuelve
+        self._order.insert(destino, self._order.pop(origen))
+
+    def remove(self, room: str) -> None:
         if room in self._order:
             self._order.remove(room)
-        if count > 0:
-            self._order.append(room)
-
-    def add_custom(self, name: str) -> None:
-        self._order.append(name)
 
     def active_rooms(self) -> list[str]:
-        result = []
-        for room in self._order:
-            if room in self._counts:
-                result.extend(f"{room} {i}" for i in range(1, self._counts[room] + 1))
-            else:
-                result.append(room)
-        return result
+        return list(self._order)

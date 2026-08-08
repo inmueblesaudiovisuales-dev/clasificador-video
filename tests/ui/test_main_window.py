@@ -1,7 +1,6 @@
 # tests/ui/test_main_window.py
 from pathlib import Path
 
-from clasificador_video.category_path import CategoryTree
 from clasificador_video.manifest import Clip
 from clasificador_video.player import QUALITY_PROFILES
 from clasificador_video.rooms import RoomSelection
@@ -26,27 +25,38 @@ class FakeMpvForWindow:
         self.commands.append(args)
 
 
-def _window(qtbot) -> MainWindow:
-    selection = RoomSelection()
-    selection.toggle("Sala")
-    selection.toggle("Cocina")
-    window = MainWindow(project_name="Casa Jardin", room_selection=selection, category_tree=CategoryTree())
+def _seleccion(rooms) -> RoomSelection:
+    seleccion = RoomSelection()
+    for cuarto in rooms:
+        seleccion.add(cuarto)
+    return seleccion
+
+
+def _window(qtbot, rooms=("Sala", "Cocina")) -> MainWindow:
+    window = MainWindow(project_name="Casa Jardin", room_selection=_seleccion(rooms))
     qtbot.addWidget(window)
     return window
 
 
-def _window_with_video(qtbot, cache_root: Path | None = None) -> MainWindow:
-    selection = RoomSelection()
-    selection.toggle("Sala")
+def _window_with_video(qtbot, cache_root: Path | None = None,
+                       rooms=("Sala",)) -> MainWindow:
     window = MainWindow(
         project_name="Casa Jardin",
-        room_selection=selection,
-        category_tree=CategoryTree(),
+        room_selection=_seleccion(rooms),
         video_factory=FakeMpvForWindow,
         thumbnail_cache_root=cache_root,
     )
     qtbot.addWidget(window)
     return window
+
+
+def _clip(numero: int = 1, cuarto: str | None = None, fps: float = 30.0) -> Clip:
+    return Clip(
+        orden=numero,
+        ruta=Path(f"/tmp/C{numero:04d}.MP4"),
+        categoria_path=[cuarto] if cuarto else [],
+        fps=fps,
+    )
 
 
 def test_ventana_muestra_los_cuartos_activos_en_la_columna(qtbot):
@@ -94,14 +104,7 @@ def test_cambiar_calidad_aplica_el_perfil(qtbot):
 def test_leyenda_muestra_el_cuarto_real_de_cada_numero(qtbot):
     """Bug real de v1: la leyenda mostraba '1-9 cuartos' generico en vez
     de que cuarto real le toca a cada numero en la sesion activa."""
-    selection = RoomSelection()
-    selection.toggle("Sala")
-    selection.toggle("Cocina")
-    window = MainWindow(
-        project_name="Casa Jardin", room_selection=selection, category_tree=CategoryTree(),
-        video_factory=FakeMpvForWindow,
-    )
-    qtbot.addWidget(window)
+    window = _window_with_video(qtbot, rooms=("Sala", "Cocina"))
     # la leyenda de una linea murio con el rediseño, pero su intencion
     # sobrevive en el rail: cada numero muestra su cuarto real
     assert window.room_rail.rows[0].key_cap.text() == "1"
@@ -542,19 +545,6 @@ def test_tecla_u_limpia_in_out_del_clip(qtbot):
     assert window.current_clip.out_frame is None
 
 
-def test_subcuarto_desconocido_pide_padre_y_se_cuelga(qtbot, monkeypatch):
-    window = _window_with_video(qtbot)
-    monkeypatch.setattr(
-        window, "_ask_parent_room",
-        lambda subroom: "Recámara 1",
-    )
-    clips = [Clip(orden=1, ruta=Path("/a.MP4"), categoria_path=[], fps=30.0)]
-    window.load_clips(clips)
-    window._router.subrooms = {"Recámara 1": []}   # existe el padre como opcion
-    window.attach_subroom_or_resolve("Baño")
-    assert window.category_tree.path_for("Recámara 1", subroom="Baño") == ["Recámara 1", "Baño"]
-    assert window.current_clip.categoria_path == ["Recámara 1", "Baño"]
-
 
 def test_presionar_tecla_de_cuarto_con_multiseleccion_aplica_a_todos_los_seleccionados(qtbot):
     window = _window(qtbot)
@@ -623,29 +613,6 @@ def test_inspector_muestra_metadata_del_clip_actual(qtbot):
     assert "PICK" in window.video_stage.badges.flag_badge.text()
     assert theme.PICK_COLOR in window.video_stage.badges.flag_badge.styleSheet()
 
-
-def test_inspector_muestra_breadcrumb_de_subcuarto(qtbot):
-    window = _window(qtbot)
-    window.load_clips([Clip(orden=1, ruta=Path("/a.MP4"), categoria_path=["Recámara", "Recámara 1"], fps=30.0)])
-    assert "RECÁMARA › RECÁMARA 1" in window.video_stage.badges.room_badge.text()
-
-
-def test_banner_de_subcuarto_aparece_al_entrar_en_modo_subcuarto(qtbot):
-    window = _window(qtbot)
-    window.load_clips([Clip(orden=1, ruta=Path("/a.MP4"), categoria_path=[], fps=30.0)])
-    window._router.subrooms = {}  # "Cocina" (2) no tiene subcuartos conocidos aun
-    assert window.room_rail.subroom_banner.isHidden()
-
-
-def test_banner_de_subcuarto_se_oculta_al_resolver(qtbot, monkeypatch):
-    window = _window(qtbot)
-    monkeypatch.setattr(window, "_ask_parent_room", lambda subroom: None)
-    window.load_clips([Clip(orden=1, ruta=Path("/a.MP4"), categoria_path=[], fps=30.0)])
-    window._router.pending_parent = "Sala"
-    window._update_subroom_banner()
-    assert not window.room_rail.subroom_banner.isHidden()
-    window.handle_key_press("9")  # tecla que no resuelve subcuarto -> sale del modo
-    assert window.room_rail.subroom_banner.isHidden()
 
 
 def test_columna_de_cuartos_muestra_contador_de_clips(qtbot):
@@ -960,3 +927,121 @@ def test_los_controles_del_video_no_son_hermanos_del_video(qtbot):
     window = _window_with_video(qtbot)
     assert window.video_stage.scrub_bar.parent() is window.video_stage.video
     assert window.video_stage.timecode_label.parent() is window.video_stage.video
+
+
+# --- F3: cuartos planos y rail editable en vivo -----------------------------
+
+
+def test_una_tecla_clasifica_un_cuarto_numerado_de_inmediato(qtbot):
+    """Antes, 'Recámara 1' abria el banner de subcuarto y se quedaba
+    esperando una segunda tecla, sin limite de tiempo."""
+    window = _window(qtbot, rooms=("Cocina", "Recámara 1"))
+    window.load_clips([_clip()])
+    window.handle_key_press("2")
+    assert window.clips[0].categoria_path == ["Recámara 1"]
+
+
+def test_categoria_path_sigue_siendo_una_lista(qtbot):
+    """El contrato con el plugin de Premiere no se toca aunque el cuarto sea
+    plano: el plugin ya maneja la lista de un elemento."""
+    window = _window(qtbot, rooms=("Cocina",))
+    window.load_clips([_clip()])
+    window.handle_key_press("1")
+    assert window.clips[0].to_dict()["categoria_path"] == ["Cocina"]
+
+
+def test_crear_un_cuarto_desde_el_rail_le_da_la_siguiente_tecla(qtbot):
+    window = _window(qtbot, rooms=("Cocina",))
+    window.load_clips([_clip()])
+    window.room_rail.room_created.emit("Alberca")
+    window.handle_key_press("2")
+    assert window.clips[0].categoria_path == ["Alberca"]
+
+
+def test_la_fila_de_nuevo_cuarto_queda_debajo_de_los_cuartos(qtbot):
+    window = _window(qtbot, rooms=("Cocina",))
+    window.room_rail.room_created.emit("Alberca")
+    layout = window.room_rail._rooms_layout
+    ultimo = layout.itemAt(layout.count() - 1).widget()
+    assert ultimo is window.room_rail.new_room_row
+
+
+def test_renombrar_un_cuarto_renombra_los_clips_ya_clasificados(qtbot):
+    """Si no, los clips quedan apuntando a un cuarto que ya no existe y
+    desaparecen del rail sin haberse movido a ningun lado."""
+    window = _window(qtbot, rooms=("Cocina",))
+    window.load_clips([_clip()])
+    window.handle_key_press("1")
+    window.room_rail.room_renamed.emit("Cocina", "Cocina chica")
+    assert window.clips[0].categoria_path == ["Cocina chica"]
+    assert window.room_selection.active_rooms() == ["Cocina chica"]
+
+
+def test_renombrar_no_le_cambia_la_tecla_al_cuarto(qtbot):
+    window = _window(qtbot, rooms=("Cocina", "Sala"))
+    window.load_clips([_clip()])
+    window.room_rail.room_renamed.emit("Cocina", "Cocineta")
+    window.handle_key_press("1")
+    assert window.clips[0].categoria_path == ["Cocineta"]
+
+
+def test_borrar_un_cuarto_deja_sus_clips_sin_clasificar(qtbot):
+    """Vuelven a la cola de trabajo, que es donde tienen que estar: son
+    clips que hay que volver a decidir, no clips perdidos."""
+    window = _window(qtbot, rooms=("Cocina",))
+    window.load_clips([_clip()])
+    window.handle_key_press("1")
+    window.room_rail.room_removed.emit("Cocina")
+    assert window.clips[0].categoria_path == []
+    assert window.room_selection.active_rooms() == []
+
+
+def test_reordenar_cambia_la_tecla_y_no_la_clasificacion(qtbot):
+    window = _window(qtbot, rooms=("Cocina", "Sala"))
+    window.load_clips([_clip()])
+    window.handle_key_press("2")
+    assert window.clips[0].categoria_path == ["Sala"]
+    window.room_rail.room_moved.emit("Sala", -1)
+    assert window.clips[0].categoria_path == ["Sala"]        # el clip no se movio
+    assert window.room_selection.active_rooms() == ["Sala", "Cocina"]
+    window.load_clips([_clip(2)])
+    window.handle_key_press("1")                             # ahora "1" es Sala
+    assert window.clips[0].categoria_path == ["Sala"]
+
+
+def test_el_router_se_entera_de_cada_cambio_del_rail(qtbot):
+    """El router se construye una sola vez y se queda con la lista que le
+    dieron: si no se vuelve a pasar, las teclas clasifican al cuarto
+    equivocado EN SILENCIO."""
+    window = _window(qtbot, rooms=("Cocina",))
+    window.room_rail.room_created.emit("Alberca")
+    assert window._router.active_rooms == ["Cocina", "Alberca"]
+    window.room_rail.room_moved.emit("Alberca", -1)
+    assert window._router.active_rooms == ["Alberca", "Cocina"]
+    window.room_rail.room_removed.emit("Alberca")
+    assert window._router.active_rooms == ["Cocina"]
+
+
+def test_la_ventana_arranca_sin_cuartos_y_se_puede_trabajar(qtbot):
+    """La app abre lista para trabajar: sin paso previo de configuracion."""
+    window = _window(qtbot, rooms=())
+    window.load_clips([_clip()])
+    assert window.room_rail.rows == []
+    window.handle_key_press("1")   # no hay cuarto todavia: no pasa nada
+    assert window.clips[0].categoria_path == []
+    window.room_rail.room_created.emit("Cocina")
+    window.handle_key_press("1")
+    assert window.clips[0].categoria_path == ["Cocina"]
+
+
+def test_el_autosave_ya_no_escribe_el_arbol_de_subcuartos(qtbot, tmp_path):
+    import json
+
+    window = _window(qtbot, rooms=("Cocina",))
+    window.session_path = tmp_path / "sesion.json"
+    window.load_clips([_clip()])
+    window._write_autosave_now()
+    window._autosave_pool.waitForDone(2000)
+    data = json.loads((tmp_path / "sesion.json").read_text(encoding="utf-8"))
+    assert "category_tree" not in data
+    assert data["rooms"] == ["Cocina"]
