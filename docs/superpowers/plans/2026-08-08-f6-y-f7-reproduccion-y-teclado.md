@@ -275,6 +275,9 @@ def test_K_frena_de_un_golpe(qtbot):
     window.handle_key_press("k")
     assert window.video_widget.player.speed == 1.0
     assert window.video_widget.player.is_paused
+    # y el control tiene que decir lo mismo: dos vistas del mismo dato que se
+    # contradicen es el bug que ya aparecio en la tarjeta y la barra de rango
+    assert window.video_stage.speed.current() == "1×"
 
 
 def test_J_no_hace_nada_todavia(qtbot):
@@ -359,11 +362,44 @@ layout tres veces.
 | Playhead | cuerpo + punta + línea | línea con triángulo arriba |
 | Marcas de tiempo | adaptativas | fijas |
 
-**Lo que NO se degrada**: las marcas de tiempo adaptativas se conservan. Son
-mejores que las del mockup y el plan maestro lo permite explícitamente
-—«mejor que el mockup está permitido, pero se avisa»—. El playhead actual
-también: su cuerpo redondeado se agarra mejor con el mouse que una línea de
-2 px.
+### Lo que la barra NO puede perder al reescribirla
+
+**Esto no es una lista de deseos: es la lección más cara de este rediseño.**
+La barra de rango de las tarjetas «sobrevivió tres auditorías del plan y murió
+en la implementación» (análisis post-F2 §7), porque reescribir un widget pierde
+detalles que el viejo tenía y los tests no lo detectan cuando también se
+reescriben. Se reescribe **el mismo tipo de widget**. Antes de tocar
+`paintEvent`, cada punto de esta lista tiene su test:
+
+| Qué | Por qué importa |
+|---|---|
+| **El riel translúcido sobre el video** (`set_over_video`, `TRACK_OVER_VIDEO_RGBA`) | La banda del mockup es `rgba(255,255,255,.13)` **porque va encima de la imagen**. Una banda opaca de 26 px tapa una franja del video — que es justo lo que este rediseño existe para no hacer |
+| **`WA_TranslucentBackground`** | Hallazgo de la F0: un widget de `QPainter` sobre el `VideoWidget` pinta fondo opaco donde no dibuja. Sin la bandera, la barra se come una franja de video aunque el riel sea translúcido |
+| **El seek con mouse** (`seek_started`, `seek_requested`) | Click y arrastre para saltar de posición. No se toca el `paintEvent`, pero sí las coordenadas: `_x_for` y `_seconds_for_x` tienen que seguir siendo inversas exactas |
+| **Las marcas de tiempo adaptativas** | Mejores que las del mockup, y el plan maestro lo permite —«mejor que el mockup está permitido, pero se avisa»—. Escalan de 0.2 s a 24 h sin pasar de 25 marcas |
+| **El playhead redondeado** | Su cuerpo se agarra mejor con el mouse que la línea de 2 px del mockup |
+
+```python
+# tests/ui/test_video_widget.py  (agregar ANTES de tocar paintEvent)
+
+def test_la_banda_sigue_siendo_translucida_sobre_el_video(qtbot):
+    """Una banda opaca de 26 px tapa una franja del video: exactamente lo
+    que este rediseño existe para no hacer."""
+    from clasificador_video.ui.theme import TRACK_OVER_VIDEO_RGBA
+
+    barra = _scrub(qtbot, duracion=20.0)
+    barra.set_over_video(True)
+    assert barra.track_color().alpha() == TRACK_OVER_VIDEO_RGBA[3]
+    assert barra.track_color().alpha() < 255
+
+
+def test_el_seek_con_mouse_sigue_siendo_exacto(qtbot):
+    """`_x_for` y `_seconds_for_x` tienen que quedar inversas: si el playhead
+    no cae donde hiciste click, la barra deja de servir para marcar in/out."""
+    barra = _scrub(qtbot, duracion=18.37)
+    for x in (6, 150, 251, 394):
+        assert barra._x_for(barra._seconds_for_x(x), 6, barra.width() - 12) == x
+```
 
 - [ ] **Step 1: Escribir los tests que fallan**
 
@@ -1153,3 +1189,54 @@ test y su paso de implementación dentro de la Task 4.
 producción.** Cuesta cinco minutos, y distingue tres cosas que a simple vista
 se ven igual: el test que ya pasa (inútil), el que falla porque falta la
 función (correcto) y el que falla porque está roto (engañoso).
+
+---
+
+## Cuarta auditoría del plan de la F6 — 2026-08-08
+
+Dos barridos mecánicos nuevos.
+
+**Cobertura contra el registro: limpia.** Los catorce renglones que el análisis
+post-F5 le asigna a la F6 tienen tarea y test en el plan. (Eran trece; el
+`espacio ▶ ‖` se sumó en la tercera auditoría.)
+
+**Dependencias entre tareas: limpias.** Ninguna tarea usa una API que crea una
+tarea posterior, así que el orden 1→7 se puede seguir tal cual.
+
+### Falla 1: la Task 4 reescribía la barra sin decir qué no perder
+
+**La más grave de las cuatro auditorías**, porque ya pasó una vez con este
+mismo tipo de widget. El análisis post-F2 lo dejó escrito: la barra de rango de
+las tarjetas *«sobrevivió tres auditorías del plan y murió en la
+implementación»*, porque reescribir un widget pierde detalles que el viejo
+tenía y los tests no lo detectan cuando también se reescriben.
+
+La Task 4 reescribe `ScrubBar.paintEvent` entero y **no mencionaba**:
+
+- el **riel translúcido** sobre el video (`set_over_video`,
+  `TRACK_OVER_VIDEO_RGBA`) — la banda del mockup es `rgba(255,255,255,.13)`
+  *porque va encima de la imagen*; una banda opaca de 26 px tapa una franja de
+  video, que es justo lo que este rediseño existe para no hacer;
+- **`WA_TranslucentBackground`**, el hallazgo de la F0, sin el cual la barra se
+  come una franja aunque el riel sea translúcido;
+- el **seek con mouse**, cuyas coordenadas tienen que seguir siendo inversas
+  exactas.
+
+Ahora hay una tabla de «lo que no puede perder» y dos tests que se escriben
+**antes** de tocar el `paintEvent`.
+
+### Falla 2: `K` dejaba el control de velocidad mintiendo
+
+`test_K_frena_de_un_golpe` comprobaba que el reproductor vuelve a 1× y pausa,
+pero no que el control segmentado lo refleje. Podía quedar mostrando `4×` con
+el video a `1×`. **Dos vistas del mismo dato que se contradicen** — exactamente
+el bug que la auditoría de la F1-F5 encontró entre la tarjeta y la barra de
+rango con el in/out invertido. Agregada la aserción.
+
+### Lo que enseña
+
+Las cuatro auditorías de este plan encontraron, en orden: 4 correcciones, 3
+fallas, 2 fallas, 2 fallas. **Lo que cambia no es la cantidad sino el tipo**:
+las primeras eran sobre APIs de Qt y mpv; estas dos son sobre *lo que el plan
+no dice*. Un plan detallado se audita bien preguntándole qué omite, no solo si
+lo que dice es cierto.
