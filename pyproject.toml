@@ -7,6 +7,16 @@ name = "clasificador-video"
 version = "0.1.0"
 description = "App externa del clasificador de video para bienes raíces"
 requires-python = ">=3.10"
+dependencies = [
+    "PySide6>=6.7",
+    "python-mpv>=1.0.6",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4",
+    "pytest-qt>=4.4",
+]
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]
