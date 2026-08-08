@@ -77,7 +77,11 @@ FONT_BIG = 24       # numero grande de progreso
 
 LETTER_SPACING_CAPS = 1.2  # tracking de las etiquetas en mayusculas
 
-MONO_FONT = '"SF Mono", "JetBrains Mono", Menlo, monospace'
+# Menlo primero a proposito: viene en toda Mac desde 10.6, asi que resuelve
+# de inmediato. El mockup encabeza con "SF Mono", que NO esta expuesta con
+# ese nombre en macOS -- Qt la busca, no la encuentra, y paga ~370 ms de
+# populacion de alias de fuentes en cada arranque. Medido el 2026-08-08.
+MONO_FONT = 'Menlo, "SF Mono", "JetBrains Mono", monospace'
 
 # ---------------------------------------------------------------------------
 # Alias de compatibilidad. Existen SOLO para que la app siga corriendo
