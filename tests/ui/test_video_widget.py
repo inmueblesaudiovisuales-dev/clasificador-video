@@ -3,7 +3,12 @@ from pathlib import Path
 
 from PySide6.QtCore import QPoint, Qt
 
-from clasificador_video.ui.theme import ACCENT, TICK_MAJOR_COLOR, TRIM_COLOR
+from clasificador_video.ui.theme import (
+    ACCENT,
+    SCRUB_HEIGHT,
+    TICK_MAJOR_COLOR,
+    TRIM_COLOR,
+)
 from clasificador_video.ui.video_widget import (
     ScrubBar,
     VideoWidget,
@@ -302,10 +307,13 @@ def test_major_tick_seconds_sin_duracion_devuelve_vacio(qtbot):
     assert bar._major_tick_seconds() == []
 
 
-def test_scrub_bar_altura_fija_34(qtbot):
+def test_scrub_bar_tiene_la_altura_del_tema(qtbot):
+    """La altura sale de theme.SCRUB_HEIGHT: el VideoStage la usa para
+    posicionar la barra sobre el video, asi que un numero suelto aqui
+    dejaria el overlay descolocado."""
     bar = ScrubBar()
     qtbot.addWidget(bar)
-    assert bar.height() == 34
+    assert bar.height() == SCRUB_HEIGHT
 
 
 def test_scrub_bar_dibuja_marca_mayor_en_cada_intervalo(qtbot):
@@ -372,3 +380,30 @@ def test_playhead_punta_toca_track_y_en_la_posicion_correcta(qtbot):
     track_y = bar.height() // 2
     color_punta = img.pixelColor(x, track_y - 1)
     assert color_punta.name() == ACCENT
+
+
+# ---------------------------------------------------------------------------
+# F2 Task 3: modo overlay de la ScrubBar. Sobre el video, un riel solido se
+# ve como una banda opaca tapando la imagen.
+# ---------------------------------------------------------------------------
+
+
+def test_scrub_bar_por_defecto_usa_riel_solido(qtbot):
+    bar = ScrubBar()
+    qtbot.addWidget(bar)
+    assert bar.track_color().alpha() == 255
+
+
+def test_scrub_bar_en_modo_overlay_usa_riel_translucido(qtbot):
+    bar = ScrubBar()
+    qtbot.addWidget(bar)
+    bar.set_over_video(True)
+    assert bar.track_color().alpha() < 255
+
+
+def test_set_over_video_se_puede_apagar(qtbot):
+    bar = ScrubBar()
+    qtbot.addWidget(bar)
+    bar.set_over_video(True)
+    bar.set_over_video(False)
+    assert bar.track_color().alpha() == 255

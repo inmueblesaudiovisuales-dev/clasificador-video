@@ -17,6 +17,8 @@ from clasificador_video.ui.theme import (
     PLAYHEAD_HIGHLIGHT,
     TICK_MAJOR_COLOR,
     TICK_MINOR_COLOR,
+    SCRUB_HEIGHT,
+    TRACK_OVER_VIDEO_RGBA,
     TRIM_COLOR,
 )
 
@@ -193,12 +195,27 @@ class ScrubBar(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setObjectName("scrubBar")
-        self.setFixedHeight(34)
+        # la altura sale del tema, no de un numero suelto: el mockup la
+        # fija en 26 px y el VideoStage la usa para posicionar el overlay.
+        self.setFixedHeight(SCRUB_HEIGHT)
         self._duration = 0.0
         self._position = 0.0
         self._in_frame: int | None = None
         self._out_frame: int | None = None
         self._fps = 0.0
+        self._over_video = False
+
+    def set_over_video(self, activo: bool) -> None:
+        """Modo overlay: la barra va ENCIMA del video, asi que el riel
+        tiene que ser translucido. Un color solido se veria como una
+        banda opaca tapando la imagen."""
+        self._over_video = activo
+        self.update()
+
+    def track_color(self) -> QColor:
+        if self._over_video:
+            return QColor(*TRACK_OVER_VIDEO_RGBA)
+        return QColor(BORDER)
 
     def set_duration(self, seconds: float) -> None:
         self._duration = max(seconds, 0.0)
@@ -281,7 +298,7 @@ class ScrubBar(QWidget):
         usable_width = max(right - left, 1)
         track_y = self.height() // 2
 
-        painter.setPen(QPen(QColor(BORDER), 3))
+        painter.setPen(QPen(self.track_color(), 3))
         painter.drawLine(left, track_y, right, track_y)
 
         if self._duration > 0:

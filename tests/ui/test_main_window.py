@@ -825,3 +825,69 @@ def test_scrub_bar_seek_requested_mueve_el_player_y_la_barra(qtbot):
     window.scrub_bar.seek_requested.emit(15.0)
     assert window.video_widget.player._mpv.time_pos == 15.0
     assert window.scrub_bar._position == 15.0
+
+
+# ---------------------------------------------------------------------------
+# F2 Task 1: el tamaño real del clip. El ancho del video lo dicta la relacion
+# de aspecto, asi que la F2 depende de este dato -- que hoy se calcula en
+# probe_clip y se tira. Se guarda en memoria y NO en Clip: agregarle campos
+# cambiaria to_dict() y con eso el contrato del manifest con el plugin.
+# ---------------------------------------------------------------------------
+
+
+class _ProbeVertical:
+    """Clip vertical de la FX30: probe.py ya devuelve width/height
+    corregidos por rotacion."""
+
+    def __call__(self, path):
+        return {"width": 2160, "height": 3840, "fps": 29.97,
+                "has_audio": True, "duration_frames": 540, "rotation": 90}
+
+
+def test_importar_guarda_el_tamano_real_de_cada_clip(qtbot, monkeypatch, tmp_path):
+    window = _window_with_video(qtbot, cache_root=tmp_path / "cache")
+    monkeypatch.setattr(
+        "clasificador_video.ui.main_window.extract_thumbnail_strip", lambda *a, **k: []
+    )
+    carpeta = tmp_path / "FX30"
+    carpeta.mkdir()
+    (carpeta / "C0001.MP4").touch()
+    monkeypatch.setattr(window, "_probe_clip", _ProbeVertical())
+    window.ingest_tree.import_folder(carpeta)
+    window._load_clips_from_ingest()
+    assert window._clip_sizes[0] == (2160, 3840)
+
+
+def test_importar_no_truena_si_el_probe_no_trae_tamano(qtbot, monkeypatch, tmp_path):
+    """Un doble de pruebas viejo puede no traer width/height: el import
+    tiene que seguir funcionando y caer en el aspecto por defecto."""
+    window = _window_with_video(qtbot, cache_root=tmp_path / "cache")
+    monkeypatch.setattr(
+        "clasificador_video.ui.main_window.extract_thumbnail_strip", lambda *a, **k: []
+    )
+    carpeta = tmp_path / "FX30"
+    carpeta.mkdir()
+    (carpeta / "C0001.MP4").touch()
+    monkeypatch.setattr(window, "_probe_clip", lambda p: {"fps": 29.97, "duration_frames": 540})
+    window.ingest_tree.import_folder(carpeta)
+    window._load_clips_from_ingest()
+    assert window.aspect_ratio_for(0) == 16 / 9
+
+
+def test_aspect_ratio_usa_el_tamano_del_clip(qtbot):
+    window = _window(qtbot)
+    window._clip_sizes = {0: (2160, 3840)}
+    assert window.aspect_ratio_for(0) == 2160 / 3840
+
+
+def test_aspect_ratio_cae_en_16_9_si_no_se_conoce_el_tamano(qtbot):
+    """Sesion restaurada de disco: no se volvio a correr ffprobe."""
+    window = _window(qtbot)
+    window._clip_sizes = {}
+    assert window.aspect_ratio_for(0) == 16 / 9
+
+
+def test_aspect_ratio_ignora_tamanos_invalidos(qtbot):
+    window = _window(qtbot)
+    window._clip_sizes = {0: (0, 0)}
+    assert window.aspect_ratio_for(0) == 16 / 9

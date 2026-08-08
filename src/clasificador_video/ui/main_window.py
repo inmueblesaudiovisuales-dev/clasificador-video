@@ -187,6 +187,10 @@ class MainWindow(QWidget):
         self.session_path: Path | None = None
         self._last_saved_at: float | None = None
         self._clip_durations: dict[int, float] = {}  # indice -> segundos; solo en memoria
+        # indice -> (ancho, alto) ya corregidos por rotacion en probe.py.
+        # Solo en memoria, igual que las duraciones: meterlo en Clip cambiaria
+        # to_dict() y con eso el contrato del manifest con el plugin de Premiere.
+        self._clip_sizes: dict[int, tuple[int, int]] = {}
 
         # autosave con debounce: coalesca ediciones rapidas seguidas en un
         # solo guardado en vez de escribir a disco en cada tecla, y la
@@ -498,6 +502,7 @@ class MainWindow(QWidget):
     def _load_clips_from_ingest(self) -> None:
         clips: list[Clip] = []
         durations: dict[int, float] = {}
+        sizes: dict[int, tuple[int, int]] = {}
         orden = 1
         for folder in self.ingest_tree.top_level_folders():
             for video in folder.files:
@@ -506,17 +511,36 @@ class MainWindow(QWidget):
                 except Exception:
                     continue
                 clips.append(Clip(orden=orden, ruta=video, categoria_path=[], fps=info["fps"]))
+                index = len(clips) - 1
                 fps = info.get("fps") or 0
                 duration_frames = info.get("duration_frames")
                 if fps and duration_frames:
                     # duracion real del clip, solo en memoria -- no se
                     # guarda en Clip/manifest (no toca ese contrato), sirve
                     # para la tira de scrub y la barra de in/out.
-                    durations[len(clips) - 1] = duration_frames / fps
+                    durations[index] = duration_frames / fps
+                width = info.get("width") or 0
+                height = info.get("height") or 0
+                if width and height:
+                    # tamaño real ya corregido por rotacion (ver probe.py):
+                    # de aqui sale la relacion de aspecto que decide el ancho
+                    # del video y la forma de la miniatura.
+                    sizes[index] = (int(width), int(height))
                 orden += 1
         self._clip_durations = durations
+        self._clip_sizes = sizes
         self.load_clips(clips)
         self._schedule_thumbnails()
+
+    def aspect_ratio_for(self, index: int) -> float:
+        """Relacion de aspecto real del clip. 16/9 cuando no se conoce --
+        pasa con sesiones restauradas de disco, donde no se volvio a correr
+        ffprobe (mismo comportamiento que ya tienen las duraciones).
+        """
+        width, height = self._clip_sizes.get(index, (0, 0))
+        if width > 0 and height > 0:
+            return width / height
+        return 16 / 9
 
     def _schedule_thumbnails(self) -> None:
         if not self.clips:

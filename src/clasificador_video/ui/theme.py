@@ -47,6 +47,13 @@ FLAG_NONE_COLOR = TEXT_3                    # texto de "sin marca"
 PLAYHEAD_HIGHLIGHT = "#f2bd72"              # brillo superior del playhead
 TICK_MINOR_COLOR = "#2e343d"
 TICK_MAJOR_COLOR = "#454d59"
+# fondos de los controles que flotan sobre el video. Semitransparentes
+# para que la imagen se siga viendo detras -- validado en la F0: el alfa
+# se mezcla contra los pixeles del video, no contra negro.
+OVERLAY_BG = "rgba(10, 12, 15, 175)"
+OVERLAY_BORDER = "rgba(255, 255, 255, 40)"
+OVERLAY_SCRIM_FROM = "rgba(0, 0, 0, 0)"
+OVERLAY_SCRIM_TO = "rgba(0, 0, 0, 200)"
 # riel de la scrub bar cuando va ENCIMA del video: un color solido se veria
 # como una banda opaca tapando la imagen (ver ScrubBar.set_over_video).
 TRACK_OVER_VIDEO_RGBA = (255, 255, 255, 33)
@@ -252,6 +259,60 @@ def build_stylesheet() -> str:
         border-radius: {RADIUS_SM}px;
         padding: 6px 14px;
         font-weight: 600;
+    }}
+
+    QWidget#segmentedControl {{
+        background-color: {BG_SURFACE_1};
+        border: 1px solid {LINE};
+        border-radius: {RADIUS_MD}px;
+    }}
+    QPushButton#segmentedButton {{
+        background-color: transparent;
+        border: none;
+        border-right: 1px solid {LINE_SOFT};
+        border-radius: 0px;
+        padding: 4px 9px;
+        color: {TEXT_3};
+        font-family: {MONO_FONT};
+        font-size: {FONT_MICRO}px;
+        font-weight: 500;
+    }}
+    QPushButton#segmentedButton:checked {{
+        background-color: {BG_SURFACE_2};
+        color: {TEXT};
+    }}
+
+    QLabel#overlayScrim {{
+        background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+            stop:0 {OVERLAY_SCRIM_FROM}, stop:1 {OVERLAY_SCRIM_TO});
+        border: none;
+    }}
+    QLabel#overlayFile {{
+        background-color: {OVERLAY_BG};
+        border: 1px solid {OVERLAY_BORDER};
+        border-radius: {RADIUS_MD}px;
+        padding: 5px 10px;
+        color: {TEXT};
+        font-family: {MONO_FONT};
+        font-size: {FONT_BODY}px;
+        font-weight: 600;
+    }}
+    QLabel#overlayBadges {{
+        background-color: {OVERLAY_BG};
+        border: 1px solid {OVERLAY_BORDER};
+        border-radius: {RADIUS_SM}px;
+        padding: 4px 8px;
+        color: {TEXT_2};
+        font-size: {FONT_MICRO}px;
+        font-weight: 700;
+    }}
+    QLabel#overlayTimecode {{
+        background-color: transparent;
+        border: none;
+        color: white;
+        font-family: {MONO_FONT};
+        font-size: {FONT_TIMECODE}px;
+        font-weight: 700;
     }}
 
     QWidget#videoWidget {{
