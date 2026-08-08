@@ -97,10 +97,8 @@ Es el mismo error que el plan maestro tiene anotado en su lista de ejecución
 (*«Mención de `Ctrl+Z` sin implementación»*) y que la F4 va a cerrar. Se me
 coló uno nuevo mientras arreglaba otra cosa.
 
-**Las dos salidas honestas**: implementarlo (son ~15 renglones: seleccionar
-todos los clips del grupo) o quitar el texto hasta que exista. Recomiendo
-**implementarlo en la F5**, que ya toca el encabezado de la hoja — y mientras
-tanto no dejarlo anunciado.
+**✅ Resuelto el mismo día** (commit `57680a3`): Bruno eligió implementarlo en
+vez de esperar a la F5. Ya existe, registrado con `QKeySequence.SelectAll`.
 
 ---
 
@@ -111,7 +109,7 @@ hasta ahora:
 
 | Qué | Por qué está muerto |
 |---|---|
-| `ACTION_KEYS["u"] = "none"` en `keyboard.py` | **Inalcanzable.** `handle_key_press` intercepta la `u` antes —para limpiar in/out— y hace `return`. El router nunca la ve |
+| ~~`ACTION_KEYS["u"] = "none"` en `keyboard.py`~~ | **Inalcanzable.** `handle_key_press` intercepta la `u` antes —para limpiar in/out— y hace `return`. ✅ borrado |
 
 ## 4. Contradicciones con `DECISIONES.md`
 
@@ -121,10 +119,12 @@ hasta ahora:
 | *«No hay tecla de neutral»* | Existe `U`, que limpia in/out | **preguntarle a Bruno** — ver abajo |
 | La tabla de teclado no menciona `U` | `U` está registrada y funciona | idem |
 
-`U` limpia el in/out del clip. Es útil y es anterior al rediseño, pero no está
-en la tabla de teclado acordada. **No la borro por mi cuenta**: o se queda y se
-escribe en `DECISIONES.md`, o se va. Es de las dos cosas que quedan por
-decidir.
+**✅ Resuelto el mismo día** (commit `57680a3`): `U` se queda y ya está escrita
+en la tabla de teclado de `DECISIONES.md`. La frase «no hay tecla de neutral»
+se precisó — habla del flag, no del rango, porque en el rango no hay tecla que
+repetir. `ACTION_KEYS["u"]`, que estaba muerto, se borró.
+
+**Queda pendiente para la F7**: que `P` y `X` vuelvan a neutral al repetirse.
 
 ---
 
@@ -138,7 +138,7 @@ De la tabla de `DECISIONES.md`, contra `_install_shortcuts`:
 | `⇧`+click, y la asignación en lote | ✅ funcionan | — |
 | `←` `→` | ✅ funcionan, pero recorren **todo**, no la cola | F5 |
 | `⌘Z` | ❌ **anunciado y ausente** | F4 |
-| `⌘A` | ❌ **anunciado y ausente** | F5 (ver §2) |
+| `⌘A` | ✅ implementado el 2026-08-08 (ver §2) | — |
 | `,` `.` frame por frame | ❌ | F6 |
 | `S` igual al anterior | ❌ | F7 |
 | `⏎` paleta de cuartos | ❌ | F7 |
@@ -193,3 +193,17 @@ saberlo antes de empezarla, no a mitad.
   una etiqueta que nombra un atajo, hay que comprobar que el atajo exista.
 - **El inventario por clases CSS funciona y es barato.** Diez minutos de
   `grep`, y encontró nueve huecos que tres lecturas del plan no habían visto.
+
+---
+
+## 8. Un bug encontrado de paso
+
+`MpvPlayer.mark_in` y `mark_out` leían `self._mpv.time_pos` **crudo**, mientras
+que `position` y `duration` sí se protegen de que mpv todavía no la reporte —su
+propio comentario lo dice: *«0.0 si mpv todavía no lo reporta (recién
+abierto)»*—. Apretar `I` apenas abierto un clip tiraba
+`TypeError: unsupported operand type(s) for *: 'NoneType' and 'float'`.
+
+Arreglado en el commit `57680a3`, con su test. Apareció al probar a mano el
+`⌘A` recién implementado, no en la suite: **es el tipo de cosa que solo sale
+usando la app**, aunque sea desde un script.
