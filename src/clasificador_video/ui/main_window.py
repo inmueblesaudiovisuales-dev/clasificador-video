@@ -8,6 +8,7 @@ from typing import Callable
 from PySide6.QtCore import Qt, QRunnable, QThreadPool, QTimer, Signal
 from PySide6.QtGui import QKeySequence, QPixmap, QShortcut
 from PySide6.QtWidgets import (
+    QApplication,
     QFileDialog,
     QHBoxLayout,
     QMessageBox,
@@ -305,10 +306,71 @@ class MainWindow(QWidget):
         ]
         for digit in "123456789":
             shortcuts.append((digit, lambda d=digit: self.handle_key_press(d)))
-        self._shortcuts = [
-            QShortcut(QKeySequence(sequence), self, activated=handler)
-            for sequence, handler in shortcuts
-        ]
+
+        # Los de arriba son teclas SUELTAS --letras, digitos, espacio, flechas,
+        # coma y punto-- y un `QShortcut` de contexto `WindowShortcut` se
+        # resuelve ANTES de entregarle la tecla al widget con foco. Sin esta
+        # guarda, escribir "cocina" en el buscador de la hoja dispararia la
+        # velocidad con la `c`... perdon, con la `i` el marcado de in, con la
+        # `o` el de out, y "1" asignaria un cuarto -- mientras el texto ni
+        # siquiera llega al campo.
+        #
+        # No se pudo comprobar en esta maquina: los atajos solo se disparan con
+        # la ventana ACTIVA, y un proceso lanzado desde la terminal no logra
+        # activarse en macOS. Por eso se blinda por construccion en vez de
+        # apostar a que Qt haga lo que uno espera. Los de modificador (⌘Z, ⌘E,
+        # ⌘R, ⌘A) NO se guardan: no chocan con escribir.
+        self._shortcuts = []
+        self._atajos_de_tecla_suelta = []
+        for sequence, handler in shortcuts:
+            con_modificador = (
+                isinstance(sequence, QKeySequence.StandardKey)
+                or (isinstance(sequence, str) and "Ctrl" in sequence)
+            )
+            atajo = QShortcut(
+                QKeySequence(sequence), self,
+                activated=(handler if con_modificador
+                           else self._solo_si_no_escribes(handler)),
+            )
+            self._shortcuts.append(atajo)
+            if not con_modificador:
+                self._atajos_de_tecla_suelta.append(atajo)
+
+        # Se DESACTIVAN mientras escribes, no basta con ignorarlos: un atajo
+        # que se dispara CONSUME la tecla, asi que con solo ignorarla el
+        # buscador se quedaria mudo --ni cambia la velocidad ni aparece la
+        # letra--. Un atajo desactivado no compite, y la tecla llega al campo.
+        app = QApplication.instance()
+        if app is not None:
+            app.focusChanged.connect(self._al_cambiar_el_foco)
+
+    def _al_cambiar_el_foco(self, _viejo, nuevo) -> None:
+        escribiendo = self._es_campo_de_texto(nuevo)
+        for atajo in self._atajos_de_tecla_suelta:
+            atajo.setEnabled(not escribiendo)
+
+    def _solo_si_no_escribes(self, handler: Callable[[], None]) -> Callable[[], None]:
+        """Segunda linea de defensa, por si el foco cambio sin avisar."""
+        def envuelto() -> None:
+            if self.escribiendo_texto():
+                return
+            handler()
+        return envuelto
+
+    @staticmethod
+    def _es_campo_de_texto(widget) -> bool:
+        """Se pregunta por el TIPO y no por cual widget es, para que un campo
+        nuevo quede cubierto sin que nadie se acuerde de venir a agregarlo.
+        Hoy son el buscador de la hoja y el renombrado de cuartos del rail.
+        """
+        from PySide6.QtWidgets import QAbstractSpinBox, QLineEdit, QTextEdit
+
+        return isinstance(widget, (QLineEdit, QTextEdit, QAbstractSpinBox))
+
+    @classmethod
+    def escribiendo_texto(cls) -> bool:
+        """¿El foco esta en un campo donde se escribe?"""
+        return cls._es_campo_de_texto(QApplication.focusWidget())
 
     def closeEvent(self, event) -> None:  # noqa: N802 -- override de Qt
         self._flush_autosave()

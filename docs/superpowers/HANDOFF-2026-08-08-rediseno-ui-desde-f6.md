@@ -315,6 +315,15 @@ están registrados; un entorno sin pantalla no recibe pulsaciones reales.
 .venv/bin/python -m clasificador_video.app
 ```
 
+**Y el buscador de la hoja, escribiendo de verdad.** Las teclas de una sola
+letra (`P`, `X`, `I`, `O`, `L`, `K`, `1`–`9`, `,`, `.`) se **desactivan solas**
+mientras el foco está en un campo de texto, porque si no le robarían la tecla
+al campo. Está construido y probado por su efecto, pero **no se pudo comprobar
+contra el teclado físico**: los atajos solo se disparan con la ventana activa,
+y un proceso lanzado desde la terminal no logra activarse en macOS. Hay que
+abrir la app, hacer click en el buscador y escribir `cocina 1` — tiene que
+aparecer el texto completo y no debe pasar nada más.
+
 **Y una observación de uso, no un bug**: como `1`–`9` **asigna y avanza**, si
 aprietas `1` y luego `P`, el pick cae en el clip **siguiente**. El orden
 natural es al revés —miras, marcas `P`, y asignas el cuarto, que te lleva al

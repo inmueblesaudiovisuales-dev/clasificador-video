@@ -515,6 +515,13 @@ class ClipSheet(QWidget):
         # espaciador por el sobrante y se quedaba en 120 px, donde no cabe
         # ni el placeholder.
         self.search_input.setFixedWidth(230)
+        # Solo toma el foco al hacerle click. Siendo el primer widget que lo
+        # acepta, se lo quedaba SOLO al abrir la app -- y como las teclas de
+        # una letra ceden el paso mientras escribes (MainWindow), eso dejaba
+        # muertas P, X, I, O, L, K y los digitos hasta que clickearas en otro
+        # lado. Mismo criterio que el `NoFocus` de los botones, que existe
+        # para que el espacio reproduzca en vez de activar un boton.
+        self.search_input.setFocusPolicy(Qt.FocusPolicy.ClickFocus)
         self.search_input.textChanged.connect(self._on_filters_changed)
         # el `⌘A` se fue al encabezado de cada grupo, que es a lo que aplica.
         # Va elidido y con minimo cero: es decorativo, y su ancho completo

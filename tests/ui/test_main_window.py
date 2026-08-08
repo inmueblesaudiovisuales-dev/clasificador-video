@@ -1825,3 +1825,129 @@ def test_la_fila_de_teclas_no_promete_lo_que_no_esta_construido(qtbot):
 
     assert " F " not in KEYS_HINT_TEXT
     assert "esc" not in KEYS_HINT_TEXT
+
+
+# --- las teclas sueltas no pueden robarle lo que escribes al buscador --------
+
+
+def test_una_tecla_suelta_no_actua_mientras_escribes(qtbot):
+    """Un `QShortcut` de contexto `WindowShortcut` se resuelve ANTES de
+    entregarle la tecla al widget con foco. Sin guarda, escribir "cocina" en
+    el buscador de la hoja marcaria in con la `i`, out con la `o`, y un "1"
+    asignaria un cuarto -- todo sin que el texto llegue al campo.
+
+    No se pudo comprobar contra el teclado real: los atajos solo se disparan
+    con la ventana ACTIVA, y un proceso lanzado desde la terminal no logra
+    activarse en macOS. Por eso la guarda se prueba por su efecto.
+    """
+    window = _window_with_video(qtbot)
+    window.load_clips([_clip(1, cuarto=None)])
+    window.show()
+    qtbot.waitExposed(window)
+    window.clip_sheet.search_input.setFocus()
+    qtbot.wait(20)
+
+    por_atajo = {s.key().toString(): s for s in window._shortcuts}
+    for tecla in ("L", "K", "I", "O", "P", "X", "1", ",", "."):
+        por_atajo[tecla].activated.emit()
+    qtbot.wait(20)
+
+    clip = window.clips[0]
+    assert clip.categoria_path == [], "un digito asigno cuarto mientras escribias"
+    assert clip.flag == "none", "P o X marcaron el clip mientras escribias"
+    assert clip.in_frame is None and clip.out_frame is None
+    assert window.video_widget.player.speed == 1.0
+    assert window.video_widget.player._mpv.commands == []
+
+
+def test_sin_foco_en_un_campo_las_teclas_si_actuan(qtbot):
+    """La guarda no puede apagar los atajos: solo cede cuando escribes."""
+    window = _window_with_video(qtbot)
+    window.load_clips([_clip(1)])
+    window.show()
+    qtbot.waitExposed(window)
+    window.clip_sheet.search_input.clearFocus()
+    qtbot.wait(20)
+
+    por_atajo = {s.key().toString(): s for s in window._shortcuts}
+    por_atajo["L"].activated.emit()
+    assert window.video_widget.player.speed == 2.0
+
+
+def test_los_atajos_con_modificador_no_llevan_guarda(qtbot):
+    """`⌘Z`, `⌘E` y compañia no chocan con escribir, y guardarlos haria que
+    deshacer dejara de funcionar apenas tocaras el buscador."""
+    window = _window_with_video(qtbot)
+    window.load_clips([_clip(1)])
+    window.show()
+    qtbot.waitExposed(window)
+    window.handle_key_press("p")            # algo que deshacer
+    window.clip_sheet.search_input.setFocus()
+    qtbot.wait(20)
+
+    por_atajo = {s.key().toString(): s for s in window._shortcuts}
+    por_atajo["Ctrl+Z"].activated.emit()
+    assert window.clips[0].flag == "none", "⌘Z no deshizo por estar escribiendo"
+
+
+def test_al_abrir_la_app_ninguna_tecla_esta_bloqueada(qtbot):
+    """El buscador de la hoja era el primer widget que aceptaba foco, asi que
+    se lo quedaba SOLO al abrir. Con las teclas sueltas cediendo el paso
+    mientras escribes, eso dejaba muertas P, X, I, O, L, K y los digitos hasta
+    que clickearas en otro lado -- la app abria sin teclado."""
+    window = _window_with_video(qtbot)
+    window.load_clips([_clip(1)])
+    window.show()
+    qtbot.waitExposed(window)
+    qtbot.wait(20)
+    assert not window.escribiendo_texto(), "el foco arranca en un campo de texto"
+
+    por_atajo = {s.key().toString(): s for s in window._shortcuts}
+    por_atajo["P"].activated.emit()
+    assert window.clips[0].flag == "pick"
+
+
+def test_al_escribir_los_atajos_de_una_tecla_se_DESACTIVAN(qtbot):
+    """No alcanza con que el handler se abstenga: un atajo que se dispara
+    CONSUME la tecla, asi que ignorarla dejaria el buscador mudo --ni cambia
+    la velocidad ni aparece la letra--. Desactivado no compite, y la tecla
+    llega al campo."""
+    window = _window_with_video(qtbot)
+    window.load_clips([_clip(1)])
+    window.show()
+    qtbot.waitExposed(window)
+    sueltos = window._atajos_de_tecla_suelta
+    assert all(a.isEnabled() for a in sueltos)
+
+    window.clip_sheet.search_input.setFocus()
+    qtbot.wait(20)
+    assert not any(a.isEnabled() for a in sueltos), "siguen compitiendo con el campo"
+
+    window.clip_sheet.search_input.clearFocus()
+    qtbot.wait(20)
+    assert all(a.isEnabled() for a in sueltos), "no volvieron al salir del campo"
+
+
+def test_los_de_modificador_nunca_se_desactivan(qtbot):
+    window = _window_with_video(qtbot)
+    window.show()
+    qtbot.waitExposed(window)
+    window.clip_sheet.search_input.setFocus()
+    qtbot.wait(20)
+    con_modificador = [s for s in window._shortcuts
+                       if s not in window._atajos_de_tecla_suelta]
+    assert con_modificador and all(s.isEnabled() for s in con_modificador)
+
+
+def test_el_texto_llega_al_buscador_mientras_esta_enfocado(qtbot):
+    """La prueba de que el campo sigue sirviendo para lo suyo."""
+    window = _window_with_video(qtbot)
+    window.load_clips([_clip(1)])
+    window.show()
+    qtbot.waitExposed(window)
+    window.clip_sheet.search_input.setFocus()
+    qtbot.wait(20)
+    qtbot.keyClicks(window.clip_sheet.search_input, "cocina 1")
+    assert window.clip_sheet.search_input.text() == "cocina 1"
+    assert window.clips[0].categoria_path == []
+    assert window.clips[0].in_frame is None
