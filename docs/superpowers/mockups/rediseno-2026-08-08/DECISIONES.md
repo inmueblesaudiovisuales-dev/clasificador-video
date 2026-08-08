@@ -77,6 +77,13 @@ optimiza el **tiempo de visionado**, no cómo evitarlo:
   es puro peaje. Llegas al clip y ya está corriendo (badge `▶ auto`).
 - **Velocidad con tecla** — `1× / 2× / 4×`. Para juzgar un recorrido no hace
   falta verlo a velocidad real.
+
+  Las teclas son **`J K L`**, la convención de Premiere, Avid y Resolve
+  (decidido el 2026-08-08): `L` acelera y `K` frena. Un editor de video ya las
+  tiene en los dedos, así que no hay nada que aprender — que es mejor que
+  cualquier atajo "más lógico" que haya que memorizar. `J` (reproducir hacia
+  atrás) queda reservada y sin construir: en recorridos de inmuebles no aporta
+  nada, pero darle otro significado la ocuparía para siempre.
 - **Arranque al 25% del clip**, no en el frame 0: el principio siempre es la
   cámara acomodándose.
 - **Precarga del siguiente clip** mientras miras el actual (`siguiente clip
@@ -270,6 +277,8 @@ memoria.
 | `←` `→` | anterior / siguiente **dentro de la cola filtrada** |
 | `,` `.` | frame anterior / siguiente (convención de Premiere) |
 | `espacio` | reproducir / pausar (arranca solo al cambiar de clip) |
+| `L` | acelerar: repetida cicla 1× → 2× → 4×, y arranca si estaba pausado |
+| `K` | freno: vuelve a 1× y pausa |
 | `1`–`9` | asignar cuarto y avanzar |
 | `S` | igual al clip anterior |
 | `⏎` | paleta: buscar o crear cuarto |

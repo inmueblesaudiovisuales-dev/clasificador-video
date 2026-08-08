@@ -211,13 +211,22 @@ def test_el_badge_auto_se_apaga_al_pausar_a_mano(qtbot):
 - Test: `tests/ui/test_video_stage.py`, `tests/ui/test_main_window.py`
 
 Un `SegmentedControl` más, hermano del de calidad, en la misma fila del
-mockup. La tecla la elige `DECISIONES.md`: `1`–`9` están tomadas por los
-cuartos, así que la velocidad va con los mismos botones y sin atajo numérico
-propio — **se controla con click y con `⇧,` / `⇧.`**, que caen al lado de las
-teclas de cuadro.
+mockup. Y las teclas de la convención de la industria.
 
-> **Ojo**: esto último NO está en `DECISIONES.md`. La tabla dice «velocidad con
-> tecla» sin decir cuál. **Preguntarle a Bruno antes de fijarla.**
+**`L` acelera, `K` vuelve a 1× y pausa** (decidido con Bruno el 2026-08-08).
+Es `J K L`, lo que hacen Premiere, Avid y Resolve: Bruno ya lo tiene en los
+dedos de trabajar todos los días, así que no hay nada que aprender. Las tres
+teclas están libres en esta app. Se descartó `⇧,`/`⇧.` —que caen al lado de las
+teclas de cuadro— porque son dos atajos nuevos que memorizar y hacen algo muy
+distinto de las mismas teclas sin `⇧`.
+
+`L` repetida cicla `1× → 2× → 4×` y **arranca la reproducción si estaba
+pausada**: es lo que hace en Premiere y lo que uno espera al apretarla. `K` es
+el freno — vuelve a 1× y pausa de un golpe, sin importar dónde estabas.
+
+**`J` queda reservada.** Reproducir hacia atrás no aporta nada en recorridos de
+inmuebles, así que no se construye; pero tampoco se le da otro significado, o
+el día que sirva ya estaría ocupada por algo que no le corresponde.
 
 - [ ] **Step 1: Escribir los tests que fallan**
 
@@ -236,7 +245,54 @@ def test_el_control_de_velocidad_arranca_en_1x(qtbot):
 ```python
 # tests/ui/test_main_window.py  (agregar)
 
-def test_cambiar_la_velocidad_se_la_pide_al_reproductor(qtbot):
+def test_L_acelera_y_cicla(qtbot):
+    # la convencion de Premiere: repetir `L` va 1x -> 2x -> 4x -> 1x
+    window = _window_with_video(qtbot)
+    window.load_clips([_clip(1)])
+    for esperada in (2.0, 4.0, 1.0):
+        window.handle_key_press("l")
+        assert window.video_widget.player.speed == esperada
+
+
+def test_L_tambien_arranca_la_reproduccion(qtbot):
+    # es lo que hace en Premiere y lo que uno espera al apretarla
+    window = _window_with_video(qtbot)
+    window.load_clips([_clip(1)])
+    window.video_widget.player.pause()
+    window.handle_key_press("l")
+    assert not window.video_widget.player.is_paused
+
+
+def test_K_frena_de_un_golpe(qtbot):
+    # vuelve a 1x Y pausa, sin importar donde estabas
+    window = _window_with_video(qtbot)
+    window.load_clips([_clip(1)])
+    window.handle_key_press("l")
+    window.handle_key_press("l")
+    window.handle_key_press("k")
+    assert window.video_widget.player.speed == 1.0
+    assert window.video_widget.player.is_paused
+
+
+def test_J_no_hace_nada_todavia(qtbot):
+    # reservada para reproducir hacia atras: no se construye, pero tampoco se
+    # le da otro significado
+    window = _window_with_video(qtbot)
+    window.load_clips([_clip(1)])
+    window.handle_key_press("j")
+    assert window.video_widget.player.speed == 1.0
+
+
+def test_el_control_de_velocidad_refleja_la_tecla(qtbot):
+    # si el segmento no sigue a `L`, el control y el video dicen cosas
+    # distintas
+    window = _window_with_video(qtbot)
+    window.load_clips([_clip(1)])
+    window.handle_key_press("l")
+    assert window.video_stage.speed.current() == "2×"
+
+
+def test_tocar_el_control_se_lo_pide_al_reproductor(qtbot):
     window = _window_with_video(qtbot)
     window.load_clips([_clip(1)])
     window.video_stage.speed.selected.emit("2×")
@@ -244,7 +300,7 @@ def test_cambiar_la_velocidad_se_la_pide_al_reproductor(qtbot):
 
 
 def test_la_velocidad_se_conserva_al_cambiar_de_clip(qtbot):
-    """Si volviera a 1x en cada clip, habria que reelegirla 128 veces."""
+    # si volviera a 1x en cada clip, habria que reelegirla 128 veces
     window = _window_with_video(qtbot)
     window.load_clips([_clip(1), _clip(2)])
     window.video_stage.speed.selected.emit("4×")
