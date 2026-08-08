@@ -1,5 +1,10 @@
 # Análisis post-F2: la app contra el mockup — 2026-08-08
 
+> **Superado por [`ANALISIS-2026-08-08-post-f3.md`](ANALISIS-2026-08-08-post-f3.md)**,
+> el punto de control hecho después de la F2.1 y la F3. Este documento queda
+> como registro de qué se arregló y por qué; para saber **qué falta hoy**, ir al
+> otro.
+
 Punto de control obligatorio del
 [plan maestro](plans/2026-08-08-rediseno-ui-fidelidad-al-mockup.md): rehacer el
 análisis sobre el código nuevo antes de escribir el detalle de la F3.
