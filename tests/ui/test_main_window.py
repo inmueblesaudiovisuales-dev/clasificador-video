@@ -2952,3 +2952,34 @@ def test_sin_proxies_el_contador_queda_escondido(qtbot, monkeypatch, tmp_path):
     _esperar_a_los_proxies(window)
 
     assert window.status_bar.proxy_label.isHidden()
+
+
+# --- switch Clip | Hoja en la barra de titulo (F10) --------------------
+
+
+def test_el_switch_de_la_barra_sigue_al_modo(qtbot):
+    """Una sola vista del mismo estado: alternar con ⇥ tiene que dejar el
+    switch como corresponde, sin un segundo «en que modo estoy»."""
+    window = _window(qtbot)
+    assert window.title_bar.mode_switch.current() == "Clip"
+    window.alternar_modo_hoja()
+    assert window.title_bar.mode_switch.current() == "Hoja"
+    window.alternar_modo_hoja()
+    assert window.title_bar.mode_switch.current() == "Clip"
+
+
+def test_clickear_el_switch_cambia_de_modo(qtbot):
+    window = _window(qtbot)
+    window.title_bar.mode_switch.buttons[1].click()
+    assert window._modo_hoja
+    window.title_bar.mode_switch.buttons[0].click()
+    assert not window._modo_hoja
+
+
+def test_el_switch_no_le_quita_ancho_al_video(qtbot):
+    """Un minimo de layout se propaga hasta la ventana. Los chips de filtro
+    ya empujaron el minimo de la hoja de 520 a 591 px en la F7."""
+    window = _window(qtbot)
+    window.resize(1150, 800)
+    window.show()
+    assert window.title_bar.minimumSizeHint().width() <= 1150

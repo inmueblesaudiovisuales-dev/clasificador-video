@@ -253,6 +253,7 @@ class MainWindow(QWidget):
         self.title_bar = TitleBar()
         self.title_bar.set_project(project_name, 0)
         self.title_bar.export_requested.connect(self._on_export_manifest)
+        self.title_bar.mode_toggled.connect(self.alternar_modo_hoja)
 
         self.room_rail = RoomRail()
         self.room_rail.import_requested.connect(self._on_import_folders)
@@ -1423,6 +1424,10 @@ class MainWindow(QWidget):
         for panel in (self.video_stage, self.tool_column):
             panel.setVisible(not self._modo_hoja)
         self.clip_sheet.set_modo_hoja(self._modo_hoja)
+        # el switch de la barra de titulo es una VISTA de `_modo_hoja`, no
+        # una segunda copia: se le avisa desde aca, que es el unico lugar
+        # donde el modo cambia.
+        self.title_bar.set_modo_hoja(self._modo_hoja)
         self._resize_video_stage()
 
     def _pasar_cuadro(self, delta: int) -> None:

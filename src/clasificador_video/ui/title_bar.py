@@ -5,6 +5,11 @@ from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import QHBoxLayout, QLabel, QPushButton, QWidget
 
 from clasificador_video.ui import theme
+from clasificador_video.ui.segmented import SegmentedControl
+
+MODO_CLIP = "Clip"
+MODO_HOJA = "Hoja"
+TECLA_MODO = "⇥"
 
 
 def _boton(texto: str, atajo: str, object_name: str) -> QPushButton:
@@ -27,11 +32,13 @@ class TitleBar(QWidget):
 
     export_requested = Signal()
     rooms_requested = Signal()
+    mode_toggled = Signal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setObjectName("titleBar")
         self.setFixedHeight(theme.TITLEBAR_HEIGHT)
+        self._modo_hoja = False
 
         layout = QHBoxLayout(self)
         layout.setContentsMargins(13, 0, 13, 0)
@@ -52,6 +59,14 @@ class TitleBar(QWidget):
         self.saved_label = QLabel("")
         self.saved_label.setObjectName("savedIndicator")
 
+        # el switch de modo: reusa el control segmentado de la velocidad y la
+        # calidad en vez de inventar un widget nuevo. El mockup lo pone
+        # despues del subtitulo y antes del espaciador.
+        self.mode_switch = SegmentedControl(
+            [MODO_CLIP, f"{MODO_HOJA}  {TECLA_MODO}"], object_name="modeSwitch"
+        )
+        self.mode_switch.selected.connect(self._al_elegir_modo)
+
         self.rooms_button = _boton("Cuartos", "⌘R", "railButton")
         self.export_button = _boton("Exportar a Premiere", "⌘E", "exportButton")
         self.rooms_button.clicked.connect(self.rooms_requested.emit)
@@ -60,6 +75,7 @@ class TitleBar(QWidget):
         layout.addWidget(self.mark)
         layout.addWidget(self.project_label)
         layout.addWidget(self.subtitle_label)
+        layout.addWidget(self.mode_switch)
         layout.addStretch(1)
         layout.addWidget(self.saved_led)
         layout.addWidget(self.saved_label)
@@ -69,6 +85,30 @@ class TitleBar(QWidget):
     def set_project(self, nombre: str, total_clips: int) -> None:
         self.project_label.setText(nombre)
         self.subtitle_label.setText(f"{total_clips} clips · Sony FX30")
+
+    def set_modo_hoja(self, en_hoja: bool) -> None:
+        """Sincroniza el switch con el modo. NO emite `mode_toggled`: el
+        switch es una vista del estado, no una segunda copia -- si emitiera,
+        refrescar la barra dispararia el cambio de modo en bucle.
+
+        La tecla se dibuja del lado INACTIVO, como en el mockup: anuncia a
+        donde te lleva, no donde estas.
+        """
+        self._modo_hoja = en_hoja
+        etiquetas = (
+            (MODO_CLIP, f"{MODO_HOJA}  {TECLA_MODO}") if not en_hoja
+            else (f"{MODO_CLIP}  {TECLA_MODO}", MODO_HOJA)
+        )
+        for boton, etiqueta in zip(self.mode_switch.buttons, etiquetas):
+            boton.setText(etiqueta)
+        self.mode_switch.set_current(etiquetas[1 if en_hoja else 0])
+
+    def _al_elegir_modo(self, etiqueta: str) -> None:
+        # clickear el modo en el que ya estas no hace nada: si emitiera, el
+        # click y el `⇥` se contradirian -- clickear `Clip` estando en clip
+        # te sacaria a la hoja.
+        if etiqueta.startswith(MODO_HOJA) != self._modo_hoja:
+            self.mode_toggled.emit()
 
     def set_saved_seconds(self, segundos: int | None) -> None:
         self.saved_label.setText("" if segundos is None else f"Guardado hace {segundos} s")

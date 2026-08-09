@@ -59,3 +59,56 @@ def test_tiene_objectnames_para_el_tema(qtbot):
     bar = _bar(qtbot)
     assert bar.objectName() == "titleBar"
     assert bar.export_button.objectName() == "exportButton"
+
+
+# --- switch Clip | Hoja (F10) ------------------------------------------
+
+
+def test_el_switch_arranca_en_clip(qtbot):
+    bar = _bar(qtbot)
+    assert bar.mode_switch.current() == "Clip"
+
+
+def test_la_tecla_se_dibuja_del_lado_al_que_te_lleva(qtbot):
+    """Detalle del mockup que vale la pena copiar: el `⇥` se dibuja sobre
+    la opcion INACTIVA, porque anuncia a donde vas, no donde estas."""
+    bar = _bar(qtbot)
+    textos = [b.text() for b in bar.mode_switch.buttons]
+    assert textos == ["Clip", "Hoja  ⇥"]
+
+    bar.set_modo_hoja(True)
+    textos = [b.text() for b in bar.mode_switch.buttons]
+    assert textos == ["Clip  ⇥", "Hoja"]
+
+
+def test_set_modo_hoja_marca_la_opcion_correcta(qtbot):
+    bar = _bar(qtbot)
+    bar.set_modo_hoja(True)
+    assert bar.mode_switch.current().startswith("Hoja")
+    bar.set_modo_hoja(False)
+    assert bar.mode_switch.current().startswith("Clip")
+
+
+def test_clickear_el_switch_pide_cambiar_de_modo(qtbot):
+    bar = _bar(qtbot)
+    pedidos = []
+    bar.mode_toggled.connect(lambda: pedidos.append(1))
+    bar.mode_switch.buttons[1].click()
+    assert pedidos == [1]
+
+
+def test_clickear_el_modo_en_el_que_ya_estas_no_hace_nada(qtbot):
+    """Si emitiera igual, el ⇥ y el click se contradirian: clickear `Clip`
+    estando en clip te sacaria a la hoja."""
+    bar = _bar(qtbot)
+    pedidos = []
+    bar.mode_toggled.connect(lambda: pedidos.append(1))
+    bar.mode_switch.buttons[0].click()
+    assert pedidos == []
+
+
+def test_los_botones_del_switch_no_toman_el_foco(qtbot):
+    """O el espacio activa el boton enfocado en vez de reproducir."""
+    bar = _bar(qtbot)
+    for boton in bar.mode_switch.buttons:
+        assert boton.focusPolicy() == Qt.FocusPolicy.NoFocus

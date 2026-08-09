@@ -146,6 +146,10 @@ LETTER_SPACING_CAPS = 1.2  # tracking de las etiquetas en mayusculas
 # ese nombre en macOS -- Qt la busca, no la encuentra, y paga ~370 ms de
 # populacion de alias de fuentes en cada arranque. Medido el 2026-08-08.
 MONO_FONT = 'Menlo, "SF Mono", "JetBrains Mono", monospace'
+# La de interfaz. Solo hace falta declararla donde hay que DESHACER la
+# monoespaciada de una regla mas general (el switch de modo, cuyos botones
+# son `segmentedButton` y heredan la mono de la velocidad y la calidad).
+SANS_FONT = '-apple-system, "Helvetica Neue", sans-serif'
 
 
 
@@ -413,6 +417,23 @@ def build_stylesheet() -> str:
     QWidget#speedSegmented QPushButton#segmentedButton:checked {{
         background-color: {con_alfa_qss(CURRENT_COLOR, SPEED_ON_ALPHA)};
         color: {aclarar(CURRENT_COLOR, SPEED_ON_TEXT_MIX)};
+    }}
+
+    /* el switch `Clip | Hoja` de la barra de titulo: mismo control
+       segmentado, pero NO flota sobre el video, asi que su caja es opaca
+       --sin el alfa que los otros dos necesitan para leerse contra una
+       pared blanca-- y su texto va en la fuente de interfaz, no en la
+       monoespaciada de los numeros de velocidad y calidad. */
+    QWidget#modeSwitch {{
+        background-color: {BG_SURFACE_1};
+        border: 1px solid {LINE};
+        border-radius: {RADIUS_MD}px;
+    }}
+    QWidget#modeSwitch QPushButton#segmentedButton {{
+        font-family: {SANS_FONT};
+        font-size: {FONT_SMALL}px;
+        font-weight: 550;
+        padding: 4px 10px;
     }}
 
     QWidget#titleBar {{
