@@ -1003,3 +1003,54 @@ def test_el_tinte_se_va_al_terminar_la_pincelada(qtbot):
     hoja.congelar_acomodo(False)
     hoja.limpiar_tinte()
     assert hoja.item_widgets[0].plan_de_pintado()["tinte"] is None
+
+
+# --- F8 Task 19: la barra de seleccion multiple ------------------------------
+
+
+def test_la_barra_de_seleccion_aparece_con_mas_de_un_clip(qtbot):
+    """Con uno solo no hay nada que decir: es el flujo normal."""
+    hoja = _sheet(qtbot, [_thumb(i) for i in range(1, 8)])
+    assert hoja.batch_bar.isHidden()
+    hoja.set_selected({1, 2, 3})
+    assert not hoja.batch_bar.isHidden()
+    assert "3 clips" in hoja.batch_bar.label.text()
+
+
+def test_con_un_solo_clip_seleccionado_la_barra_no_se_ve(qtbot):
+    hoja = _sheet(qtbot, [_thumb(i) for i in range(1, 5)])
+    hoja.set_selected({2})
+    assert hoja.batch_bar.isHidden()
+
+
+def test_al_vaciar_la_seleccion_la_barra_se_va(qtbot):
+    hoja = _sheet(qtbot, [_thumb(i) for i in range(1, 5)])
+    hoja.set_selected({1, 2})
+    hoja.set_selected(set())
+    assert hoja.batch_bar.isHidden()
+
+
+def test_la_barra_solo_anuncia_teclas_que_existen(qtbot):
+    """El detector que ya encontro cuatro atajos fantasma. Aqui se comprueba
+    contra la lista de la propia barra; que existan de verdad lo verifica el
+    test de la ventana."""
+    hoja = _sheet(qtbot, [_thumb(i) for i in range(1, 5)])
+    hoja.set_selected({1, 2})
+    texto = hoja.batch_bar.hints_text()
+    for tecla in ("1", "9", "⏎", "P", "X", "⇧P", "⌘Z", "esc"):
+        assert tecla in texto
+
+
+def test_re_aplicar_el_mismo_ancho_no_reescala_la_miniatura(qtbot):
+    """Re-colocar la grilla llama a `apply_width` en las 128 tarjetas. Sin
+    esta guarda cada una tiraba su cache y volvia a escalar su miniatura:
+    medido con cProfile, el 40% del costo de una tecla de cuarto."""
+    tarjeta = _card_con_frames(qtbot, 12)
+    tarjeta.apply_width(150)
+    cache = tarjeta._scaled_cache
+    escalados = dict(cache)
+    tarjeta.apply_width(150)
+    assert tarjeta._scaled_cache is cache        # ni siquiera se recreo
+    assert tarjeta._scaled_cache == escalados
+    tarjeta.apply_width(190)                     # otro ancho SI reescala
+    assert tarjeta._scaled_cache != escalados

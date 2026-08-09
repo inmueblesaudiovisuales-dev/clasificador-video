@@ -2640,3 +2640,21 @@ def test_los_digitos_NO_pueden_ser_atajos(qtbot):
     registrados = {s.key().toString() for s in window._shortcuts}
     for digito in "123456789":
         assert digito not in registrados, f"{digito} como atajo mata el pincel"
+
+
+def test_todas_las_teclas_de_la_barra_de_seleccion_existen(qtbot):
+    """Misma guarda que la fila de teclas del video: una barra que promete
+    `⇧P` cuando `⇧P` no hace nada es peor que no ponerla."""
+    window = _window_with_video(qtbot, rooms=("Cocina",))
+    window.load_clips([_clip(i) for i in range(1, 6)])
+    window._on_selection_changed([1, 2, 3])
+    texto = window.clip_sheet.batch_bar.hints_text()
+    registrados = {s.key().toString() for s in window._shortcuts}
+    equivalencias = {"⏎": "Return", "P": "P", "X": "X", "⇧P": "Shift+P",
+                     "⌘Z": "Ctrl+Z", "esc": "Esc"}
+    for simbolo, secuencia in equivalencias.items():
+        if simbolo in texto:
+            assert secuencia in registrados, f"la barra promete {simbolo}"
+    # los digitos no son atajos (matarian el pincel): se comprueban por su
+    # camino real
+    assert window.clips[1].categoria_path == []

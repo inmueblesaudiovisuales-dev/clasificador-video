@@ -111,6 +111,9 @@ SAME_ROW_TAG_ALPHA = 204    # rgba(232,163,61,.8)
 # (`.card.painted` del mockup, rgba(126,158,94,.2)). Es del GESTO, no del
 # clip: se va al soltar la tecla.
 BRUSH_TINT_ALPHA = 51
+# La barra de seleccion multiple (`.batch` del mockup).
+BATCH_BG = "#1a2130"
+BATCH_BORDER = "#2e3b57"
 # La paleta `⏎` tapa video a proposito: se esta leyendo una lista.
 PALETTE_BG = "rgba(20, 23, 28, 247)"     # rgba(20,23,28,.97) del mockup
 PALETTE_BORDER = "#333c4a"
@@ -601,6 +604,25 @@ def build_stylesheet() -> str:
         color: {TEXT_3};
         font-size: {FONT_MICRO}px;
         padding: 7px 12px;
+    }}
+    /* La barra de seleccion multiple. Va en el azul del rango --el color de
+       "esto es un conjunto marcado"-- y no en el ambar de la cola: son cosas
+       distintas y compartir color las haria parecer lo mismo. */
+    QWidget#batchBar {{
+        background-color: {BATCH_BG};
+        border: 1px solid {BATCH_BORDER};
+        border-radius: {RADIUS_LG}px;
+    }}
+    QLabel#batchCount {{
+        background-color: transparent;
+        color: {aclarar(TRIM_COLOR, 0.55)};
+        font-size: {FONT_SMALL}px;
+        font-weight: 650;
+    }}
+    QLabel#batchHint {{
+        background-color: transparent;
+        color: {TEXT_2};
+        font-size: {FONT_MICRO}px;
     }}
     QLabel#toolHint {{
         color: {TEXT_3};

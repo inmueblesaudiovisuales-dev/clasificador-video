@@ -427,6 +427,12 @@ class ClipCard(QWidget):
 
     def apply_width(self, ancho: int) -> None:
         alto = max(1, round(ancho / max(self._clip.aspect_ratio, 0.01)))
+        # Sale temprano si el tamaño no cambio. Re-colocar la grilla llama a
+        # esto en las 128 tarjetas, y sin la guarda cada una tiraba su cache y
+        # volvia a escalar su miniatura: medido con cProfile, el 40% del costo
+        # de una tecla de cuarto se iba en reescalar imagenes identicas.
+        if (ancho, alto) == (self.width(), self.height()) and self._scaled_cache:
+            return
         self.setFixedSize(ancho, alto)
         self._scaled_cache = {}
         indice = self._shown_index
@@ -608,6 +614,53 @@ class _Chip(QPushButton):
             self.setText(f"{self._etiqueta}  {cuantos}")
 
 
+class _BarraDeSeleccion(QWidget):
+    """El `.batch` del mockup: cuantos clips llevas y que puedes hacerles.
+
+    Aparece SOLO con mas de uno: con un clip seleccionado no hay nada que
+    decir, es el flujo normal. Y solo nombra teclas que existen -- una barra
+    que promete `⇧P` cuando `⇧P` no hace nada es peor que no ponerla.
+    """
+
+    ATAJOS = (
+        ("asignar", "1 – 9"),
+        ("buscar cuarto", "⏎"),
+        ("marcar", "P  X  ⇧P"),
+        ("deshacer", "⌘Z"),
+        ("salir", "esc"),
+    )
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setObjectName("batchBar")
+        self.setAttribute(Qt.WA_StyledBackground, True)
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(12, 8, 12, 8)
+        layout.setSpacing(11)
+        self.label = QLabel("")
+        self.label.setObjectName("batchCount")
+        layout.addWidget(self.label)
+        layout.addStretch(1)
+        self._hints = []
+        for que, teclas in self.ATAJOS:
+            hint = QLabel(f"{que}  {teclas}")
+            hint.setObjectName("batchHint")
+            layout.addWidget(hint)
+            self._hints.append(hint)
+        self.hide()
+
+    def hints_text(self) -> str:
+        return "  ".join(h.text() for h in self._hints)
+
+    def set_count(self, cuantos: int) -> None:
+        if cuantos <= 1:
+            self.hide()
+            return
+        self.label.setText(f"{cuantos} clips seleccionados")
+        self.show()
+        self.raise_()
+
+
 class ClipSheet(QWidget):
     """Hoja de contactos: los clips agrupados por cuarto.
 
@@ -733,6 +786,10 @@ class ClipSheet(QWidget):
         self._scroll.setWidgetResizable(True)
         self._scroll.setWidget(self._content)
         self._scroll.viewport().installEventFilter(self)
+
+        # flota sobre la hoja, pegada abajo: no le quita alto a las tarjetas
+        # y aparece justo donde estas mirando cuando seleccionas
+        self.batch_bar = _BarraDeSeleccion(self)
         self._scroll.setFrameShape(QScrollArea.Shape.NoFrame)
         self._scroll.setHorizontalScrollBarPolicy(
             Qt.ScrollBarPolicy.ScrollBarAlwaysOff
@@ -1167,9 +1224,21 @@ class ClipSheet(QWidget):
         segunda copia: dos vistas del mismo estado se contradicen solas."""
         return self._current
 
+    def _colocar_barra_de_seleccion(self) -> None:
+        if self.batch_bar.isHidden():
+            return
+        self.batch_bar.adjustSize()
+        margen = 13
+        self.batch_bar.setGeometry(
+            margen, self.height() - self.batch_bar.height() - 12,
+            max(1, self.width() - 2 * margen), self.batch_bar.height(),
+        )
+        self.batch_bar.raise_()
+
     def resizeEvent(self, event) -> None:  # noqa: N802 -- override de Qt
         super().resizeEvent(event)
         self._relayout()
+        self._colocar_barra_de_seleccion()
         self._fade.setGeometry(
             0, self._scroll.height() - FADE_HEIGHT, self._scroll.width(), FADE_HEIGHT
         )
@@ -1212,6 +1281,8 @@ class ClipSheet(QWidget):
 
     def set_selected(self, indices: set[int]) -> None:
         self._selected = set(indices)
+        self.batch_bar.set_count(len(self._selected))
+        self._colocar_barra_de_seleccion()
         self._redraw()
         self.selection_changed.emit(self.selected_indices())
 
