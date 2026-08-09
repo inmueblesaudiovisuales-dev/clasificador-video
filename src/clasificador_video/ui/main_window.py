@@ -1465,6 +1465,24 @@ class MainWindow(QWidget):
         Todo lo que va indexado por clip tiene que correrse junto, o queda
         describiendo al clip equivocado.
         """
+        cuantos = len(self.bins.clips_de(nombre))
+        if not cuantos:
+            return
+        # La UNICA accion destructiva del programa, y en el menu esta pegada
+        # a «Colapsar». Se lleva los clips con toda su clasificacion Y el
+        # historial --o sea que `⌘Z` tampoco la deshace-- y ademas se
+        # guarda. Un clic y no hay vuelta atras: por eso pregunta.
+        respuesta = QMessageBox.question(
+            self, "Quitar del proyecto",
+            f"¿Quitar «{nombre}» del proyecto?\n\n"
+            f"Se van sus {cuantos} clips con su clasificación y sus marcas, "
+            "y esto no se puede deshacer con ⌘Z.\n\n"
+            "No se borra nada del disco.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if respuesta != QMessageBox.StandardButton.Yes:
+            return
         quitados = self.bins.quitar(nombre)
         if not quitados:
             return

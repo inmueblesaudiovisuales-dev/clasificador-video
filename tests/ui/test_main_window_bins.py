@@ -50,6 +50,19 @@ def _probe_falso(path):
     }
 
 
+@pytest.fixture(autouse=True)
+def confirmar_por_defecto(monkeypatch):
+    """«Quitar del proyecto» pregunta antes, y un cartel modal cuelga la
+    suite bajo `offscreen`. Por defecto se contesta que si, para que cada
+    test hable de lo suyo; los dos que prueban el cartel vuelven a
+    parchearlo con lo que necesitan y ganan, porque se aplica despues.
+    """
+    from PySide6.QtWidgets import QMessageBox
+
+    monkeypatch.setattr(QMessageBox, "question",
+                        lambda *a, **k: QMessageBox.StandardButton.Yes)
+
+
 @pytest.fixture
 def ventana(qtbot):
     """Misma forma que `_window` en test_main_window.py -- no hay una
@@ -920,3 +933,56 @@ def test_vaciar_el_proyecto_apaga_el_video(qtbot, ventana):
     assert ventana.video_widget.player.is_paused
     assert ("stop",) in ventana.video_widget.player._mpv.commands
     assert not ventana._auto_reproduciendo
+
+
+# --- «Quitar del proyecto» pregunta antes ------------------------------------
+
+
+def _responder(monkeypatch, respuesta):
+    """Doble del cartel de confirmacion. Devuelve las llamadas para poder
+    mirar QUE se le dijo a Bruno, no solo que se le pregunto algo."""
+    from PySide6.QtWidgets import QMessageBox
+
+    llamadas = []
+
+    def falso(_padre, titulo, texto, *a, **k):
+        llamadas.append((titulo, texto))
+        return respuesta
+
+    monkeypatch.setattr(QMessageBox, "question", falso)
+    return llamadas
+
+
+def test_quitar_un_bin_pregunta_antes(qtbot, ventana, monkeypatch):
+    """Es la unica accion destructiva del programa y esta pegada a
+    «Colapsar» en el mismo menu. Se lleva los clips con su clasificacion Y
+    el historial, asi que `⌘Z` tampoco la deshace."""
+    from PySide6.QtWidgets import QMessageBox
+
+    ventana.load_clips([_clip(0, "/cam/A.MP4"), _clip(1, "/cam/B.MP4"),
+                        _clip(2, "/dron/D.MP4")])
+    ventana.bins.agregar("Sony", Path("/cam"), [0, 1])
+    ventana.bins.agregar("Dron", Path("/dron"), [2])
+    llamadas = _responder(monkeypatch, QMessageBox.StandardButton.Yes)
+
+    ventana._on_bin_quitado("Sony")
+
+    assert len(llamadas) == 1
+    _, texto = llamadas[0]
+    assert "Sony" in texto and "2" in texto
+    assert "disco" in texto  # que NO se borra nada del disco
+    assert len(ventana.clips) == 1
+
+
+def test_decir_que_no_deja_todo_como_estaba(qtbot, ventana, monkeypatch):
+    from PySide6.QtWidgets import QMessageBox
+
+    ventana.load_clips([_clip(0, "/cam/A.MP4"), _clip(1, "/dron/D.MP4")])
+    ventana.bins.agregar("Sony", Path("/cam"), [0])
+    ventana.bins.agregar("Dron", Path("/dron"), [1])
+    _responder(monkeypatch, QMessageBox.StandardButton.No)
+
+    ventana._on_bin_quitado("Sony")
+
+    assert len(ventana.clips) == 2
+    assert ventana.bins.nombres() == ["Sony", "Dron"]
