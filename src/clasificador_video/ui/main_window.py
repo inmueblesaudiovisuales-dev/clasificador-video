@@ -23,7 +23,7 @@ from clasificador_video.autosave import save_session
 from clasificador_video.bins import BinTree
 from clasificador_video.filters import FilterState, cola, contar
 from clasificador_video.history import History, HistoryEntry
-from clasificador_video.ingest import IngestTree
+from clasificador_video.ingest import IngestTree, archivos_de_video
 from clasificador_video.keyboard import KeyboardRouter
 from clasificador_video.manifest import Clip, Manifest
 from clasificador_video.player import SPEED_PROFILES
@@ -1142,6 +1142,38 @@ class MainWindow(QWidget):
         self._resize_video_stage()
         self._autosave()
 
+    def agregar_clips(self, nuevos: list[Clip], nombre_de_bin: str,
+                      origen: Path) -> None:
+        """Suma material SIN reiniciar el proyecto.
+
+        `load_clips` es para material nuevo y por eso limpia todo: historial,
+        proxies, bins, tarjetas. Usarla para agregar es lo que hacia que al
+        importar una segunda carpeta se cayeran las portadas ya generadas y
+        los proxies ya enganchados.
+
+        Aqui los indices de lo que ya estaba NO se mueven, y por eso todo lo
+        que va indexado por clip --`_proxy_sizes`, `_clip_durations`,
+        `_clip_sizes`, `_clip_rotations`, el historial-- sigue siendo valido
+        sin tocarlo.
+        """
+        if not nuevos:
+            return
+        primero = len(self.clips)
+        for offset, clip in enumerate(nuevos):
+            # `orden` es el numero que se ve en la tarjeta y el que viaja al
+            # manifest: el que traiga el clip nuevo no sabe de los que ya
+            # estaban, asi que se renumera desde el final.
+            clip.orden = primero + offset + 1
+            self.clips.append(clip)
+        indices = list(range(primero, len(self.clips)))
+        if nombre_de_bin in self.bins.nombres():
+            self.bins.sumar(nombre_de_bin, indices)
+        else:
+            self.bins.agregar(nombre_de_bin, origen, indices)
+        self._refresh_sheet()
+        self._schedule_thumbnails()
+        self._autosave()
+
     def _autosave(self) -> None:
         if self.session_path is None:
             return
@@ -1187,58 +1219,107 @@ class MainWindow(QWidget):
             self._write_autosave_now()
         self._autosave_pool.waitForDone(2000)
 
-    def _load_clips_from_ingest(self) -> None:
+    def _medir(self, archivos: list[Path],
+               desde: int = 0) -> tuple[list[Clip], dict[str, dict]]:
+        """Corre `ffprobe` sobre cada archivo y arma los `Clip`.
+
+        Vive aparte porque hay DOS caminos que miden material --cargar de
+        cero y agregar-- y tener la misma lectura escrita dos veces era
+        pedir que se desincronizaran.
+
+        `desde` es el indice del primer clip nuevo: todo lo que la ventana
+        guarda por INDICE de clip (duraciones, tamaños, rotaciones) sale de
+        aqui ya corrido, para que agregar no pise lo que ya estaba.
+        Los archivos que no se pueden leer se saltan, no cortan la tanda.
+        """
         clips: list[Clip] = []
-        durations: dict[int, float] = {}
-        sizes: dict[int, tuple[int, int]] = {}
-        rotations: dict[int, int] = {}
-        orden = 1
-        for folder in self.ingest_tree.top_level_folders():
-            for video in folder.files:
-                try:
-                    info = self._probe_clip(video)
-                except Exception:
-                    continue
-                clips.append(Clip(orden=orden, ruta=video, categoria_path=[], fps=info["fps"]))
-                index = len(clips) - 1
-                fps = info.get("fps") or 0
-                duration_frames = info.get("duration_frames")
-                if fps and duration_frames:
-                    # duracion real del clip, solo en memoria -- no toca el
-                    # contrato del manifest.
-                    durations[index] = duration_frames / fps
-                width = info.get("width") or 0
-                height = info.get("height") or 0
-                if width and height:
-                    # tamaño real ya corregido por rotacion (ver probe.py):
-                    # de aqui sale la relacion de aspecto que decide el ancho
-                    # del video y la forma de la miniatura.
-                    sizes[index] = (int(width), int(height))
-                rotations[index] = int(info.get("rotation") or 0)
-                orden += 1
-        # Si NINGUNO se pudo leer, no es un archivo corrupto: es que falta
-        # el programa que lee los videos. Sin este aviso el sintoma era una
-        # carpeta importada con cero clips y ninguna explicacion -- y en la
-        # computadora de un compañero, sin ffprobe, ese seria el sintoma de
-        # todo. Encontrado armando el paquete.
-        archivos = sum(len(f.files) for f in self.ingest_tree.top_level_folders())
+        duraciones: dict[int, float] = {}
+        tamanos: dict[int, tuple[int, int]] = {}
+        rotaciones: dict[int, int] = {}
+        for video in archivos:
+            try:
+                info = self._probe_clip(video)
+            except Exception:
+                continue
+            index = desde + len(clips)
+            clips.append(Clip(orden=index + 1, ruta=video, categoria_path=[],
+                              fps=info["fps"]))
+            fps = info.get("fps") or 0
+            duration_frames = info.get("duration_frames")
+            if fps and duration_frames:
+                # duracion real del clip, solo en memoria -- no toca el
+                # contrato del manifest.
+                duraciones[index] = duration_frames / fps
+            width = info.get("width") or 0
+            height = info.get("height") or 0
+            if width and height:
+                # tamaño real ya corregido por rotacion (ver probe.py):
+                # de aqui sale la relacion de aspecto que decide el ancho
+                # del video y la forma de la miniatura.
+                tamanos[index] = (int(width), int(height))
+            rotaciones[index] = int(info.get("rotation") or 0)
+        return clips, {"duraciones": duraciones, "tamanos": tamanos,
+                       "rotaciones": rotaciones}
+
+    def _avisar_que_no_se_pudo_leer_nada(self, cuantos: int) -> None:
+        """Si NINGUNO se pudo leer, no es un archivo corrupto: es que falta
+        el programa que lee los videos. Sin este aviso el sintoma era una
+        carpeta importada con cero clips y ninguna explicacion -- y en la
+        computadora de un compañero, sin ffprobe, ese seria el sintoma de
+        todo. Encontrado armando el paquete.
+        """
+        QMessageBox.warning(
+            self, "No se pudo leer el material",
+            f"Se encontraron {cuantos} archivos de video pero no se pudo leer "
+            "ninguno.\n\nSuele significar que falta el programa que la app usa "
+            "para leerlos (ffprobe).",
+        )
+
+    def _load_clips_from_ingest(self) -> None:
+        archivos = [
+            video
+            for folder in self.ingest_tree.top_level_folders()
+            for video in folder.files
+        ]
+        clips, medidas = self._medir(archivos, desde=0)
         if archivos and not clips:
-            QMessageBox.warning(
-                self, "No se pudo leer el material",
-                f"Se encontraron {archivos} archivos de video pero no se pudo leer "
-                "ninguno.\n\nSuele significar que falta el programa que la app usa "
-                "para leerlos (ffprobe).",
-            )
+            self._avisar_que_no_se_pudo_leer_nada(len(archivos))
             return
 
-        self._clip_durations = durations
-        self._clip_sizes = sizes
-        self._clip_rotations = rotations
+        self._clip_durations = medidas["duraciones"]
+        self._clip_sizes = medidas["tamanos"]
+        self._clip_rotations = medidas["rotaciones"]
         self.load_clips(clips)
         # Los proxies NO se buscan solos: se enganchan a mano, con el boton
         # «Proxies» de la barra de titulo. Decision de Bruno, y por eso las
         # miniaturas de esta primera pasada salen del original.
         self._schedule_thumbnails()
+
+    def importar_rutas(self, rutas: list[Path], nombre_de_bin: str | None = None,
+                       origen: Path | None = None) -> None:
+        """El unico camino de entrada de material nuevo.
+
+        Sirve al boton de importar y, mas adelante, al arrastre. Si no se
+        dice a que bin van, se crea uno con el nombre de la carpeta de donde
+        vienen.
+
+        Lo que ya esta en el proyecto se descarta: importar dos veces la
+        misma tarjeta no puede dejar cada plano duplicado.
+        """
+        archivos = archivos_de_video(rutas)
+        ya_estan = {c.ruta for c in self.clips}
+        archivos = [a for a in archivos if a not in ya_estan]
+        if not archivos:
+            return
+        carpeta = origen or archivos[0].parent
+        nuevos, medidas = self._medir(archivos, desde=len(self.clips))
+        if not nuevos:
+            self._avisar_que_no_se_pudo_leer_nada(len(archivos))
+            return
+        self._clip_durations.update(medidas["duraciones"])
+        self._clip_sizes.update(medidas["tamanos"])
+        self._clip_rotations.update(medidas["rotaciones"])
+        self.agregar_clips(nuevos, nombre_de_bin or carpeta.name, carpeta)
 
     def adjuntar_proxies(self) -> None:
         """El boton «Proxies»: eliges el proxy de UN clip y se enganchan
@@ -1912,9 +1993,13 @@ class MainWindow(QWidget):
         folder = QFileDialog.getExistingDirectory(self, "Elegir carpeta de material")
         if not folder:
             return
-        self.ingest_tree.import_folder(Path(folder))
-        self.status_bar.set_volume(folder, _gigas_del_volumen(Path(folder)))
-        self._load_clips_from_ingest()
+        carpeta = Path(folder)
+        self.status_bar.set_volume(folder, _gigas_del_volumen(carpeta))
+        # AGREGA, no reinicia: antes esto pasaba por `_load_clips_from_ingest`
+        # y de ahi a `load_clips`, que limpia historial y proxies y recrea
+        # todas las tarjetas. Por eso a Bruno se le caian las portadas al
+        # importar una segunda carpeta.
+        self.importar_rutas([carpeta])
 
     def _refresh_sheet(self, force_rebuild: bool = False) -> None:
         active_rooms = self.room_selection.active_rooms()
@@ -1943,6 +2028,9 @@ class MainWindow(QWidget):
         ]
         if force_rebuild:
             self.clip_sheet.set_clips(thumbs)
+        elif len(thumbs) > self.clip_sheet.count():
+            # crecio: agregar sin destruir las tarjetas que ya tienen portada
+            self.clip_sheet.append_clips(thumbs)
         else:
             # actualiza en el lugar: eso es lo que preserva las miniaturas ya
             # cargadas por los _ThumbnailJob al navegar o clasificar.

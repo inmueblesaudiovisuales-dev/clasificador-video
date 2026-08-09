@@ -1,7 +1,7 @@
 # tests/test_ingest.py
 from pathlib import Path
 
-from clasificador_video.ingest import IngestTree
+from clasificador_video.ingest import IngestTree, archivos_de_video
 
 
 def test_importar_una_carpeta_la_agrega_con_su_nombre(tmp_path):
@@ -68,3 +68,32 @@ def test_un_proxy_dentro_de_la_carpeta_importada_no_entra_como_clip(tmp_path):
     tree.import_folder(origen)
 
     assert [p.name for p in tree.top_level_folders()[0].files] == ["C0001.MP4"]
+
+
+def test_archivos_de_video_acepta_carpetas_y_sueltos_mezclados(tmp_path):
+    carpeta = tmp_path / "cam"
+    carpeta.mkdir()
+    (carpeta / "A.MP4").touch()
+    (carpeta / "AS03.MP4").touch()      # proxy de camara: NO es material
+    (carpeta / "notas.txt").touch()
+    suelto = tmp_path / "B.MOV"
+    suelto.touch()
+
+    assert archivos_de_video([carpeta, suelto]) == [carpeta / "A.MP4", suelto]
+
+
+def test_archivos_de_video_no_repite(tmp_path):
+    (tmp_path / "A.MP4").touch()
+
+    assert archivos_de_video([tmp_path, tmp_path / "A.MP4"]) == [tmp_path / "A.MP4"]
+
+
+def test_archivos_de_video_no_baja_a_las_subcarpetas(tmp_path):
+    """Mismo criterio que `import_folders`: arrastrar una tarjeta de camara
+    no puede traerse sus carpetas de sistema."""
+    (tmp_path / "A.MP4").touch()
+    adentro = tmp_path / "PRIVATE"
+    adentro.mkdir()
+    (adentro / "B.MP4").touch()
+
+    assert archivos_de_video([tmp_path]) == [tmp_path / "A.MP4"]

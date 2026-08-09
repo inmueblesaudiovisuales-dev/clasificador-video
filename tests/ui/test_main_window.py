@@ -134,20 +134,29 @@ def test_boton_importar_tiene_objectname_para_fondo_distinto_del_panel(qtbot):
     assert window.room_rail.import_button.objectName() == "importButton"
 
 
-def test_importar_carpetas_puebla_el_ingest_list(qtbot, monkeypatch, tmp_path):
-    window = _window_with_video(qtbot)
+def test_importar_carpetas_mete_el_material_en_un_bin(qtbot, monkeypatch, tmp_path):
+    """Antes esto comprobaba que la carpeta entrara al `ingest_tree`. Ese
+    camino reconstruia el proyecto entero --y por eso a Bruno se le caian
+    las portadas al importar la segunda carpeta--; ahora importar AGREGA, y
+    lo que hay que comprobar es que el material quede en un bin con el
+    nombre de la carpeta.
+    """
+    window = _window_with_video(qtbot, cache_root=tmp_path / "cache")
+    monkeypatch.setattr(
+        "clasificador_video.ui.main_window.extract_thumbnail_strip", lambda *a, **k: []
+    )
     carpeta_a = tmp_path / "FX30"
     carpeta_a.mkdir()
     (carpeta_a / "C0001.MP4").touch()
+    monkeypatch.setattr(window, "_probe_clip", FakeProbe())
     monkeypatch.setattr(
         "clasificador_video.ui.main_window.QFileDialog.getExistingDirectory",
         lambda *a, **k: str(carpeta_a),
     )
-    window._load_clips_from_ingest = lambda: None
     window.room_rail.import_button.click()
-    # el panel de carpetas importadas murio; lo que importa es que la
-    # carpeta entro al ingest y que la ruta se ve en la barra de estado
-    assert [c.display_name for c in window.ingest_tree.top_level_folders()] == ["FX30"]
+
+    assert window.bins.nombres() == ["FX30"]
+    assert [c.ruta.name for c in window.clips] == ["C0001.MP4"]
     # la ruta va con el tamaño del volumen desde la F10 (`· 214 GB`)
     assert window.status_bar.volume_label.text().startswith(str(carpeta_a))
 

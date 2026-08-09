@@ -17,6 +17,28 @@ def es_archivo_de_proxy(ruta: Path) -> bool:
     return ruta.stem.endswith(SUFIJO_PROXY)
 
 
+def archivos_de_video(rutas: list[Path]) -> list[Path]:
+    """De una mezcla de carpetas y archivos, los videos que son material.
+
+    De una carpeta se toman sus archivos directos, sin bajar a las
+    subcarpetas -- mismo criterio que `IngestTree.import_folders`, para que
+    arrastrar una tarjeta no traiga tambien las carpetas de sistema de la
+    camara.
+    """
+    encontrados: list[Path] = []
+    for ruta in rutas:
+        candidatos = (
+            sorted(p for p in ruta.iterdir() if p.is_file())
+            if ruta.is_dir() else [ruta]
+        )
+        for p in candidatos:
+            if (p.suffix.lower() in VIDEO_EXTENSIONS
+                    and not es_archivo_de_proxy(p)
+                    and p not in encontrados):
+                encontrados.append(p)
+    return encontrados
+
+
 @dataclass
 class IngestFolder:
     source_path: Path
