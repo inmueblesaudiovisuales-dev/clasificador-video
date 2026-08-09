@@ -1192,6 +1192,10 @@ class ClipSheet(QWidget):
         self._bin_meta: dict[str, dict] = {}
         self._colapsados: set[str] = set()
         self._current = -1
+        # el ultimo clip al que se desplazo la hoja: de el depende que
+        # llegar a un bin cerrado lo abra solo cuando de verdad LLEGASTE
+        # (ver `centrar_en`)
+        self._ultimo_centrado = -1
         self._selected: set[int] = set()
         self._anchor: int | None = None
         # None = no hay filtro. Un `set` vacio es distinto: filtro que no deja
@@ -2376,6 +2380,24 @@ class ClipSheet(QWidget):
         if not (0 <= index < len(self.item_widgets)):
             return
         tarjeta = self.item_widgets[index]
+        # Colapsar es VISUAL y NO saca clips de la cola de las flechas
+        # (spec §4.1), asi que la flecha si llega a un bin cerrado. Llegar
+        # sin abrirlo deja el clip actual invisible y manda el scroll a la
+        # geometria vieja de una tarjeta escondida, que esta en cualquier
+        # lado. Se abre el bin: es lo unico que deja ver donde estas parado.
+        #
+        # Solo cuando el clip CAMBIO. La hoja se refresca en cada tecla, y
+        # sin esta guarda el bin que acabas de cerrar --con el clip actual
+        # adentro-- se reabriria solo al primer pick.
+        cambio = index != self._ultimo_centrado
+        self._ultimo_centrado = index
+        if (cambio and tarjeta.clip.bin_nombre in self._colapsados
+                and self._es_visible(index)):
+            self.set_bin_collapsed(tarjeta.clip.bin_nombre, False)
+        if tarjeta.isHidden():
+            # la escondio el filtro: el clip actual quedo fuera de la cola y
+            # no hay a donde desplazarse
+            return
         # el margen vertical es medio viewport: `ensureWidgetVisible` con
         # margen chico solo la asoma por el borde, y lo que se pidio es que
         # quede centrada.

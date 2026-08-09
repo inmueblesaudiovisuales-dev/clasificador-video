@@ -2095,3 +2095,44 @@ def test_pedir_el_mismo_orden_de_bins_no_reacomoda_nada(qtbot):
     hoja.set_bin_order(["Sony", "Dron"])
 
     assert hoja._firma is firma
+
+
+# --- la flecha que cae dentro de un bin colapsado (revision final) ---------
+
+
+def test_llegar_con_la_flecha_a_un_bin_cerrado_lo_abre(qtbot):
+    """Colapsar es VISUAL y no saca clips de la cola de las flechas
+    (spec §4.1), asi que la flecha SI llega a un bin cerrado. Dejarla
+    llegar sin abrirlo deja el clip actual invisible y el scroll apuntando
+    a la geometria vieja de una tarjeta escondida.
+    """
+    hoja = ClipSheet()
+    qtbot.addWidget(hoja)
+    hoja.resize(815, 900)
+    hoja.set_bin_order(["Sony", "Dron"])
+    hoja.set_clips([_thumb(0, bin_nombre="Sony"), _thumb(1, bin_nombre="Dron")])
+    hoja.centrar_en(0)
+    hoja.set_bin_collapsed("Dron", True)
+
+    hoja.centrar_en(1)
+
+    assert not hoja.bin_collapsed("Dron")
+    assert not hoja.item_widgets[1].isHidden()
+
+
+def test_colapsar_el_bin_del_clip_actual_no_lo_reabre_solo(qtbot):
+    """Lo abre la flecha que te LLEVA ahi, no cualquier refresco: la hoja
+    se refresca en cada tecla, y con eso el bin que acabas de cerrar se
+    reabriria solo al primer pick.
+    """
+    hoja = ClipSheet()
+    qtbot.addWidget(hoja)
+    hoja.resize(815, 900)
+    hoja.set_bin_order(["Sony"])
+    hoja.set_clips([_thumb(0, bin_nombre="Sony")])
+    hoja.centrar_en(0)
+    hoja.set_bin_collapsed("Sony", True)
+
+    hoja.centrar_en(0)
+
+    assert hoja.bin_collapsed("Sony")
