@@ -62,6 +62,10 @@ START_PERCENT = 25
 # Como se nombra y se pinta cada estado en el historial. Un solo lugar: la F2
 # los tenia repartidos en dos diccionarios en linea, y agregar `destacado`
 # habria que acordarse de hacerlo en los dos.
+# La escalera de estados, de abajo hacia arriba. Es la misma que describe
+# DECISIONES.md, y por eso `↑`/`↓` la recorren: subir y bajar es la forma
+# natural de moverse por ella sin acordarse de que letra es cada estado.
+ESCALERA_DE_ESTADO = ("reject", "none", "pick", "destacado")
 ETIQUETAS_DE_ESTADO = {
     "pick": "Pick", "reject": "Reject",
     "destacado": "Destacado", "none": "Sin marcar",
@@ -458,6 +462,13 @@ class MainWindow(QWidget):
             ("Space", self.video_stage.video.toggle_play),
             ("Left", lambda: self.handle_arrow("prev")),
             ("Right", lambda: self.handle_arrow("next")),
+            # `↑`/`↓` suben y bajan el estado del clip por la escalera
+            # reject - sin marca - pick - destacado. Antes no hacian nada.
+            ("Up", lambda: self.handle_key_press("arriba")),
+            ("Down", lambda: self.handle_key_press("abajo")),
+            # `R`: volver al principio del clip. Se eligio una letra y no
+            # `Home` porque los teclados de MacBook no traen `Home`.
+            ("R", lambda: self.handle_key_press("r")),
             ("I", lambda: self.handle_key_press("i")),
             ("O", lambda: self.handle_key_press("o")),
             ("P", lambda: self.handle_key_press("p")),
@@ -1708,6 +1719,16 @@ class MainWindow(QWidget):
             self._refresh_sheet()
             self._autosave()
             return
+        if key in ("arriba", "abajo"):
+            self._mover_en_la_escalera(1 if key == "arriba" else -1)
+            return
+        if key == "r":
+            # al principio DEL CLIP, no al 25 % donde arranca solo: lo que se
+            # quiere revisar volviendo es la entrada de la toma.
+            self.video_widget.player.seek(0.0)
+            self._refresh_overlays()
+            self._update_scrub_bar()
+            return
         if key == "s":
             cuarto = self._cuarto_del_clip_anterior()
             if cuarto is not None:
@@ -1755,6 +1776,37 @@ class MainWindow(QWidget):
             self._refresh_rail()
             self._refresh_overlays()
             self._autosave()
+
+    def _mover_en_la_escalera(self, paso: int) -> None:
+        """`↑` sube un escalon y `↓` baja uno, sobre toda la seleccion.
+
+        Con la seleccion mezclada se empareja: se toma el escalon mas bajo
+        (subiendo) o el mas alto (bajando) y se mueve UNO desde ahi. Si cada
+        clip subiera el suyo, el lote quedaria igual de disparejo que antes
+        -- y lo que uno quiere al pintar un lote es dejarlos iguales.
+        """
+        indices = self._bulk_target_indices()
+        if not indices:
+            return
+        alturas = [ESCALERA_DE_ESTADO.index(self.clips[i].flag) for i in indices]
+        desde = min(alturas) if paso > 0 else max(alturas)
+        destino = max(0, min(len(ESCALERA_DE_ESTADO) - 1, desde + paso))
+        nuevo = ESCALERA_DE_ESTADO[destino]
+        if all(self.clips[i].flag == nuevo for i in indices):
+            return  # ya estaban todos ahi: ni historial ni repintado
+        self._registrar(
+            etiqueta=ETIQUETAS_DE_ESTADO.get(nuevo, nuevo.title()),
+            detalle=self._detalle(indices),
+            color=COLORES_DE_ESTADO.get(nuevo, theme.TEXT_3),
+            clips=indices,
+            campos=("flag",),
+        )
+        for i in indices:
+            self.clips[i].flag = nuevo
+        self._refresh_sheet()
+        self._refresh_rail()
+        self._refresh_overlays()
+        self._autosave()
 
     def handle_arrow(self, direction: str) -> None:
         """Se mueve DENTRO de la cola filtrada, no sobre los 128.

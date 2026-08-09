@@ -23,7 +23,24 @@ BADGE_BORDER_ALPHA = 140
 # La chuleta bajo la barra. Solo teclas que EXISTEN: anunciar una que no hace
 # nada es el bug que este proyecto ya tuvo cuatro veces. `F` y `esc` entraron
 # con la F7, cuando se construyo el modo solo video.
-KEYS_HINT_TEXT = "←  →  cola  ·  ,  .  cuadro  ·  L  K  velocidad  ·  F  ·  esc"
+# La chuleta, de la mas completa a la mas corta. Se muestra LA MAS LARGA
+# QUE QUEPA, en vez de una sola que desaparece cuando no entra.
+#
+# No es cosmetica: con la hoja de estilos puesta, la version que habia
+# medía 290 px y en el hueco real caben 273 -- o sea que la chuleta que el
+# mockup promete estuvo invisible desde que se construyo. Se descubrio al
+# agregarle `↑↓` y `R`, midiendo por que no aparecian.
+#
+# El orden de lo que sobrevive es el de lo que cuesta adivinar: primero el
+# estado y la cola, al final `esc` y `F`, que son las mas obvias.
+VERSIONES_DE_CHULETA = (
+    "←→ cola  ·  ↑↓ estado  ·  ,. cuadro  ·  R inicio  ·  LK velocidad  ·  F  ·  esc",
+    "←→ cola  ·  ↑↓ estado  ·  ,. cuadro  ·  R inicio  ·  F  ·  esc",
+    "←→ cola  ·  ↑↓ estado  ·  ,. cuadro  ·  R inicio",
+    "←→ cola  ·  ↑↓ estado  ·  R inicio",
+    "↑↓ estado  ·  R inicio",
+)
+KEYS_HINT_TEXT = VERSIONES_DE_CHULETA[0]
 TOP_SCRIM_HEIGHT = 90
 
 
@@ -348,12 +365,34 @@ class VideoStage(QWidget):
         # Va aqui y no solo en `_place_overlays` porque la pastilla aparece
         # DESPUES del ultimo cambio de tamaño --al abrir un clip con rango--,
         # y ahi ya nadie volveria a comprobar el choque.
-        if self.range_pill.isHidden():
-            estorba = False
-        else:
-            fin_pastilla = self.range_pill.x() + self.range_pill.width()
-            estorba = fin_pastilla + 12 > ancho - M - self.keys_hint.sizeHint().width()
-        self.keys_hint.setVisible(not estorba)
+        desde = M if self.range_pill.isHidden() else (
+            self.range_pill.x() + self.range_pill.width() + 12
+        )
+        self._poner_la_chuleta_que_quepa(ancho - M - desde)
+
+    def _poner_la_chuleta_que_quepa(self, disponible: int) -> None:
+        """Escribe la version mas larga que entre en `disponible`, y la
+        esconde solo si no entra ni la mas corta.
+
+        Antes era una sola version que se escondia entera al no caber. Con
+        la hoja de estilos puesta, no cabia NUNCA: la chuleta estuvo
+        invisible desde que se construyo.
+        """
+        metricas = QFontMetrics(self.keys_hint.font())
+        relleno = self.keys_hint.sizeHint().width() - metricas.horizontalAdvance(
+            self.keys_hint.text()
+        )
+        for version in VERSIONES_DE_CHULETA:
+            if metricas.horizontalAdvance(version) + relleno <= disponible:
+                if self.keys_hint.text() != version:
+                    self.keys_hint.setText(version)
+                self.keys_hint.adjustSize()
+                self.keys_hint.move(
+                    self.video.width() - M - self.keys_hint.width(), self.keys_hint.y()
+                )
+                self.keys_hint.show()
+                return
+        self.keys_hint.hide()
 
     def set_file_label(self, texto: str) -> None:
         """El nombre del clip (y su posicion en la cola) sobre el video.

@@ -3574,3 +3574,98 @@ def test_si_solo_falla_uno_no_molesta(qtbot, monkeypatch, tmp_path):
 
     assert len(window.clips) == 2
     assert not avisos
+
+
+# --- ↑ y ↓ suben y bajan el estado (pedido de Bruno) -------------------
+#
+# «Quiero que los botones de arriba y abajo tengan una funcion mas util»:
+# no hacian nada mientras clasificas. La escalera es la que ya usa
+# DECISIONES.md -- reject, sin marca, pick, destacado -- asi que subir y
+# bajar es la forma natural de recorrerla sin acordarse de que letra es
+# cada estado.
+
+
+def test_la_flecha_arriba_sube_un_escalon(qtbot):
+    window = _window(qtbot)
+    window.load_clips([_clip(1)])
+
+    for esperado in ("pick", "destacado", "destacado"):
+        window.handle_key_press("arriba")
+        assert window.clips[0].flag == esperado
+
+
+def test_la_flecha_abajo_baja_un_escalon(qtbot):
+    window = _window(qtbot)
+    window.load_clips([_clip(1)])
+    window.clips[0].flag = "destacado"
+
+    for esperado in ("pick", "none", "reject", "reject"):
+        window.handle_key_press("abajo")
+        assert window.clips[0].flag == esperado
+
+
+def test_suben_y_bajan_toda_la_seleccion(qtbot):
+    window = _window(qtbot)
+    window.load_clips([_clip(i) for i in range(1, 5)])
+    window.clip_sheet.set_selected({0, 1, 2})
+
+    window.handle_key_press("arriba")
+
+    assert [c.flag for c in window.clips] == ["pick", "pick", "pick", "none"]
+
+
+def test_con_la_seleccion_mezclada_se_empareja_hacia_arriba(qtbot):
+    """Sube UN escalon desde el mas bajo, y los deja a todos ahi.
+
+    Si cada uno subiera el suyo, el lote quedaria igual de disparejo que
+    antes -- y lo que uno quiere al pintar un lote es dejarlos iguales.
+    Con un pick y uno sin marca, `↑` deja los dos en pick; otro `↑` los
+    sube a destacado."""
+    window = _window(qtbot)
+    window.load_clips([_clip(i) for i in range(1, 4)])
+    window.clips[0].flag = "pick"
+    window.clip_sheet.set_selected({0, 1})
+
+    window.handle_key_press("arriba")
+    assert [c.flag for c in window.clips] == ["pick", "pick", "none"]
+
+    window.handle_key_press("arriba")
+    assert [c.flag for c in window.clips] == ["destacado", "destacado", "none"]
+
+
+def test_deshacer_devuelve_el_escalon(qtbot):
+    window = _window(qtbot)
+    window.load_clips([_clip(1)])
+    window.handle_key_press("arriba")
+
+    window.undo()
+
+    assert window.clips[0].flag == "none"
+
+
+def test_sin_clips_las_flechas_no_truenan(qtbot):
+    window = _window(qtbot)
+    window.handle_key_press("arriba")
+    window.handle_key_press("abajo")
+
+
+# --- R reinicia el clip (pedido de Bruno) ------------------------------
+
+
+def test_la_tecla_r_vuelve_al_inicio_del_clip(qtbot):
+    """«Quiero que sea mas facil reiniciar el video»: no habia forma de
+    volver al principio salvo arrastrar la barra hasta el borde."""
+    window = _window_with_video(qtbot)
+    window.load_clips([_clip(1)])
+    reproductor = window.video_widget.player
+    reproductor._mpv.duration = 18.0
+    reproductor._mpv.time_pos = 8.0
+
+    window.handle_key_press("r")
+
+    assert reproductor.position == 0.0
+
+
+def test_reiniciar_sin_clip_no_truena(qtbot):
+    window = _window_with_video(qtbot)
+    window.handle_key_press("r")

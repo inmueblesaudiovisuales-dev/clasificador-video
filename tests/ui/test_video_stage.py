@@ -664,3 +664,52 @@ def test_un_cuarto_de_nombre_largo_no_desborda_la_fila_de_badges(qtbot):
     qtbot.wait(1)
 
     assert stage.badges.geometry().right() <= stage.video.width()
+
+
+# --- la chuleta de teclas se adapta (auditoria del pedido de Bruno) ----
+
+
+def test_la_chuleta_se_ve_en_el_tamano_normal(qtbot):
+    """Con la hoja de estilos puesta, la version que habia medía 290 px y
+    en el hueco real caben 273: la chuleta que el mockup promete estuvo
+    INVISIBLE desde que se construyo. Se descubrio al agregarle `↑↓` y
+    `R` y preguntarse por que no aparecian."""
+    stage = _stage_visible(qtbot)
+    stage.set_range_pill(7.1, 212, 18.4, 29.97)
+    qtbot.wait(1)
+
+    assert not stage.keys_hint.isHidden()
+    assert stage.keys_hint.geometry().right() <= stage.video.width()
+
+
+def test_no_se_encima_con_la_pastilla_de_rango(qtbot):
+    stage = _stage_visible(qtbot)
+    stage.set_range_pill(7.1, 212, 18.4, 29.97)
+    qtbot.wait(1)
+
+    assert not stage.keys_hint.geometry().intersects(stage.range_pill.geometry())
+
+
+def test_al_achicarse_se_acorta_en_vez_de_desaparecer(qtbot):
+    stage = _stage_visible(qtbot)
+    stage.set_range_pill(7.1, 212, 18.4, 29.97)
+    qtbot.wait(1)
+    largo = stage.keys_hint.text()
+
+    stage.resize(416, 740)
+    qtbot.wait(1)
+
+    assert not stage.keys_hint.isHidden()
+    assert len(stage.keys_hint.text()) < len(largo)
+
+
+def test_lo_ultimo_que_sobrevive_son_las_teclas_menos_obvias(qtbot):
+    """`esc` y `F` se adivinan; `↑↓` y `R` no. Cuando queda poco lugar,
+    sobrevive lo que cuesta descubrir."""
+    stage = _stage_visible(qtbot)
+    stage.set_range_pill(7.1, 212, 18.4, 29.97)
+    stage.resize(394, 700)
+    qtbot.wait(1)
+
+    assert "↑↓" in stage.keys_hint.text()
+    assert "R inicio" in stage.keys_hint.text()
