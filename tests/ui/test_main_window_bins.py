@@ -158,6 +158,21 @@ def test_agregar_al_mismo_bin_le_suma_los_indices(qtbot, ventana):
     assert ventana.bins.clips_de("Sony") == [0, 1]
 
 
+def test_soltar_otra_tarjeta_sobre_el_mismo_bin_amplia_su_origen(qtbot, ventana):
+    """La segunda tarjeta de la Sony viene de otra carpeta. Si el origen del
+    bin se quedara en el de la primera, esos clips no tendrian ruta relativa
+    y al abrir el proyecto en otra computadora saldrian como «no
+    encontrados» aunque el archivo este ahi."""
+    ventana.load_clips([_clip(0, "/Volumes/DISCO/tarjeta1/A.MP4")])
+    ventana.bins.agregar("Sony", Path("/Volumes/DISCO/tarjeta1"), [0])
+
+    ventana.agregar_clips([_clip(1, "/Volumes/DISCO/tarjeta2/B.MP4")],
+                          nombre_de_bin="Sony",
+                          origen=Path("/Volumes/DISCO/tarjeta2"))
+
+    assert ventana.bins.origen_de("Sony") == Path("/Volumes/DISCO")
+
+
 def test_agregar_clips_renumera_el_orden_de_los_nuevos(qtbot, ventana):
     """`orden` es el numero que se ve en la tarjeta y el que viaja al
     manifest: dos clips con el mismo numero serian dos «clip 001»."""

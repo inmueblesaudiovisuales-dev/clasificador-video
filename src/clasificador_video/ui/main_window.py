@@ -1286,7 +1286,11 @@ class MainWindow(QWidget):
         # su seccion.
         if nombre_de_bin is not None:
             if nombre_de_bin in self.bins.nombres():
-                self.bins.sumar(nombre_de_bin, indices)
+                # con el origen: el bin tiene que ampliar su carpeta cuando
+                # le cae material de otra --la segunda tarjeta de la misma
+                # camara-- o esos clips se quedan sin ruta relativa y no hay
+                # forma de reencontrarlos en otra computadora
+                self.bins.sumar(nombre_de_bin, indices, origen)
             else:
                 self.bins.agregar(nombre_de_bin, origen, indices)
         self._refresh_sheet()

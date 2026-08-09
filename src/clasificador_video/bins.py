@@ -10,8 +10,16 @@ disco y no decide como se ve nada.
 """
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass, field
 from pathlib import Path
+
+# Carpetas a las que el origen de un bin NUNCA sube. Subir hasta aqui
+# convertiria «señala la carpeta del bin» en «señala tu disco entero», y
+# reencontrar el material tendria que recorrerlo completo.
+RAICES_DEMASIADO_ARRIBA = frozenset({
+    Path("/"), Path("/Users"), Path("/Volumes"), Path.home(),
+})
 
 
 @dataclass
@@ -140,12 +148,53 @@ class BinTree:
                 b.nombre = nuevo
                 return
 
-    def sumar(self, nombre: str, clips: list[int]) -> None:
+    def sumar(self, nombre: str, clips: list[int],
+              origen: Path | None = None) -> None:
+        """Le agrega clips a un bin que ya existe, y AMPLIA su origen.
+
+        Lo del origen no es un extra: el origen se fijaba una sola vez, al
+        crear el bin, y este metodo no lo tocaba. Soltar la segunda tarjeta
+        de la Sony sobre el bin que ya existe dejaba a esos clips sin ruta
+        relativa --su archivo no cuelga del origen viejo-- y sin relativa no
+        hay forma de reencontrarlos en otra computadora: saldrian como «no
+        encontrados» aunque el archivo este ahi enfrente.
+
+        `origen` es de donde viene el material nuevo, y es opcional: mover
+        clips entre bins que ya existen no trae carpeta nueva.
+        """
         for b in self._bins:
             if b.nombre == nombre:
                 ya = set(b.clips)
                 b.clips.extend(i for i in clips if i not in ya)
+                if origen is not None:
+                    b.origen = self._origen_ampliado(b.origen, origen)
                 return
+
+    @staticmethod
+    def _origen_ampliado(actual: Path, nuevo: Path) -> Path:
+        """El origen que cubre lo que el bin ya tenia Y lo que le llega.
+
+        Solo puede subir: el origen tiene que seguir siendo ancestro de
+        TODOS los clips del bin. Si el ancestro comun queda demasiado
+        arriba se deja el de antes --ver `RAICES_DEMASIADO_ARRIBA`-- y esos
+        clips se quedan sin relativa, que es el comportamiento de siempre.
+        """
+        # Un bin creado con «+ Bin nuevo» nace con `Path("")`, que pathlib
+        # normaliza a «.». Se trata aparte a proposito: sin este caso el
+        # origen se quedaria en «.» para siempre --no hay ancestro comun
+        # entre una relativa y una absoluta-- y ningun clip de ese bin
+        # tendria ruta relativa.
+        if str(actual) in ("", "."):
+            return nuevo
+        if actual == nuevo:
+            return actual
+        try:
+            comun = Path(os.path.commonpath([str(actual), str(nuevo)]))
+        except ValueError:
+            return actual   # una absoluta y otra relativa: no hay ancestro
+        if comun in RAICES_DEMASIADO_ARRIBA or len(comun.parts) <= 1:
+            return actual
+        return comun
 
     def quitar(self, nombre: str) -> list[int]:
         for i, b in enumerate(self._bins):

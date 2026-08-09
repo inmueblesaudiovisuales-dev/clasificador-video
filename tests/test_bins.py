@@ -304,3 +304,85 @@ def test_un_bin_vacio_se_guarda_sin_origen_inventado():
     arbol.crear_vacio("Dron")
 
     assert arbol.to_list() == [{"nombre": "Dron", "origen": "", "clips": []}]
+
+
+def test_sumar_material_de_otra_carpeta_sube_el_origen_al_ancestro_comun():
+    """El origen se fijaba UNA sola vez, al crear el bin, y `sumar` no lo
+    tocaba. Soltar la segunda tarjeta de la Sony sobre el bin que ya existe
+    dejaba a esos clips sin ruta relativa --su archivo no cuelga del origen
+    viejo-- y sin relativa no hay forma de reencontrarlos: al abrir en otra
+    computadora saldrian como «no encontrados» aunque el archivo este ahi.
+    """
+    arbol = BinTree()
+    arbol.agregar("Sony", Path("/Volumes/DISCO/tarjeta1"), [0])
+
+    arbol.sumar("Sony", [1], Path("/Volumes/DISCO/tarjeta2"))
+
+    assert arbol.origen_de("Sony") == Path("/Volumes/DISCO")
+
+
+def test_sumar_material_de_la_misma_carpeta_deja_el_origen_donde_estaba():
+    arbol = BinTree()
+    arbol.agregar("Sony", Path("/Volumes/DISCO/tarjeta1"), [0])
+
+    arbol.sumar("Sony", [1], Path("/Volumes/DISCO/tarjeta1"))
+
+    assert arbol.origen_de("Sony") == Path("/Volumes/DISCO/tarjeta1")
+
+
+def test_sumar_de_una_subcarpeta_no_baja_el_origen():
+    """El origen tiene que seguir cubriendo a TODOS los clips del bin, asi
+    que solo puede subir."""
+    arbol = BinTree()
+    arbol.agregar("Sony", Path("/Volumes/DISCO"), [0])
+
+    arbol.sumar("Sony", [1], Path("/Volumes/DISCO/tarjeta2"))
+
+    assert arbol.origen_de("Sony") == Path("/Volumes/DISCO")
+
+
+def test_un_bin_vacio_toma_el_origen_del_primer_material_que_le_llega():
+    """`crear_vacio` deja `Path("")`, que pathlib normaliza a «.». Sin este
+    caso explicito el origen se quedaria en «.» para siempre y ningun clip
+    de ese bin tendria ruta relativa."""
+    arbol = BinTree()
+    arbol.crear_vacio("Dron")
+
+    arbol.sumar("Dron", [0, 1], Path("/Volumes/DISCO/dron"))
+
+    assert arbol.origen_de("Dron") == Path("/Volumes/DISCO/dron")
+
+
+def test_dos_discos_distintos_NO_suben_el_origen_a_la_raiz():
+    """Si el ancestro comun queda demasiado arriba no se sube: convertiria
+    «señala la carpeta del bin» en «señala tu disco entero», y reencontrar
+    tendria que recorrerlo completo. Se deja el origen como estaba, y esos
+    clips se quedan sin relativa --que es el comportamiento de siempre."""
+    arbol = BinTree()
+    arbol.agregar("Sony", Path("/Volumes/CARD_A/CAM"), [0])
+
+    arbol.sumar("Sony", [1], Path("/Volumes/CARD_B/CAM"))
+
+    assert arbol.origen_de("Sony") == Path("/Volumes/CARD_A/CAM")
+
+
+def test_tampoco_se_sube_a_la_carpeta_de_casa():
+    arbol = BinTree()
+    casa = Path.home()
+    arbol.agregar("Sony", casa / "Videos" / "boda", [0])
+
+    arbol.sumar("Sony", [1], casa / "Desktop" / "dron")
+
+    assert arbol.origen_de("Sony") == casa / "Videos" / "boda"
+
+
+def test_sumar_sin_decir_de_donde_viene_no_toca_el_origen():
+    """El origen es opcional: mover clips entre bins ya existentes no trae
+    carpeta nueva, y ahi no hay nada que recalcular."""
+    arbol = BinTree()
+    arbol.agregar("Sony", Path("/cam"), [0])
+
+    arbol.sumar("Sony", [1])
+
+    assert arbol.origen_de("Sony") == Path("/cam")
+    assert arbol.clips_de("Sony") == [0, 1]
