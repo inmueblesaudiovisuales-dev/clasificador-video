@@ -72,7 +72,7 @@ sospechaba (38 ms por tecla en la F5, el `setStyleSheet` en la F5, esto).
 | Qué | Fase |
 |---|---|
 | Badge `Proxy 1080p` y contador `proxies · 128/128` | F9 |
-| `orientacion="horizontal"` hardcodeado (`ui/main_window.py:1430`) | F9 |
+| `orientacion="horizontal"` hardcodeado (`ui/main_window.py`, busca su `TODO F9`) | F9 |
 | Selector `Clip │ Hoja` de la barra de título | F10 |
 | Transición animada de la tarjeta al visor | F10 |
 | Barrido final contra el mockup | F10 |
