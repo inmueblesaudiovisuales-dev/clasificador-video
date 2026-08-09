@@ -171,9 +171,19 @@ la insignia de proxy: se acorta con la misma regla de elisión que ya usa
 ### 4.6 Navegación
 
 **Las flechas siguen de corrido** y cruzan de un bin al siguiente sin
-frenarse. Decidido por Bruno. El orden de la cola es: bins en el orden en que
-se importaron, y dentro de cada bin el orden de hoy (cuarto, con «Sin
-clasificar» primero).
+frenarse. Decidido por Bruno.
+
+Precisión importante, comprobada en el código: **la cola de las flechas no
+sigue el orden visual y nunca lo ha seguido.** `filters.cola` devuelve los
+índices en orden de clip —el orden de rodaje— mientras la hoja los dibuja
+agrupados por cuarto. Con bins pasa lo mismo, y encaja solo: como el material
+de cada bin se agrega al final, el orden de clip **ya es** el orden de
+importación de los bins. Dentro de un bin, las flechas siguen el orden de
+rodaje, no el de los subgrupos.
+
+No se agrega reordenamiento de la cola. Sería un cambio de comportamiento que
+nadie pidió, en la pieza de la que dependen a la vez la hoja, las flechas y el
+contador del visor.
 
 ## 5. Proxies por bin
 
