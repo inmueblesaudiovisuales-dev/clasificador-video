@@ -1,0 +1,525 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Bins por cámara — mockup (estático)</title>
+<style>
+/* ------------------------------------------------------------------
+   MOCKUP ESTÁTICO — no es la app, no es funcional.
+   Rediseño de la importación como BINS por cámara/fuente.
+   Cuatro pantallas:
+     1. Hoja con bins — cámara arriba, cuarto adentro (propuesta A)
+     2. Hoja con bins — cámara arriba, cuarto solo en la tarjeta (variante B)
+     3. Clic derecho en el encabezado del bin
+     4. Arrastrando material a la ventana
+   Paleta y medidas tomadas de ui/theme.py, igual que el mockup del
+   rediseño 2026-08-08.
+------------------------------------------------------------------- */
+:root{
+  --bg:#0a0b0d; --surface-0:#101216; --surface-1:#16191e; --surface-2:#1d2128;
+  --line:#262b33; --line-soft:#1e222a;
+  --text:#e6e9ee; --text-2:#9aa3b0; --text-3:#626b78;
+  --pick:#55c08a; --star:#7ee6b0; --reject:#d4696c; --current:#e8a33d; --trim:#6d8cf5;
+  --r1:#c0885a; --r2:#6d8ca8; --r3:#8b7ca8; --r4:#4f9a8e; --r5:#7e9e5e;
+  --r6:#3e9bc0; --r7:#a9836f; --r8:#b26f86; --r9:#7c8794;
+  --mono: ui-monospace,"SF Mono","JetBrains Mono",Menlo,monospace;
+  --sans: -apple-system,BlinkMacSystemFont,"Inter","Segoe UI",sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#000;font-family:var(--sans);color:var(--text);
+  display:flex;flex-direction:column;align-items:center;gap:30px;padding:26px 20px 46px;-webkit-font-smoothing:antialiased}
+.caption{width:1400px;display:flex;align-items:baseline;gap:11px}
+.caption h2{font-size:12px;font-weight:650;letter-spacing:.06em;text-transform:uppercase}
+.caption span{font-size:11.5px;color:var(--text-3)}
+.window{width:1400px;height:760px;background:var(--bg);border-radius:10px;overflow:hidden;
+  display:flex;flex-direction:column;border:1px solid #23272f;box-shadow:0 40px 120px rgba(0,0,0,.8);position:relative}
+
+/* ---------- titlebar ---------- */
+.titlebar{height:36px;flex:0 0 36px;background:var(--surface-0);border-bottom:1px solid var(--line);
+  display:flex;align-items:center;gap:13px;padding:0 13px}
+.appmark{width:17px;height:17px;border-radius:4px;background:linear-gradient(140deg,var(--current),#b4632a);flex:0 0 17px}
+.session{display:flex;align-items:baseline;gap:9px}
+.session b{font-size:12.5px;font-weight:600}
+.session span{font-size:11px;color:var(--text-3)}
+.tb-spacer{flex:1}
+.modeswitch{display:flex;background:var(--surface-1);border:1px solid var(--line);border-radius:6px;overflow:hidden}
+.modeswitch b{font-size:10.5px;font-weight:550;padding:4px 10px;color:var(--text-3)}
+.modeswitch b.on{background:var(--surface-2);color:var(--text)}
+.btn{height:25px;padding:0 11px;border-radius:6px;border:1px solid var(--line);background:var(--surface-2);
+  color:var(--text);font-size:11px;font-weight:550;display:flex;align-items:center;gap:7px}
+.btn.primary{background:var(--text);color:#0b0d10;border-color:transparent;font-weight:650}
+
+/* ---------- layout ---------- */
+.body{flex:1;display:flex;min-height:0}
+.rail-l{width:200px;flex:0 0 200px;background:var(--surface-0);border-right:1px solid var(--line);display:flex;flex-direction:column;min-height:0}
+.toolcol{width:56px;flex:0 0 56px;background:var(--surface-0);border-left:1px solid var(--line);border-right:1px solid var(--line);
+  display:flex;flex-direction:column;align-items:center;padding:10px 0;gap:5px}
+.sheet{flex:1;min-width:0;background:var(--surface-0);display:flex;flex-direction:column;min-height:0;position:relative}
+
+/* ---------- rail ---------- */
+.rail-head{height:30px;flex:0 0 30px;display:flex;align-items:center;padding:0 12px;border-bottom:1px solid var(--line-soft)}
+.rail-head h3{font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--text-3);font-weight:650}
+.progress{padding:13px 12px 12px;border-bottom:1px solid var(--line-soft)}
+.prog-top{display:flex;align-items:baseline;gap:6px;margin-bottom:9px}
+.prog-top .big{font-family:var(--mono);font-size:24px;font-weight:600;letter-spacing:-.5px}
+.prog-top .of{font-family:var(--mono);font-size:11.5px;color:var(--text-3)}
+.prog-top .lbl{font-size:9px;color:var(--text-3);margin-left:auto;text-transform:uppercase;letter-spacing:.09em}
+.bar{height:5px;border-radius:3px;background:var(--surface-2);display:flex;overflow:hidden;gap:1px}
+.bar i{display:block;height:100%}
+.rooms{padding:6px 7px;min-height:0}
+.room{display:flex;align-items:center;gap:8px;height:29px;padding:0 6px;border-radius:6px;font-size:12px}
+.room.on{background:var(--surface-2)}
+.key{font-family:var(--mono);font-size:10.5px;font-weight:600;width:18px;height:18px;flex:0 0 18px;
+  display:flex;align-items:center;justify-content:center;border-radius:4px;background:var(--surface-2);color:var(--text-2);border:1px solid var(--line)}
+.swatch{width:3px;height:14px;border-radius:2px;flex:0 0 3px}
+.room .nm{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#ccd2db}
+.room .ct{font-family:var(--mono);font-size:10.5px;color:var(--text-3)}
+.railcap{font-size:8.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--text-3);font-weight:650;padding:9px 12px 4px}
+
+/* ---------- toolcol ---------- */
+.tool{width:38px;height:32px;border-radius:7px;background:var(--surface-1);border:1px solid var(--line);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px}
+.tool .lb{font-size:10px;font-weight:600;color:var(--text-2)}
+.tool .kk{font-family:var(--mono);font-size:8px;color:var(--text-3)}
+.tooldiv{width:26px;height:1px;background:var(--line);margin:4px 0}
+.toolcap{font-size:7.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--text-3);font-weight:650}
+
+/* ---------- cabecera de la hoja ---------- */
+.sheet-head{flex:0 0 auto;padding:9px 13px;border-bottom:1px solid var(--line-soft);display:flex;flex-direction:column;gap:7px}
+.sh-row{display:flex;align-items:center;gap:9px}
+.sh-row h3{font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--text-3);font-weight:650}
+.search{height:26px;flex:1;max-width:230px;border-radius:6px;background:var(--surface-1);border:1px solid var(--line);
+  display:flex;align-items:center;padding:0 9px;font-size:11px;color:var(--text-3)}
+.selhint{font-size:10px;color:var(--text-3);margin-left:auto}
+.filterbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.fgroup{display:flex;align-items:center;gap:5px}
+.fgroup .lb{font-size:8.5px;letter-spacing:.11em;text-transform:uppercase;color:var(--text-3);font-weight:650;margin-right:1px}
+.fchip{font-size:10.5px;padding:3.5px 8px;border-radius:5px;background:var(--surface-1);border:1px solid var(--line);
+  color:var(--text-3);display:flex;align-items:center;gap:5px}
+.fchip.on{background:var(--surface-2);color:var(--text);border-color:#333b47}
+.fchip b{font-family:var(--mono);font-weight:600;opacity:.6}
+.fdiv{width:1px;height:16px;background:var(--line)}
+
+/* ================= EL BIN ================= */
+.sheet-body{flex:1 1 0;min-height:0;overflow:hidden;padding:0 13px 10px;
+  -webkit-mask-image:linear-gradient(#000 93%,transparent 100%);mask-image:linear-gradient(#000 93%,transparent 100%)}
+
+/* encabezado del bin: pegajoso, colapsable, y ES el menú contextual */
+.bin{display:flex;align-items:center;gap:9px;padding:9px 9px;margin:10px 0 8px;
+  background:var(--surface-1);border:1px solid var(--line);border-radius:7px}
+.bin.stuck{box-shadow:0 8px 18px rgba(0,0,0,.55);border-color:#2f3641}
+.bin .chev{font-size:10px;color:var(--text-2);width:11px;text-align:center}
+.bin .cam{width:14px;height:14px;flex:0 0 14px;border-radius:3px;display:flex;align-items:center;justify-content:center}
+.bin .nm{font-size:12.5px;font-weight:650;letter-spacing:.01em}
+.bin .src{font-family:var(--mono);font-size:9.5px;color:var(--text-3)}
+.bin .stat{font-family:var(--mono);font-size:10px;color:var(--text-3);display:flex;align-items:center;gap:9px}
+.bin .stat u{text-decoration:none;display:flex;align-items:center;gap:4px}
+.bin .stat u i{width:6px;height:6px;border-radius:2px;display:block}
+.bin .sp{flex:1}
+.pxbadge{font-size:9.5px;font-family:var(--mono);padding:2.5px 7px;border-radius:5px;
+  border:1px solid rgba(85,192,138,.45);background:rgba(85,192,138,.12);color:#8fdcb4}
+.pxbadge.none{border-color:var(--line);background:var(--surface-2);color:var(--text-3)}
+.pxbadge.part{border-color:rgba(232,163,61,.45);background:rgba(232,163,61,.12);color:#f0bd77}
+.bin .more{width:22px;height:20px;border-radius:5px;border:1px solid var(--line);background:var(--surface-2);
+  color:var(--text-2);font-size:11px;display:flex;align-items:center;justify-content:center}
+.bin.collapsed{margin-bottom:10px;opacity:.92}
+
+/* subgrupo de cuarto ADENTRO del bin (propuesta A) */
+.sub{display:flex;align-items:center;gap:8px;padding:9px 2px 7px;font-size:9px;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--text-3);font-weight:650}
+.sub .n{font-family:var(--mono);letter-spacing:0}
+.sub .ln{flex:1;height:1px;background:var(--line-soft)}
+.sub .sw{width:3px;height:11px;border-radius:2px}
+
+.grid{display:grid;grid-template-columns:repeat(7,1fr);gap:9px;align-items:start;padding-left:2px}
+.card{position:relative;border-radius:6px;overflow:hidden;background:var(--surface-2);border:1px solid var(--line-soft)}
+.card .th{aspect-ratio:9/16;position:relative;overflow:hidden}
+.card.h .th{aspect-ratio:16/9}
+.card .rm{position:absolute;left:0;top:0;bottom:0;width:3px;z-index:3}
+.card .unc{position:absolute;left:0;top:0;bottom:0;width:3px;z-index:3;background:repeating-linear-gradient(135deg,#3a4150 0 3px,#262b33 3px 6px)}
+.card .id{position:absolute;left:6px;top:5px;font-family:var(--mono);font-size:9px;color:#e4e8ee;background:rgba(4,5,7,.62);padding:1.5px 4px;border-radius:3px;z-index:3}
+.card .dur{position:absolute;right:5px;bottom:5px;font-family:var(--mono);font-size:9px;color:#e4e8ee;background:rgba(4,5,7,.66);padding:1.5px 4px;border-radius:3px;z-index:3}
+.card .flag{position:absolute;right:5px;top:5px;width:15px;height:15px;border-radius:4px;z-index:3;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:800;font-family:var(--mono)}
+.card .flag.p{background:var(--pick);color:#07130d}
+.card .flag.s{background:var(--star);color:#04170e;font-size:10px}
+.card .flag.x{background:var(--reject);color:#1b0708}
+.card .rmtag{position:absolute;left:5px;bottom:5px;font-size:8.5px;color:#e4e8ee;background:rgba(4,5,7,.66);
+  padding:1.5px 5px;border-radius:3px;z-index:3;display:flex;align-items:center;gap:4px}
+.card .rmtag i{width:5px;height:5px;border-radius:1.5px;display:block}
+.card.cur{border-color:var(--current);box-shadow:0 0 0 1px var(--current),0 0 18px rgba(232,163,61,.3)}
+.t1{background:linear-gradient(160deg,#e8d6b6,#a98d68 52%,#4a4034)}
+.t2{background:linear-gradient(150deg,#c3d2de,#748899 52%,#313a42)}
+.t3{background:linear-gradient(170deg,#ded4e6,#93879f 52%,#383140)}
+.t4{background:linear-gradient(155deg,#c8e4de,#5f9b93 52%,#293733)}
+.t5{background:linear-gradient(165deg,#dee6cb,#8b9d6e 52%,#33382d)}
+.t6{background:linear-gradient(150deg,#c4e0ec,#5290b0 52%,#25343d)}
+.t7{background:linear-gradient(160deg,#ecdccd,#ab8873 52%,#3e3129)}
+.t8{background:linear-gradient(150deg,#f0d8e0,#b3748a 52%,#3d292f)}
+.t9{background:linear-gradient(160deg,#ced3da,#818c99 52%,#30343c)}
+/* cielo de dron: horizontales y más frías */
+.d1{background:linear-gradient(170deg,#bcd8ea,#5f86a6 55%,#22303c)}
+.d2{background:linear-gradient(160deg,#d5e6ee,#7ba0b6 55%,#2a3a44)}
+.d3{background:linear-gradient(175deg,#a9c8de,#4e7d9c 55%,#1e2c37)}
+
+/* ---------- menú contextual ---------- */
+.ctx{position:absolute;z-index:30;width:262px;background:rgba(20,23,28,.98);border:1px solid #333c4a;
+  border-radius:9px;overflow:hidden;box-shadow:0 24px 60px rgba(0,0,0,.75);padding:5px 0}
+.ctx .it{display:flex;align-items:center;gap:10px;padding:7px 12px;font-size:12px;color:#ccd2db}
+.ctx .it.on{background:#232b38}
+.ctx .it .kk{margin-left:auto;font-family:var(--mono);font-size:9.5px;color:var(--text-3)}
+.ctx .it.danger{color:var(--reject)}
+.ctx .it.off{color:var(--text-3)}
+.ctx .sep{height:1px;background:var(--line-soft);margin:5px 0}
+.ctx .cap{font-size:8.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--text-3);font-weight:650;padding:6px 12px 3px}
+
+/* ---------- arrastre ---------- */
+.dropzone{border:1.5px dashed rgba(85,192,138,.6);border-radius:9px;background:rgba(85,192,138,.07);
+  padding:11px;margin:10px 0 8px;display:flex;align-items:center;gap:11px}
+.dropzone .ico{width:26px;height:26px;border-radius:6px;background:rgba(85,192,138,.18);color:#8fdcb4;
+  display:flex;align-items:center;justify-content:center;font-size:13px}
+.dropzone b{font-size:12px;font-weight:650;color:#bfe6d2}
+.dropzone span{font-size:11px;color:var(--text-2)}
+.dropnew{border:1.5px dashed rgba(232,163,61,.55);background:rgba(232,163,61,.07);border-radius:9px;
+  padding:20px 11px;margin-top:12px;display:flex;flex-direction:column;align-items:center;gap:5px}
+.dropnew b{font-size:12.5px;color:#f0bd77}
+.dropnew span{font-size:11px;color:var(--text-3)}
+.ghost{position:absolute;z-index:25;display:flex;align-items:center;gap:8px;background:rgba(16,19,24,.95);
+  border:1px solid #3d5230;border-radius:7px;padding:6px 11px;box-shadow:0 12px 30px rgba(0,0,0,.65);font-size:11.5px;font-weight:600;color:#cbe0ac}
+.ghost .cnt{font-family:var(--mono);font-size:10px;background:rgba(126,158,94,.2);border:1px solid rgba(126,158,94,.5);
+  border-radius:4px;padding:1px 5px}
+
+.note{width:1400px;font-size:11.5px;color:var(--text-2);line-height:1.65;border-left:2px solid var(--line);padding-left:12px}
+.note b{color:var(--text)}
+</style>
+</head>
+<body>
+
+<!-- ================================================================
+     1 · PROPUESTA A — cámara arriba, cuarto adentro
+================================================================= -->
+<div class="caption"><h2>1 · Propuesta A — la cámara manda, el cuarto vive adentro</h2>
+  <span>lo que hay hoy (agrupar por cuarto) no se pierde: baja un nivel</span></div>
+<div class="window">
+  <div class="titlebar">
+    <div class="appmark"></div>
+    <div class="session"><b>IAV-2608.04-A</b><span>151 clips · 3 bins</span></div>
+    <div class="tb-spacer"></div>
+    <div class="modeswitch"><b>Clip</b><b class="on">Hoja</b></div>
+    <div class="btn">Proxies</div>
+    <div class="btn primary">Enviar a Premiere</div>
+  </div>
+  <div class="body">
+    <aside class="rail-l">
+      <div class="rail-head"><h3>Sesión</h3></div>
+      <div class="progress">
+        <div class="prog-top"><span class="big">116</span><span class="of">/151</span><span class="lbl">clasificados</span></div>
+        <div class="bar"><i style="background:var(--r1);width:22%"></i><i style="background:var(--r4);width:19%"></i><i style="background:var(--r6);width:17%"></i><i style="background:var(--r5);width:19%"></i><i style="background:#2a2f38;width:23%"></i></div>
+      </div>
+      <div class="railcap">Cuartos</div>
+      <div class="rooms">
+        <div class="room on"><span class="key">1</span><span class="swatch" style="background:var(--r1)"></span><span class="nm">Cocina</span><span class="ct">24</span></div>
+        <div class="room"><span class="key">2</span><span class="swatch" style="background:var(--r4)"></span><span class="nm">Recámara 1</span><span class="ct">19</span></div>
+        <div class="room"><span class="key">3</span><span class="swatch" style="background:var(--r6)"></span><span class="nm">Baño</span><span class="ct">17</span></div>
+        <div class="room"><span class="key">4</span><span class="swatch" style="background:var(--r5)"></span><span class="nm">Exteriores</span><span class="ct">28</span></div>
+        <div class="room"><span class="key">5</span><span class="swatch" style="background:var(--r2)"></span><span class="nm">Fachada</span><span class="ct">28</span></div>
+      </div>
+    </aside>
+    <div class="toolcol">
+      <span class="toolcap">Estado</span>
+      <div class="tool"><span class="lb" style="font-size:12px">★</span><span class="kk">⇧P</span></div>
+      <div class="tool"><span class="lb">Pick</span><span class="kk">P</span></div>
+      <div class="tool"><span class="lb">Rej</span><span class="kk">X</span></div>
+      <div class="tooldiv"></div>
+      <div class="tool"><span class="lb" style="font-size:12px">↺</span><span class="kk">⌘Z</span></div>
+    </div>
+    <section class="sheet">
+      <div class="sheet-head">
+        <div class="sh-row">
+          <h3>Clips · 151</h3>
+          <div class="search">Buscar clip, cuarto o bin…</div>
+          <div class="selhint">las flechas siguen de corrido: cruzan de un bin al siguiente sin frenarse</div>
+        </div>
+        <div class="filterbar">
+          <div class="fgroup"><span class="lb">Mostrar</span>
+            <span class="fchip on">Todos <b>151</b></span>
+            <span class="fchip">Sin clasificar <b>35</b></span>
+            <span class="fchip">Clasificados <b>116</b></span></div>
+          <div class="fdiv"></div>
+          <div class="fgroup"><span class="lb">Bin</span>
+            <span class="fchip on">Todos</span>
+            <span class="fchip">Dron <b>23</b></span>
+            <span class="fchip">Sony FX30 <b>109</b></span>
+            <span class="fchip">Tomas sueltas <b>19</b></span></div>
+        </div>
+      </div>
+
+      <div class="sheet-body">
+        <!-- BIN 1 -->
+        <div class="bin stuck">
+          <span class="chev">▾</span>
+          <span class="cam" style="background:rgba(62,155,192,.18);color:#7cc3e0;font-size:9px">▲</span>
+          <span class="nm">Dron</span>
+          <span class="src">02. VIDEO DRONE</span>
+          <span class="stat">23 clips
+            <u><i style="background:var(--pick)"></i>8</u>
+            <u><i style="background:var(--star)"></i>2</u>
+            <u><i style="background:var(--reject)"></i>3</u></span>
+          <span class="sp"></span>
+          <span class="pxbadge">proxy 1080p · 23/23</span>
+          <span class="more">⋯</span>
+        </div>
+
+        <div class="sub"><span class="sw" style="background:var(--r5)"></span>Exteriores <span class="n">14</span><span class="ln"></span></div>
+        <div class="grid">
+          <div class="card h"><div class="th d1"><span class="rm" style="background:var(--r5)"></span><span class="id">130</span><span class="flag s">★</span><span class="dur">0:24</span></div></div>
+          <div class="card h"><div class="th d2"><span class="rm" style="background:var(--r5)"></span><span class="id">131</span><span class="flag p">P</span><span class="dur">0:31</span></div></div>
+          <div class="card h"><div class="th d1"><span class="rm" style="background:var(--r5)"></span><span class="id">132</span><span class="flag p">P</span><span class="dur">0:18</span></div></div>
+          <div class="card h cur"><div class="th d2"><span class="rm" style="background:var(--r5)"></span><span class="id">133</span><span class="dur">0:27</span></div></div>
+          <div class="card h"><div class="th d1"><span class="rm" style="background:var(--r5)"></span><span class="id">134</span><span class="flag x">X</span><span class="dur">0:12</span></div></div>
+          <div class="card h"><div class="th d2"><span class="rm" style="background:var(--r5)"></span><span class="id">135</span><span class="dur">0:22</span></div></div>
+          <div class="card h"><div class="th d1"><span class="rm" style="background:var(--r5)"></span><span class="id">136</span><span class="flag p">P</span><span class="dur">0:19</span></div></div>
+        </div>
+
+        <div class="sub"><span class="sw" style="background:var(--r2)"></span>Fachada <span class="n">6</span><span class="ln"></span></div>
+        <div class="grid">
+          <div class="card h"><div class="th d2"><span class="rm" style="background:var(--r2)"></span><span class="id">144</span><span class="flag p">P</span><span class="dur">0:29</span></div></div>
+          <div class="card h"><div class="th d1"><span class="rm" style="background:var(--r2)"></span><span class="id">145</span><span class="dur">0:16</span></div></div>
+          <div class="card h"><div class="th d2"><span class="rm" style="background:var(--r2)"></span><span class="id">146</span><span class="flag s">★</span><span class="dur">0:33</span></div></div>
+        </div>
+
+        <!-- BIN 2, colapsado -->
+        <div class="bin collapsed">
+          <span class="chev">▸</span>
+          <span class="cam" style="background:rgba(192,136,90,.18);color:#d9a271;font-size:9px">■</span>
+          <span class="nm">Sony FX30</span>
+          <span class="src">01. VIDEO CAMARA</span>
+          <span class="stat">109 clips
+            <u><i style="background:var(--pick)"></i>33</u>
+            <u><i style="background:var(--star)"></i>4</u>
+            <u><i style="background:var(--reject)"></i>6</u></span>
+          <span class="sp"></span>
+          <span class="pxbadge">proxy 1080p · 109/109</span>
+          <span class="more">⋯</span>
+        </div>
+
+        <!-- BIN 3 -->
+        <div class="bin">
+          <span class="chev">▾</span>
+          <span class="cam" style="background:rgba(124,135,148,.2);color:#a7b0bd;font-size:9px">◆</span>
+          <span class="nm">Tomas sueltas</span>
+          <span class="src">arrastradas · 3 carpetas</span>
+          <span class="stat">19 clips
+            <u><i style="background:var(--pick)"></i>0</u></span>
+          <span class="sp"></span>
+          <span class="pxbadge none">sin proxies</span>
+          <span class="more">⋯</span>
+        </div>
+        <div class="sub">Sin clasificar <span class="n">19</span><span class="ln"></span></div>
+        <div class="grid">
+          <div class="card"><div class="th t7"><span class="unc"></span><span class="id">147</span><span class="dur">0:19</span></div></div>
+          <div class="card"><div class="th t3"><span class="unc"></span><span class="id">148</span><span class="dur">0:24</span></div></div>
+          <div class="card"><div class="th t9"><span class="unc"></span><span class="id">149</span><span class="dur">0:12</span></div></div>
+          <div class="card h"><div class="th t2"><span class="unc"></span><span class="id">150</span><span class="dur">0:31</span></div></div>
+          <div class="card"><div class="th t8"><span class="unc"></span><span class="id">151</span><span class="dur">0:16</span></div></div>
+        </div>
+      </div>
+    </section>
+  </div>
+</div>
+<div class="note"><b>Lo que se gana:</b> ves de un golpe qué es del dron y qué de la Sony, y cada bin trae su
+  propio estado de proxies. <b>Lo que cuesta:</b> «Cocina» ya no es un solo bloque — si grabaste la cocina
+  con las dos cámaras, aparece dos veces, una dentro de cada bin.</div>
+
+<!-- ================================================================
+     2 · VARIANTE B — el cuarto solo como marca en la tarjeta
+================================================================= -->
+<div class="caption"><h2>2 · Variante B — dentro del bin, todo seguido</h2>
+  <span>el cuarto deja de agrupar y se vuelve una etiqueta en la tarjeta</span></div>
+<div class="window" style="height:520px">
+  <div class="titlebar">
+    <div class="appmark"></div>
+    <div class="session"><b>IAV-2608.04-A</b><span>151 clips · 3 bins</span></div>
+    <div class="tb-spacer"></div>
+    <div class="modeswitch"><b>Clip</b><b class="on">Hoja</b></div>
+    <div class="btn primary">Enviar a Premiere</div>
+  </div>
+  <div class="body">
+    <aside class="rail-l">
+      <div class="rail-head"><h3>Sesión</h3></div>
+      <div class="railcap">Cuartos</div>
+      <div class="rooms">
+        <div class="room on"><span class="key">1</span><span class="swatch" style="background:var(--r1)"></span><span class="nm">Cocina</span><span class="ct">24</span></div>
+        <div class="room"><span class="key">2</span><span class="swatch" style="background:var(--r4)"></span><span class="nm">Recámara 1</span><span class="ct">19</span></div>
+        <div class="room"><span class="key">3</span><span class="swatch" style="background:var(--r6)"></span><span class="nm">Baño</span><span class="ct">17</span></div>
+        <div class="room"><span class="key">4</span><span class="swatch" style="background:var(--r5)"></span><span class="nm">Exteriores</span><span class="ct">28</span></div>
+      </div>
+    </aside>
+    <div class="toolcol">
+      <span class="toolcap">Estado</span>
+      <div class="tool"><span class="lb" style="font-size:12px">★</span><span class="kk">⇧P</span></div>
+      <div class="tool"><span class="lb">Pick</span><span class="kk">P</span></div>
+      <div class="tool"><span class="lb">Rej</span><span class="kk">X</span></div>
+    </div>
+    <section class="sheet">
+      <div class="sheet-head">
+        <div class="sh-row"><h3>Clips · 151</h3><div class="search">Buscar clip, cuarto o bin…</div>
+          <div class="selhint">el color del cuarto sigue en el filo izquierdo de cada tarjeta</div></div>
+      </div>
+      <div class="sheet-body">
+        <div class="bin stuck">
+          <span class="chev">▾</span>
+          <span class="cam" style="background:rgba(62,155,192,.18);color:#7cc3e0;font-size:9px">▲</span>
+          <span class="nm">Dron</span><span class="src">02. VIDEO DRONE</span>
+          <span class="stat">23 clips <u><i style="background:var(--pick)"></i>8</u> <u><i style="background:var(--star)"></i>2</u></span>
+          <span class="sp"></span><span class="pxbadge">proxy 1080p · 23/23</span><span class="more">⋯</span>
+        </div>
+        <div class="grid">
+          <div class="card h"><div class="th d1"><span class="rm" style="background:var(--r5)"></span><span class="id">130</span><span class="flag s">★</span><span class="rmtag"><i style="background:var(--r5)"></i>Exteriores</span></div></div>
+          <div class="card h"><div class="th d2"><span class="rm" style="background:var(--r2)"></span><span class="id">131</span><span class="flag p">P</span><span class="rmtag"><i style="background:var(--r2)"></i>Fachada</span></div></div>
+          <div class="card h"><div class="th d1"><span class="rm" style="background:var(--r5)"></span><span class="id">132</span><span class="flag p">P</span><span class="rmtag"><i style="background:var(--r5)"></i>Exteriores</span></div></div>
+          <div class="card h cur"><div class="th d2"><span class="unc"></span><span class="id">133</span><span class="rmtag" style="color:var(--text-3)">sin clasificar</span></div></div>
+          <div class="card h"><div class="th d1"><span class="rm" style="background:var(--r2)"></span><span class="id">134</span><span class="flag x">X</span><span class="rmtag"><i style="background:var(--r2)"></i>Fachada</span></div></div>
+          <div class="card h"><div class="th d2"><span class="rm" style="background:var(--r5)"></span><span class="id">135</span><span class="rmtag"><i style="background:var(--r5)"></i>Exteriores</span></div></div>
+          <div class="card h"><div class="th d1"><span class="unc"></span><span class="id">136</span><span class="rmtag" style="color:var(--text-3)">sin clasificar</span></div></div>
+        </div>
+        <div class="bin">
+          <span class="chev">▾</span>
+          <span class="cam" style="background:rgba(192,136,90,.18);color:#d9a271;font-size:9px">■</span>
+          <span class="nm">Sony FX30</span><span class="src">01. VIDEO CAMARA</span>
+          <span class="stat">109 clips <u><i style="background:var(--pick)"></i>33</u></span>
+          <span class="sp"></span><span class="pxbadge">proxy 1080p · 109/109</span><span class="more">⋯</span>
+        </div>
+        <div class="grid">
+          <div class="card"><div class="th t1"><span class="rm" style="background:var(--r1)"></span><span class="id">001</span><span class="flag p">P</span><span class="rmtag"><i style="background:var(--r1)"></i>Cocina</span></div></div>
+          <div class="card"><div class="th t4"><span class="rm" style="background:var(--r1)"></span><span class="id">002</span><span class="rmtag"><i style="background:var(--r1)"></i>Cocina</span></div></div>
+          <div class="card"><div class="th t3"><span class="rm" style="background:var(--r4)"></span><span class="id">003</span><span class="flag s">★</span><span class="rmtag"><i style="background:var(--r4)"></i>Recámara 1</span></div></div>
+          <div class="card"><div class="th t6"><span class="rm" style="background:var(--r6)"></span><span class="id">004</span><span class="rmtag"><i style="background:var(--r6)"></i>Baño</span></div></div>
+          <div class="card"><div class="th t9"><span class="unc"></span><span class="id">005</span><span class="rmtag" style="color:var(--text-3)">sin clasificar</span></div></div>
+          <div class="card"><div class="th t8"><span class="rm" style="background:var(--r1)"></span><span class="id">006</span><span class="flag x">X</span><span class="rmtag"><i style="background:var(--r1)"></i>Cocina</span></div></div>
+          <div class="card"><div class="th t5"><span class="rm" style="background:var(--r4)"></span><span class="id">007</span><span class="flag p">P</span><span class="rmtag"><i style="background:var(--r4)"></i>Recámara 1</span></div></div>
+        </div>
+      </div>
+    </section>
+  </div>
+</div>
+<div class="note"><b>Más simple y más parecido a Premiere</b> — un bin es una lista y ya. <b>Lo que cuesta:</b>
+  pierdes el bloque por cuarto que hoy usas para pintar en lote; en cambio los filtros de la barra
+  de arriba siguen sirviendo para aislar un cuarto.</div>
+
+<!-- ================================================================
+     3 · CLIC DERECHO EN EL BIN
+================================================================= -->
+<div class="caption"><h2>3 · Clic derecho en el encabezado del bin</h2>
+  <span>ahí vive todo lo que se aplica a una cámara entera</span></div>
+<div class="window" style="height:430px">
+  <div class="titlebar">
+    <div class="appmark"></div>
+    <div class="session"><b>IAV-2608.04-A</b><span>151 clips · 3 bins</span></div>
+    <div class="tb-spacer"></div>
+    <div class="modeswitch"><b>Clip</b><b class="on">Hoja</b></div>
+  </div>
+  <div class="body">
+    <aside class="rail-l"><div class="rail-head"><h3>Sesión</h3></div>
+      <div class="railcap">Cuartos</div>
+      <div class="rooms">
+        <div class="room on"><span class="key">1</span><span class="swatch" style="background:var(--r1)"></span><span class="nm">Cocina</span><span class="ct">24</span></div>
+        <div class="room"><span class="key">2</span><span class="swatch" style="background:var(--r4)"></span><span class="nm">Recámara 1</span><span class="ct">19</span></div>
+      </div>
+    </aside>
+    <div class="toolcol"><span class="toolcap">Estado</span>
+      <div class="tool"><span class="lb">Pick</span><span class="kk">P</span></div></div>
+    <section class="sheet">
+      <div class="sheet-head"><div class="sh-row"><h3>Clips · 151</h3><div class="search">Buscar…</div></div></div>
+      <div class="sheet-body">
+        <div class="bin stuck" style="border-color:#3a4451;background:var(--surface-2)">
+          <span class="chev">▾</span>
+          <span class="cam" style="background:rgba(62,155,192,.18);color:#7cc3e0;font-size:9px">▲</span>
+          <span class="nm">Dron</span><span class="src">02. VIDEO DRONE</span>
+          <span class="stat">23 clips</span><span class="sp"></span>
+          <span class="pxbadge part">proxy · 21/23</span><span class="more" style="background:#2b323d;color:var(--text)">⋯</span>
+        </div>
+        <div class="grid" style="opacity:.35">
+          <div class="card h"><div class="th d1"><span class="id">130</span></div></div>
+          <div class="card h"><div class="th d2"><span class="id">131</span></div></div>
+          <div class="card h"><div class="th d1"><span class="id">132</span></div></div>
+          <div class="card h"><div class="th d2"><span class="id">133</span></div></div>
+          <div class="card h"><div class="th d1"><span class="id">134</span></div></div>
+          <div class="card h"><div class="th d2"><span class="id">135</span></div></div>
+          <div class="card h"><div class="th d1"><span class="id">136</span></div></div>
+        </div>
+
+        <div class="ctx" style="left:120px;top:78px">
+          <div class="it">Renombrar bin…<span class="kk">F2</span></div>
+          <div class="it on">Enlazar proxies…</div>
+          <div class="it off">Quitar proxies de este bin</div>
+          <div class="sep"></div>
+          <div class="cap">Selección</div>
+          <div class="it">Seleccionar los 23 clips<span class="kk">⌘A</span></div>
+          <div class="it">Colapsar<span class="kk">click</span></div>
+          <div class="sep"></div>
+          <div class="it danger">Quitar del proyecto</div>
+        </div>
+      </div>
+    </section>
+  </div>
+</div>
+<div class="note"><b>«Enlazar proxies…» es lo de hoy, pero por bin.</b> Eliges el proxy de UN clip del dron y
+  de ahí sale el patrón de nombre para los otros 22 — sin tocar la Sony, que tiene su propio patrón
+  (<span style="font-family:var(--mono)">S03</span>). Hoy hay un solo patrón para todo el proyecto, y por
+  eso una de las dos cámaras siempre se queda fuera. En la insignia se ve «21/23»: dos no calzaron y
+  no se enganchan, en vez de enganchar un proxy corrido.</div>
+
+<!-- ================================================================
+     4 · ARRASTRANDO
+================================================================= -->
+<div class="caption"><h2>4 · Arrastrando material a la ventana</h2>
+  <span>encima de un bin se suma ahí; en el vacío, nace un bin nuevo</span></div>
+<div class="window" style="height:470px">
+  <div class="titlebar">
+    <div class="appmark"></div>
+    <div class="session"><b>IAV-2608.04-A</b><span>151 clips · 3 bins</span></div>
+    <div class="tb-spacer"></div>
+    <div class="modeswitch"><b>Clip</b><b class="on">Hoja</b></div>
+  </div>
+  <div class="body">
+    <aside class="rail-l"><div class="rail-head"><h3>Sesión</h3></div>
+      <div class="railcap">Cuartos</div>
+      <div class="rooms">
+        <div class="room on"><span class="key">1</span><span class="swatch" style="background:var(--r1)"></span><span class="nm">Cocina</span><span class="ct">24</span></div>
+      </div>
+    </aside>
+    <div class="toolcol"><span class="toolcap">Estado</span>
+      <div class="tool"><span class="lb">Pick</span><span class="kk">P</span></div></div>
+    <section class="sheet">
+      <div class="sheet-head"><div class="sh-row"><h3>Clips · 151</h3><div class="search">Buscar…</div></div></div>
+      <div class="sheet-body">
+        <div class="dropzone">
+          <span class="ico">＋</span>
+          <div><b>Soltar en «Dron»</b><br><span>6 archivos · se suman a los 23 que ya tiene</span></div>
+        </div>
+        <div class="grid" style="opacity:.3">
+          <div class="card h"><div class="th d1"><span class="id">130</span></div></div>
+          <div class="card h"><div class="th d2"><span class="id">131</span></div></div>
+          <div class="card h"><div class="th d1"><span class="id">132</span></div></div>
+          <div class="card h"><div class="th d2"><span class="id">133</span></div></div>
+          <div class="card h"><div class="th d1"><span class="id">134</span></div></div>
+          <div class="card h"><div class="th d2"><span class="id">135</span></div></div>
+          <div class="card h"><div class="th d1"><span class="id">136</span></div></div>
+        </div>
+        <div class="dropnew">
+          <b>＋ Bin nuevo: «02. VIDEO DRONE»</b>
+          <span>suelta aquí y se crea un bin con el nombre de la carpeta · lo renombras con doble clic</span>
+        </div>
+        <div class="ghost" style="left:300px;top:150px">
+          <span>6 archivos de video</span><span class="cnt">.MP4</span>
+        </div>
+      </div>
+    </section>
+  </div>
+</div>
+<div class="note"><b>Lo importante que no se ve en la imagen:</b> al soltar material nuevo, lo que ya estaba
+  conserva sus portadas, sus proxies y sus marcas. Hoy no: importar una segunda carpeta reinicia todo,
+  y por eso se te caían las portadas.</div>
+
+</body>
+</html>
