@@ -1358,6 +1358,24 @@ class ClipSheet(QWidget):
     def selected_indices(self) -> list[int]:
         return sorted(self._selected)
 
+    def centrar_en(self, index: int) -> None:
+        """Deja la tarjeta del clip `index` a la vista, centrada.
+
+        `DECISIONES.md` lo pide para el cruce con `⇥`: los dos modos
+        comparten el clip actual, asi que entrar a la hoja mirando otra
+        parte del shooting es perder el hilo. Con 128 clips y el actual en
+        el 87, la hoja se abria en el 117.
+        """
+        if not (0 <= index < len(self.item_widgets)):
+            return
+        tarjeta = self.item_widgets[index]
+        # el margen vertical es medio viewport: `ensureWidgetVisible` con
+        # margen chico solo la asoma por el borde, y lo que se pidio es que
+        # quede centrada.
+        self._scroll.ensureWidgetVisible(
+            tarjeta, 0, max(0, (self._scroll.viewport().height() - tarjeta.height()) // 2)
+        )
+
     def set_current(self, index: int) -> None:
         """Solo cambia el borde: NO reconstruye. Reconstruir dentro del
         mousePressEvent de la propia tarjeta terminó en SIGSEGV en macOS."""

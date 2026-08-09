@@ -48,6 +48,7 @@ from clasificador_video.ui.room_palette import RoomPalette
 from clasificador_video.ui.room_rail import RoomRail
 from clasificador_video.ui.status_bar import StatusBar
 from clasificador_video.ui.title_bar import TitleBar
+from clasificador_video.ui.transicion import TransicionDeTarjeta
 from clasificador_video.ui.tool_column import ToolColumn
 from clasificador_video.ui.video_stage import VideoStage, etiqueta_de_velocidad
 from clasificador_video.ui.video_widget import format_timecode
@@ -252,6 +253,7 @@ class MainWindow(QWidget):
         self._proxy_sizes: dict[int, tuple[int, int]] = {}
         self._proxy_candidatos: dict[int, Path] = {}
         self._proxy_generation = 0
+        self.transicion = TransicionDeTarjeta(self)
 
         # autosave con debounce: coalesca ediciones rapidas seguidas en un
         # solo guardado en vez de escribir a disco en cada tecla.
@@ -1449,16 +1451,38 @@ class MainWindow(QWidget):
         La columna de herramientas se va con el video: es el estado del clip
         que estas viendo, y sin visor no tiene de que ser el estado.
         """
+        # La tarjeta del clip actual, ANTES de que la hoja cambie de modo:
+        # despues del cruce las tarjetas ya se re-acomodaron y su posicion
+        # de origen se perdio.
+        tarjeta = self._tarjeta_actual() if self._modo_hoja else None
+
         self._modo_hoja = not self._modo_hoja
         for panel in (self.video_stage, self.tool_column):
             panel.setVisible(not self._modo_hoja)
         self.clip_sheet.set_modo_hoja(self._modo_hoja)
+        if self._modo_hoja:
+            # entrar a la hoja lleva SIEMPRE al clip actual (DECISIONES.md):
+            # los dos modos comparten el clip, asi que abrir la hoja mirando
+            # otra parte del shooting es perder el hilo. Y de paso es lo que
+            # hace posible la transicion de vuelta: una tarjeta fuera de la
+            # vista no se puede animar.
+            self.clip_sheet.centrar_en(self.current_index)
         # el switch de la barra de titulo es una VISTA de `_modo_hoja`, no
         # una segunda copia: se le avisa desde aca, que es el unico lugar
         # donde el modo cambia.
         self.title_bar.set_modo_hoja(self._modo_hoja)
         self._refresh_overlays()   # la barra de estado cambia de contenido
         self._resize_video_stage()
+        if tarjeta is not None:
+            # solo de la hoja AL visor: en el otro sentido no hay tarjeta de
+            # donde salir, y DECISIONES.md no pide la vuelta.
+            self.transicion.lanzar(tarjeta, self.video_stage.geometry())
+
+    def _tarjeta_actual(self):
+        widgets = self.clip_sheet.item_widgets
+        if 0 <= self.current_index < len(widgets):
+            return widgets[self.current_index]
+        return None
 
     def _pasar_cuadro(self, delta: int) -> None:
         """`.` adelante, `,` atras. La convencion de Premiere, y la unica

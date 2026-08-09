@@ -2996,3 +2996,60 @@ def test_al_entrar_a_la_hoja_la_barra_resume_el_shooting(qtbot):
 
     window.alternar_modo_hoja()
     assert "C0001.MP4" in window.status_bar.clip_label.text()
+
+
+# --- transicion de la tarjeta al visor (F10) ---------------------------
+
+
+def test_volver_al_visor_anima_la_tarjeta(qtbot):
+    """`DECISIONES.md`: la tarjeta crece hasta la posicion del visor,
+    medio segundo que evita el «¿donde estaba?» en cada cruce."""
+    window = _window(qtbot)
+    window.resize(1600, 1000)
+    window.show()
+    window.load_clips([_clip(i) for i in range(1, 6)])
+    window.alternar_modo_hoja()          # a la hoja
+    qtbot.wait(10)
+
+    window.alternar_modo_hoja()          # y de vuelta al visor
+    assert window.transicion.corriendo()
+
+
+def test_entrar_a_la_hoja_no_anima(qtbot):
+    """La transicion es de la tarjeta AL visor. En el otro sentido no hay
+    tarjeta de donde salir, y `DECISIONES.md` no la pide."""
+    window = _window(qtbot)
+    window.resize(1600, 1000)
+    window.show()
+    window.load_clips([_clip(i) for i in range(1, 6)])
+
+    window.alternar_modo_hoja()
+    assert not window.transicion.corriendo()
+
+
+def test_sin_clips_el_cruce_no_truena(qtbot):
+    window = _window(qtbot)
+    window.resize(1600, 1000)
+    window.show()
+    window.alternar_modo_hoja()
+    window.alternar_modo_hoja()
+    assert not window.transicion.corriendo()
+
+
+def test_entrar_a_la_hoja_lleva_al_clip_actual(qtbot):
+    """Con 128 clips y el actual en el 87, la hoja se abria en el 117."""
+    window = _window(qtbot)
+    window.resize(1600, 1000)
+    window.show()
+    window.load_clips([_clip(i) for i in range(1, 129)])
+    window.select_clip(86)
+    qtbot.wait(10)
+
+    window.alternar_modo_hoja()
+    qtbot.wait(10)
+
+    from PySide6.QtCore import QRect
+    tarjeta = window.clip_sheet.item_widgets[86]
+    viewport = window.clip_sheet._scroll.viewport()
+    arriba = tarjeta.mapTo(viewport, tarjeta.rect().topLeft())
+    assert viewport.rect().intersects(QRect(arriba, tarjeta.size()))

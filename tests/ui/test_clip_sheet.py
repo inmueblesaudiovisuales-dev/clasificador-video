@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QRect, Qt
 from PySide6.QtGui import QPixmap
 
 from clasificador_video.ui import theme
@@ -1145,3 +1145,34 @@ def test_con_el_pincel_cargado_no_hay_marquesina(qtbot):
     hoja.mover_marquesina(_centro(hoja, 2))
     assert hoja.marquesina.isHidden()
     assert hoja.selected_indices() == []
+
+
+# --- la hoja lleva al clip actual (F10) --------------------------------
+
+
+def test_centrar_en_deja_la_tarjeta_a_la_vista(qtbot):
+    """`DECISIONES.md`: «⇥ alterna llevando siempre al clip actual, en los
+    dos sentidos. Al volver a la hoja, esa tarjeta queda centrada».
+
+    Sin esto la hoja se quedaba donde estuviera el scroll: con 128 clips y
+    el actual en el 87, entrabas a la hoja mirando el 117.
+    """
+    sheet = _sheet(qtbot, [_clip(i) for i in range(128)])
+    sheet.resize(800, 600)
+    sheet.show()
+    qtbot.wait(10)
+
+    sheet.centrar_en(86)
+    qtbot.wait(10)
+
+    tarjeta = sheet.item_widgets[86]
+    viewport = sheet._scroll.viewport()
+    arriba = tarjeta.mapTo(viewport, tarjeta.rect().topLeft())
+    assert viewport.rect().intersects(QRect(arriba, tarjeta.size()))
+
+
+def test_centrar_en_un_indice_que_no_existe_no_truena(qtbot):
+    sheet = _sheet(qtbot, [_clip(0)])
+    sheet.show()
+    sheet.centrar_en(50)
+    sheet.centrar_en(-1)
