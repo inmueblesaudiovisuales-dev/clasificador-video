@@ -286,6 +286,8 @@ class MainWindow(QWidget):
             ("P", lambda: self.handle_key_press("p")),
             ("X", lambda: self.handle_key_press("x")),
             ("U", lambda: self.handle_key_press("u")),
+            # `S`: el mismo cuarto que el clip anterior
+            ("S", lambda: self.handle_key_press("s")),
             # `J K L`: la convencion de Premiere, Avid y Resolve
             ("L", lambda: self.handle_key_press("l")),
             ("K", lambda: self.handle_key_press("k")),
@@ -458,6 +460,35 @@ class MainWindow(QWidget):
         """
         self.clip_sheet.chips["sin_clasificar"].click()
 
+    def _asignar_cuarto(self, room_path: list[str]) -> None:
+        """Un solo camino para asignar cuarto, lo pida un digito o la `S`.
+
+        Con dos caminos, `S` seria una asignacion de segunda: no registraria
+        en el historial, o no avanzaria, y eso no se ve hasta usarla.
+        """
+        self._apply_categoria_to_targets(room_path)
+        self._refresh_sheet()
+        self._autosave()
+        # «asignar cuarto y avanzar»: el clip recien resuelto suele salir de
+        # la cola, y quedarse en el obligaria a apretar la flecha 128 veces
+        # de mas
+        self._avanzar_en_la_cola()
+
+    def _cuarto_del_clip_anterior(self) -> str | None:
+        """El cuarto del clip CON CUARTO mas cercano hacia atras.
+
+        No es `clips[actual - 1]` a secas: si el anterior quedo sin clasificar
+        se sigue buscando hacia atras, o la tecla se volveria inutil apenas te
+        saltas uno. Y se mira el orden de RODAJE, no la cola filtrada: las
+        rachas son consecutivas en el tiempo, y un filtro puede dejar juntos
+        dos clips de cuartos distintos.
+        """
+        for indice in range(self.current_index - 1, -1, -1):
+            categoria = self.clips[indice].categoria_path
+            if categoria:
+                return categoria[0]
+        return None
+
     def _avanzar_en_la_cola(self) -> None:
         """`1`-`9` es «asignar cuarto y avanzar» (DECISIONES.md).
 
@@ -552,6 +583,11 @@ class MainWindow(QWidget):
         clip = self.current_clip
         self.room_rail.set_current_room(
             clip.categoria_path[0] if clip and clip.categoria_path else None
+        )
+        anterior = self._cuarto_del_clip_anterior()
+        self.room_rail.set_same_room(
+            anterior,
+            theme.room_color(rooms.index(anterior)) if anterior in rooms else None,
         )
         self.title_bar.set_project(self.project_name, total)
         self.status_bar.set_unclassified(sin_clasificar)
@@ -982,15 +1018,14 @@ class MainWindow(QWidget):
             self._refresh_sheet()
             self._autosave()
             return
+        if key == "s":
+            cuarto = self._cuarto_del_clip_anterior()
+            if cuarto is not None:
+                self._asignar_cuarto([cuarto])
+            return
         room_path = self._router.resolve_room_key(key)
         if room_path is not None:
-            self._apply_categoria_to_targets(room_path)
-            self._refresh_sheet()
-            self._autosave()
-            # «asignar cuarto y avanzar»: el clip recien resuelto suele salir
-            # de la cola, y quedarse en el obligaria a apretar la flecha
-            # 128 veces de mas
-            self._avanzar_en_la_cola()
+            self._asignar_cuarto(room_path)
             return
         action = self._router.resolve_action_key(key)
         if action is not None:

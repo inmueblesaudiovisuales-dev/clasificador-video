@@ -418,6 +418,24 @@ class RoomRail(QWidget):
         self._rooms_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
         self.rows: list[_FilaCuarto] = []
 
+        # --- la fila fija de `S`: repetir el cuarto del clip anterior ---
+        # Va arriba de los cuartos y FUERA de `self.rows`: `set_rooms`
+        # reconstruye esa lista entera, y si viviera dentro se la llevaria
+        # puesta cada vez que cambia un cuarto.
+        self.same_caption = QLabel("IGUAL AL CLIP ANTERIOR")
+        self.same_caption.setObjectName("sameCaption")
+        theme.apply_letter_spacing(self.same_caption)
+        self.same_row = _FilaCuarto(None, "", theme.CURRENT_COLOR, 0)
+        self.same_row.setObjectName("sameRow")
+        self.same_row.key_cap.setText("S")
+        self.same_row.key_cap.setProperty("sin_tecla", False)
+        self.same_row.count_label.setText("↩")   # `↩` del mockup: aplica y avanza
+        self.same_row.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self.same_caption.hide()
+        self.same_row.hide()
+        self._rooms_layout.addWidget(self.same_caption)
+        self._rooms_layout.addWidget(self.same_row)
+
         # La app abre con el rail VACIO: no hay paso previo de configuracion
         # y los cuartos se crean sobre la marcha desde aca (DECISIONES.md).
         self.new_room_row = QPushButton("+  Nuevo cuarto")
@@ -502,6 +520,24 @@ class RoomRail(QWidget):
         self.progress_bar.set_counts(
             [counts.get(c, 0) for c in rooms], self._pendientes
         )
+
+    def set_same_room(self, nombre: str | None, color: str | None) -> None:
+        """El cuarto que aplicaria `S`, o `None` si no hay ninguno atras.
+
+        Es una confirmacion, no un acto de memoria: la fila muestra siempre a
+        que cuarto va a ir la tecla ANTES de apretarla.
+        """
+        if not nombre or not color:
+            self.same_row.hide()
+            self.same_caption.hide()
+            return
+        self.same_row.nombre = nombre
+        self.same_row.name_label.setText(nombre)
+        self.same_row.swatch.setStyleSheet(
+            f"background-color: {color}; border-radius: 2px;"
+        )
+        self.same_row.show()
+        self.same_caption.show()
 
     def focus_rooms(self) -> None:
         """`⌘R`: manejar los cuartos sin tocar el mouse.

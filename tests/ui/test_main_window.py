@@ -1951,3 +1951,112 @@ def test_el_texto_llega_al_buscador_mientras_esta_enfocado(qtbot):
     assert window.clip_sheet.search_input.text() == "cocina 1"
     assert window.clips[0].categoria_path == []
     assert window.clips[0].in_frame is None
+
+
+# --- F7 Task 8: `S` -- igual al clip anterior --------------------------------
+
+
+def test_S_asigna_el_cuarto_del_clip_anterior(qtbot):
+    """La tecla mas valiosa de este material: en un recorrido las tomas vienen
+    en rachas, y sobre 128 clips convierte ~110 decisiones en confirmaciones."""
+    window = _window(qtbot, rooms=("Cocina", "Sala"))
+    window.load_clips([_clip(1), _clip(2)])
+    window.select_clip(0)
+    window.handle_key_press("1")          # el primero a Cocina, y avanza
+    window.handle_key_press("s")
+    assert window.clips[1].categoria_path == ["Cocina"]
+
+
+def test_S_salta_los_que_quedaron_sin_clasificar(qtbot):
+    """Si mirara solo el inmediatamente anterior, la tecla se volveria inutil
+    apenas te saltas uno."""
+    window = _window(qtbot, rooms=("Cocina",))
+    window.load_clips([_clip(1), _clip(2), _clip(3)])
+    window.select_clip(0)
+    window.handle_key_press("1")
+    window.select_clip(2)                 # el del medio queda sin cuarto
+    window.handle_key_press("s")
+    assert window.clips[2].categoria_path == ["Cocina"]
+
+
+def test_S_mira_hacia_atras_en_el_orden_de_rodaje_no_en_la_cola(qtbot):
+    """El «anterior» es el de antes en el ROLLO, no el anterior de la cola
+    filtrada: en el rodaje las rachas son consecutivas en el tiempo, y un
+    filtro puede dejar al lado dos clips de cuartos distintos."""
+    window = _window(qtbot, rooms=("Cocina", "Sala"))
+    window.load_clips([_clip(1), _clip(2), _clip(3)])
+    window.select_clip(0)
+    window.handle_key_press("2")          # clip 1 -> Sala
+    window.select_clip(1)
+    window.handle_key_press("1")          # clip 2 -> Cocina
+    window.select_clip(2)
+    window.handle_key_press("s")
+    assert window.clips[2].categoria_path == ["Cocina"]   # el mas cercano
+
+
+def test_S_sin_ningun_clip_clasificado_antes_no_hace_nada(qtbot):
+    window = _window(qtbot, rooms=("Cocina",))
+    window.load_clips([_clip(1)])
+    window.handle_key_press("s")
+    assert window.clips[0].categoria_path == []
+
+
+def test_S_sin_clips_no_revienta(qtbot):
+    _window(qtbot, rooms=("Cocina",)).handle_key_press("s")
+
+
+def test_S_no_mira_hacia_adelante(qtbot):
+    """«El anterior» es hacia atras. Si mirara adelante, el primer clip del
+    rollo copiaria el cuarto de uno que todavia no juzgaste."""
+    window = _window(qtbot, rooms=("Cocina",))
+    window.load_clips([_clip(1), _clip(2)])
+    window.select_clip(1)
+    window.handle_key_press("1")          # el SEGUNDO a Cocina
+    window.select_clip(0)
+    window.handle_key_press("s")
+    assert window.clips[0].categoria_path == []
+
+
+def test_S_tambien_avanza(qtbot):
+    """Es una asignacion de cuarto como cualquier otra."""
+    window = _window(qtbot, rooms=("Cocina",))
+    window.load_clips([_clip(1), _clip(2), _clip(3)])
+    window.select_clip(0)
+    window.handle_key_press("1")
+    window.handle_key_press("s")
+    assert window.current_index == 2
+
+
+def test_S_deja_entrada_en_el_historial(qtbot):
+    window = _window(qtbot, rooms=("Cocina",))
+    window.load_clips([_clip(1), _clip(2)])
+    window.select_clip(0)
+    window.handle_key_press("1")
+    window.handle_key_press("s")
+    assert window.history.entries()[0].etiqueta == "Cocina"
+
+
+def test_S_se_puede_deshacer(qtbot):
+    window = _window(qtbot, rooms=("Cocina",))
+    window.load_clips([_clip(1), _clip(2)])
+    window.select_clip(0)
+    window.handle_key_press("1")
+    window.handle_key_press("s")
+    window.undo()
+    assert window.clips[1].categoria_path == []
+
+
+def test_la_fila_de_S_del_rail_sigue_al_clip_actual(qtbot):
+    """Muestra a que cuarto aplicaria AHORA, no el ultimo que usaste."""
+    window = _window(qtbot, rooms=("Cocina", "Sala"))
+    window.load_clips([_clip(1), _clip(2), _clip(3)])
+    window.select_clip(0)
+    window.handle_key_press("1")          # clip 1 -> Cocina, y avanza al 2
+    assert "Cocina" in window.room_rail.same_row.name_label.full_text()
+    window.select_clip(0)                 # el primero no tiene anterior
+    assert window.room_rail.same_row.isHidden()
+
+
+def test_la_tecla_S_esta_registrada(qtbot):
+    window = _window_with_video(qtbot)
+    assert "S" in {s.key().toString() for s in window._shortcuts}

@@ -102,6 +102,11 @@ SCRUB_HANDLE_WIDTH = 2
 SCRUB_TICKS_HEIGHT = 6           # las marcas viven abajo, como en el mockup
 SCRUB_RADIUS = 4
 HANDLE_LABEL_PX = 9        # la letra I/O de las manijas, en pixeles
+# La fila fija de `S` en el rail, en ambar tenue (mockup: `.same`).
+SAME_ROW_BG_ALPHA = 23      # rgba(232,163,61,.09)
+SAME_ROW_BORDER_ALPHA = 71  # rgba(232,163,61,.28)
+SAME_ROW_KEY_ALPHA = 46     # rgba(232,163,61,.18)
+SAME_ROW_TAG_ALPHA = 204    # rgba(232,163,61,.8)
 # Las marcas de tiempo tienen DOS juegos de color, por el mismo motivo que el
 # riel: TICK_*_COLOR son grises oscuros pensados para fondo oscuro, y sobre el
 # video --donde la banda es translucida y la imagen puede ser una pared
@@ -516,6 +521,28 @@ def build_stylesheet() -> str:
         color: {TEXT_3};
         font-size: {FONT_MICRO}px;
         font-weight: 650;
+    }}
+    /* La fila fija de `S`. Va en ambar --el color del acento-- y no con el
+       color de un cuarto: no es un cuarto mas de la lista, es un atajo a lo
+       que hiciste recien. El mockup la separa con la misma intencion. */
+    QWidget#sameRow {{
+        background-color: {con_alfa_qss(CURRENT_COLOR, SAME_ROW_BG_ALPHA)};
+        border: 1px solid {con_alfa_qss(CURRENT_COLOR, SAME_ROW_BORDER_ALPHA)};
+        border-radius: {RADIUS_MD}px;
+    }}
+    QWidget#sameRow QLabel#keyCap {{
+        background-color: {con_alfa_qss(CURRENT_COLOR, SAME_ROW_KEY_ALPHA)};
+        border: 1px solid {con_alfa_qss(CURRENT_COLOR, SAME_ROW_BORDER_ALPHA)};
+        color: {CURRENT_COLOR};
+    }}
+    QWidget#sameRow QLabel#roomCount {{
+        color: {con_alfa_qss(CURRENT_COLOR, SAME_ROW_TAG_ALPHA)};
+    }}
+    QLabel#sameCaption {{
+        color: {con_alfa_qss(CURRENT_COLOR, SAME_ROW_TAG_ALPHA)};
+        font-size: {FONT_MICRO}px;
+        font-weight: 650;
+        padding: 3px 6px 4px;
     }}
     QLabel#toolHint {{
         color: {TEXT_3};

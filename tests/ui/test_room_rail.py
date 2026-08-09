@@ -503,3 +503,48 @@ def test_el_historial_si_se_rehace_cuando_cambia(qtbot):
     rail.set_history([_entrada("Cocina")])
     rail.set_history([_entrada("Sala"), _entrada("Cocina")])
     assert [f.etiqueta for f in rail.history_rows] == ["Sala", "Cocina"]
+
+
+# --- F7 Task 8: la fila fija de `S` ------------------------------------------
+
+
+def test_la_fila_de_S_dice_a_que_cuarto_aplicaria(qtbot):
+    """Es una confirmacion, no un acto de memoria."""
+    rail = _rail(qtbot)
+    rail.set_rooms(["Cocina", "Sala"], {})
+    rail.set_same_room("Cocina", theme.room_color(0))
+    assert "Cocina" in rail.same_row.name_label.full_text()
+    assert not rail.same_row.isHidden()
+
+
+def test_sin_cuarto_anterior_la_fila_de_S_no_se_ve(qtbot):
+    rail = _rail(qtbot)
+    rail.set_same_room(None, None)
+    assert rail.same_row.isHidden()
+    assert rail.same_caption.isHidden()
+
+
+def test_la_fila_de_S_va_arriba_de_los_cuartos(qtbot):
+    rail = _rail(qtbot)
+    rail.set_rooms(["Cocina"], {})
+    rail.set_same_room("Cocina", theme.room_color(0))
+    layout = rail._rooms_layout
+    assert layout.indexOf(rail.same_caption) < layout.indexOf(rail.same_row)
+    assert layout.indexOf(rail.same_row) < layout.indexOf(rail.rows[0])
+
+
+def test_la_fila_de_S_lleva_su_tecla_y_el_color_del_cuarto(qtbot):
+    rail = _rail(qtbot)
+    rail.set_same_room("Sala", theme.room_color(1))
+    assert rail.same_row.key_cap.text() == "S"
+    assert theme.room_color(1) in rail.same_row.swatch.styleSheet()
+
+
+def test_la_fila_de_S_sobrevive_a_reconstruir_los_cuartos(qtbot):
+    """`set_rooms` reconstruye las filas: si la de `S` viviera entre ellas se
+    la llevaria puesta, y la tecla quedaria anunciada sin fila."""
+    rail = _rail(qtbot)
+    rail.set_same_room("Cocina", theme.room_color(0))
+    rail.set_rooms(["Cocina", "Sala"], {"Cocina": 3})
+    assert not rail.same_row.isHidden()
+    assert "Cocina" in rail.same_row.name_label.full_text()
