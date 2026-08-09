@@ -34,6 +34,7 @@ CUARTOS = [
 CONTEOS = [24, 16, 14, 11, 9, 8, 14, 9, 6, 5]
 TOTAL = 128
 SIN_CLASIFICAR = 12
+DESTACADOS = 6
 PICKS = 41
 REJECTS = 9
 CLIP_ACTUAL = 86  # el mockup muestra el clip 087, que es el indice 86
@@ -149,9 +150,17 @@ def _clips() -> tuple[list[Clip], dict[int, tuple[int, int]], dict[int, float]]:
             categoria_path=[cuarto] if cuarto else [],
             fps=29.97,
         )
-        if indice < PICKS:
+        # Los destacados van ADEMAS de los picks, no sacados de ellos: el
+        # mockup muestra `6 dest.` junto a `41` picks, o sea 47 marcados. Sin
+        # ellos el arnes compara un rail con el chip en 0 contra uno que lo
+        # muestra, y el estado nuevo no se compara con nada.
+        # el clip ACTUAL va destacado, como en el mockup: si no, su badge
+        # `★ DESTACADO` y el indicador de la columna no se comparan con nada
+        if indice < DESTACADOS or indice == CLIP_ACTUAL:
+            clip.flag = "destacado"
+        elif indice < DESTACADOS + PICKS:
             clip.flag = "pick"
-        elif indice < PICKS + REJECTS:
+        elif indice < DESTACADOS + PICKS + REJECTS:
             clip.flag = "reject"
         # 132 y 344 a 29.97 fps son IN 00:00:04:12 y OUT 00:00:11:16, los dos
         # timecodes que muestra el mockup. El clip ACTUAL tiene que ser uno de

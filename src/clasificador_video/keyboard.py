@@ -5,7 +5,9 @@ from __future__ import annotations
 # intercepta la `u` antes que el router --ahi limpia el in/out del clip-- y
 # hace return, asi que el router nunca la veia. El estado neutral se va a
 # alcanzar repitiendo `P` o `X` sobre un clip que ya lo tiene (F7).
-ACTION_KEYS = {"p": "pick", "x": "reject"}
+# `shift+p` entra como token de varios caracteres: las teclas llegan al
+# router como cadena, y no existe una "⇧p" de un solo caracter.
+ACTION_KEYS = {"p": "pick", "x": "reject", "shift+p": "destacado"}
 
 
 class KeyboardRouter:

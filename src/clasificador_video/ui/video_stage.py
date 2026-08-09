@@ -103,6 +103,7 @@ class _BadgeRow(QWidget):
         datos = {
             "pick": ("● PICK", theme.PICK_COLOR),
             "reject": ("✕ REJECT", theme.REJECT_COLOR),
+            "destacado": ("★ DESTACADO", theme.STAR_COLOR),
         }.get(flag)
         if datos is None:
             self.flag_badge.hide()

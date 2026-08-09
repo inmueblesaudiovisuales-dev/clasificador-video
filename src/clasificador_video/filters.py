@@ -5,6 +5,12 @@ import unicodedata
 from dataclasses import dataclass
 from pathlib import Path
 
+# Los estados que cuentan como "ya lo juzgaste". `destacado` esta aqui por
+# derecho propio: es LA toma del cuarto. Vive en una constante y no repetido
+# en cada comparacion, que es como `sin_marcar` se quedo sin el al agregarlo.
+MARCADOS = ("pick", "reject", "destacado")
+
+
 def _sin_acentos(texto: str) -> str:
     """`recamara` tiene que encontrar `Recámara 1`: en un teclado apurado
     nadie escribe los acentos."""
@@ -26,10 +32,9 @@ class FilterState:
 
     # Los valores validos de `mostrar` son "todos", "sin_clasificar" y
     # "clasificados"; los de `estado`, "todos", "solo_picks",
-    # "ocultar_rejects" y "sin_marcar". Cualquier otro no filtra nada, a
+    # "solo_destacados", "ocultar_rejects" y "sin_marcar". Cualquier otro no filtra nada, a
     # proposito: esconder clips por un nombre que el modulo no conoce seria
-    # peor que no filtrar. El chip `solo_destacados` entra en la F7, con el
-    # estado "destacado".
+    # peor que no filtrar. `solo_destacados` se agrego en la F7.
     mostrar: str = "todos"
     estado: str = "todos"
     busqueda: str = ""
@@ -51,9 +56,13 @@ class FilterState:
             return False
         if self.estado == "solo_picks" and clip.flag != "pick":
             return False
+        if self.estado == "solo_destacados" and clip.flag != "destacado":
+            return False
         if self.estado == "ocultar_rejects" and clip.flag == "reject":
             return False
-        if self.estado == "sin_marcar" and clip.flag in ("pick", "reject"):
+        # `destacado` entra aqui: es el clip MAS juzgado del cuarto, y sin
+        # nombrarlo se colaba en "lo que falta juzgar"
+        if self.estado == "sin_marcar" and clip.flag in MARCADOS:
             return False
         texto = self.busqueda.strip()
         if texto:
@@ -84,7 +93,8 @@ def contar(clips: list) -> dict[str, int]:
         "sin_clasificar": len(clips) - clasificados,
         "clasificados": clasificados,
         "solo_picks": sum(1 for c in clips if c.flag == "pick"),
+        "solo_destacados": sum(1 for c in clips if c.flag == "destacado"),
         # cuantos SE OCULTAN, no cuantos quedan: el chip del mockup dice "−9"
         "ocultar_rejects": rejects,
-        "sin_marcar": sum(1 for c in clips if c.flag not in ("pick", "reject")),
+        "sin_marcar": sum(1 for c in clips if c.flag not in MARCADOS),
     }

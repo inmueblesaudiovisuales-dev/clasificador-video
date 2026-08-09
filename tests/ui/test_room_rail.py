@@ -60,17 +60,19 @@ def test_la_leyenda_usa_etiquetas_cortas_que_entran_en_200px(qtbot):
     """`● 41 picks ● 9 rejects ● 12 sin clasificar` no entra en el rail y se
     cortaba a la mitad. El mockup se apoya en el color, no en el texto."""
     rail = _rail(qtbot)
-    rail.set_flags(41, 9, 12)
-    assert [p.text() for p in rail.leyenda.puntos] == ["41", "9", "12"]
+    rail.set_flags(41, 9, 12, destacados=6)
+    # cuatro estados desde la F7: el `dest.` va primero, como en el mockup
+    assert [p.text() for p in rail.leyenda.puntos] == ["6", "41", "9", "12"]
     assert rail.leyenda.sizeHint().width() <= theme.RAIL_WIDTH
 
 
 def test_cada_punto_de_la_leyenda_lleva_el_color_de_su_estado(qtbot):
     """Todos grises es informacion tirada a la basura."""
     rail = _rail(qtbot)
-    rail.set_flags(41, 9, 12)
+    rail.set_flags(41, 9, 12, destacados=6)
     assert rail.leyenda.colores() == [
-        theme.PICK_COLOR, theme.REJECT_COLOR, theme.PENDING_COLOR,
+        theme.STAR_COLOR, theme.PICK_COLOR, theme.REJECT_COLOR,
+        theme.PENDING_COLOR,
     ]
 
 
@@ -78,10 +80,11 @@ def test_la_leyenda_dice_que_es_cada_numero_al_pasar_el_mouse(qtbot):
     """El numero pelado es criptico: el color desambigua de un vistazo y el
     tooltip lo confirma sin gastar ancho."""
     rail = _rail(qtbot)
-    rail.set_flags(41, 9, 12)
-    assert "picks" in rail.leyenda.puntos[0].toolTip()
-    assert "rejects" in rail.leyenda.puntos[1].toolTip()
-    assert "sin clasificar" in rail.leyenda.puntos[2].toolTip()
+    rail.set_flags(41, 9, 12, destacados=6)
+    assert "destacados" in rail.leyenda.puntos[0].toolTip()
+    assert "picks" in rail.leyenda.puntos[1].toolTip()
+    assert "rejects" in rail.leyenda.puntos[2].toolTip()
+    assert "sin clasificar" in rail.leyenda.puntos[3].toolTip()
 
 
 def test_el_enter_de_buscar_va_dentro_de_un_keycap(qtbot):
@@ -477,7 +480,7 @@ def test_la_leyenda_se_actualiza_sin_recrearse(qtbot):
     antes = list(rail.leyenda.puntos)
     rail.set_flags(42, 9, 11)
     assert rail.leyenda.puntos == antes, "recrear no hace falta: cambia el texto"
-    assert [p.text() for p in rail.leyenda.puntos] == ["42", "9", "11"]
+    assert [p.text() for p in rail.leyenda.puntos] == ["0", "42", "9", "11"]
 
 
 def test_la_barra_de_progreso_no_se_recrea_si_no_cambio(qtbot):

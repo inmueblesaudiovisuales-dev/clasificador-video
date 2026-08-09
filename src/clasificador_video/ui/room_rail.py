@@ -595,10 +595,13 @@ class RoomRail(QWidget):
         self.progress_total.setText(f"/{total}")
         self._pendientes = pendientes
 
-    def set_flags(self, picks: int, rejects: int, sin_clasificar: int) -> None:
-        # el chip `dest.` del mockup entra en la F7, cuando exista el estado
-        # destacado: aca queda el hueco, no una etiqueta que miente con 0
+    def set_flags(self, picks: int, rejects: int, sin_clasificar: int,
+                  destacados: int = 0) -> None:
+        # el `dest.` va primero, como en el mockup: es el estado mas alto de
+        # la escalera y el que menos clips tiene, asi que leerlo de un vistazo
+        # es lo que mas aporta
         self.leyenda.set_estados([
+            (destacados, theme.STAR_COLOR, "destacados"),
             (picks, theme.PICK_COLOR, "picks"),
             (rejects, theme.REJECT_COLOR, "rejects"),
             (sin_clasificar, theme.PENDING_COLOR, "sin clasificar"),

@@ -554,7 +554,13 @@ def build_stylesheet() -> str:
         border: 1px solid {LINE};
         border-radius: {RADIUS_LG}px;
     }}
+    /* transparente NO es redundante: la regla global `QWidget` de arriba
+       pinta fondo opaco en todo, incluidas las QLabel. Estas dos llenan el
+       cuadro entero, asi que tapaban su fondo, su borde y sus esquinas
+       redondeadas -- la columna se veia como texto suelto en vez de los
+       cuadros del mockup. Venia asi desde la F2. */
     QWidget#toolIndicator QLabel {{
+        background-color: transparent;
         color: {TEXT_3};
         font-size: {FONT_MICRO}px;
         font-weight: 650;
@@ -573,6 +579,13 @@ def build_stylesheet() -> str:
     }}
     QWidget#toolIndicator[on="true"][canal="reject"] {{
         border-color: {REJECT_COLOR};
+    }}
+    QWidget#toolIndicator[on="true"][canal="star"] {{
+        background-color: {con_alfa_qss(STAR_COLOR, 36)};
+        border-color: {con_alfa_qss(STAR_COLOR, 153)};
+    }}
+    QWidget#toolIndicator[on="true"][canal="star"] QLabel {{
+        color: {STAR_COLOR};
     }}
     QWidget#toolIndicator[on="true"][canal="reject"] QLabel {{
         color: {REJECT_COLOR};

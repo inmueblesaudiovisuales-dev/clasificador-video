@@ -65,3 +65,13 @@ def test_manifest_write_json_escribe_archivo_legible(tmp_path):
     loaded = json.loads(out.read_text())
     assert loaded["proyecto"] == "Casa Jardin"
     assert loaded["clips"][0]["ruta"] == "/shooting/C0012.MP4"
+
+
+def test_destacado_viaja_en_el_manifest_sin_cambiar_el_contrato():
+    """El plugin de Premiere mapea pick→FOREST, reject→ROSE e IGNORA lo que no
+    conoce: `destacado` es aditivo y no obliga a tocar `to_dict()` ni el
+    formato del manifest."""
+    clip = Clip(orden=1, ruta=Path("/a.MP4"), categoria_path=["Cocina"], fps=30.0)
+    clip.flag = "destacado"
+    assert clip.to_dict()["flag"] == "destacado"
+    assert clip.to_dict()["categoria_path"] == ["Cocina"]

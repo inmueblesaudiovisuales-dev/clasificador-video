@@ -114,3 +114,42 @@ def test_la_columna_recuerda_que_el_espacio_reproduce(qtbot):
     columna = ToolColumn()
     qtbot.addWidget(columna)
     assert "espacio" in columna.play_hint.text()
+
+
+def test_los_indicadores_muestran_su_caja(qtbot):
+    """Bug real desde la F2: las QLabel de adentro heredaban el fondo opaco de
+    la regla global `QWidget` y tapaban la caja del indicador --fondo, borde y
+    esquinas redondeadas--, asi que la columna se veia como texto suelto en vez
+    de los cuadros del mockup. Misma trampa que en el pie del video.
+
+    Se mira el pixel del CENTRO, que es justo donde caen las etiquetas: en el
+    borde la caja se veia igual y el test pasaria sin arreglar nada.
+    """
+    from PySide6.QtWidgets import QApplication
+    from clasificador_video.ui import theme
+
+    QApplication.instance().setStyleSheet(theme.build_stylesheet())
+    columna = ToolColumn()
+    qtbot.addWidget(columna)
+    columna.resize(56, 420)
+    columna.show()
+    qtbot.waitExposed(columna)
+    imagen = columna.star_indicator.grab().toImage()
+    escala = imagen.width() / max(columna.star_indicator.width(), 1)
+    centro = imagen.pixelColor(round(20 * escala), round(20 * escala)).name()
+    assert centro != theme.BG_APP, "las etiquetas tapan la caja del indicador"
+    assert centro == theme.BG_SURFACE_1
+
+
+def test_un_destacado_enciende_tambien_el_pick(qtbot):
+    """Es un pick reforzado, no otra cosa. Asi lo muestra el mockup, y hace
+    visible lo que hace `P` sobre un destacado: se apaga la estrella y el pick
+    se queda encendido."""
+    columna = ToolColumn()
+    qtbot.addWidget(columna)
+    columna.set_flag("destacado")
+    assert columna.star_indicator.is_on()
+    assert columna.pick_indicator.is_on()
+    columna.set_flag("pick")
+    assert not columna.star_indicator.is_on()
+    assert columna.pick_indicator.is_on()

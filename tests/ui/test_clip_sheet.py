@@ -536,10 +536,14 @@ def test_no_se_construyen_los_iconos_de_vista(qtbot):
     assert not hasattr(_sheet(qtbot, []), "view_toggle")
 
 
-def test_no_hay_chip_de_destacados_todavia(qtbot):
-    """El estado «destacado» no existe hasta la F7: el hueco se deja, no se
-    inventa un chip que no filtraria nada."""
-    assert "solo_destacados" not in _sheet(qtbot, []).chips
+def test_el_chip_de_destacados_existe_desde_la_F7(qtbot):
+    """Hasta la F6 el hueco se dejaba vacio a proposito, para no inventar un
+    chip que no filtraria nada. Con el estado construido, el chip entra."""
+    # la hoja se guarda en una variable: sin eso Python la libera, Qt destruye
+    # a sus hijos y los chips quedan como cascaras muertas
+    hoja = _sheet(qtbot, [])
+    assert "solo_destacados" in hoja.chips
+    assert "★" in hoja.chips["solo_destacados"].text()
 
 
 def test_el_chip_que_define_la_cola_se_marca_aparte(qtbot):

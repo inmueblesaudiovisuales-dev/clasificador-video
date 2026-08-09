@@ -596,8 +596,10 @@ def test_toolbar_muestra_posicion_y_resumen_de_estado(qtbot):
     # la leyenda pasó de una etiqueta de texto a puntos de color con el
     # numero: `● 41 picks ● 9 rejects ● 12 sin clasificar` no entraba en los
     # 200 px del rail y se cortaba (ver ANALISIS-2026-08-08-post-f2 §3)
-    assert [p.text() for p in window.room_rail.leyenda.puntos] == ["1", "1", "3"]
-    assert "picks" in window.room_rail.leyenda.puntos[0].toolTip()
+    # cuatro numeros desde la F7: destacados, picks, rejects, sin clasificar
+    assert [p.text() for p in window.room_rail.leyenda.puntos] == ["0", "1", "1", "3"]
+    assert "destacados" in window.room_rail.leyenda.puntos[0].toolTip()
+    assert "picks" in window.room_rail.leyenda.puntos[1].toolTip()
     assert "3 sin clasificar" in window.status_bar.unclassified_label.text()
 
 
@@ -2060,3 +2062,69 @@ def test_la_fila_de_S_del_rail_sigue_al_clip_actual(qtbot):
 def test_la_tecla_S_esta_registrada(qtbot):
     window = _window_with_video(qtbot)
     assert "S" in {s.key().toString() for s in window._shortcuts}
+
+
+# --- F7 Task 9: el cuarto estado, destacado ----------------------------------
+
+
+def test_shift_p_marca_destacado(qtbot):
+    """`reject` → neutral → `pick` → `destacado`: es LA toma del cuarto, la
+    que abre la secuencia en el corte final."""
+    window = _window(qtbot, rooms=("Cocina",))
+    window.load_clips([_clip(1)])
+    window.handle_key_press("shift+p")
+    assert window.clips[0].flag == "destacado"
+
+
+def test_repetir_shift_p_vuelve_a_neutral(qtbot):
+    window = _window(qtbot, rooms=("Cocina",))
+    window.load_clips([_clip(1)])
+    window.handle_key_press("shift+p")
+    window.handle_key_press("shift+p")
+    assert window.clips[0].flag == "none"
+
+
+def test_shift_p_sobre_un_pick_lo_asciende(qtbot):
+    """Sin perder el pick por el camino: destacar es reforzarlo."""
+    window = _window(qtbot, rooms=("Cocina",))
+    window.load_clips([_clip(1)])
+    window.handle_key_press("p")
+    window.handle_key_press("shift+p")
+    assert window.clips[0].flag == "destacado"
+
+
+def test_P_sobre_un_destacado_lo_baja_a_pick(qtbot):
+    """`P` es el escalon de abajo: apretarla sobre un destacado no puede
+    dejarlo igual, o la tecla no haria nada visible."""
+    window = _window(qtbot, rooms=("Cocina",))
+    window.load_clips([_clip(1)])
+    window.handle_key_press("shift+p")
+    window.handle_key_press("p")
+    assert window.clips[0].flag == "pick"
+
+
+def test_destacado_se_puede_deshacer(qtbot):
+    window = _window(qtbot, rooms=("Cocina",))
+    window.load_clips([_clip(1)])
+    window.handle_key_press("shift+p")
+    window.undo()
+    assert window.clips[0].flag == "none"
+
+
+def test_destacado_se_ve_en_todos_lados(qtbot):
+    """Si falta en uno, el estado existe a medias y no se puede confiar en
+    ninguna de las vistas."""
+    window = _window(qtbot, rooms=("Cocina",))
+    window.load_clips([_clip(1, "Cocina")])
+    window.select_clip(0)
+    window.handle_key_press("shift+p")
+    assert window.clip_sheet.item_widgets[0].plan_de_pintado()["glifo"][0] == "★"
+    assert window.tool_column.star_indicator.is_on()
+    assert "DESTACADO" in window.video_stage.badges.flag_badge.text()
+    assert "solo_destacados" in window.clip_sheet.chips
+    assert window.room_rail.leyenda.puntos[0].text() == "1"   # el chip `dest.`
+
+
+def test_el_atajo_de_destacado_esta_registrado(qtbot):
+    window = _window_with_video(qtbot)
+    assert "Shift+P" in {s.key().toString() for s in window._shortcuts}

@@ -112,3 +112,39 @@ def test_un_valor_desconocido_no_filtra_nada_en_silencio():
     """Si un chip nuevo llega con un nombre que el modulo no conoce, es mejor
     no filtrar que esconder clips sin que nadie sepa por que."""
     assert cola(CLIPS, FilterState(mostrar="lo_que_sea")) == [0, 1, 2, 3]
+
+
+# --- F7 Task 9: el cuarto estado, destacado ---------------------------------
+
+
+def test_solo_destacados():
+    clips = [_clip(1, flag="destacado"), _clip(2, flag="pick"), _clip(3)]
+    assert cola(clips, FilterState(estado="solo_destacados")) == [0]
+
+
+def test_solo_picks_no_incluye_a_los_destacados():
+    """Son estados distintos: `destacado` es LA toma del cuarto, y el chip de
+    picks dice cuantos picks hay, no cuantos hay marcados de algun modo."""
+    clips = [_clip(1, flag="destacado"), _clip(2, flag="pick")]
+    assert cola(clips, FilterState(estado="solo_picks")) == [1]
+
+
+def test_ocultar_rejects_no_esconde_destacados():
+    clips = [_clip(1, flag="destacado"), _clip(2, flag="reject")]
+    assert cola(clips, FilterState(estado="ocultar_rejects")) == [0]
+
+
+def test_sin_marcar_no_cuenta_a_los_destacados():
+    """`sin_marcar` preguntaba solo por pick y reject: un destacado se colaba
+    en «lo que falta juzgar» aunque sea el clip MAS juzgado del cuarto."""
+    clips = [_clip(1, flag="destacado"), _clip(2)]
+    assert cola(clips, FilterState(estado="sin_marcar")) == [1]
+
+
+def test_el_conteo_de_destacados_y_el_de_sin_marcar():
+    clips = [_clip(1, flag="destacado"), _clip(2, flag="pick"),
+             _clip(3, flag="reject"), _clip(4)]
+    conteos = contar(clips)
+    assert conteos["solo_destacados"] == 1
+    assert conteos["solo_picks"] == 1
+    assert conteos["sin_marcar"] == 1

@@ -101,6 +101,10 @@ class ToolColumn(QWidget):
 
         layout.addSpacing(6)
         layout.addWidget(self._caption("ESTADO"))
+        # el destacado va ARRIBA del pick: es el escalon mas alto de la
+        # escalera y asi se lee de arriba hacia abajo, como en el mockup
+        self.star_indicator = _Indicador("★", "⇧P", "star")
+        layout.addWidget(self.star_indicator)
         self.pick_indicator = _Indicador("PICK", "P", "pick")
         self.reject_indicator = _Indicador("REJ", "X", "reject")
         layout.addWidget(self.pick_indicator)
@@ -148,5 +152,10 @@ class ToolColumn(QWidget):
         self.out_indicator.set_on(out_frame is not None)
 
     def set_flag(self, flag: str) -> None:
-        self.pick_indicator.set_on(flag == "pick")
+        self.star_indicator.set_on(flag == "destacado")
+        # un destacado enciende TAMBIEN el pick: es un pick reforzado, no otra
+        # cosa, y asi lo muestra el mockup. Ademas hace visible lo que hace
+        # `P` sobre un destacado --lo baja un escalon-- porque se apaga la
+        # estrella y el pick se queda.
+        self.pick_indicator.set_on(flag in ("pick", "destacado"))
         self.reject_indicator.set_on(flag == "reject")

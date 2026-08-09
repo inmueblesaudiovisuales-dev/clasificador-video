@@ -177,6 +177,65 @@ def _fuente_mono() -> QFont:
     return QFont(familia, theme.FONT_MICRO)
 
 
+class _FilaDeChips(QWidget):
+    """Etiqueta del grupo + sus chips, envolviendo a otra linea si no caben.
+
+    El mockup usa `flex-wrap` y por eso los chips bajan de renglon en vez de
+    empujar el ancho. En Qt eso seria un `FlowLayout`, que **segfaultea en
+    PySide** por la propiedad de los `QLayoutItem` (probado en la F5). Asi
+    que se acomoda a mano en `resizeEvent`, la misma tecnica que ya usa la
+    hoja para las tarjetas.
+
+    Sin esto, cada chip nuevo empuja el minimo de la hoja y le quita ancho al
+    video -- que es justo lo que este rediseño existe para no hacer. Con el
+    chip de destacados de la F7 el minimo se fue de 520 a 591 px.
+    """
+
+    ESPACIO = 6
+
+    def __init__(self, titulo: str, chips: list[_Chip], parent=None):
+        super().__init__(parent)
+        self.etiqueta = QLabel(titulo)
+        self.etiqueta.setObjectName("filterGroupLabel")
+        self.etiqueta.setParent(self)
+        self.etiqueta.setFixedWidth(58)
+        theme.apply_letter_spacing(self.etiqueta)
+        self.chips = chips
+        for chip in chips:
+            chip.setParent(self)
+
+    def _acomodar(self, ancho: int) -> int:
+        """Coloca los chips y devuelve el alto que necesito. Con `ancho`
+        chico devuelve mas alto: eso es exactamente lo que se cambia, ancho
+        por alto, porque en esta app el alto de la hoja no le cuesta nada al
+        video y el ancho si."""
+        alto_chip = max((c.sizeHint().height() for c in self.chips), default=0)
+        x0 = self.etiqueta.width() + self.ESPACIO
+        self.etiqueta.move(0, 0)
+        x, y = x0, 0
+        for chip in self.chips:
+            w = chip.sizeHint().width()
+            if x > x0 and x + w > ancho:
+                x, y = x0, y + alto_chip + self.ESPACIO
+            chip.setGeometry(x, y, w, alto_chip)
+            x += w + self.ESPACIO
+        return y + alto_chip
+
+    def resizeEvent(self, event) -> None:  # noqa: N802 -- override de Qt
+        super().resizeEvent(event)
+        alto = self._acomodar(self.width())
+        if alto != self.height():
+            self.setFixedHeight(alto)
+
+    def minimumSizeHint(self):  # noqa: N802 -- override de Qt
+        """Lo minimo es la etiqueta mas el chip mas ancho: de ahi para abajo
+        no se puede envolver mas."""
+        from PySide6.QtCore import QSize
+        mas_ancho = max((c.sizeHint().width() for c in self.chips), default=0)
+        alto = max((c.sizeHint().height() for c in self.chips), default=0)
+        return QSize(self.etiqueta.width() + self.ESPACIO + mas_ancho, alto)
+
+
 class ClipCard(QWidget):
     """Tarjeta de un clip: miniatura con la proporcion REAL del video, y
     encima lo que hace legible su estado de un vistazo.
@@ -237,6 +296,9 @@ class ClipCard(QWidget):
         glifo = {
             "pick": ("P", theme.PICK_COLOR, theme.PICK_INK),
             "reject": ("X", theme.REJECT_COLOR, theme.REJECT_INK),
+            # misma tinta oscura que el pick: `destacado` es un pick
+            # reforzado, no una familia de color nueva
+            "destacado": ("★", theme.STAR_COLOR, theme.PICK_INK),
         }.get(clip.flag)
         rango = None
         if clip.duration_frames and (clip.in_frame is not None or clip.out_frame is not None):
@@ -552,7 +614,7 @@ class ClipSheet(QWidget):
 
         # --- los filtros, que son la cola de navegacion ---
         for fila_filtros in self._construir_filtros():
-            el.addLayout(fila_filtros)
+            el.addWidget(fila_filtros)
         raiz.addWidget(encabezado)
 
         self._content = QWidget()
@@ -587,7 +649,7 @@ class ClipSheet(QWidget):
 
     # --- filtros ---------------------------------------------------------
 
-    def _construir_filtros(self) -> list[QHBoxLayout]:
+    def _construir_filtros(self) -> list["_FilaDeChips"]:
         """Los dos grupos del mockup, **uno por renglon**.
 
         El mockup los pone en una sola fila con `flex-wrap: wrap`. En Qt esa
@@ -602,11 +664,11 @@ class ClipSheet(QWidget):
         del encabezado, y el alto de la hoja no le cuesta nada al video: la
         hoja es una columna.
 
-        No se construyen los iconos de vista --no hay ninguna decision detras
-        de ellos-- ni el chip de destacados, que necesita un estado que no
-        existe hasta la F7.
+        No se construyen los iconos de vista: no hay ninguna decision detras
+        de ellos. Cada grupo envuelve a otra linea si no cabe (ver
+        `_FilaDeChips`).
         """
-        filas: list[QHBoxLayout] = []
+        filas: list[_FilaDeChips] = []
         self.chips: dict[str, _Chip] = {}
 
         for titulo, opciones in (
@@ -618,27 +680,21 @@ class ClipSheet(QWidget):
             ("ESTADO", [
                 ("todos_estado", "Todos"),
                 ("solo_picks", "Solo picks"),
+                ("solo_destacados", "★ Solo destacados"),
                 ("ocultar_rejects", "Ocultar rejects"),
                 ("sin_marcar", "Sin marcar"),
             ]),
         ):
-            fila = QHBoxLayout()
-            fila.setSpacing(6)
-            etiqueta = QLabel(titulo)
-            etiqueta.setObjectName("filterGroupLabel")
-            etiqueta.setFixedWidth(58)
-            theme.apply_letter_spacing(etiqueta)
-            fila.addWidget(etiqueta)
             botones = QButtonGroup(self)
             botones.setExclusive(True)
+            del_grupo = []
             for clave, texto in opciones:
                 chip = _Chip(clave, texto)
                 chip.clicked.connect(self._on_filters_changed)
                 botones.addButton(chip)
-                fila.addWidget(chip)
                 self.chips[clave] = chip
-            fila.addStretch(1)
-            filas.append(fila)
+                del_grupo.append(chip)
+            filas.append(_FilaDeChips(titulo, del_grupo))
 
         self.chips["todos"].setChecked(True)
         self.chips["todos_estado"].setChecked(True)
@@ -652,7 +708,8 @@ class ClipSheet(QWidget):
         )
         estado = next(
             (c.clave for c in self.chips.values()
-             if c.isChecked() and c.clave in ("solo_picks", "ocultar_rejects", "sin_marcar")),
+             if c.isChecked() and c.clave in ("solo_picks", "solo_destacados",
+                                              "ocultar_rejects", "sin_marcar")),
             "todos",
         )
         return FilterState(mostrar=mostrar, estado=estado,
@@ -679,6 +736,7 @@ class ClipSheet(QWidget):
     def set_counts(self, conteos: dict[str, int]) -> None:
         self.chips["todos"].set_count(conteos.get("todos"))
         for clave in ("sin_clasificar", "clasificados", "solo_picks",
+                      "solo_destacados",
                       "ocultar_rejects", "sin_marcar"):
             self.chips[clave].set_count(conteos.get(clave))
 

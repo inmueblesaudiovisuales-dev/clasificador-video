@@ -45,6 +45,18 @@ from clasificador_video.ui.video_widget import format_timecode
 # (DECISIONES.md): al llegar al clip ves lo mismo que viste en la miniatura.
 START_PERCENT = 25
 
+# Como se nombra y se pinta cada estado en el historial. Un solo lugar: la F2
+# los tenia repartidos en dos diccionarios en linea, y agregar `destacado`
+# habria que acordarse de hacerlo en los dos.
+ETIQUETAS_DE_ESTADO = {
+    "pick": "Pick", "reject": "Reject",
+    "destacado": "Destacado", "none": "Sin marcar",
+}
+COLORES_DE_ESTADO = {
+    "pick": theme.PICK_COLOR, "reject": theme.REJECT_COLOR,
+    "destacado": theme.STAR_COLOR, "none": theme.TEXT_3,
+}
+
 
 def _copiar(valor):
     """Copia los valores mutables que guarda el historial.
@@ -285,6 +297,8 @@ class MainWindow(QWidget):
             ("O", lambda: self.handle_key_press("o")),
             ("P", lambda: self.handle_key_press("p")),
             ("X", lambda: self.handle_key_press("x")),
+            # `⇧P`: el cuarto estado, destacado
+            ("Shift+P", lambda: self.handle_key_press("shift+p")),
             ("U", lambda: self.handle_key_press("u")),
             # `S`: el mismo cuarto que el clip anterior
             ("S", lambda: self.handle_key_press("s")),
@@ -579,7 +593,8 @@ class MainWindow(QWidget):
 
         self.room_rail.set_progress(total - sin_clasificar, total, sin_clasificar)
         self.room_rail.set_rooms(rooms, dict(counts))
-        self.room_rail.set_flags(picks, rejects, sin_clasificar)
+        destacados = sum(1 for c in self.clips if c.flag == "destacado")
+        self.room_rail.set_flags(picks, rejects, sin_clasificar, destacados)
         clip = self.current_clip
         self.room_rail.set_current_room(
             clip.categoria_path[0] if clip and clip.categoria_path else None
@@ -1029,16 +1044,25 @@ class MainWindow(QWidget):
             return
         action = self._router.resolve_action_key(key)
         if action is not None:
+            # repetir la tecla sobre el estado que ya tiene lo apaga: sin esto
+            # no habria forma de volver a neutral con el teclado. `⇧P` sobre un
+            # destacado tambien apaga; `P` sobre un destacado lo BAJA a pick,
+            # que es el escalon de abajo de la misma escalera.
+            actual = self.current_clip.flag
+            if actual == action:
+                nuevo = "none"
+            elif action == "pick" and actual == "destacado":
+                nuevo = "pick"
+            else:
+                nuevo = action
             self._registrar(
-                etiqueta={"pick": "Pick", "reject": "Reject"}.get(action, action.title()),
+                etiqueta=ETIQUETAS_DE_ESTADO.get(nuevo, nuevo.title()),
                 detalle=self._detalle([self.current_index]),
-                color={"pick": theme.PICK_COLOR, "reject": theme.REJECT_COLOR}.get(
-                    action, theme.TEXT_3
-                ),
+                color=COLORES_DE_ESTADO.get(nuevo, theme.TEXT_3),
                 clips=[self.current_index],
                 campos=("flag",),
             )
-            self.current_clip.flag = action
+            self.current_clip.flag = nuevo
             self._refresh_sheet()
             self._autosave()
 
