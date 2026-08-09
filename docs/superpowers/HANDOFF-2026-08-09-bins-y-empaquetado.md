@@ -29,7 +29,7 @@ verticales).
 
 ## 2. Dónde está todo hoy
 
-- Rama `master`, árbol limpio. **1007 tests en verde** — ese es el número de
+- Rama `master`, árbol limpio. **1121 tests en verde** — ese es el número de
   partida. (Eran 831 antes de los bins.)
 
 ```bash
@@ -129,14 +129,92 @@ mirándolas:
   desde la interfaz. `ingest.py` conserva `VIDEO_EXTENSIONS`, `SUFIJO_PROXY`,
   `es_archivo_de_proxy` y `archivos_de_video`.
 
+### 3.b — Los bins arrastrables (2026-08-09, mañana)
+
+**Bruno probó lo de la noche y el reclamo fue directo:** «yo te dije que lo
+quería como Premiere. Quiero poder arrastrar los archivos a un bin.»
+
+**Tenía razón, y conviene que quede escrito por qué.** Él pidió «drag and drop
+en bins, como en Premiere» y se interpretó como *arrastrar carpetas desde el
+Finder*. Lo que hace que un bin sea un bin —crearlo vacío y meterle clips, y
+mover un clip de un bin a otro— quedó fuera. Peor: se sacó del alcance
+ofreciéndolo como una opción más de una lista, en vez de nombrarlo por lo que
+era, un recorte de su pedido. La lista de «lo que no entra» llegó a decir «si
+te equivocaste al importar, quitas el bin y lo vuelves a soltar» — eso era el
+corazón de lo que pedía.
+
+Ver la **§6.b del spec** y el plan `2026-08-09-bins-arrastrables.md`.
+
+**Lo que se agregó:**
+
+| | |
+|---|---|
+| **La hoja primero** | la app abre en la hoja de contactos, siempre |
+| **Bins vacíos** | botón «＋ Bin nuevo»; nace sin clips, con el nombre editable en el acto, y **no desaparece solo** |
+| **Mover clips** | se arrastran entre bins, uno o varios (lo que esté seleccionado se va junto) |
+| **«Sin bin»** | sección fija hasta arriba con los clips que no pertenecen a ninguno. Es **solo una vista**: un clip suelto se representa por ausencia de bin, no por un bin de verdad |
+
+**Tres decisiones de Bruno, para no reabrirlas:** los sueltos van a una sección
+fija arriba; **arrastrar cambia el bin y nada más** (soltar sobre el subgrupo
+«Cocina» de otro bin **no** reclasifica — los cuartos siguen con el teclado); y
+**el proxy viaja con el clip**, porque es del clip y no del bin.
+
+**El gesto no choca con nada, y esa fue la razón de elegirlo.** La hoja ya
+usaba el mouse para tres cosas y quedaba exactamente un hueco:
+
+| Gesto | Qué hace |
+|---|---|
+| Mouse **sin apretar** sobre una tarjeta | escrubea (la tarjeta tiene `setMouseTracking(True)`) |
+| Arrastrar en el **vacío** | marquesina |
+| Mantener `1`–`9` y mover | pincel de cuartos |
+| **Botón apretado + mover sobre una tarjeta** | arrastrar clips ← lo nuevo |
+
+**Y mover no toca el índice de ningún clip**, así que no hay que correr
+proxies, duraciones, rotaciones ni el historial. Eso es lo que hace barata la
+operación; conviene que siga siéndolo.
+
+**Los bugs que encontró la revisión y que valen para la próxima vez**, todos
+del tipo «pasa los tests y falla en la mano»:
+
+- **Arrastrar tres clips seleccionados movía uno.** `mousePressEvent` emite el
+  clic en el *press*, y eso reducía la selección a esa tarjeta antes de que el
+  arrastre pudiera leerla. El test no lo veía porque llamaba a la función
+  directo, sin pasar por el press — o sea, **probaba la pieza y no el gesto**.
+- **Al soltar, la hoja se ponía a seleccionar sola.** El press sube al viewport
+  y arma la marquesina; `QDrag.exec()` se traga el release, así que nunca se
+  desarmaba.
+- **El pincel se congelaba** si además tenías el botón apretado.
+- **Los chips del filtro salían con la primera letra cortada** («ony FX30») y
+  sin su conteo: se les cambiaba el texto reusándolos del pool, pero conservaban
+  la geometría del texto anterior, y Qt centra el texto del botón, así que los
+  14 px que faltaban se perdían 7 por lado. **Los tests pasaban** porque
+  comprobaban `text()`, que estaba bien — el que estaba mal era el pixel. Se vio
+  mirando una captura ampliada, no corriendo la suite. Y las otras dos filas de
+  la barra tenían el mismo defecto latente: se salvaban porque su texto llegaba
+  antes del primer acomodo de la ventana.
+
+- **El más grande, y el que ningún test veía: cruzar a la hoja casi nunca te
+  llevaba a tu clip.** Salió tirando del hilo de un test que fallaba 1 de cada
+  40 corridas. Al cruzar, el visor se esconde y la hoja pasa de dos columnas a
+  siete, pero Qt no reacomoda en el acto: `centrar_en` medía sobre la hoja
+  angosta y fijaba el scroll a una posición de un contenido que estaba por dejar
+  de existir. **Barrido de 32 posiciones con 128 clips: 29 no mostraban el clip
+  actual.** El test pasaba *por coincidencia* — probaba el clip 87, que cae
+  justo donde termina la hoja, o sea donde el scroll recortado lo dejaba igual.
+  Ahora hay un test parametrizado que barre la hoja entera para que la
+  coincidencia no vuelva a tapar nada.
+
 ### Lo que NO entró, y por qué
 
 - **LUT por bin** — falta comprobar dentro de Premiere que el parámetro de LUT
   de entrada de Lumetri acepta una ruta. El bin ya existe para colgárselo.
 - **Generar los proxies del dron** — medido y aprobado por Bruno, es otra
   entrega.
-- **Mover clips entre bins arrastrando**, **bins anidados**, y **que el bin
-  viaje a Premiere como carpeta del proyecto**.
+- ~~**Mover clips entre bins arrastrando**~~ — **hecho en la 3.b**, y el hecho
+  de que estuviera en esta lista fue el error.
+- **Bins anidados**, **reordenar bins arrastrando sus encabezados**, **arrastrar
+  para cambiar de cuarto**, y **que el bin viaje a Premiere como carpeta del
+  proyecto**.
 
 ### Qué quedó MEDIDO y qué quedó SUPUESTO
 
@@ -145,9 +223,10 @@ su evidencia se vuelve a discutir en tres meses.
 
 **Medido:**
 
-- **1007 tests en verde**, y el número de corridas importa más que el de tests:
-  hubo **cuatro segfaults intermitentes** en esta entrega, y el último salió
-  después de que la suite llevara **decenas de corridas limpias seguidas**.
+- **1121 tests en verde, y 40 corridas seguidas sin un solo fallo**, medidas
+  con el árbol quieto. El número de corridas importa más que el de tests: hubo
+  **cuatro segfaults intermitentes** en esta entrega, y el último salió después
+  de que la suite llevara **decenas de corridas limpias seguidas**.
 - **La lección más cara de la noche, y la que hay que recordar:** «corrió
   limpio veinte veces» **no prueba nada** contra un fallo del 5 %. Veinte
   limpias salen por azar el 36 % de las veces; setenta y seis, el 2 %. El
@@ -176,6 +255,12 @@ su evidencia se vuelve a discutir en tres meses.
   arrastre; la barra de filtros a 1027 px (el mínimo real de la ventana), donde
   la fila de bins envuelve a segunda línea y cuesta 48 px de alto y **0 de
   ancho**; y el visor a 900 y a 430 px comprobando el orden de sacrificio.
+
+- **Una trampa de medición que costó una conclusión falsa y conviene no
+  repetir:** medir la estabilidad de la suite **mientras un agente edita el
+  árbol** da fallos que no existen. Salieron 6 de 40, y los seis eran tests que
+  se estaban escribiendo en rojo en ese momento. La medición sirve solo con el
+  árbol quieto, y los baselines, en un worktree aparte.
 
 **Supuesto, no medido — esto es lo que falta y no se puede afirmar:**
 
