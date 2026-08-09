@@ -444,6 +444,13 @@ class MainWindow(QWidget):
         self._install_shortcuts()
         self._refresh_rail()
 
+        # Arranca en la hoja: es lo primero que Bruno quiere ver. Se hace
+        # llamando al mismo metodo que la tecla, y no poniendo el flag a
+        # mano, porque el modo tambien esconde el visor y la columna de
+        # herramientas; dos caminos para lo mismo se desincronizan. Va al
+        # final del constructor porque necesita las tres filas ya armadas.
+        self.alternar_modo_hoja()
+
     # ------------------------------------------------------------------
     # video dimensionado por aspecto
     # ------------------------------------------------------------------

@@ -72,6 +72,27 @@ def _window_with_video(qtbot, cache_root: Path | None = None,
     return window
 
 
+def _a_modo_clip(window: MainWindow) -> MainWindow:
+    """Saca a la ventana de la hoja y la deja en el visor.
+
+    Desde la F7 la app ARRANCA en la hoja: es lo primero que Bruno quiere
+    ver. Un test que mira el visor --los badges, la etiqueta de archivo, la
+    columna de herramientas-- tiene que cruzar a modo clip primero, porque
+    en la hoja esos overlays no se refrescan: sin visor no hay un «clip
+    actual» que describir.
+
+    Se le da tamaño a la ventana --y se muestra-- antes de cruzar porque el
+    cruce esconde y vuelve a mostrar el visor, y eso lo obliga a re-acomodar
+    sus hijos: sin un tamaño real, el video queda de 44 px y la etiqueta del
+    archivo se elide hasta quedar vacia. En la app eso no pasa nunca; es un
+    artefacto de la ventana sin mostrar.
+    """
+    window.resize(1600, 1000)
+    window.show()
+    window.alternar_modo_hoja()
+    return window
+
+
 def _clip(numero: int = 1, cuarto: str | None = None, fps: float = 30.0) -> Clip:
     return Clip(
         orden=numero,
@@ -616,7 +637,8 @@ def test_seleccion_de_un_solo_clip_no_activa_modo_lote(qtbot):
 
 
 def test_toolbar_muestra_posicion_y_resumen_de_estado(qtbot):
-    window = _window(qtbot)
+    # a modo clip: mira la etiqueta del visor, que en la hoja no se refresca
+    window = _a_modo_clip(_window(qtbot))
     clips = [
         Clip(orden=1, ruta=Path("/a.MP4"), categoria_path=[], fps=30.0, flag="pick"),
         Clip(orden=2, ruta=Path("/b.MP4"), categoria_path=[], fps=30.0, flag="reject"),
@@ -641,7 +663,8 @@ def test_badge_sin_clasificar_se_vacia_cuando_todo_esta_clasificado(qtbot):
 
 
 def test_inspector_muestra_metadata_del_clip_actual(qtbot):
-    window = _window(qtbot)
+    # a modo clip: los badges de cuarto y estado viven sobre el video
+    window = _a_modo_clip(_window(qtbot))
     window.load_clips([
         Clip(orden=1, ruta=Path("/a.MP4"), categoria_path=["Cocina"], fps=30.0, flag="pick"),
     ])
@@ -1360,7 +1383,8 @@ def test_pick_no_avanza(qtbot):
 
 
 def test_el_visor_dice_la_posicion_en_la_cola_cuando_hay_filtro(qtbot):
-    window = _window(qtbot, rooms=("Cocina",))
+    # a modo clip: es la etiqueta del visor la que se comprueba
+    window = _a_modo_clip(_window(qtbot, rooms=("Cocina",)))
     _cuatro(window)
     window.set_filters(FilterState(mostrar="sin_clasificar"))
     window.select_clip(3)
@@ -1369,7 +1393,8 @@ def test_el_visor_dice_la_posicion_en_la_cola_cuando_hay_filtro(qtbot):
 
 def test_sin_filtro_el_visor_sigue_diciendo_el_total(qtbot):
     """Sin filtrar, tu posicion en el shooting entero SI sirve."""
-    window = _window(qtbot, rooms=("Cocina",))
+    # a modo clip: es la etiqueta del visor la que se comprueba
+    window = _a_modo_clip(_window(qtbot, rooms=("Cocina",)))
     _cuatro(window)
     window.select_clip(0)
     assert "1 / 4" in window.video_stage.file_label.text()
@@ -1432,7 +1457,8 @@ def test_el_lote_no_toca_clips_escondidos_por_el_filtro(qtbot):
 def test_si_el_clip_actual_quedo_fuera_del_filtro_el_visor_no_inventa_posicion(qtbot):
     """Pasa apenas resuelves un clip: sale de la cola. Decir «0 de 12» seria
     mentir sobre donde estas."""
-    window = _window(qtbot, rooms=("Cocina",))
+    # a modo clip: es la etiqueta del visor la que se comprueba
+    window = _a_modo_clip(_window(qtbot, rooms=("Cocina",)))
     _cuatro(window)
     window.select_clip(0)                                       # clasificado
     window.set_filters(FilterState(mostrar="sin_clasificar"))   # cola = [1, 3]
@@ -2156,7 +2182,8 @@ def test_destacado_se_puede_deshacer(qtbot):
 def test_destacado_se_ve_en_todos_lados(qtbot):
     """Si falta en uno, el estado existe a medias y no se puede confiar en
     ninguna de las vistas."""
-    window = _window(qtbot, rooms=("Cocina",))
+    # a modo clip: uno de los «todos lados» es el badge sobre el video
+    window = _a_modo_clip(_window(qtbot, rooms=("Cocina",)))
     window.load_clips([_clip(1, "Cocina")])
     window.select_clip(0)
     window.handle_key_press("shift+p")
@@ -2402,7 +2429,9 @@ def test_en_solo_video_tambien_se_usa_el_alto_de_las_barras_escondidas(qtbot):
 
 
 def test_tab_alterna_entre_los_dos_modos(qtbot):
-    window = _window_with_video(qtbot)
+    # se arranca cruzando al visor: desde la F7 la app abre en la hoja, y
+    # lo que este test comprueba es que `⇥` va y vuelve
+    window = _a_modo_clip(_window_with_video(qtbot))
     window.load_clips([_clip(1)])
     window.handle_key_press("tab")
     assert window.video_stage.isHidden()
@@ -2413,7 +2442,8 @@ def test_tab_alterna_entre_los_dos_modos(qtbot):
 
 def test_en_modo_hoja_la_columna_de_herramientas_se_va_con_el_video(qtbot):
     """La columna es del visor: sin video no tiene de que ser el estado."""
-    window = _window_with_video(qtbot)
+    # se arranca cruzando al visor: la app abre en la hoja desde la F7
+    window = _a_modo_clip(_window_with_video(qtbot))
     window.load_clips([_clip(1)])
     window.handle_key_press("tab")
     assert window.tool_column.isHidden()
@@ -2967,7 +2997,9 @@ def test_el_manifest_no_cruza_el_original_con_el_proxy(qtbot, monkeypatch, tmp_p
 
 
 def test_el_badge_de_proxy_aparece_cuando_se_esta_viendo_el_proxy(qtbot, monkeypatch, tmp_path):
-    window = _window_with_video(qtbot, cache_root=tmp_path / "cache")
+    # a modo clip: el badge de proxy vive sobre el video, y en la hoja los
+    # overlays no se refrescan
+    window = _a_modo_clip(_window_with_video(qtbot, cache_root=tmp_path / "cache"))
     monkeypatch.setattr(window, "_probe_clip", _ProbeConProxy())
     _importar_con_proxy(window, monkeypatch, tmp_path)
     _esperar_a_los_proxies(window)
@@ -3014,11 +3046,13 @@ def test_el_switch_de_la_barra_sigue_al_modo(qtbot):
     """Una sola vista del mismo estado: alternar con ⇥ tiene que dejar el
     switch como corresponde, sin un segundo «en que modo estoy»."""
     window = _window(qtbot)
-    assert window.title_bar.mode_switch.current() == "Clip"
-    window.alternar_modo_hoja()
+    # arranca en «Hoja» desde la F7: el switch tiene que nacer siguiendo al
+    # modo real, no puesto en «Clip» de fabrica
     assert window.title_bar.mode_switch.current() == "Hoja"
     window.alternar_modo_hoja()
     assert window.title_bar.mode_switch.current() == "Clip"
+    window.alternar_modo_hoja()
+    assert window.title_bar.mode_switch.current() == "Hoja"
 
 
 def test_clickear_el_switch_cambia_de_modo(qtbot):
@@ -3039,7 +3073,9 @@ def test_el_switch_no_le_quita_ancho_al_video(qtbot):
 
 
 def test_al_entrar_a_la_hoja_la_barra_resume_el_shooting(qtbot):
-    window = _window(qtbot)
+    # se arranca en el visor para poder ENTRAR a la hoja, que es lo que el
+    # test mide: desde la F7 la app ya abre en la hoja
+    window = _a_modo_clip(_window(qtbot))
     window.load_clips([_clip(1), _clip(2), _clip(3)])
     window._clip_sizes = {0: (2160, 3840), 1: (2160, 3840), 2: (3840, 2160)}
 
@@ -3070,7 +3106,8 @@ def test_volver_al_visor_anima_la_tarjeta(qtbot):
 def test_entrar_a_la_hoja_no_anima(qtbot):
     """La transicion es de la tarjeta AL visor. En el otro sentido no hay
     tarjeta de donde salir, y `DECISIONES.md` no la pide."""
-    window = _window(qtbot)
+    # al visor primero: hay que estar fuera de la hoja para poder entrar
+    window = _a_modo_clip(_window(qtbot))
     window.resize(1600, 1000)
     window.show()
     window.load_clips([_clip(i) for i in range(1, 6)])
@@ -3090,7 +3127,8 @@ def test_sin_clips_el_cruce_no_truena(qtbot):
 
 def test_entrar_a_la_hoja_lleva_al_clip_actual(qtbot):
     """Con 128 clips y el actual en el 87, la hoja se abria en el 117."""
-    window = _window(qtbot)
+    # al visor primero: hay que estar fuera de la hoja para poder entrar
+    window = _a_modo_clip(_window(qtbot))
     window.resize(1600, 1000)
     window.show()
     window.load_clips([_clip(i) for i in range(1, 129)])
@@ -3772,3 +3810,16 @@ def test_el_portador_no_muere_en_un_hilo_del_pool(qtbot, tmp_path):
     assert hilos and all(h != hilo_de_la_ui for h in hilos)
     # ...y el portador sigue en pie
     señales.proxy_sondeado.emit(0, 0, None)  # no truena: el objeto de C++ vive
+
+
+def test_la_app_arranca_en_la_hoja(qtbot):
+    """Lo primero que Bruno ve es el material, no un visor vacio.
+
+    Pedido suyo, textual: «quiero que la parte de hoja sea lo primero que se
+    vea». Antes arrancaba en modo clip, o sea con un visor negro hasta que
+    importaras algo.
+    """
+    window = _window(qtbot)
+
+    assert window._modo_hoja is True
+    assert window.clip_sheet.isVisible() or not window.video_stage.isVisible()

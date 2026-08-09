@@ -1234,6 +1234,9 @@ def test_el_chip_de_bin_de_la_hoja_llega_hasta_la_cola(qtbot, ventana):
 
 
 def test_el_visor_dice_de_que_bin_es_el_clip_actual(qtbot, ventana):
+    # a modo clip: desde la F7 la app arranca en la hoja, y ahi los overlays
+    # del visor no se refrescan porque no hay «clip actual» que describir
+    ventana.alternar_modo_hoja()
     ventana.load_clips([_clip(0, "/cam/A.MP4"), _clip(1, "/dron/D.MP4")])
     ventana.bins.agregar("Sony", Path("/cam"), [0])
     ventana.bins.agregar("Dron", Path("/dron"), [1])
