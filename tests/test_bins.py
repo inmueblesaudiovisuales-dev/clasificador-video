@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from clasificador_video.bins import BinTree
+from clasificador_video.bins import BinTree, raiz_comun_de
 
 
 def test_un_bin_nuevo_queda_al_final_con_sus_clips():
@@ -386,3 +386,32 @@ def test_sumar_sin_decir_de_donde_viene_no_toca_el_origen():
 
     assert arbol.origen_de("Sony") == Path("/cam")
     assert arbol.clips_de("Sony") == [0, 1]
+
+
+def test_la_raiz_comun_de_varias_carpetas():
+    """Lo usa el sitio del drop, que es donde se sabe de que carpeta viene
+    cada archivo. Vive aqui para que «demasiado arriba» tenga UNA sola
+    definicion en todo el repo."""
+    assert raiz_comun_de([
+        Path("/Volumes/DISCO/tarjeta1"),
+        Path("/Volumes/DISCO/tarjeta2"),
+        Path("/Volumes/DISCO/tarjeta2/sub"),
+    ]) == Path("/Volumes/DISCO")
+
+
+def test_la_raiz_comun_de_una_sola_carpeta_es_ella_misma():
+    assert raiz_comun_de([Path("/cam")]) == Path("/cam")
+
+
+def test_la_raiz_comun_de_nada_no_existe():
+    assert raiz_comun_de([]) is None
+
+
+def test_la_raiz_comun_no_sube_a_la_raiz_del_disco():
+    """Misma guarda que al ampliar el origen de un bin: si el ancestro queda
+    demasiado arriba se conserva la primera carpeta, que es el
+    comportamiento de siempre."""
+    assert raiz_comun_de([
+        Path("/Volumes/CARD_A/CAM"),
+        Path("/Volumes/CARD_B/CAM"),
+    ]) == Path("/Volumes/CARD_A/CAM")

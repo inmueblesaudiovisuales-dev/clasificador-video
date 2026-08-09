@@ -20,7 +20,7 @@ from PySide6.QtWidgets import (
 )
 
 from clasificador_video.autosave import save_session
-from clasificador_video.bins import BinTree
+from clasificador_video.bins import BinTree, raiz_comun_de
 from clasificador_video.filters import FilterState, cola, contar
 from clasificador_video.history import History, HistoryEntry
 from clasificador_video.ingest import archivos_de_video
@@ -1444,7 +1444,13 @@ class MainWindow(QWidget):
             )
             return
         archivos = nuevos_archivos
-        carpeta = origen or archivos[0].parent
+        # La carpeta de la tanda es la que cubre a TODOS los archivos que
+        # van a entrar, no la del primero: soltando dos carpetas a la vez,
+        # lo demas quedaba colgando de una carpeta que no lo contiene, o
+        # sea sin ruta relativa y sin forma de reencontrarlo en otra
+        # computadora. Hasta donde subir lo decide `raiz_comun_de`, que es
+        # la unica definicion de «demasiado arriba» del repo.
+        carpeta = origen or raiz_comun_de([a.parent for a in archivos])
         nuevos, medidas = self._medir(archivos, desde=len(self.clips))
         if not nuevos:
             self._avisar_que_no_se_pudo_leer_nada(len(archivos))

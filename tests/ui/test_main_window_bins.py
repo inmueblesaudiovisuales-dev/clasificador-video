@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 
 from clasificador_video.manifest import Clip
+from clasificador_video.proyecto import rutas_relativas
 from clasificador_video.rooms import RoomSelection
 from clasificador_video.ui.clip_sheet import SIN_BIN
 from clasificador_video.ui.main_window import MainWindow
@@ -1620,3 +1621,62 @@ def test_el_aviso_de_quitar_un_bin_de_un_clip_no_dice_1_clips(qtbot, ventana,
 
     assert "Se va su clip" in textos[0]
     assert "1 clips" not in textos[0]
+
+
+def test_soltar_dos_carpetas_a_la_vez_deja_el_origen_en_el_padre_comun(
+        qtbot, tmp_path, monkeypatch, ventana):
+    """El origen se tomaba del padre del PRIMER archivo, asi que todo lo
+    demas quedaba colgando de una carpeta que no lo contiene."""
+    monkeypatch.setattr(
+        "clasificador_video.ui.main_window.extract_thumbnail_strip", lambda *a, **k: []
+    )
+    disco = tmp_path / "DISCO"
+    disco.mkdir()
+    sony = _carpeta_con(disco, "tarjeta1", "C0001.MP4")
+    dron = _carpeta_con(disco, "tarjeta2", "C0002.MP4")
+
+    ventana.importar_rutas([sony, dron], nombre_de_bin="Rodaje")
+
+    assert ventana.bins.origen_de("Rodaje") == disco
+
+
+def test_soltar_dos_carpetas_a_la_vez_deja_a_todos_los_clips_con_relativa(
+        qtbot, tmp_path, monkeypatch, ventana):
+    """LA comprobacion: sin ruta relativa no hay como reencontrar el clip en
+    otra computadora, y sin este arreglo la mitad se quedaba sin ella."""
+    monkeypatch.setattr(
+        "clasificador_video.ui.main_window.extract_thumbnail_strip", lambda *a, **k: []
+    )
+    disco = tmp_path / "DISCO"
+    disco.mkdir()
+    sony = _carpeta_con(disco, "tarjeta1", "C0001.MP4", "C0002.MP4")
+    dron = _carpeta_con(disco, "tarjeta2", "DJI_0001.MP4")
+
+    ventana.importar_rutas([sony, dron], nombre_de_bin="Rodaje")
+
+    relativas = rutas_relativas(ventana.clips, ventana.bins)
+    assert sorted(relativas.values()) == [
+        "tarjeta1/C0001.MP4", "tarjeta1/C0002.MP4", "tarjeta2/DJI_0001.MP4",
+    ]
+    assert len(relativas) == len(ventana.clips)
+
+
+def test_dos_carpetas_de_discos_distintos_no_suben_el_origen_a_la_raiz(
+        qtbot, tmp_path, monkeypatch, ventana):
+    """Ahi el ancestro comun seria el disco entero, y reencontrar tendria que
+    recorrerlo completo: se conserva la carpeta del primero, que es el
+    comportamiento de siempre."""
+    monkeypatch.setattr(
+        "clasificador_video.ui.main_window.extract_thumbnail_strip", lambda *a, **k: []
+    )
+    # `tmp_path` hace de raiz de disco: las dos tarjetas cuelgan de ella y
+    # su ancestro comun es justo lo que la guarda no deja tomar. Se parchea
+    # el dato y no la funcion, para que corra el camino de verdad.
+    monkeypatch.setattr("clasificador_video.bins.RAICES_DEMASIADO_ARRIBA",
+                        frozenset({tmp_path}))
+    sony = _carpeta_con(tmp_path, "CARD_A", "C0001.MP4")
+    dron = _carpeta_con(tmp_path, "CARD_B", "C0002.MP4")
+
+    ventana.importar_rutas([sony, dron], nombre_de_bin="Rodaje")
+
+    assert ventana.bins.origen_de("Rodaje") == sony

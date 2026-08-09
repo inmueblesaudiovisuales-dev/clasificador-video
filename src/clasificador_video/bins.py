@@ -22,6 +22,41 @@ RAICES_DEMASIADO_ARRIBA = frozenset({
 })
 
 
+def raiz_comun(actual: Path, nuevo: Path) -> Path:
+    """La carpeta que cubre a las dos, o `actual` si no hay una razonable.
+
+    Es LA definicion de «demasiado arriba» del repo: la usan el origen de un
+    bin al crecer y el sitio del drop al decidir de que carpeta viene una
+    tanda. Una sola, a proposito -- dos criterios distintos de hasta donde
+    subir darian dos origenes distintos para el mismo material.
+    """
+    if actual == nuevo:
+        return actual
+    try:
+        comun = Path(os.path.commonpath([str(actual), str(nuevo)]))
+    except ValueError:
+        return actual   # una absoluta y otra relativa: no hay ancestro
+    if comun in RAICES_DEMASIADO_ARRIBA or len(comun.parts) <= 1:
+        return actual
+    return comun
+
+
+def raiz_comun_de(carpetas: list[Path]) -> Path | None:
+    """La carpeta que cubre a todas, o la primera si subir seria demasiado.
+
+    `None` solo cuando no hay carpetas. Lo usa el sitio del drop, que es
+    donde se sabe de que carpeta viene cada archivo: soltar material de dos
+    carpetas a la vez tomaba la del primero, y el resto quedaba colgando de
+    una carpeta que no lo contiene -- o sea, sin ruta relativa.
+    """
+    if not carpetas:
+        return None
+    raiz = carpetas[0]
+    for otra in carpetas[1:]:
+        raiz = raiz_comun(raiz, otra)
+    return raiz
+
+
 @dataclass
 class Bin:
     nombre: str
@@ -175,9 +210,8 @@ class BinTree:
         """El origen que cubre lo que el bin ya tenia Y lo que le llega.
 
         Solo puede subir: el origen tiene que seguir siendo ancestro de
-        TODOS los clips del bin. Si el ancestro comun queda demasiado
-        arriba se deja el de antes --ver `RAICES_DEMASIADO_ARRIBA`-- y esos
-        clips se quedan sin relativa, que es el comportamiento de siempre.
+        TODOS los clips del bin. Hasta donde, lo decide `raiz_comun`, que es
+        la unica definicion de «demasiado arriba» del repo.
         """
         # Un bin creado con «+ Bin nuevo» nace con `Path("")`, que pathlib
         # normaliza a «.». Se trata aparte a proposito: sin este caso el
@@ -186,15 +220,7 @@ class BinTree:
         # tendria ruta relativa.
         if str(actual) in ("", "."):
             return nuevo
-        if actual == nuevo:
-            return actual
-        try:
-            comun = Path(os.path.commonpath([str(actual), str(nuevo)]))
-        except ValueError:
-            return actual   # una absoluta y otra relativa: no hay ancestro
-        if comun in RAICES_DEMASIADO_ARRIBA or len(comun.parts) <= 1:
-            return actual
-        return comun
+        return raiz_comun(actual, nuevo)
 
     def quitar(self, nombre: str) -> list[int]:
         for i, b in enumerate(self._bins):
