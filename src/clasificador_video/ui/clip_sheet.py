@@ -2256,6 +2256,13 @@ class ClipSheet(QWidget):
         # se traga-- lo dispararia mas tarde y te dejaria uno solo de los tres
         # clips que acabas de mover.
         self._seleccion_diferida = None
+        # Y la marquesina se desarma AQUI, por lo mismo. El press sobre una
+        # tarjeta termina en `super()`, que ignora el evento: sube al viewport
+        # y arma la marquesina. Despues `QDrag.exec()` se traga el release, asi
+        # que `terminar_marquesina` no corria nunca y el origen sobrevivia al
+        # arrastre -- soltabas el clip, movias el mouse SIN apretar nada, y la
+        # hoja se ponia a dibujar la banda azul y a reemplazarte la seleccion.
+        self.terminar_marquesina()
         indices = self.indices_a_arrastrar(indice)
         mime = QMimeData()
         mime.setData(MIME_CLIPS, ",".join(str(i) for i in indices).encode())

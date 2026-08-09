@@ -879,3 +879,40 @@ def test_arrastrar_cancela_el_colapso_diferido(qtbot):
     tarjeta.mouseReleaseEvent(_release(QPoint(60, 60)))
 
     assert hoja.selected_indices() == [0, 1, 2]
+
+
+# --- la marquesina no puede sobrevivir al arrastre -------------------------
+
+
+def test_arrastrar_desarma_la_marquesina(qtbot):
+    """`ClipCard.mousePressEvent` termina en `super()`, que IGNORA el evento:
+    sube al viewport y arma la marquesina. Despues `QDrag.exec()` se traga el
+    release, asi que `terminar_marquesina` no corre nunca y el origen
+    sobrevive al arrastre.
+    """
+    hoja = _hoja(qtbot, [_thumb(i, bin_nombre="Sony") for i in range(3)],
+                 bins=["Sony"])
+    hoja.empezar_marquesina(QPoint(5, 5))      # lo que hace el press de verdad
+
+    _arrastrar_de_verdad(hoja, hoja.item_widgets[0])
+
+    assert hoja._origen_marquesina is None
+    assert hoja.marquesina.isHidden()
+
+
+def test_despues_de_arrastrar_mover_el_mouse_no_selecciona_solo(qtbot):
+    """El sintoma: sueltas un clip en otro bin, mueves el mouse sin apretar
+    nada, y la hoja se pone a dibujar una banda azul y a reemplazarte la
+    seleccion. Los eventos de movimiento llegan al viewport porque las
+    tarjetas tienen `setMouseTracking` y los dejan subir.
+    """
+    hoja = _hoja(qtbot, [_thumb(i, bin_nombre="Sony") for i in range(3)],
+                 bins=["Sony"])
+    hoja.set_selected({0})
+    hoja.empezar_marquesina(QPoint(5, 5))
+    _arrastrar_de_verdad(hoja, hoja.item_widgets[0])
+
+    hoja.mover_marquesina(QPoint(400, 400))
+
+    assert hoja.selected_indices() == [0]
+    assert hoja.marquesina.isHidden()
