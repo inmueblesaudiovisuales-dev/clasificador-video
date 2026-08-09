@@ -10,7 +10,18 @@ import time
 from pathlib import Path
 from typing import Callable
 
-MPV_BIN = shutil.which("mpv") or "/opt/homebrew/bin/mpv"
+from clasificador_video.binarios import ruta_de
+
+
+def _mpv() -> str:
+    """La ruta de mpv, resuelta CADA VEZ y no al importar.
+
+    Antes era `shutil.which("mpv") or "/opt/homebrew/bin/mpv"`: una ruta de
+    Homebrew escrita a mano, que en la computadora de un compañero no
+    existe. Y calculada al importar el modulo, asi que ni siquiera se podia
+    corregir despues.
+    """
+    return str(ruta_de("mpv"))
 
 
 def default_cache_root() -> Path:
@@ -47,7 +58,7 @@ def build_thumbnail_command(video: Path, at_seconds: float, outdir: Path) -> lis
     en vivo el 2026-08-06 con material real).
     """
     return [
-        MPV_BIN,
+        _mpv(),
         "--no-config",
         "--vo=image",
         f"--vo-image-outdir={outdir}",
@@ -86,7 +97,7 @@ def build_strip_ipc_args(video: Path, socket_path: Path) -> list[str]:
     duracion del clip, mal sintoma para clips largos reales).
     """
     return [
-        MPV_BIN,
+        _mpv(),
         "--no-config",
         "--idle=yes",
         "--hwdec=no",

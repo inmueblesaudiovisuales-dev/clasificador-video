@@ -3519,3 +3519,58 @@ def test_el_boton_de_la_barra_de_titulo_abre_el_dialogo(qtbot, monkeypatch, tmp_
     QApplication.processEvents()
 
     assert window.clips[0].ruta_proxy is not None
+
+
+def test_si_no_se_pudo_leer_ningun_video_lo_dice(qtbot, monkeypatch, tmp_path):
+    """Encontrado armando el paquete: sin `ffprobe`, la importacion
+    fallaba clip por clip --cada fallo se traga en silencio-- y el
+    resultado era una carpeta importada con CERO clips y ninguna
+    explicacion. En otra computadora ese seria el sintoma de todo.
+    """
+    window = _window_with_video(qtbot, cache_root=tmp_path / "cache")
+    carpeta = tmp_path / "FX30"
+    carpeta.mkdir()
+    for i in range(3):
+        (carpeta / f"C{i:04d}.MP4").touch()
+
+    def revienta(_):
+        raise RuntimeError("no se encontró ffprobe")
+    monkeypatch.setattr(window, "_probe_clip", revienta)
+    avisos = []
+    from PySide6.QtWidgets import QMessageBox
+    monkeypatch.setattr("clasificador_video.ui.main_window.QMessageBox.warning",
+                        lambda *a, **k: avisos.append(a[2]) or QMessageBox.Ok)
+
+    window.ingest_tree.import_folder(carpeta)
+    window._load_clips_from_ingest()
+
+    assert avisos, "importo 0 clips sin decir nada"
+    assert "3" in avisos[0]
+
+
+def test_si_solo_falla_uno_no_molesta(qtbot, monkeypatch, tmp_path):
+    """Un archivo corrupto entre 128 no puede convertirse en un diálogo:
+    se salta y ya, como siempre."""
+    window = _window_with_video(qtbot, cache_root=tmp_path / "cache")
+    carpeta = tmp_path / "FX30"
+    carpeta.mkdir()
+    for i in range(3):
+        (carpeta / f"C{i:04d}.MP4").touch()
+
+    def a_veces(ruta):
+        if ruta.name == "C0001.MP4":
+            raise RuntimeError("corrupto")
+        return {"width": 2160, "height": 3840, "fps": 29.97,
+                "duration_frames": 540, "rotation": 90}
+    monkeypatch.setattr(window, "_probe_clip", a_veces)
+    monkeypatch.setattr("clasificador_video.ui.main_window.extract_thumbnail_strip",
+                        lambda *a, **k: [])
+    avisos = []
+    monkeypatch.setattr("clasificador_video.ui.main_window.QMessageBox.warning",
+                        lambda *a, **k: avisos.append(a) or None)
+
+    window.ingest_tree.import_folder(carpeta)
+    window._load_clips_from_ingest()
+
+    assert len(window.clips) == 2
+    assert not avisos

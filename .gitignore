@@ -5,3 +5,5 @@ __pycache__/
 .DS_Store
 /sample-media/
 *.egg-info/
+/empaque/build/
+/empaque/dist/

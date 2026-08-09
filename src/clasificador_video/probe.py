@@ -4,6 +4,8 @@ from collections.abc import Iterable
 from pathlib import Path
 from typing import Callable
 
+from clasificador_video.binarios import ruta_de
+
 ORIENTACION_SIN_DATOS = "horizontal"
 
 FFPROBE_ARGS = ["-v", "quiet", "-print_format", "json", "-show_format", "-show_streams"]
@@ -11,7 +13,7 @@ FFPROBE_ARGS = ["-v", "quiet", "-print_format", "json", "-show_format", "-show_s
 
 def _run_ffprobe(path: Path) -> str:
     result = subprocess.run(
-        ["ffprobe", *FFPROBE_ARGS, str(path)],
+        [str(ruta_de("ffprobe")), *FFPROBE_ARGS, str(path)],
         capture_output=True,
         text=True,
         check=True,

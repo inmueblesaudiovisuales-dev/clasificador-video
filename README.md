@@ -56,6 +56,24 @@ máquina— y se lo pasa a Premiere en el manifest para que quede enganchado all
 
 La barra de estado lo dice siempre: `proxies 720p · 118/128`, o `sin proxies`.
 
+## Empaquetar como app
+
+```bash
+.venv/bin/pip install pyinstaller
+.venv/bin/pyinstaller empaque/clasificador.spec --distpath empaque/dist --workpath empaque/build --noconfirm
+```
+
+Sale `empaque/dist/Clasificador.app`, de unos 175 MB. **Adentro viajan
+`ffprobe`, `ffmpeg`, `mpv` y las 55 librerías de las que cuelgan**, así que no
+hace falta instalar nada en la computadora donde se va a usar.
+
+Va firmada con una firma propia, que es gratis y es lo que el chip M exige para
+que un programa arranque. **No** lleva la firma de pago de Apple, así que:
+
+- **Pasándola por USB o carpeta compartida**: abre directo.
+- **Mandándola por internet** (Drive, WeTransfer, correo): la primera vez hay
+  que ir a *Configuración → Privacidad y seguridad → Abrir de todos modos*.
+
 ## Tests
 
 ```bash

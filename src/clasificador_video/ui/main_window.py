@@ -1193,6 +1193,21 @@ class MainWindow(QWidget):
                     sizes[index] = (int(width), int(height))
                 rotations[index] = int(info.get("rotation") or 0)
                 orden += 1
+        # Si NINGUNO se pudo leer, no es un archivo corrupto: es que falta
+        # el programa que lee los videos. Sin este aviso el sintoma era una
+        # carpeta importada con cero clips y ninguna explicacion -- y en la
+        # computadora de un compañero, sin ffprobe, ese seria el sintoma de
+        # todo. Encontrado armando el paquete.
+        archivos = sum(len(f.files) for f in self.ingest_tree.top_level_folders())
+        if archivos and not clips:
+            QMessageBox.warning(
+                self, "No se pudo leer el material",
+                f"Se encontraron {archivos} archivos de video pero no se pudo leer "
+                "ninguno.\n\nSuele significar que falta el programa que la app usa "
+                "para leerlos (ffprobe).",
+            )
+            return
+
         self._clip_durations = durations
         self._clip_sizes = sizes
         self._clip_rotations = rotations
