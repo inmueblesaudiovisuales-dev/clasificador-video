@@ -2,6 +2,7 @@
 from pathlib import Path
 
 from clasificador_video.thumbnails import (
+    ruta_del_socket,
     build_strip_ipc_args,
     build_thumbnail_command,
     extract_thumbnail,
@@ -171,3 +172,32 @@ def test_extract_thumbnail_strip_frame_que_no_se_genero_se_descarta(tmp_path):
         connect=lambda socket_path: _FakeConnection(on_command),
     )
     assert len(frames) == 1
+
+
+# --- el socket de mpv y el limite de macOS -----------------------------
+
+
+def test_el_socket_cabe_en_el_limite_del_sistema(tmp_path):
+    """macOS corta las rutas de socket en 104 caracteres, y la que se usaba
+    --dentro del cache, con un sha1 de 40 en el medio-- medía 108 en la
+    maquina de Bruno.
+
+    Consecuencia: la tira de 12 cuadros fallaba SIEMPRE y en silencio, y
+    las tarjetas se quedaban sin portada. Era «los videos no se veían la
+    primera vez que los importé»: al recargar funcionaba porque, sin
+    duracion guardada, se caia al camino de un solo cuadro, que no usa
+    socket.
+    """
+    largo = tmp_path / ("x" * 60) / ("y" * 60) / ("z" * 60)
+    ruta = ruta_del_socket(largo)
+
+    assert len(str(ruta)) <= 104
+
+
+def test_dos_extracciones_a_la_vez_no_comparten_socket(tmp_path):
+    """Tres jobs corren en paralelo: si compartieran el socket, uno le
+    mandaria los comandos al mpv del otro."""
+    a = ruta_del_socket(tmp_path / "clipA")
+    b = ruta_del_socket(tmp_path / "clipB")
+
+    assert a != b

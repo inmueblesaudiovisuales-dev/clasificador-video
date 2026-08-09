@@ -4,8 +4,10 @@ from __future__ import annotations
 import hashlib
 import json
 import shutil
+import select
 import socket
 import subprocess
+import tempfile
 import time
 from pathlib import Path
 from typing import Callable
@@ -83,6 +85,39 @@ def extract_thumbnail(
     return frame
 
 
+# macOS corta las rutas de socket Unix en 104 caracteres. La que se usaba
+# --el propio directorio de cache, con su sha1 de 40 en el medio-- medía
+# 108 en la maquina de Bruno, asi que la tira de 12 cuadros fallaba SIEMPRE
+# y en silencio: las tarjetas se quedaban sin portada.
+#
+# Era exactamente «los videos no se veían la primera vez que los importé,
+# fue hasta que lo recargué»: al recargar no habia duracion guardada, se
+# caia al camino de un solo cuadro --que no usa socket-- y ahi si aparecian.
+LIMITE_DE_SOCKET = 104
+
+# Cuanto esperar a que mpv confirme un seek. Un segundo alcanzaba con una
+# extraccion sola; con tres en paralelo sobre HEVC 4K --que es como corren
+# de verdad-- no alcanza, y cada vencimiento costaba una portada entera.
+# Sobra tiempo a proposito: esto corre en segundo plano y nadie lo espera.
+ESPERA_DE_EVENTO = 15.0
+
+
+def ruta_del_socket(outdir: Path) -> Path:
+    """Donde poner el socket IPC de mpv: corto, y distinto por extraccion.
+
+    En el temporal del sistema y no en el cache, porque el cache vive bajo
+    `~/.cache/clasificador_video/thumbnails/<sha1>/` y eso solo ya se pasa
+    del limite. El nombre lleva el sha1 recortado para que tres jobs en
+    paralelo no compartan socket -- si lo compartieran, uno le mandaria los
+    comandos al mpv del otro.
+    """
+    corto = hashlib.sha1(str(outdir).encode()).hexdigest()[:10]
+    ruta = Path(tempfile.gettempdir()) / f"cv-{corto}.sock"
+    if len(str(ruta)) > LIMITE_DE_SOCKET:   # temporal inusualmente largo
+        ruta = Path("/tmp") / f"cv-{corto}.sock"
+    return ruta
+
+
 def build_strip_ipc_args(video: Path, socket_path: Path) -> list[str]:
     """mpv en modo idle, sin salida de video (--vo=null) ni hwdec, con un
     socket de control IPC -- una sola sesion sobre la que se mandan varios
@@ -132,22 +167,32 @@ class MpvIpcConnection:
                 continue  # notificacion asincrona, no es la respuesta a este comando
             return msg
 
-    def wait_for_event(self, event_name: str, timeout: float = 1.0) -> bool:
+    def wait_for_event(self, event_name: str, timeout: float = ESPERA_DE_EVENTO) -> bool:
+        """Espera un evento de mpv, sin romper la conexion si no llega.
+
+        Se espera con `select` y NO con `settimeout`, aunque parezca mas
+        directo: el socket tambien se lee por un objeto de archivo con
+        buffer, y en cuanto un `settimeout` vence, ese objeto queda
+        inservible -- toda lectura posterior levanta «cannot read from
+        timed out object». O sea que un solo seek lento no perdia UN
+        cuadro: perdia la tira entera, y por lo tanto la portada.
+
+        Y pasaba de verdad: con tres extracciones en paralelo sobre HEVC
+        4K, un seek tarda mas de un segundo sin ningun problema.
+        """
         deadline = time.monotonic() + timeout
-        self._sock.settimeout(timeout)
-        try:
-            while time.monotonic() < deadline:
-                line = self._reader.readline()
-                if not line:
-                    return False
-                msg = json.loads(line)
-                if msg.get("event") == event_name:
-                    return True
-            return False
-        except (socket.timeout, TimeoutError):
-            return False
-        finally:
-            self._sock.settimeout(None)
+        while True:
+            restante = deadline - time.monotonic()
+            if restante <= 0:
+                return False
+            if not select.select([self._sock], [], [], restante)[0]:
+                return False
+            line = self._reader.readline()
+            if not line:
+                return False
+            msg = json.loads(line)
+            if msg.get("event") == event_name:
+                return True
 
     def close(self) -> None:
         self._reader.close()
@@ -189,7 +234,7 @@ def extract_thumbnail_strip(
     viejo, o el comando de captura falla porque el seek todavia no
     termino de aplicarse -- medido en vivo el 2026-08-06)."""
     outdir.mkdir(parents=True, exist_ok=True)
-    socket_path = outdir / "mpv.sock"
+    socket_path = ruta_del_socket(outdir)
     if socket_path.exists():
         socket_path.unlink()
     proc = popen(build_strip_ipc_args(video, socket_path))
@@ -201,7 +246,7 @@ def extract_thumbnail_strip(
             for i in range(count):
                 at_seconds = min(i * step, max(duration_seconds - 0.05, 0.0))
                 conn.command(["seek", at_seconds, "absolute"])
-                conn.wait_for_event("playback-restart", timeout=1.0)
+                conn.wait_for_event("playback-restart")
                 frame_path = outdir / f"strip_{i:02d}.jpg"
                 conn.command(["screenshot-to-file", str(frame_path), "video"])
                 if frame_path.exists():
