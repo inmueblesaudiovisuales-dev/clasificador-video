@@ -1,73 +1,7 @@
 # tests/test_ingest.py
 from pathlib import Path
 
-from clasificador_video.ingest import IngestTree, archivos_de_video
-
-
-def test_importar_una_carpeta_la_agrega_con_su_nombre(tmp_path):
-    origen = tmp_path / "FX30"
-    origen.mkdir()
-    (origen / "C0001.MP4").touch()
-    (origen / "C0002.MP4").touch()
-
-    tree = IngestTree()
-    tree.import_folder(origen)
-
-    assert [f.name for f in tree.top_level_folders()] == ["FX30"]
-    assert {p.name for p in tree.top_level_folders()[0].files} == {"C0001.MP4", "C0002.MP4"}
-
-
-def test_importar_varias_carpetas_a_la_vez(tmp_path):
-    fx30 = tmp_path / "FX30"
-    dron = tmp_path / "Dron"
-    fx30.mkdir()
-    dron.mkdir()
-    (fx30 / "C0001.MP4").touch()
-    (dron / "DJI_0001.MP4").touch()
-
-    tree = IngestTree()
-    tree.import_folders([fx30, dron])
-
-    names = {f.name for f in tree.top_level_folders()}
-    assert names == {"FX30", "Dron"}
-
-
-def test_importar_solo_lee_archivos_de_video_no_otros_archivos(tmp_path):
-    origen = tmp_path / "FX30"
-    origen.mkdir()
-    (origen / "C0001.MP4").touch()
-    (origen / "notas.txt").touch()
-    (origen / ".DS_Store").touch()
-
-    tree = IngestTree()
-    tree.import_folder(origen)
-
-    assert [p.name for p in tree.top_level_folders()[0].files] == ["C0001.MP4"]
-
-
-def test_renombrar_carpeta_top_level(tmp_path):
-    origen = tmp_path / "FX30"
-    origen.mkdir()
-
-    tree = IngestTree()
-    tree.import_folder(origen)
-    tree.rename_folder(origen, "Cámara principal")
-
-    assert tree.top_level_folders()[0].display_name == "Cámara principal"
-
-
-def test_un_proxy_dentro_de_la_carpeta_importada_no_entra_como_clip(tmp_path):
-    """Si el `S03` entra como material, Bruno ve 256 clips donde hay 128
-    -- y clasifica dos veces el mismo plano sin darse cuenta."""
-    origen = tmp_path / "FX30"
-    origen.mkdir()
-    (origen / "C0001.MP4").touch()
-    (origen / "C0001S03.MP4").touch()
-
-    tree = IngestTree()
-    tree.import_folder(origen)
-
-    assert [p.name for p in tree.top_level_folders()[0].files] == ["C0001.MP4"]
+from clasificador_video.ingest import archivos_de_video
 
 
 def test_archivos_de_video_acepta_carpetas_y_sueltos_mezclados(tmp_path):
@@ -104,3 +38,37 @@ def test_archivos_de_video_descarta_lo_que_no_existe(tmp_path):
     con sufijo de video se colaba como archivo -- y el aviso que salia
     despues era «falta ffprobe», el diagnostico equivocado."""
     assert archivos_de_video([tmp_path / "fantasma.MP4"]) == []
+
+
+def test_archivos_de_video_junta_varias_carpetas_en_orden(tmp_path):
+    """Lo que hacia `import_folders`: dos tarjetas de camara de un jalon,
+    cada una con sus archivos y en el orden en que las diste."""
+    fx30 = tmp_path / "FX30"
+    dron = tmp_path / "Dron"
+    fx30.mkdir()
+    dron.mkdir()
+    (fx30 / "C0001.MP4").touch()
+    (dron / "DJI_0001.MP4").touch()
+
+    assert archivos_de_video([fx30, dron]) == [
+        fx30 / "C0001.MP4", dron / "DJI_0001.MP4",
+    ]
+
+
+def test_archivos_de_video_ignora_los_que_no_son_video(tmp_path):
+    """`.DS_Store` y las notas de produccion viven en la misma carpeta que
+    el material y no son clips."""
+    (tmp_path / "C0001.MP4").touch()
+    (tmp_path / "notas.txt").touch()
+    (tmp_path / ".DS_Store").touch()
+
+    assert archivos_de_video([tmp_path]) == [tmp_path / "C0001.MP4"]
+
+
+def test_un_proxy_de_camara_no_entra_como_clip(tmp_path):
+    """Si el `S03` entra como material, Bruno ve 256 clips donde hay 128
+    -- y clasifica dos veces el mismo plano sin darse cuenta."""
+    (tmp_path / "C0001.MP4").touch()
+    (tmp_path / "C0001S03.MP4").touch()
+
+    assert archivos_de_video([tmp_path]) == [tmp_path / "C0001.MP4"]

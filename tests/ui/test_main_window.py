@@ -180,8 +180,7 @@ def test_importar_carpeta_construye_clips_con_fps_de_ffprobe(qtbot, monkeypatch,
     (carpeta / "C0001.MP4").touch()
     fake_probe = FakeProbe()
     monkeypatch.setattr(window, "_probe_clip", fake_probe)
-    window.ingest_tree.import_folder(carpeta)
-    window._load_clips_from_ingest()
+    window.importar_rutas([carpeta])
     assert window.current_clip.fps == 59.94005994005994
     assert window.current_clip.ruta.name == "C0001.MP4"
     assert window.clip_sheet.count() == 1
@@ -211,8 +210,7 @@ def test_import_ignora_clip_cuyo_ffprobe_falla_y_sigue_con_los_demas(qtbot, monk
     (carpeta / "bueno.MP4").touch()
     (carpeta / "roto.MP4").touch()
     monkeypatch.setattr(window, "_probe_clip", _FlakyProbe(fail_on="roto.MP4"))
-    window.ingest_tree.import_folder(carpeta)
-    window._load_clips_from_ingest()
+    window.importar_rutas([carpeta])
     rutas = [Path(c.ruta).name for c in window.clips]
     assert rutas == ["bueno.MP4"]
     assert window.clip_sheet.count() == 1
@@ -843,8 +841,7 @@ def test_importar_guarda_el_tamano_real_de_cada_clip(qtbot, monkeypatch, tmp_pat
     carpeta.mkdir()
     (carpeta / "C0001.MP4").touch()
     monkeypatch.setattr(window, "_probe_clip", _ProbeVertical())
-    window.ingest_tree.import_folder(carpeta)
-    window._load_clips_from_ingest()
+    window.importar_rutas([carpeta])
     assert window._clip_sizes[0] == (2160, 3840)
 
 
@@ -859,8 +856,7 @@ def test_importar_no_truena_si_el_probe_no_trae_tamano(qtbot, monkeypatch, tmp_p
     carpeta.mkdir()
     (carpeta / "C0001.MP4").touch()
     monkeypatch.setattr(window, "_probe_clip", lambda p: {"fps": 29.97, "duration_frames": 540})
-    window.ingest_tree.import_folder(carpeta)
-    window._load_clips_from_ingest()
+    window.importar_rutas([carpeta])
     assert window.aspect_ratio_for(0) == 16 / 9
 
 
@@ -2761,8 +2757,7 @@ def _importar_con_proxy(window, monkeypatch, tmp_path, con_proxy=True,
         proxies = tmp_path / "tarjeta" / "proxy"
         proxies.mkdir()
         (proxies / "C0001S03.MP4").touch()
-    window.ingest_tree.import_folder(carpeta)
-    window._load_clips_from_ingest()
+    window.importar_rutas([carpeta])
     # y se enganchan A MANO, que es el unico camino desde que Bruno lo
     # pidio: importar ya no busca proxies solo.
     if con_proxy and enganchar:
@@ -3417,8 +3412,7 @@ def _ventana_con_material(qtbot, monkeypatch, tmp_path, **kwargs):
     )
     monkeypatch.setattr(window, "_probe_clip", _ProbeConProxy())
     clips, proxies = _material_con_proxies(tmp_path, **kwargs)
-    window.ingest_tree.import_folder(clips)
-    window._load_clips_from_ingest()
+    window.importar_rutas([clips])
     window._thread_pool.waitForDone(5000)
     return window, clips, proxies
 
@@ -3550,8 +3544,7 @@ def test_si_no_se_pudo_leer_ningun_video_lo_dice(qtbot, monkeypatch, tmp_path):
     monkeypatch.setattr("clasificador_video.ui.main_window.QMessageBox.warning",
                         lambda *a, **k: avisos.append(a[2]) or QMessageBox.Ok)
 
-    window.ingest_tree.import_folder(carpeta)
-    window._load_clips_from_ingest()
+    window.importar_rutas([carpeta])
 
     assert avisos, "importo 0 clips sin decir nada"
     assert "3" in avisos[0]
@@ -3578,8 +3571,7 @@ def test_si_solo_falla_uno_no_molesta(qtbot, monkeypatch, tmp_path):
     monkeypatch.setattr("clasificador_video.ui.main_window.QMessageBox.warning",
                         lambda *a, **k: avisos.append(a) or None)
 
-    window.ingest_tree.import_folder(carpeta)
-    window._load_clips_from_ingest()
+    window.importar_rutas([carpeta])
 
     assert len(window.clips) == 2
     assert not avisos

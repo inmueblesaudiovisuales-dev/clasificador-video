@@ -23,7 +23,7 @@ from clasificador_video.autosave import save_session
 from clasificador_video.bins import BinTree
 from clasificador_video.filters import FilterState, cola, contar
 from clasificador_video.history import History, HistoryEntry
-from clasificador_video.ingest import IngestTree, archivos_de_video
+from clasificador_video.ingest import archivos_de_video
 from clasificador_video.keyboard import KeyboardRouter
 from clasificador_video.manifest import Clip, Manifest
 from clasificador_video.player import SPEED_PROFILES
@@ -290,7 +290,6 @@ class MainWindow(QWidget):
         self._autosave_pool = QThreadPool(self)
         self._autosave_pool.setMaxThreadCount(1)
 
-        self.ingest_tree = IngestTree()
         self.bins = BinTree()
 
         # ---------------- las tres filas ----------------
@@ -1287,26 +1286,6 @@ class MainWindow(QWidget):
             "para leerlos (ffprobe).",
         )
 
-    def _load_clips_from_ingest(self) -> None:
-        archivos = [
-            video
-            for folder in self.ingest_tree.top_level_folders()
-            for video in folder.files
-        ]
-        clips, medidas = self._medir(archivos, desde=0)
-        if archivos and not clips:
-            self._avisar_que_no_se_pudo_leer_nada(len(archivos))
-            return
-
-        self._clip_durations = medidas["duraciones"]
-        self._clip_sizes = medidas["tamanos"]
-        self._clip_rotations = medidas["rotaciones"]
-        self.load_clips(clips)
-        # Los proxies NO se buscan solos: se enganchan a mano, con el boton
-        # «Proxies» de la barra de titulo. Decision de Bruno, y por eso las
-        # miniaturas de esta primera pasada salen del original.
-        self._schedule_thumbnails()
-
     def importar_rutas(self, rutas: list[Path], nombre_de_bin: str | None = None,
                        origen: Path | None = None) -> None:
         """El unico camino de entrada de material nuevo.
@@ -2042,10 +2021,10 @@ class MainWindow(QWidget):
             return
         carpeta = Path(folder)
         self.status_bar.set_volume(folder, _gigas_del_volumen(carpeta))
-        # AGREGA, no reinicia: antes esto pasaba por `_load_clips_from_ingest`
-        # y de ahi a `load_clips`, que limpia historial y proxies y recrea
-        # todas las tarjetas. Por eso a Bruno se le caian las portadas al
-        # importar una segunda carpeta.
+        # AGREGA, no reinicia: hasta la F2 esto reconstruia la lista entera
+        # con `load_clips`, que limpia historial y proxies y recrea todas las
+        # tarjetas. Por eso a Bruno se le caian las portadas al importar una
+        # segunda carpeta.
         self.importar_rutas([carpeta])
 
     def _refresh_sheet(self, force_rebuild: bool = False) -> None:
