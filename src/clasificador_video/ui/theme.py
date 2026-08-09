@@ -967,6 +967,35 @@ def build_stylesheet() -> str:
         color: {TEXT_3};
         font-size: {FONT_SMALL}px;
     }}
+    /* --- los dos estados vacios ---
+       El cartel del centro es lo PRIMERO que se ve al abrir la app: sin
+       sesion no hay ni un clip. Va sobre el fondo de la hoja y sin caja
+       propia --nada de recuadro punteado permanente, que es lo que hace la
+       zona de arrastre y solo mientras arrastras--: es un texto, no un
+       control. */
+    QWidget#sheetEmpty {{
+        background-color: transparent;
+    }}
+    QLabel#sheetEmptyTitle {{
+        background-color: transparent;
+        color: {TEXT_2};
+        font-size: {FONT_BODY}px;
+        font-weight: 650;
+    }}
+    QLabel#sheetEmptyHint {{
+        background-color: transparent;
+        color: {TEXT_3};
+        font-size: {FONT_SMALL}px;
+    }}
+    /* El renglon del bin sin clips. En el gris mas apagado y en el tamaño
+       mas chico que usa la hoja --el mismo de `sheetHint`--: el bin vacio es
+       un estado normal, y un aviso que grita se leeria como un error. */
+    QLabel#binEmptyHint {{
+        background-color: transparent;
+        color: {TEXT_3};
+        font-size: {FONT_MICRO}px;
+        padding: 2px 0 6px 9px;
+    }}
     QLabel#sheetFade {{
         background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
             stop:0 {OVERLAY_SCRIM_FROM}, stop:1 {BG_SURFACE_0});

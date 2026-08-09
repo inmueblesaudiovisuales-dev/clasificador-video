@@ -1274,6 +1274,91 @@ class _ZonaDeBinNuevo(QWidget):
             self.style().polish(self)
 
 
+class _RenglonDeBinVacio(QLabel):
+    """El renglon que lleva un bin sin un solo clip.
+
+    Los bins vacios existen desde la F8 --creas el bin y despues le arrastras
+    material, que es el gesto de Premiere--, y hasta ahora un bin recien
+    creado se dibujaba como un encabezado seguido de nada. Eso no se lee como
+    «todavia no le pusiste material», se lee como que algo fallo.
+
+    Es un renglon y no una banda punteada como `_ZonaDeBinNuevo`: aquella
+    aparece SOLO durante un arrastre y promete una accion. Este vive
+    permanentemente debajo del encabezado, asi que tiene que pesar lo menos
+    posible -- el bin vacio es un estado normal, no una alarma.
+    """
+
+    TEXTO = "arrástrale clips aquí, o suelta una carpeta"
+
+    def __init__(self, parent=None):
+        super().__init__(self.TEXTO, parent)
+        self.setObjectName("binEmptyHint")
+
+
+class _EstadoVacioDeLaHoja(QWidget):
+    """Lo primero que ve alguien que abre la app.
+
+    La app arranca en modo hoja y sin sesion, asi que este cartel es la
+    pantalla inicial de hecho -- no un caso raro. Antes ahi no habia nada:
+    una columna en blanco que no dice ni que se puede arrastrar ni que existe
+    el boton de bin nuevo.
+
+    Va FLOTANDO sobre el area de scroll, no dentro de la columna de
+    contenido, por dos motivos. Uno, asi queda centrado de verdad: el layout
+    del contenido alinea al tope, que es lo correcto para las tarjetas y lo
+    contrario de lo que este cartel necesita. Dos, entrar y salir del layout
+    obligaria a invalidar la firma de acomodo, y esa firma es lo que evita
+    re-colocar la hoja entera cuatro veces por pulsacion (ver `_relayout`).
+
+    No acepta drops --ninguno de sus widgets lo hace-- asi que Qt propaga el
+    arrastre hasta la hoja, que es la unica que lo atiende. Soltar carpetas
+    encima del cartel funciona igual que soltarlas en el vacio.
+    """
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setObjectName("sheetEmpty")
+        self.setAttribute(Qt.WA_StyledBackground, True)
+        columna = QVBoxLayout(self)
+        columna.setContentsMargins(24, 0, 24, 0)
+        columna.setSpacing(7)
+        # centrado vertical con DOS espaciadores y no con `setAlignment`: la
+        # alineacion del layout le da a cada etiqueta solo el ancho que pide,
+        # y una etiqueta con `wordWrap` pide muy poco -- el subtitulo salia
+        # partido en tres renglones de 230 px en una hoja de 900. Con
+        # espaciadores, las etiquetas ocupan el ancho completo y el texto
+        # envuelve recien cuando de verdad no cabe.
+        columna.addStretch(1)
+
+        self.title_label = QLabel("Arrastra aquí tus carpetas o clips")
+        self.title_label.setObjectName("sheetEmptyTitle")
+        self.title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.hint_label = QLabel(
+            "cada carpeta se vuelve un bin con su nombre · "
+            "o crea uno vacío y le arrastras clips después"
+        )
+        self.hint_label.setObjectName("sheetEmptyHint")
+        self.hint_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.hint_label.setWordWrap(True)
+        # el MISMO boton de la barra, con el mismo nombre de objeto y por lo
+        # tanto el mismo QSS: son la misma accion, y verla de dos formas
+        # distintas haria dudar de si hacen lo mismo.
+        self.boton = QPushButton("＋ Bin nuevo")
+        self.boton.setObjectName("sheetNewBin")
+        self.boton.setCursor(Qt.CursorShape.PointingHandCursor)
+        # como el resto de la barra: con el foco puesto, el espacio activaria
+        # el boton en vez de reproducir
+        self.boton.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self.boton.setFixedHeight(26)
+
+        columna.addWidget(self.title_label)
+        columna.addWidget(self.hint_label)
+        columna.addSpacing(5)
+        columna.addWidget(self.boton, alignment=Qt.AlignmentFlag.AlignCenter)
+        columna.addStretch(1)
+        self.hide()
+
+
 class _GroupBlock(QWidget):
     """Encabezado de cuarto mas su grilla propia.
 
@@ -1484,6 +1569,10 @@ class ClipSheet(QWidget):
         # orden en que entro el material y el que siguen las flechas.
         self._bin_order: list[str] = []
         self._bin_headers: dict[str, _BinHeader] = {}
+        # el renglon de «bin vacio», uno por bin de verdad. Vive aparte del
+        # encabezado y no adentro porque el encabezado tambien se dibuja
+        # FLOTANDO (`self._pegado`), y ahi un renglon de invitacion no va.
+        self._renglones_vacios: dict[str, _RenglonDeBinVacio] = {}
         # carpeta de origen y conteo de proxies por bin. Viven aqui y no en
         # el encabezado porque los encabezados nacen y mueren con cada
         # reagrupada, y este dato no.
@@ -1665,6 +1754,10 @@ class ClipSheet(QWidget):
         # alcanza para las dos zonas.
         self.setAcceptDrops(True)
         self._zona_nueva = _ZonaDeBinNuevo()
+        # mientras hay un arrastre encima, el cartel de hoja vacia se aparta:
+        # los dos ocupan el centro, y el que tiene que verse es el que promete
+        # lo que va a pasar al soltar.
+        self._arrastrando = False
         # (rutas soltadas, cuantos videos tienen). Ver `_cuantos_videos`.
         self._cache_de_arrastre: tuple[tuple, int] | None = None
 
@@ -1673,6 +1766,12 @@ class ClipSheet(QWidget):
         self._fade = QLabel("", self._scroll)
         self._fade.setObjectName("sheetFade")
         self._fade.setAttribute(Qt.WA_TransparentForMouseEvents, True)
+
+        # el cartel de proyecto vacio. Colgado del area de scroll, como el
+        # desvanecido: se coloca por geometria y no ocupa lugar en la columna.
+        self._vacio = _EstadoVacioDeLaHoja(self._scroll)
+        self._vacio.boton.clicked.connect(self.bin_nuevo_pedido.emit)
+        self._actualizar_estado_vacio()
 
     # --- filtros ---------------------------------------------------------
 
@@ -1921,6 +2020,9 @@ class ClipSheet(QWidget):
         self._aplicar_visibilidad()
         self._firma = None
         self._relayout()
+        # el renglon de invitacion se cierra con su bin. No pasa por
+        # `_refrescar_encabezados` porque colapsar no rehace los conteos.
+        self._actualizar_renglones_vacios()
         # el flotante es una copia, y si se quedara con el chevron viejo el
         # UNICO encabezado que estas viendo estaria mintiendo
         self._actualizar_encabezado_pegado()
@@ -2147,6 +2249,12 @@ class ClipSheet(QWidget):
             # tenga ni un bloque: un bin vacio se dibuja igual, que es lo que
             # deja arrastrarle el primer clip.
             self._content_layout.addWidget(self._bin_headers[bin_nombre])
+            # justo debajo del encabezado: es el renglon que le explica al bin
+            # vacio que no esta roto. Se esconde solo si el bin tiene material
+            # (ver `_actualizar_renglones_vacios`).
+            renglon = self._renglones_vacios.get(bin_nombre)
+            if renglon is not None:
+                self._content_layout.addWidget(renglon)
             for titulo in titulos:
                 if titulo[0] == bin_nombre:
                     self._content_layout.addWidget(self._blocks[titulo])
@@ -2187,6 +2295,11 @@ class ClipSheet(QWidget):
         """Crea el encabezado de cada seccion presente y tira el de las que
         ya no lo estan."""
         for nombre in presentes:
+            # el renglon de invitacion es solo para los BINS: «Sin bin» no es
+            # uno --es la vista de los sueltos-- y ademas solo aparece cuando
+            # de verdad hay sueltos, asi que vacia no existe.
+            if nombre != SIN_BIN and nombre not in self._renglones_vacios:
+                self._renglones_vacios[nombre] = _RenglonDeBinVacio()
             if nombre not in self._bin_headers:
                 cabecera = _BinHeader(nombre, es_bin=nombre != SIN_BIN)
                 cabecera.collapse_toggled.connect(self._on_colapso_pedido)
@@ -2198,6 +2311,9 @@ class ClipSheet(QWidget):
         for nombre in list(self._bin_headers):
             if nombre not in presentes:
                 self._desechar(self._bin_headers.pop(nombre))
+        for nombre in list(self._renglones_vacios):
+            if nombre not in presentes:
+                self._desechar(self._renglones_vacios.pop(nombre))
         # la meta y el colapso van por NOMBRE y no se podaban solos: la
         # carpeta de origen de un bin que ya no existe se quedaba en memoria
         # para siempre, y un bin nuevo con el mismo nombre la heredaba.
@@ -2238,7 +2354,63 @@ class ClipSheet(QWidget):
         for nombre, cabecera in self._bin_headers.items():
             cabecera.set_counts(totales.get(nombre, 0), por_flag.get(nombre, {}))
             cabecera.set_posicion(self._posicion_de_bin(nombre))
+        self._actualizar_renglones_vacios(totales)
+        self._actualizar_estado_vacio()
         self._actualizar_encabezado_pegado()
+
+    # --- los dos estados vacios -------------------------------------------
+
+    def _actualizar_renglones_vacios(self, totales: dict[str, int] | None = None
+                                     ) -> None:
+        """Cuales de los renglones de «bin vacio» se ven.
+
+        El conteo es de TARJETAS, no de tarjetas visibles: un bin al que el
+        filtro no le dejo pasar nada tiene material igual, y decirle
+        «arrástrale clips» ahi seria mentirle al filtro. Un bin colapsado
+        tampoco lo muestra, por lo mismo que ya esconde las lineas de sus
+        cuartos: cerrado es cerrado.
+        """
+        if totales is None:
+            totales = {}
+            for card in self.item_widgets:
+                nombre = self._group_of(card.clip)[0]
+                totales[nombre] = totales.get(nombre, 0) + 1
+        for nombre, renglon in self._renglones_vacios.items():
+            renglon.setVisible(
+                not totales.get(nombre, 0) and nombre not in self._colapsados
+            )
+
+    def _actualizar_estado_vacio(self) -> None:
+        """El cartel del centro se ve solo con el proyecto REALMENTE vacio.
+
+        Un bin declarado ya alcanza para apagarlo: ese bin dibuja su
+        encabezado y su propio renglon, y dos invitaciones encimadas se leen
+        peor que una. Filtrar tampoco lo enciende -- la hoja se ve vacia, pero
+        el proyecto no lo esta, y el cartel diria que no hay material.
+        """
+        vacia = (not self.item_widgets and not self._bin_headers
+                 and not self._arrastrando)
+        # `isHidden` y no `isVisible`: con la hoja todavia sin mostrar,
+        # `isVisible` es False aunque el cartel ya este encendido, y la guarda
+        # no cortaria nunca.
+        if vacia == (not self._vacio.isHidden()):
+            return
+        self._vacio.setVisible(vacia)
+        if vacia:
+            self._colocar_estado_vacio()
+            self._vacio.raise_()
+
+    def _colocar_estado_vacio(self) -> None:
+        """Centrado sobre el area de scroll. Se coloca a mano --como el
+        desvanecido del pie y el encabezado pegado-- porque no vive en el
+        layout del contenido: ver `_EstadoVacioDeLaHoja`."""
+        self._vacio.setGeometry(0, 0, self._scroll.width(), self._scroll.height())
+
+    def estado_vacio(self) -> "_EstadoVacioDeLaHoja":
+        return self._vacio
+
+    def renglon_de_bin_vacio(self, nombre: str) -> "_RenglonDeBinVacio | None":
+        return self._renglones_vacios.get(nombre)
 
     def _actualizar_encabezado_pegado(self) -> None:
         """UN encabezado flotante para todos los bins.
@@ -2477,6 +2649,7 @@ class ClipSheet(QWidget):
             self._pegado.set_soltando(self._pegado.nombre == nombre_marcado,
                                       len(indices), moviendo=True)
         self._zona_nueva.hide()
+        self._marcar_arrastre(punto is not None)
 
     # --- eventos de arrastre (los dos mimes entran por aqui) --------------
 
@@ -2557,6 +2730,7 @@ class ClipSheet(QWidget):
         destino = None if punto is None else self._bin_bajo(punto)
         rutas = self._rutas_de(mime) if mime is not None else []
         cuantos = self._cuantos_videos(rutas)
+        self._marcar_arrastre(punto is not None)
         for nombre, cabecera in self._bin_headers.items():
             cabecera.set_soltando(nombre == destino, cuantos)
         # el flotante tapa al encabezado de verdad: si no se marcara tambien,
@@ -2569,6 +2743,19 @@ class ClipSheet(QWidget):
         self._zona_nueva.set_carpeta(self._nombre_probable(rutas), cuantos)
         self._zona_nueva.set_activa(destino is None and bool(cuantos))
         self._zona_nueva.show()
+
+    def _marcar_arrastre(self, encima: bool) -> None:
+        """Hay --o no-- un arrastre sobre la hoja.
+
+        Lo unico que cambia con esto es el cartel de proyecto vacio, que se
+        aparta mientras arrastras: ocupa el mismo centro que la zona de «bin
+        nuevo», y la que tiene que verse es la que promete lo que va a pasar
+        al soltar. La guarda importa: esto corre en CADA movimiento del mouse.
+        """
+        if self._arrastrando == encima:
+            return
+        self._arrastrando = encima
+        self._actualizar_estado_vacio()
 
     def _cuantos_videos(self, rutas: list[Path]) -> int:
         """Cuantos videos entrarian de verdad, con la MISMA regla que usa la
@@ -2616,14 +2803,17 @@ class ClipSheet(QWidget):
 
         Va del tope de su encabezado al pie de su ultimo grupo: apuntarle al
         encabezado exacto seria una mira de 30 px de alto sobre una columna
-        de 700.
+        de 700. El renglon de «bin vacio» cuenta igual que un grupo, y por el
+        mismo motivo: en un bin sin material es la unica franja que hay
+        debajo del encabezado, y es justo el bin al que le vas a soltar algo.
         """
         regiones: list[list] = []
         for widget in self._widgets_del_contenido():
             if isinstance(widget, _BinHeader):
                 y = widget.mapTo(self, QPoint(0, 0)).y()
                 regiones.append([widget.nombre, y, y + widget.height()])
-            elif regiones and isinstance(widget, _GroupBlock):
+            elif regiones and isinstance(widget, (_GroupBlock,
+                                                  _RenglonDeBinVacio)):
                 # los ESCONDIDOS no cuentan. Un widget invisible conserva la
                 # geometria que tenia, muy abajo: con un bin colapsado --que
                 # es justo lo que haces con la camara que no estas
@@ -2937,6 +3127,7 @@ class ClipSheet(QWidget):
             0, self._scroll.height() - FADE_HEIGHT, self._scroll.width(), FADE_HEIGHT
         )
         self._fade.raise_()
+        self._colocar_estado_vacio()
         # el flotante se coloca al hacer scroll, y sin esto cambiar el ancho
         # lo dejaba con el de antes hasta el proximo scroll -- colgando
         # fuera de la hoja.
