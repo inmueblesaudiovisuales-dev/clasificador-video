@@ -227,9 +227,12 @@ def construir_ventana_de_ejemplo() -> MainWindow:
 
     clips, tamanos, duraciones, proxies = _clips()
     ventana._clip_durations = duraciones
-    ventana._proxy_sizes = proxies
     ventana._clip_sizes = tamanos
     ventana.load_clips(clips)
+    # DESPUES de load_clips, no antes: los tamaños de proxy van por indice
+    # de clip, asi que cargar material nuevo los limpia (igual que al
+    # historial). Puestos antes, el badge se quedaba sin resolucion.
+    ventana._proxy_sizes = proxies
     ventana.current_index = CLIP_ACTUAL
     ventana.select_clip(CLIP_ACTUAL)
     # sin importación real la barra de estado sale sin ruta y no se puede
