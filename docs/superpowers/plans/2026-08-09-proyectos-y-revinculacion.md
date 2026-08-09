@@ -511,7 +511,7 @@ class Recientes:
 - Crear: `src/clasificador_video/revinculo.py`
 - Test: `tests/test_revinculo.py`
 
-- [ ] **Paso 1: escribir los tests que fallan**
+- [x] **Paso 1: escribir los tests que fallan**
 
 ```python
 # tests/test_revinculo.py
@@ -563,9 +563,9 @@ def test_una_carpeta_que_no_existe_no_revienta(tmp_path):
     assert buscar_bajo(tmp_path / "no-esta", "C0001.MP4") is None
 ```
 
-- [ ] **Paso 2: correr y ver que fallan**
+- [x] **Paso 2: correr y ver que fallan**
 
-- [ ] **Paso 3: implementar**
+- [x] **Paso 3: implementar**
 
 ```python
 # src/clasificador_video/revinculo.py
@@ -604,9 +604,9 @@ def buscar_bajo(carpeta: Path, relativa: str) -> Path | None:
     return candidatos[0] if len(candidatos) == 1 else None
 ```
 
-- [ ] **Paso 4: correr y ver que pasan** — 5 passed
+- [x] **Paso 4: correr y ver que pasan** — 5 passed
 
-- [ ] **Paso 5: commit**
+- [x] **Paso 5: commit**
 
 ---
 
@@ -616,7 +616,7 @@ def buscar_bajo(carpeta: Path, relativa: str) -> Path | None:
 - Modificar: `src/clasificador_video/revinculo.py`
 - Test: `tests/test_revinculo.py`
 
-- [ ] **Paso 1: escribir los tests que fallan — el más importante del plan**
+- [x] **Paso 1: escribir los tests que fallan — el más importante del plan**
 
 ```python
 from clasificador_video.revinculo import calza
@@ -684,9 +684,9 @@ def test_si_no_se_puede_medir_no_calza(tmp_path):
                  medir=revienta) is False
 ```
 
-- [ ] **Paso 2: correr y ver que fallan**
+- [x] **Paso 2: correr y ver que fallan**
 
-- [ ] **Paso 3: implementar**
+- [x] **Paso 3: implementar**
 
 ```python
 def calza(archivo: Path, tamano_esperado: int | None,
@@ -720,9 +720,9 @@ def calza(archivo: Path, tamano_esperado: int | None,
 > **El tamaño hay que guardarlo**, y hoy no se guarda. La tarea 6 lo agrega
 > al documento.
 
-- [ ] **Paso 4: correr y ver que pasan** — 6 passed
+- [x] **Paso 4: correr y ver que pasan** — 6 passed
 
-- [ ] **Paso 5: commit**
+- [x] **Paso 5: commit**
 
 ---
 
@@ -732,7 +732,7 @@ def calza(archivo: Path, tamano_esperado: int | None,
 - Modificar: `src/clasificador_video/proyecto.py`
 - Test: `tests/test_proyecto.py`
 
-- [ ] **Paso 1: test**
+- [x] **Paso 1: test**
 
 ```python
 def test_el_proyecto_guarda_el_tamano_de_cada_archivo(tmp_path):
@@ -762,9 +762,9 @@ def test_un_archivo_que_ya_no_esta_no_impide_guardar(tmp_path):
     assert data["bytes"] == {}
 ```
 
-- [ ] **Paso 2: correr y ver que fallan**
+- [x] **Paso 2: correr y ver que fallan**
 
-- [ ] **Paso 3: implementar** — en `a_dict`, agregar:
+- [x] **Paso 3: implementar** — en `a_dict`, agregar:
 
 ```python
         "bytes": {str(i): t for i, t in _tamanos_en_disco(clips).items()},
@@ -786,7 +786,7 @@ def _tamanos_en_disco(clips: list) -> dict[int, int]:
     return tamanos
 ```
 
-- [ ] **Paso 4: correr, commit**
+- [x] **Paso 4: correr, commit**
 
 ---
 
@@ -796,7 +796,7 @@ def _tamanos_en_disco(clips: list) -> dict[int, int]:
 - Modificar: `src/clasificador_video/revinculo.py`
 - Test: `tests/test_revinculo.py`
 
-- [ ] **Paso 1: tests**
+- [x] **Paso 1: tests**
 
 ```python
 from clasificador_video.revinculo import faltantes_de, reencontrar_bin
@@ -843,9 +843,9 @@ def test_lo_que_no_aparece_queda_como_no_encontrado(tmp_path):
     assert resultado.no_encontrados == [0]
 ```
 
-- [ ] **Paso 2: correr y ver que fallan**
+- [x] **Paso 2: correr y ver que fallan**
 
-- [ ] **Paso 3: implementar**
+- [x] **Paso 3: implementar**
 
 ```python
 @dataclass
@@ -886,7 +886,7 @@ def reencontrar_bin(carpeta: Path, relativas: dict[int, str],
 
 con `from dataclasses import dataclass` arriba.
 
-- [ ] **Paso 4: correr, commit**
+- [x] **Paso 4: correr, commit**
 
 ---
 
