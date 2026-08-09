@@ -3172,6 +3172,41 @@ def test_entrar_a_la_hoja_lleva_al_clip_actual(qtbot):
     assert viewport.rect().intersects(QRect(arriba, tarjeta.size()))
 
 
+@pytest.mark.parametrize("indice", [0, 12, 32, 60, 86, 100, 127])
+def test_entrar_a_la_hoja_lleva_al_clip_actual_este_donde_este(qtbot, indice):
+    """El de arriba probaba UN solo clip -- y pasaba por casualidad.
+
+    Al cruzar, el visor se esconde y la hoja se ensancha de 376 px a 1398,
+    de dos columnas a siete. Pero Qt no re-acomoda en el acto: postea el
+    pedido y lo atiende despues. `centrar_en` media antes de eso, sobre la
+    hoja angosta de 7117 px de alto, y mandaba el scroll a una posicion de
+    un contenido que estaba por dejar de existir. Al re-acomodarse a 2262 px
+    ese scroll quedaba recortado al maximo: la hoja se abria en el FINAL.
+
+    Con el clip 87 de 128 eso se veia bien de pura coincidencia --el final
+    de la hoja es justo donde cae--, asi que el test de arriba pasaba. De 32
+    posiciones medidas, 17 NO mostraban el clip. Este barre la hoja entera
+    para que la coincidencia no vuelva a tapar el bug.
+    """
+    window = _a_modo_clip(_window(qtbot))
+    window.resize(1600, 1000)
+    window.show()
+    window.load_clips([_clip(i) for i in range(1, 129)])
+    window.select_clip(indice)
+    qtbot.wait(10)
+
+    window.alternar_modo_hoja()
+    qtbot.wait(10)
+
+    from PySide6.QtCore import QRect
+    tarjeta = window.clip_sheet.item_widgets[indice]
+    viewport = window.clip_sheet._scroll.viewport()
+    arriba = tarjeta.mapTo(viewport, tarjeta.rect().topLeft())
+    assert viewport.rect().intersects(QRect(arriba, tarjeta.size())), (
+        f"el clip {indice} no se ve al entrar a la hoja"
+    )
+
+
 # --- solo video y modo hoja no pueden convivir (auditoria F10) ---------
 #
 # Los dos esconden paneles, y nadie impedia combinarlos: `⇥` y luego `F`

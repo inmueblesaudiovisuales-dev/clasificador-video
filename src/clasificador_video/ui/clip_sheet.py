@@ -3017,6 +3017,61 @@ class ClipSheet(QWidget):
     def selected_indices(self) -> list[int]:
         return sorted(self._selected)
 
+    def _asentar_geometria(self) -> None:
+        """Deja la geometria ya acomodada ANTES de medir donde cayo una tarjeta.
+
+        Al cruzar a la hoja con `⇥` el visor se esconde y la hoja se ensancha
+        --de 376 px a 1398, de dos columnas a siete--, pero Qt no re-acomoda
+        en el acto: postea el pedido de acomodo y lo atiende en el siguiente
+        ciclo de eventos. `ensureWidgetVisible` media antes de eso, sobre la
+        hoja angosta de 7117 px de alto, y fijaba el scroll a una posicion de
+        un contenido que estaba por dejar de existir. Cuando la ventana por
+        fin se acomodaba a 2262 px, ese scroll quedaba recortado al maximo y
+        la hoja se abria en el FINAL en vez de en tu clip: de 32 posiciones
+        medidas, 17 no mostraban el clip actual.
+
+        `sendPostedEvents` filtrado a `LayoutRequest` atiende SOLO los pedidos
+        de acomodo. No corre entrada de usuario ni `DeferredDelete`, que es lo
+        que destruye widgets a destiempo -- van cuatro segfaults en este
+        proyecto por eso, y un `processEvents` pelado aqui seria el quinto.
+
+        Los acomodos vienen ENCADENADOS, no de a uno. Medido al cruzar con
+        128 clips, la cadena es de tres vueltas:
+
+            vuelta 0: viewport 376  contenido 7117 (alto pedido 7117)
+            vuelta 1: viewport 1398 contenido 7117 (alto pedido 7117)
+            vuelta 2: viewport 1398 contenido 7117 (alto pedido 2262)
+            vuelta 3: viewport 1398 contenido 2262 (alto pedido 2262)  <- ya
+
+        Por eso se itera hasta que deje de moverse en vez de despachar un
+        numero fijo de vueltas: el numero es una constante que la proxima
+        seccion de la hoja rompe en silencio.
+
+        El **alto PEDIDO** entra en la cuenta a proposito. Sin el, las
+        vueltas 1 y 2 se ven identicas --mismo viewport, mismo alto-- y el
+        bucle daba por asentada una geometria que todavia iba por la mitad:
+        con eso el scroll terminaba en el fondo para TODOS los clips, peor
+        que el bug original.
+
+        El tope evita que un layout que oscile --dos reglas que se
+        contradicen-- cuelgue la app: sin el, seria un `while` a merced de
+        la geometria.
+        """
+        app = QApplication.instance()
+        if app is None:
+            return
+        previo = None
+        for _ in range(8):
+            estado = (
+                self._scroll.viewport().width(),
+                self._content.height(),
+                self._content.sizeHint().height(),
+            )
+            if estado == previo:
+                return
+            previo = estado
+            app.sendPostedEvents(None, QEvent.Type.LayoutRequest)
+
     def centrar_en(self, index: int) -> None:
         """Deja la tarjeta del clip `index` a la vista, centrada.
 
@@ -3046,6 +3101,11 @@ class ClipSheet(QWidget):
         seccion = self._group_of(tarjeta.clip)[0]
         if cambio and seccion in self._colapsados and self._es_visible(index):
             self.set_bin_collapsed(seccion, False)
+        # Medir DESPUES de que la geometria se asiente, no antes: ver
+        # `_asentar_geometria`. Va aqui y no en quien llama porque son cinco
+        # llamadores --el cruce con `⇥`, las flechas, el filtro-- y el que
+        # cruza de modo es el unico que se acordaba del problema.
+        self._asentar_geometria()
         if tarjeta.isHidden():
             # la escondio el filtro: el clip actual quedo fuera de la cola y
             # no hay a donde desplazarse
