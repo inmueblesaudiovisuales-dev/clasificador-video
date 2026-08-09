@@ -27,6 +27,9 @@ from clasificador_video.ui import theme
 from clasificador_video.ui.text import ElidedLabel
 
 SIN_CLASIFICAR = "Sin clasificar"
+# La marca de camara del encabezado de bin. Un solo glifo para todos: ver
+# el comentario en `_BinHeader.__init__`.
+MARCA_DE_BIN = "■"
 # 140 y no 150: el mockup arma CINCO columnas en la hoja del modo clip, y con
 # 150 el ancho util (815 menos margenes y barra de scroll) solo daba para
 # cuatro tarjetas de 186 px -- mas gordas y menos densas que las del mockup.
@@ -620,6 +623,17 @@ class _BinHeader(QWidget):
         fila.setSpacing(9)
         self.chevron = QLabel("▾")
         self.chevron.setObjectName("binChevron")
+        # La marca de camara del mockup. Un SOLO glifo para todos los bins:
+        # el mockup ponia `▲` al dron y `■` a la Sony porque sabia que era
+        # cada uno, y la app no lo sabe -- lee una carpeta, no un modelo de
+        # camara. Lo que distingue un bin de otro es el COLOR, que se pone
+        # con `set_posicion`.
+        self.cam_mark = QLabel(MARCA_DE_BIN)
+        self.cam_mark.setObjectName("binCam")
+        self.cam_mark.setAttribute(Qt.WA_StyledBackground, True)
+        self.cam_mark.setFixedSize(14, 14)
+        self.cam_mark.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.set_posicion(0)
         self.name_label = QLabel(nombre)
         self.name_label.setObjectName("binName")
         self.name_edit = QLineEdit(nombre)
@@ -634,7 +648,7 @@ class _BinHeader(QWidget):
         self.source_label.setObjectName("binSource")
         self.count_label = QLabel("0 clips")
         self.count_label.setObjectName("binCount")
-        for w in (self.chevron, self.name_label, self.name_edit,
+        for w in (self.chevron, self.cam_mark, self.name_label, self.name_edit,
                   self.source_label, self.count_label):
             fila.addWidget(w)
 
@@ -670,6 +684,28 @@ class _BinHeader(QWidget):
 
     # --- datos -----------------------------------------------------------
 
+    def set_posicion(self, posicion: int) -> None:
+        """Tiñe la marca segun el lugar del bin en el orden de importacion.
+
+        Por posicion y no por nombre, igual que los cuartos: renombrar un
+        bin no lo mueve de lugar, asi que tampoco puede cambiarle el color
+        con el que ya lo reconoces.
+        """
+        # `setStyleSheet` obliga a repolir el widget y es de lo mas caro que
+        # hay en Qt: sin la guarda, cada reagrupada lo llamaria por bin.
+        if getattr(self, "_posicion", None) == posicion:
+            return
+        self._posicion = posicion
+        color = theme.bin_color(posicion)
+        # 18% de tinte detras de un glifo aclarado, como el mockup. A plena
+        # tinta la marca competiria con la franja de cuarto de la miniatura,
+        # que es otro dato.
+        self.cam_mark.setStyleSheet(
+            f"background-color: {theme.con_alfa_qss(color, theme.BIN_TINT_ALPHA)};"
+            f" color: {theme.aclarar(color, theme.BIN_INK_LIGHTEN)};"
+            f" border-radius: 3px; font-size: {theme.FONT_MICRO}px;"
+        )
+
     def set_counts(self, cuantos: int, por_flag: dict[str, int]) -> None:
         self._cuantos = cuantos
         self.count_label.setText(f"{cuantos} clips")
@@ -702,6 +738,7 @@ class _BinHeader(QWidget):
             self.proxy_badge.setProperty("estado", estado)
             self.proxy_badge.style().unpolish(self.proxy_badge)
             self.proxy_badge.style().polish(self.proxy_badge)
+        self.set_posicion(otro._posicion)
         self.set_collapsed(otro._colapsado)
 
     def marcas_texto(self) -> list[str]:
@@ -1453,6 +1490,10 @@ class ClipSheet(QWidget):
             w for w in self._widgets_del_contenido() if isinstance(w, _GroupBlock)
         ]
 
+    def _posicion_de_bin(self, nombre: str) -> int:
+        return (self._bin_order.index(nombre)
+                if nombre in self._bin_order else len(self._bin_order))
+
     def _orden_de_grupo(self, clave: tuple[str, str]) -> tuple:
         """Primero el bin --por su posicion de importacion-- y adentro los
         cuartos, con «Sin clasificar» arriba porque es la cola de trabajo."""
@@ -1510,6 +1551,7 @@ class ClipSheet(QWidget):
                 cabecera.collapse_toggled.connect(self._on_colapso_pedido)
                 self._bin_headers[nombre] = cabecera
                 cabecera.set_collapsed(nombre in self._colapsados)
+                cabecera.set_posicion(self._posicion_de_bin(nombre))
                 self._aplicar_meta(cabecera)
                 self.bin_header_created.emit(cabecera)
         for nombre in list(self._bin_headers):
@@ -1536,6 +1578,7 @@ class ClipSheet(QWidget):
             marcas[card.clip.flag] = marcas.get(card.clip.flag, 0) + 1
         for nombre, cabecera in self._bin_headers.items():
             cabecera.set_counts(totales.get(nombre, 0), por_flag.get(nombre, {}))
+            cabecera.set_posicion(self._posicion_de_bin(nombre))
         self._actualizar_encabezado_pegado()
 
     def _actualizar_encabezado_pegado(self) -> None:

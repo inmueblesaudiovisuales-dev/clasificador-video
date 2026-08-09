@@ -1710,3 +1710,71 @@ def test_sin_resolucion_conocida_la_insignia_no_la_inventa(qtbot):
     hoja.set_bin_meta("Dron", origen="/dron", proxies=(2, 3), resolucion="")
 
     assert hoja.bin_header_widget("Dron").proxy_badge.text() == "proxy · 2/3"
+
+
+# --- la marca de camara del encabezado (`.bin .cam` del mockup) ---------------
+
+
+def test_el_encabezado_lleva_la_marca_de_camara(qtbot):
+    hoja = ClipSheet()
+    qtbot.addWidget(hoja)
+    hoja.set_bin_order(["Sony", "Dron"])
+    hoja.set_clips([_thumb(0, bin_nombre="Sony"), _thumb(1, bin_nombre="Dron")])
+
+    assert hoja.bin_header_widget("Sony").cam_mark.text()
+
+
+def test_la_marca_es_EL_MISMO_glifo_en_todos_los_bins(qtbot):
+    """El mockup ponia `▲` al dron y `■` a la Sony porque sabia que era
+    cada uno. La app no lo sabe, y adivinarlo seria peor que no decirlo."""
+    hoja = ClipSheet()
+    qtbot.addWidget(hoja)
+    hoja.set_bin_order(["Sony", "Dron"])
+    hoja.set_clips([_thumb(0, bin_nombre="Sony"), _thumb(1, bin_nombre="Dron")])
+
+    assert (hoja.bin_header_widget("Sony").cam_mark.text()
+            == hoja.bin_header_widget("Dron").cam_mark.text())
+
+
+def test_la_marca_se_tiñe_segun_la_posicion_del_bin(qtbot):
+    """Lo que distingue un bin de otro es el COLOR, no el glifo -- y va por
+    posicion, como los cuartos: mismo lugar, mismo color toda la sesion."""
+    hoja = ClipSheet()
+    qtbot.addWidget(hoja)
+    hoja.set_bin_order(["Sony", "Dron"])
+    hoja.set_clips([_thumb(0, bin_nombre="Sony"), _thumb(1, bin_nombre="Dron")])
+
+    primera = hoja.bin_header_widget("Sony").cam_mark.styleSheet()
+    segunda = hoja.bin_header_widget("Dron").cam_mark.styleSheet()
+    assert primera != segunda
+    assert theme.bin_color(0) != theme.bin_color(1)
+
+
+def test_la_marca_va_teñida_y_no_a_plena_tinta(qtbot):
+    """La marca comparte tinta con la paleta de cuartos --el mockup uso
+    esos mismos colores-- y lo que la distingue es el TRATAMIENTO: el
+    cuarto va a plena saturacion en la franja de la miniatura, el bin va
+    al 18% detras de un glifo aclarado. Si el bin fuera solido, la hoja
+    tendria dos azules distintos diciendo cosas distintas."""
+    hoja = ClipSheet()
+    qtbot.addWidget(hoja)
+    hoja.set_bin_order(["Sony"])
+    hoja.set_clips([_thumb(0, bin_nombre="Sony")])
+
+    hoja_de_estilo = hoja.bin_header_widget("Sony").cam_mark.styleSheet()
+    assert f"rgba(" in hoja_de_estilo
+    assert theme.bin_color(0) not in hoja_de_estilo
+
+
+def test_renombrar_el_bin_no_le_cambia_el_color(qtbot):
+    """El color va por posicion, y renombrar no mueve al bin de lugar."""
+    hoja = ClipSheet()
+    qtbot.addWidget(hoja)
+    hoja.set_bin_order(["Sony", "Dron"])
+    hoja.set_clips([_thumb(0, bin_nombre="Sony"), _thumb(1, bin_nombre="Dron")])
+    antes = hoja.bin_header_widget("Dron").cam_mark.styleSheet()
+
+    hoja.set_bin_order(["Sony", "Dron DJI"])
+    hoja.set_clips([_thumb(0, bin_nombre="Sony"), _thumb(1, bin_nombre="Dron DJI")])
+
+    assert hoja.bin_header_widget("Dron DJI").cam_mark.styleSheet() == antes

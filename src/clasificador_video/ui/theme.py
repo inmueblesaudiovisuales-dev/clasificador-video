@@ -40,6 +40,20 @@ ROOM_PALETTE = [
     "#3e9bc0", "#a9836f", "#b26f86", "#7c8794",
 ]
 
+# --- IDENTIDAD DE BIN: la marca de camara del encabezado de la hoja
+# (`.bin .cam` del mockup de bins). Es un canal mas, aparte de los colores
+# de estado y de los de cuarto, y se usa SIEMPRE al 18% de opacidad detras
+# de un glifo aclarado: asi la marca se lee como pertenencia y no compite
+# con la franja del cuarto, que va a plena saturacion sobre la miniatura.
+# Los tres primeros son EXACTAMENTE los que el mockup dibujo y Bruno aprobo
+# viendolos; los dos ultimos siguen el mismo criterio para cuando haya mas
+# de tres bins. Que se parezcan a ROOM_PALETTE no es un descuido: el mockup
+# tomo de ahi a proposito, y lo que separa los dos canales es el
+# tratamiento, no la tinta.
+BIN_PALETTE = ["#3e9bc0", "#c0885a", "#7c8794", "#8b7ca8", "#4f9a8e"]
+BIN_TINT_ALPHA = 46          # el .18 del mockup, en 0-255
+BIN_INK_LIGHTEN = 0.45       # cuanto se aclara el glifo sobre ese tinte
+
 # lo que falta clasificar: el tramo apagado de la barra de progreso y el
 # punto gris de la leyenda son el mismo dato, y por eso el mismo color.
 PENDING_COLOR = "#2a2f38"
@@ -163,6 +177,11 @@ def room_color(index: int) -> str:
     para que la identidad visual de un cuarto no cambie durante la sesion.
     """
     return ROOM_PALETTE[index % len(ROOM_PALETTE)]
+
+
+def bin_color(index: int) -> str:
+    """Color de identidad del bin en la posicion `index`. Ver `BIN_PALETTE`."""
+    return BIN_PALETTE[index % len(BIN_PALETTE)]
 
 
 def aclarar(color_hex: str, factor: float) -> str:
