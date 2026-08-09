@@ -7,8 +7,9 @@ tests en verde**, árbol limpio, F0 a F8 hechas.
 
 ## 1. Lo que encontró este punto de control
 
-**La marquesina de selección no está construida, y yo la di por hecha dos
-veces.** El análisis post-F7 la puso en la lista de la F8; al escribir el plan
+**La marquesina de selección no estaba construida, y yo la di por hecha dos
+veces.** (Se construyó enseguida, el mismo día: ver el commit que sigue a este
+documento.) El análisis post-F7 la puso en la lista de la F8; al escribir el plan
 de la F8 no quedó como tarea, y nadie lo notó. Peor: un comentario del pincel
 afirmaba que «sin tecla, arrastrar sigue siendo marquesina», que era
 directamente falso — arrastrar sin tecla hoy no hace nada. Ese comentario ya
@@ -70,7 +71,6 @@ sospechaba (38 ms por tecla en la F5, el `setStyleSheet` en la F5, esto).
 
 | Qué | Fase |
 |---|---|
-| **Marquesina de selección** (arrastrar sin tecla) | **sin asignar — ver §1** |
 | Badge `Proxy 1080p` y contador `proxies · 128/128` | F9 |
 | `orientacion="horizontal"` hardcodeado (`ui/main_window.py:1430`) | F9 |
 | Selector `Clip │ Hoja` de la barra de título | F10 |

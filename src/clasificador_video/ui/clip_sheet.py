@@ -8,6 +8,7 @@ from PySide6.QtCore import QEvent, QPoint, QRect, Qt, Signal
 from PySide6.QtGui import QColor, QFont, QPainter
 from PySide6.QtWidgets import (
     QButtonGroup,
+    QRubberBand,
     QGridLayout,
     QHBoxLayout,
     QLabel,
@@ -42,6 +43,10 @@ PASOS_DE_TILE = (140, 170, 210, 260, 320)
 PASO_HOJA = 1
 GAP = 9
 FADE_HEIGHT = 60
+# Cuanto hay que mover el mouse para que un click pase a ser un arrastre. Sin
+# umbral, cada click seleccionaria todo lo que hubiera bajo el cursor y no
+# habria forma de elegir un solo clip.
+UMBRAL_ARRASTRE = 6
 
 # --- geometria de lo que va encima de la miniatura (del .card del mockup) ---
 STRIPE_WIDTH = 3    # franja de cuarto / rayado de sin clasificar
@@ -790,6 +795,12 @@ class ClipSheet(QWidget):
         # flota sobre la hoja, pegada abajo: no le quita alto a las tarjetas
         # y aparece justo donde estas mirando cuando seleccionas
         self.batch_bar = _BarraDeSeleccion(self)
+
+        # marquesina: el rectangulo de seleccion. `QRubberBand` lo dibuja el
+        # estilo del sistema, que es lo que el usuario ya reconoce de Finder.
+        self.marquesina = QRubberBand(QRubberBand.Shape.Rectangle,
+                                      self._scroll.viewport())
+        self._origen_marquesina = None
         self._scroll.setFrameShape(QScrollArea.Shape.NoFrame)
         self._scroll.setHorizontalScrollBarPolicy(
             Qt.ScrollBarPolicy.ScrollBarAlwaysOff
@@ -1076,17 +1087,75 @@ class ClipSheet(QWidget):
         )
 
     def set_pincel_activo(self, activo: bool) -> None:
-        """Con el pincel activo, el viewport sigue el mouse aunque no haya
-        boton apretado: mantener la tecla YA es el gesto, y pedir ademas
-        apretar el boton seria un dedo mas para lo mismo."""
+        """Con el pincel cargado la marquesina se cancela: los dos son el
+        mismo arrastre y no pueden correr juntos."""
+        if activo:
+            self.terminar_marquesina()
+
+        # Con el pincel activo el viewport sigue el mouse aunque no haya boton
+        # apretado: mantener la tecla YA es el gesto, y pedir ademas apretar el
+        # boton seria un dedo mas para lo mismo.
         self._pincel_activo = bool(activo)
         self._scroll.viewport().setMouseTracking(activo)
 
     def eventFilter(self, obj, event):  # noqa: N802 -- override de Qt
-        if (self._pincel_activo and obj is self._scroll.viewport()
-                and event.type() == QEvent.Type.MouseMove):
-            self.notificar_arrastre(event.position().toPoint())
+        if obj is self._scroll.viewport():
+            tipo = event.type()
+            if self._pincel_activo:
+                if tipo == QEvent.Type.MouseMove:
+                    self.notificar_arrastre(event.position().toPoint())
+            elif tipo == QEvent.Type.MouseButtonPress:
+                self.empezar_marquesina(event.position().toPoint())
+            elif tipo == QEvent.Type.MouseMove:
+                self.mover_marquesina(event.position().toPoint())
+            elif tipo == QEvent.Type.MouseButtonRelease:
+                self.terminar_marquesina()
         return super().eventFilter(obj, event)
+
+    # --- marquesina de seleccion -----------------------------------------
+
+    def empezar_marquesina(self, pos_en_viewport) -> None:
+        """Arrastrar SIN tecla de cuarto selecciona. Los dos gestos son el
+        mismo arrastre, y por eso este cede cuando el pincel esta cargado:
+        pintar y seleccionar a la vez no tendria sentido."""
+        if self._pincel_activo:
+            return
+        self._origen_marquesina = pos_en_viewport
+
+    def mover_marquesina(self, pos_en_viewport) -> None:
+        if self._origen_marquesina is None:
+            return
+        # `normalized()`: arrastrando hacia arriba-izquierda el rectangulo
+        # queda de ancho negativo y no intersecta con nada. Es el mismo bug
+        # del rango invertido de la tarjeta y de la barra de reproduccion.
+        rect = QRect(self._origen_marquesina, pos_en_viewport).normalized()
+        if rect.width() < UMBRAL_ARRASTRE and rect.height() < UMBRAL_ARRASTRE:
+            return          # todavia es un click, no un arrastre
+        self.marquesina.setGeometry(rect)
+        self.marquesina.show()
+        # la seleccion se ve MIENTRAS arrastras: si apareciera al soltar,
+        # estarias arrastrando a ciegas
+        self.set_selected(set(self.indices_tocados_por(rect)))
+
+    def terminar_marquesina(self) -> None:
+        self._origen_marquesina = None
+        self.marquesina.hide()
+
+    def indices_tocados_por(self, rect: QRect) -> list[int]:
+        """Los clips VISIBLES cuyas tarjetas toca el rectangulo.
+
+        Las escondidas por el filtro no entran: seleccionar algo que no ves y
+        despues asignarle un cuarto en lote es el error mas caro de la app.
+        """
+        viewport = self._scroll.viewport()
+        tocados = []
+        for indice, card in enumerate(self.item_widgets):
+            if card.isHidden() or not self._es_visible(indice):
+                continue
+            esquina = card.mapTo(viewport, card.rect().topLeft())
+            if rect.intersects(QRect(esquina, card.size())):
+                tocados.append(indice)
+        return tocados
 
     def notificar_arrastre(self, pos_en_viewport) -> None:
         """Avisa por que tarjeta paso el cursor. No sabe de cuartos ni de

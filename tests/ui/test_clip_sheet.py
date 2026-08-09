@@ -1054,3 +1054,94 @@ def test_re_aplicar_el_mismo_ancho_no_reescala_la_miniatura(qtbot):
     assert tarjeta._scaled_cache == escalados
     tarjeta.apply_width(190)                     # otro ancho SI reescala
     assert tarjeta._scaled_cache != escalados
+
+
+# --- la marquesina de seleccion ----------------------------------------------
+
+
+def _hoja_visible(qtbot, cuantos=12):
+    hoja = _sheet(qtbot, [_thumb(i) for i in range(1, cuantos + 1)])
+    hoja.resize(815, 700)
+    hoja.show()
+    qtbot.waitExposed(hoja)
+    qtbot.wait(50)
+    return hoja
+
+
+def _centro(hoja, indice):
+    card = hoja.item_widgets[indice]
+    return card.mapTo(hoja._scroll.viewport(), card.rect().center())
+
+
+def test_arrastrar_sobre_varias_tarjetas_las_selecciona(qtbot):
+    """El gesto que `DECISIONES.md` nombra primero para seleccion multiple."""
+    hoja = _hoja_visible(qtbot)
+    hoja.empezar_marquesina(_centro(hoja, 0))
+    hoja.mover_marquesina(_centro(hoja, 2))
+    hoja.terminar_marquesina()
+    assert hoja.selected_indices() == [0, 1, 2]
+
+
+def test_la_marquesina_se_ve_mientras_arrastras(qtbot):
+    """Un rectangulo invisible no dice que estas seleccionando."""
+    hoja = _hoja_visible(qtbot)
+    assert hoja.marquesina.isHidden()
+    hoja.empezar_marquesina(_centro(hoja, 0))
+    hoja.mover_marquesina(_centro(hoja, 2))
+    assert not hoja.marquesina.isHidden()
+    hoja.terminar_marquesina()
+    assert hoja.marquesina.isHidden()
+
+
+def test_la_seleccion_se_ve_mientras_arrastras_no_al_soltar(qtbot):
+    """Si solo apareciera al soltar, estarias arrastrando a ciegas."""
+    hoja = _hoja_visible(qtbot)
+    hoja.empezar_marquesina(_centro(hoja, 0))
+    hoja.mover_marquesina(_centro(hoja, 1))
+    assert hoja.selected_indices() == [0, 1]
+    hoja.terminar_marquesina()
+
+
+def test_un_click_sin_arrastrar_no_selecciona_todo(qtbot):
+    """Presionar y soltar en el mismo punto es un click, no una marquesina:
+    si cada click seleccionara, no habria forma de elegir un solo clip."""
+    hoja = _hoja_visible(qtbot)
+    punto = _centro(hoja, 3)
+    hoja.empezar_marquesina(punto)
+    hoja.mover_marquesina(punto)
+    hoja.terminar_marquesina()
+    assert hoja.selected_indices() == []
+
+
+def test_arrastrar_hacia_atras_tambien_selecciona(qtbot):
+    """De abajo-derecha hacia arriba-izquierda: un rectangulo de ancho
+    negativo no selecciona nada. Es el mismo bug del rango invertido de la
+    tarjeta y de la barra."""
+    hoja = _hoja_visible(qtbot)
+    hoja.empezar_marquesina(_centro(hoja, 2))
+    hoja.mover_marquesina(_centro(hoja, 0))
+    hoja.terminar_marquesina()
+    assert hoja.selected_indices() == [0, 1, 2]
+
+
+def test_la_marquesina_no_toca_las_escondidas_por_el_filtro(qtbot):
+    """Seleccionar algo que no ves y despues asignarle un cuarto en lote es
+    el error mas caro de la app."""
+    hoja = _hoja_visible(qtbot)
+    hoja.set_visible_indices([0, 1, 2])
+    qtbot.wait(30)
+    hoja.empezar_marquesina(_centro(hoja, 0))
+    hoja.mover_marquesina(_centro(hoja, 2))
+    hoja.terminar_marquesina()
+    assert all(i in (0, 1, 2) for i in hoja.selected_indices())
+
+
+def test_con_el_pincel_cargado_no_hay_marquesina(qtbot):
+    """Los dos gestos son el mismo arrastre: con la tecla abajo pinta, sin
+    ella selecciona. Que corran juntos seria pintar y seleccionar a la vez."""
+    hoja = _hoja_visible(qtbot)
+    hoja.set_pincel_activo(True)
+    hoja.empezar_marquesina(_centro(hoja, 0))
+    hoja.mover_marquesina(_centro(hoja, 2))
+    assert hoja.marquesina.isHidden()
+    assert hoja.selected_indices() == []
