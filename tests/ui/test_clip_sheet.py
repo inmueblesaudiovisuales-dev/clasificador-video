@@ -132,13 +132,13 @@ def test_update_clips_preserva_la_miniatura_si_no_cambio_nada(qtbot):
 
 def test_los_clips_se_agrupan_por_cuarto(qtbot):
     sheet = _sheet(qtbot, [_clip(0, "Sala"), _clip(1, "Cocina"), _clip(2, "Sala")])
-    assert set(sheet.group_titles()) == {"Sala", "Cocina"}
+    assert set(sheet.group_titles()) == {("", "Sala"), ("", "Cocina")}
 
 
 def test_los_sin_clasificar_van_primero(qtbot):
     """Es la cola de trabajo: lo que falta va arriba."""
     sheet = _sheet(qtbot, [_clip(0, "Sala"), _clip(1, None)])
-    assert sheet.group_titles()[0] == SIN_CLASIFICAR
+    assert sheet.group_titles()[0] == ("", SIN_CLASIFICAR)
 
 
 def test_un_grupo_que_se_vacia_desaparece(qtbot):
@@ -147,12 +147,12 @@ def test_un_grupo_que_se_vacia_desaparece(qtbot):
     assert len(sheet.group_titles()) == 2
     clips[0] = _clip(0, "Cocina")
     sheet.update_clips(clips)
-    assert sheet.group_titles() == ["Cocina"]
+    assert sheet.group_titles() == [("", "Cocina")]
 
 
 def test_el_encabezado_de_grupo_lleva_su_conteo(qtbot):
     sheet = _sheet(qtbot, [_clip(0, "Sala"), _clip(1, "Sala"), _clip(2, "Cocina")])
-    bloques = {b.titulo: b for b in sheet._ordered_blocks()}
+    bloques = {b.cuarto: b for b in sheet._ordered_blocks()}
     assert bloques["Sala"].count_label.text() == "2"
     assert bloques["Cocina"].count_label.text() == "1"
 
@@ -427,14 +427,14 @@ def test_quitar_el_filtro_vuelve_a_mostrar_todo(qtbot):
 def test_un_grupo_que_queda_vacio_por_el_filtro_se_esconde(qtbot):
     sheet = _sheet(qtbot, [_clip(0, "Sala"), _clip(1, "Cocina")])
     sheet.set_visible_indices([1])
-    visibles = [b.titulo for b in sheet._ordered_blocks() if not b.isHidden()]
+    visibles = [b.cuarto for b in sheet._ordered_blocks() if not b.isHidden()]
     assert visibles == ["Cocina"]
 
 
 def test_el_conteo_del_encabezado_cuenta_lo_visible(qtbot):
     sheet = _sheet(qtbot, [_clip(0, "Sala"), _clip(1, "Sala")])
     sheet.set_visible_indices([0])
-    bloques = {b.titulo: b for b in sheet._ordered_blocks()}
+    bloques = {b.cuarto: b for b in sheet._ordered_blocks()}
     assert bloques["Sala"].count_label.text() == "1"
 
 
@@ -598,7 +598,7 @@ def test_un_cambio_de_grupo_si_recoloca(qtbot):
     sheet._relayout()
     clips[0] = _clip(0, "Cocina")
     sheet.update_clips(clips)
-    assert set(sheet.group_titles()) == {"Sala", "Cocina"}
+    assert set(sheet.group_titles()) == {("", "Sala"), ("", "Cocina")}
 
 
 def test_esconder_por_filtro_si_recoloca(qtbot):
@@ -705,10 +705,17 @@ def test_marcar_OUT_antes_que_IN_dibuja_el_rango_igual(qtbot):
 # --- F8 Task 15: el modo hoja ------------------------------------------------
 
 
-def _thumb(i: int, cuarto=SIN_CLASIFICAR) -> ClipThumbnail:
-    """Un clip de ejemplo para llenar la hoja."""
-    return ClipThumbnail(path=Path(f"/tmp/C{i:04d}.MP4"), room_label=cuarto,
-                         flag="none", numero=i)
+def _thumb(i: int, cuarto=SIN_CLASIFICAR, **extra) -> ClipThumbnail:
+    """Un clip de ejemplo para llenar la hoja.
+
+    `extra` deja pasar cualquier campo del `ClipThumbnail` --`bin_nombre`,
+    `room_label`, `flag`-- sin tener que agregar un parametro por cada uno
+    que nazca.
+    """
+    campos = dict(path=Path(f"/tmp/C{i:04d}.MP4"), room_label=cuarto,
+                  flag="none", numero=i)
+    campos.update(extra)
+    return ClipThumbnail(**campos)
 
 
 def test_columnas_visibles_cuenta_lo_que_hay_en_la_grilla(qtbot):
@@ -1268,3 +1275,411 @@ def test_agregar_clips_conecta_cada_tarjeta_nueva_a_SU_indice(qtbot):
     hoja.item_widgets[2].clicked.emit(Qt.KeyboardModifier.NoModifier)
 
     assert avisados == [1, 2]
+
+
+# --- F4 Task 8: la hoja agrupa por (bin, cuarto) ------------------------------
+
+
+def test_los_bins_van_en_orden_de_importacion_y_los_cuartos_adentro(qtbot):
+    """Propuesta A del mockup: el bin manda arriba, el cuarto baja a
+    subgrupo. El orden de los bins es el de importacion, no el alfabetico."""
+    hoja = ClipSheet()
+    qtbot.addWidget(hoja)
+    hoja.set_bin_order(["Sony", "Dron"])
+    hoja.set_clips([
+        _thumb(0, bin_nombre="Dron", room_label="Exteriores"),
+        _thumb(1, bin_nombre="Sony", room_label="Cocina"),
+        _thumb(2, bin_nombre="Sony", room_label=SIN_CLASIFICAR),
+    ])
+
+    assert hoja.group_titles() == [
+        ("Sony", SIN_CLASIFICAR), ("Sony", "Cocina"), ("Dron", "Exteriores"),
+    ]
+
+
+def test_un_clip_sin_bin_cae_en_uno_solo_y_no_revienta(qtbot):
+    hoja = ClipSheet()
+    qtbot.addWidget(hoja)
+    hoja.set_clips([_thumb(0, room_label="Cocina")])
+
+    assert hoja.group_titles() == [("", "Cocina")]
+
+
+def test_un_bin_que_no_esta_en_el_orden_va_al_final(qtbot):
+    """Puede pasar entre que se agrega material y se refresca el orden: no
+    puede reventar ni colarse arriba de los que si estan ordenados."""
+    hoja = ClipSheet()
+    qtbot.addWidget(hoja)
+    hoja.set_bin_order(["Sony"])
+    hoja.set_clips([
+        _thumb(0, bin_nombre="Recien llegado", room_label="Cocina"),
+        _thumb(1, bin_nombre="Sony", room_label="Cocina"),
+    ])
+
+    assert hoja.group_titles() == [("Sony", "Cocina"), ("Recien llegado", "Cocina")]
+
+
+def test_el_mismo_cuarto_en_dos_bins_son_dos_bloques(qtbot):
+    """El costo aceptado de la propuesta A: grabaste la cocina con las dos
+    camaras, y aparece una vez dentro de cada bin."""
+    hoja = ClipSheet()
+    qtbot.addWidget(hoja)
+    hoja.set_bin_order(["Sony", "Dron"])
+    hoja.set_clips([
+        _thumb(0, bin_nombre="Sony", room_label="Cocina"),
+        _thumb(1, bin_nombre="Dron", room_label="Cocina"),
+    ])
+
+    assert hoja.group_titles() == [("Sony", "Cocina"), ("Dron", "Cocina")]
+
+
+def test_el_bloque_de_cuarto_solo_muestra_el_cuarto(qtbot):
+    """El nombre del bin ya lo dice su encabezado: repetirlo en cada
+    subgrupo seria ruido."""
+    hoja = ClipSheet()
+    qtbot.addWidget(hoja)
+    hoja.set_bin_order(["Sony"])
+    hoja.set_clips([_thumb(0, bin_nombre="Sony", room_label="Cocina")])
+
+    assert hoja._ordered_blocks()[0].title_label.text() == "COCINA"
+
+
+# --- F4 Task 9: el encabezado del bin -----------------------------------------
+
+
+def test_hay_un_encabezado_por_bin_arriba_de_su_primer_grupo(qtbot):
+    hoja = ClipSheet()
+    qtbot.addWidget(hoja)
+    hoja.set_bin_order(["Sony", "Dron"])
+    hoja.set_clips([
+        _thumb(0, bin_nombre="Sony", room_label="Cocina"),
+        _thumb(1, bin_nombre="Sony", room_label="Baño"),
+        _thumb(2, bin_nombre="Dron", room_label="Exteriores"),
+    ])
+
+    assert hoja.bin_headers() == ["Sony", "Dron"]
+
+
+def test_el_encabezado_va_antes_que_los_bloques_de_su_bin(qtbot):
+    """No alcanza con que exista: si quedara debajo de sus grupos diria que
+    la Sony es del dron."""
+    hoja = ClipSheet()
+    qtbot.addWidget(hoja)
+    hoja.set_bin_order(["Sony", "Dron"])
+    hoja.set_clips([
+        _thumb(0, bin_nombre="Sony", room_label="Cocina"),
+        _thumb(1, bin_nombre="Dron", room_label="Exteriores"),
+    ])
+
+    orden = [
+        w.nombre if hasattr(w, "nombre") else w.titulo
+        for w in hoja._widgets_del_contenido()
+    ]
+    assert orden == ["Sony", ("Sony", "Cocina"), "Dron", ("Dron", "Exteriores")]
+
+
+def test_el_encabezado_dice_cuantos_clips_tiene_su_bin(qtbot):
+    hoja = ClipSheet()
+    qtbot.addWidget(hoja)
+    hoja.set_bin_order(["Sony"])
+    hoja.set_clips([_thumb(0, bin_nombre="Sony"), _thumb(1, bin_nombre="Sony")])
+
+    assert "2" in hoja.bin_header_widget("Sony").count_label.text()
+
+
+def test_el_encabezado_cuenta_picks_destacados_y_rejects(qtbot):
+    """Los puntos de color del mockup. Salen de las tarjetas, no de un dato
+    aparte: dos vistas del mismo numero se contradicen solas."""
+    hoja = ClipSheet()
+    qtbot.addWidget(hoja)
+    hoja.set_bin_order(["Sony"])
+    hoja.set_clips([
+        _thumb(0, bin_nombre="Sony", flag="pick"),
+        _thumb(1, bin_nombre="Sony", flag="pick"),
+        _thumb(2, bin_nombre="Sony", flag="destacado"),
+        _thumb(3, bin_nombre="Sony", flag="reject"),
+    ])
+
+    cabecera = hoja.bin_header_widget("Sony")
+    assert cabecera.marcas_texto() == ["2", "1", "1"]
+
+
+def test_un_bin_que_se_queda_sin_clips_pierde_su_encabezado(qtbot):
+    hoja = ClipSheet()
+    qtbot.addWidget(hoja)
+    hoja.set_bin_order(["Sony", "Dron"])
+    hoja.set_clips([
+        _thumb(0, bin_nombre="Sony"), _thumb(1, bin_nombre="Dron"),
+    ])
+    assert hoja.bin_headers() == ["Sony", "Dron"]
+
+    hoja.set_clips([_thumb(0, bin_nombre="Sony")])
+
+    assert hoja.bin_headers() == ["Sony"]
+    assert hoja.bin_header_widget("Dron") is None
+
+
+def test_colapsar_esconde_las_tarjetas_pero_no_las_saca_de_la_cola(qtbot):
+    """Colapsar es visual. Si sacara los clips de la cola seria un filtro
+    escondido, y la flecha se saltaria clips sin decir por que."""
+    hoja = ClipSheet()
+    qtbot.addWidget(hoja)
+    hoja.set_bin_order(["Sony"])
+    hoja.set_clips([_thumb(0, bin_nombre="Sony")])
+
+    hoja.set_bin_collapsed("Sony", True)
+
+    assert hoja.item_widgets[0].isHidden()
+    assert hoja.count() == 1
+
+
+def test_colapsar_no_esconde_las_tarjetas_del_otro_bin(qtbot):
+    hoja = ClipSheet()
+    qtbot.addWidget(hoja)
+    hoja.set_bin_order(["Sony", "Dron"])
+    hoja.set_clips([_thumb(0, bin_nombre="Sony"), _thumb(1, bin_nombre="Dron")])
+
+    hoja.set_bin_collapsed("Sony", True)
+
+    assert hoja.item_widgets[0].isHidden()
+    assert not hoja.item_widgets[1].isHidden()
+
+
+def test_expandir_devuelve_las_tarjetas(qtbot):
+    hoja = ClipSheet()
+    qtbot.addWidget(hoja)
+    hoja.set_bin_order(["Sony"])
+    hoja.set_clips([_thumb(0, bin_nombre="Sony")])
+    hoja.set_bin_collapsed("Sony", True)
+
+    hoja.set_bin_collapsed("Sony", False)
+
+    assert not hoja.item_widgets[0].isHidden()
+    assert hoja.bin_header_widget("Sony").chevron.text() == "▾"
+
+
+def test_un_bin_colapsado_no_deja_sus_bloques_ocupando_lugar(qtbot):
+    hoja = ClipSheet()
+    qtbot.addWidget(hoja)
+    hoja.set_bin_order(["Sony"])
+    hoja.set_clips([_thumb(0, bin_nombre="Sony", room_label="Cocina")])
+
+    hoja.set_bin_collapsed("Sony", True)
+
+    assert hoja._ordered_blocks()[0].isHidden()
+    assert hoja.bin_header_widget("Sony").chevron.text() == "▸"
+
+
+def test_el_filtro_no_resucita_las_tarjetas_de_un_bin_colapsado(qtbot):
+    """Colapsar y filtrar son dos cosas distintas sobre la misma tarjeta:
+    la que las dos esconden tiene que quedarse escondida."""
+    hoja = ClipSheet()
+    qtbot.addWidget(hoja)
+    hoja.set_bin_order(["Sony"])
+    hoja.set_clips([_thumb(0, bin_nombre="Sony"), _thumb(1, bin_nombre="Sony")])
+    hoja.set_bin_collapsed("Sony", True)
+
+    hoja.set_visible_indices([0, 1])
+
+    assert hoja.item_widgets[0].isHidden()
+
+
+def test_click_en_el_encabezado_pide_colapsar(qtbot):
+    hoja = ClipSheet()
+    qtbot.addWidget(hoja)
+    hoja.set_bin_order(["Sony"])
+    hoja.set_clips([_thumb(0, bin_nombre="Sony")])
+    cabecera = hoja.bin_header_widget("Sony")
+
+    with qtbot.waitSignal(cabecera.collapse_toggled) as blocker:
+        cabecera.alternar_colapso()
+
+    assert blocker.args == ["Sony"]
+    assert hoja.item_widgets[0].isHidden()
+
+
+def test_renombrar_en_el_lugar_con_un_campo_de_texto_no_un_dialogo(qtbot):
+    """Nada de `QInputDialog`: es modal y cuelga la suite bajo offscreen."""
+    hoja = ClipSheet()
+    qtbot.addWidget(hoja)
+    hoja.set_bin_order(["Sony"])
+    hoja.set_clips([_thumb(0, bin_nombre="Sony")])
+    cabecera = hoja.bin_header_widget("Sony")
+
+    cabecera.empezar_a_renombrar()
+    assert not cabecera.name_edit.isHidden() and cabecera.name_label.isHidden()
+    cabecera.name_edit.setText("Sony FX30")
+
+    with qtbot.waitSignal(cabecera.rename_requested) as blocker:
+        cabecera.name_edit.returnPressed.emit()
+
+    assert blocker.args == ["Sony", "Sony FX30"]
+
+
+def test_renombrar_con_el_mismo_nombre_no_avisa_a_nadie(qtbot):
+    hoja = ClipSheet()
+    qtbot.addWidget(hoja)
+    hoja.set_bin_order(["Sony"])
+    hoja.set_clips([_thumb(0, bin_nombre="Sony")])
+    cabecera = hoja.bin_header_widget("Sony")
+    avisos = []
+    cabecera.rename_requested.connect(lambda *a: avisos.append(a))
+
+    cabecera.empezar_a_renombrar()
+    cabecera.name_edit.returnPressed.emit()
+
+    assert avisos == []
+
+
+def test_el_menu_del_bin_trae_lo_que_dibujo_el_mockup(qtbot):
+    hoja = ClipSheet()
+    qtbot.addWidget(hoja)
+    hoja.set_bin_order(["Dron"])
+    hoja.set_clips([_thumb(i, bin_nombre="Dron") for i in range(3)])
+    menu = hoja.bin_header_widget("Dron").construir_menu()
+
+    textos = [a.text() for a in menu.actions() if not a.isSeparator()]
+    assert textos == [
+        "Renombrar bin…",
+        "Enlazar proxies…",
+        "Quitar proxies de este bin",
+        "Seleccionar los 3 clips",
+        "Colapsar",
+        "Quitar del proyecto",
+    ]
+
+
+@pytest.mark.parametrize("titulo, senal", [
+    ("Enlazar proxies…", "proxies_requested"),
+    ("Quitar proxies de este bin", "proxies_cleared"),
+    ("Seleccionar los 1 clips", "select_all_requested"),
+    ("Quitar del proyecto", "remove_requested"),
+])
+def test_cada_renglon_del_menu_avisa_con_el_nombre_del_bin(qtbot, titulo, senal):
+    hoja = ClipSheet()
+    qtbot.addWidget(hoja)
+    hoja.set_bin_order(["Dron"])
+    hoja.set_clips([_thumb(0, bin_nombre="Dron")])
+    cabecera = hoja.bin_header_widget("Dron")
+    menu = cabecera.construir_menu()
+    accion = next(a for a in menu.actions() if a.text() == titulo)
+
+    with qtbot.waitSignal(getattr(cabecera, senal)) as blocker:
+        accion.trigger()
+
+    assert blocker.args == ["Dron"]
+
+
+def test_el_menu_dice_expandir_cuando_el_bin_esta_colapsado(qtbot):
+    hoja = ClipSheet()
+    qtbot.addWidget(hoja)
+    hoja.set_bin_order(["Dron"])
+    hoja.set_clips([_thumb(0, bin_nombre="Dron")])
+    hoja.set_bin_collapsed("Dron", True)
+
+    menu = hoja.bin_header_widget("Dron").construir_menu()
+
+    assert "Expandir" in [a.text() for a in menu.actions()]
+
+
+def test_la_insignia_de_proxies_dice_cuantos_calzaron(qtbot):
+    """«21/23» es a proposito visible: dos no calzaron cuadro a cuadro y no
+    se engancharon, que es mejor que enganchar un proxy corrido."""
+    hoja = ClipSheet()
+    qtbot.addWidget(hoja)
+    hoja.set_bin_order(["Dron"])
+    hoja.set_clips([_thumb(i, bin_nombre="Dron") for i in range(3)])
+
+    hoja.set_bin_meta("Dron", origen="02. VIDEO DRONE", proxies=(2, 3))
+
+    cabecera = hoja.bin_header_widget("Dron")
+    assert cabecera.source_label.text() == "02. VIDEO DRONE"
+    assert cabecera.proxy_badge.text() == "proxy · 2/3"
+
+
+def test_sin_proxies_lo_dice_con_todas_las_letras(qtbot):
+    hoja = ClipSheet()
+    qtbot.addWidget(hoja)
+    hoja.set_bin_order(["Dron"])
+    hoja.set_clips([_thumb(0, bin_nombre="Dron")])
+
+    hoja.set_bin_meta("Dron", origen="/dron", proxies=(0, 1))
+
+    assert hoja.bin_header_widget("Dron").proxy_badge.text() == "sin proxies"
+
+
+def test_con_todos_los_proxies_no_muestra_la_fraccion(qtbot):
+    hoja = ClipSheet()
+    qtbot.addWidget(hoja)
+    hoja.set_bin_order(["Dron"])
+    hoja.set_clips([_thumb(0, bin_nombre="Dron")])
+
+    hoja.set_bin_meta("Dron", origen="/dron", proxies=(1, 1))
+
+    assert hoja.bin_header_widget("Dron").proxy_badge.text() == "proxy · 1/1"
+
+
+def test_la_meta_del_bin_sobrevive_a_que_se_rehaga_el_encabezado(qtbot):
+    """Los encabezados nacen y mueren con cada reagrupada; la carpeta de
+    origen no."""
+    hoja = ClipSheet()
+    qtbot.addWidget(hoja)
+    hoja.set_bin_order(["Dron"])
+    hoja.set_clips([_thumb(0, bin_nombre="Dron")])
+    hoja.set_bin_meta("Dron", origen="02. VIDEO DRONE", proxies=(0, 1))
+
+    hoja.set_clips([_thumb(0, bin_nombre="Dron"), _thumb(1, bin_nombre="Dron")])
+
+    assert hoja.bin_header_widget("Dron").source_label.text() == "02. VIDEO DRONE"
+
+
+def test_la_hoja_avisa_de_cada_encabezado_nuevo(qtbot):
+    """Es como la ventana le enchufa sus señales: los bins aparecen y
+    desaparecen con las importaciones, no una sola vez al arrancar."""
+    hoja = ClipSheet()
+    qtbot.addWidget(hoja)
+    nacidos = []
+    hoja.bin_header_created.connect(lambda c: nacidos.append(c.nombre))
+
+    hoja.set_bin_order(["Sony", "Dron"])
+    hoja.set_clips([_thumb(0, bin_nombre="Sony"), _thumb(1, bin_nombre="Dron")])
+
+    assert nacidos == ["Sony", "Dron"]
+
+
+# --- F4 Task 9 paso 5: el encabezado pegado arriba ----------------------------
+
+
+def test_el_encabezado_pegado_sigue_al_bin_en_el_que_estas(qtbot):
+    hoja = ClipSheet()
+    qtbot.addWidget(hoja)
+    hoja.resize(815, 300)
+    hoja.set_bin_order(["Sony", "Dron"])
+    hoja.set_clips(
+        [_thumb(i, bin_nombre="Sony") for i in range(12)]
+        + [_thumb(i, bin_nombre="Dron") for i in range(12, 24)]
+    )
+    hoja.show()
+    # el area de scroll acomoda su contenido en el ciclo de eventos: hasta
+    # que no corre, la barra no tiene recorrido y `setValue` se recorta a 0.
+    barra = hoja._scroll.verticalScrollBar()
+    qtbot.waitUntil(lambda: barra.maximum() > 0, timeout=2000)
+
+    barra.setValue(hoja.bin_header_widget("Sony").y() + 1)
+    assert hoja._pegado.nombre == "Sony"
+
+    barra.setValue(hoja.bin_header_widget("Dron").y() + 1)
+    assert hoja._pegado.nombre == "Dron"
+
+
+def test_en_el_tope_no_hay_encabezado_pegado(qtbot):
+    hoja = ClipSheet()
+    qtbot.addWidget(hoja)
+    hoja.resize(815, 300)
+    hoja.set_bin_order(["Sony"])
+    hoja.set_clips([_thumb(i, bin_nombre="Sony") for i in range(12)])
+    hoja.show()
+
+    hoja._scroll.verticalScrollBar().setValue(0)
+
+    assert hoja._pegado.isHidden()

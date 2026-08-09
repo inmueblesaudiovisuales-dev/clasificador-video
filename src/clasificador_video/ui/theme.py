@@ -800,6 +800,85 @@ def build_stylesheet() -> str:
         font-family: {MONO_FONT};
         font-size: {FONT_MICRO}px;
     }}
+    /* --- el encabezado de bin (F4). La propuesta A del mockup: el bin
+       manda arriba y el cuarto baja a subgrupo, asi que este encabezado
+       pesa mas que el `groupTitle` de abajo -- fondo, borde y nombre en
+       tipografia normal contra las mayusculas apagadas del cuarto. */
+    QWidget#binHeader {{
+        background-color: {BG_SURFACE_1};
+        border: 1px solid {LINE};
+        border-radius: {RADIUS_LG}px;
+    }}
+    QWidget#binHeader[colapsado="true"] {{
+        background-color: {BG_SURFACE_0};
+    }}
+    /* `background-color: transparent` NO es redundante: la regla global de
+       QWidget le pone BG_APP a todo, y sobre el fondo mas claro del
+       encabezado cada etiqueta se dibujaba como una cajita oscura. */
+    QLabel#binChevron {{
+        background-color: transparent;
+        color: {TEXT_2};
+        font-size: {FONT_SMALL}px;
+    }}
+    QLabel#binName {{
+        background-color: transparent;
+        color: {TEXT};
+        font-size: {FONT_SMALL}px;
+        font-weight: 650;
+    }}
+    QLineEdit#binNameEdit {{
+        background-color: {BG_SURFACE_2};
+        border: 1px solid {CURRENT_COLOR};
+        border-radius: {RADIUS_SM}px;
+        padding: 0 5px;
+        color: {TEXT};
+        font-size: {FONT_SMALL}px;
+        font-weight: 650;
+    }}
+    QLabel#binSource {{
+        background-color: transparent;
+        color: {TEXT_3};
+        font-family: {MONO_FONT};
+        font-size: {FONT_MICRO}px;
+    }}
+    QLabel#binCount {{
+        background-color: transparent;
+        color: {TEXT_3};
+        font-family: {MONO_FONT};
+        font-size: {FONT_MICRO}px;
+    }}
+    /* La insignia de proxies cambia de color con lo que dice: verde cuando
+       calzaron todos, ambar cuando faltan --el «21/23» del mockup, que es a
+       proposito visible-- y apagada cuando no hay ninguno. */
+    QLabel#binProxyBadge {{
+        font-family: {MONO_FONT};
+        font-size: {FONT_MICRO}px;
+        padding: 2px 7px;
+        border-radius: {RADIUS_SM}px;
+        border: 1px solid {LINE};
+        background-color: {BG_SURFACE_2};
+        color: {TEXT_3};
+    }}
+    QLabel#binProxyBadge[estado="completo"] {{
+        border: 1px solid {PICK_COLOR};
+        color: {aclarar(PICK_COLOR, 0.35)};
+    }}
+    QLabel#binProxyBadge[estado="parcial"] {{
+        border: 1px solid {CURRENT_COLOR};
+        color: {aclarar(CURRENT_COLOR, 0.35)};
+    }}
+    QPushButton#binMore {{
+        background-color: {BG_SURFACE_2};
+        border: 1px solid {LINE};
+        border-radius: {RADIUS_SM}px;
+        color: {TEXT_2};
+        font-size: {FONT_SMALL}px;
+        padding: 0;
+    }}
+    QPushButton#binMore:hover {{
+        background-color: {BG_SURFACE_1};
+        color: {TEXT};
+    }}
     QLabel#sheetFade {{
         background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
             stop:0 {OVERLAY_SCRIM_FROM}, stop:1 {BG_SURFACE_0});

@@ -5,14 +5,16 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from PySide6.QtCore import QEvent, QPoint, QRect, QRectF, Qt, Signal
-from PySide6.QtGui import QColor, QFont, QPainter, QPen
+from PySide6.QtGui import QAction, QColor, QFont, QPainter, QPen
 from PySide6.QtWidgets import (
     QButtonGroup,
+    QGraphicsDropShadowEffect,
     QRubberBand,
     QGridLayout,
     QHBoxLayout,
     QLabel,
     QLineEdit,
+    QMenu,
     QPushButton,
     QScrollArea,
     QSizePolicy,
@@ -77,6 +79,11 @@ class ClipThumbnail:
     duration_frames: int | None = None
     fps: float = 0.0
     aspect_ratio: float = 16 / 9
+    # De que bin salio el clip. Vacio significa «todavia no hay bins»: una
+    # hoja suelta en un test, o el instante entre cargar los clips y
+    # refrescar los bins. La hoja lo trata como un bin sin nombre y no
+    # revienta.
+    bin_nombre: str = ""
 
 
 class _CardOverlay(QWidget):
@@ -574,24 +581,278 @@ class ClipCard(QWidget):
         self._overlay.update()  # el estado tambien cambia lo que va encima
 
 
+class _BinHeader(QWidget):
+    """El encabezado de un bin: lo que el mockup pone arriba de sus grupos.
+
+    Es tambien el menu de clic derecho -- ahi vive todo lo que aplica a una
+    camara entera (enlazar proxies, renombrar, quitar del proyecto). El bin
+    es la unidad con la que se piensan esas tres cosas, porque el proxy y el
+    LUT son propiedades de la CAMARA y no del clip suelto.
+    """
+
+    collapse_toggled = Signal(str)        # nombre del bin
+    rename_requested = Signal(str, str)   # nombre viejo, nombre nuevo
+    proxies_requested = Signal(str)
+    proxies_cleared = Signal(str)
+    select_all_requested = Signal(str)
+    remove_requested = Signal(str)
+
+    # los mismos tres canales de estado de la tarjeta, en el mismo orden que
+    # el mockup: pick, destacado, reject
+    MARCAS = (("pick", theme.PICK_COLOR), ("destacado", theme.STAR_COLOR),
+              ("reject", theme.REJECT_COLOR))
+
+    def __init__(self, nombre: str, parent=None):
+        super().__init__(parent)
+        self.nombre = nombre
+        self.setObjectName("binHeader")
+        self.setAttribute(Qt.WA_StyledBackground, True)
+        self._colapsado = False
+        self._cuantos = 0
+        self._renombrando = False
+        # el menu se guarda como atributo porque `popup()` NO bloquea: si el
+        # QMenu fuera local, Python lo recolectaria antes de que se dibuje.
+        # `exec()` si bloquearia, y esta app no abre nada modal desde la F3.
+        self._menu: QMenu | None = None
+
+        fila = QHBoxLayout(self)
+        fila.setContentsMargins(9, 9, 9, 9)
+        fila.setSpacing(9)
+        self.chevron = QLabel("▾")
+        self.chevron.setObjectName("binChevron")
+        self.name_label = QLabel(nombre)
+        self.name_label.setObjectName("binName")
+        self.name_edit = QLineEdit(nombre)
+        self.name_edit.setObjectName("binNameEdit")
+        self.name_edit.hide()
+        self.name_edit.returnPressed.connect(self._confirmar_nombre)
+        # `editingFinished` cubre el clic afuera; `returnPressed` ya paso por
+        # aqui, y por eso `_renombrando` hace de guarda para no avisar dos
+        # veces del mismo cambio.
+        self.name_edit.editingFinished.connect(self._confirmar_nombre)
+        self.source_label = QLabel("")
+        self.source_label.setObjectName("binSource")
+        self.count_label = QLabel("0 clips")
+        self.count_label.setObjectName("binCount")
+        for w in (self.chevron, self.name_label, self.name_edit,
+                  self.source_label, self.count_label):
+            fila.addWidget(w)
+
+        # los puntos de color con su numero. Se arman una vez y se esconden
+        # cuando valen cero: un «0 rejects» no es informacion, es ruido.
+        self._marcas: dict[str, tuple[QLabel, QLabel]] = {}
+        for flag, color in self.MARCAS:
+            punto = QLabel("")
+            punto.setObjectName("binDot")
+            punto.setFixedSize(6, 6)
+            punto.setAttribute(Qt.WA_StyledBackground, True)
+            punto.setStyleSheet(
+                f"background-color: {color}; border-radius: 2px;"
+            )
+            numero = QLabel("0")
+            numero.setObjectName("binCount")
+            fila.addWidget(punto)
+            fila.addWidget(numero)
+            self._marcas[flag] = (punto, numero)
+
+        fila.addStretch(1)
+        self.proxy_badge = QLabel("sin proxies")
+        self.proxy_badge.setObjectName("binProxyBadge")
+        self.proxy_badge.setProperty("estado", "ninguno")
+        self.more_button = QPushButton("⋯")
+        self.more_button.setObjectName("binMore")
+        self.more_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.more_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self.more_button.setFixedSize(22, 20)
+        self.more_button.clicked.connect(self._abrir_menu_del_boton)
+        fila.addWidget(self.proxy_badge)
+        fila.addWidget(self.more_button)
+
+    # --- datos -----------------------------------------------------------
+
+    def set_counts(self, cuantos: int, por_flag: dict[str, int]) -> None:
+        self._cuantos = cuantos
+        self.count_label.setText(f"{cuantos} clips")
+        for flag, _ in self.MARCAS:
+            punto, numero = self._marcas[flag]
+            tiene = por_flag.get(flag, 0)
+            numero.setText(str(tiene))
+            punto.setVisible(bool(tiene))
+            numero.setVisible(bool(tiene))
+
+    def copiar_de(self, otro: "_BinHeader") -> None:
+        """Se vuelve un clon visual de `otro`. Lo usa el encabezado pegado:
+        es el MISMO encabezado, dibujado flotando -- si copiara solo el
+        nombre, la insignia de proxies y los puntos de estado quedarian
+        diciendo lo del bin anterior."""
+        self.nombre = otro.nombre
+        self.name_label.setText(otro.nombre)
+        self.source_label.setText(otro.source_label.text())
+        self.count_label.setText(otro.count_label.text())
+        self._cuantos = otro._cuantos
+        for flag, _ in self.MARCAS:
+            punto, numero = self._marcas[flag]
+            punto_otro, numero_otro = otro._marcas[flag]
+            numero.setText(numero_otro.text())
+            punto.setVisible(not punto_otro.isHidden())
+            numero.setVisible(not numero_otro.isHidden())
+        self.proxy_badge.setText(otro.proxy_badge.text())
+        estado = otro.proxy_badge.property("estado")
+        if self.proxy_badge.property("estado") != estado:
+            self.proxy_badge.setProperty("estado", estado)
+            self.proxy_badge.style().unpolish(self.proxy_badge)
+            self.proxy_badge.style().polish(self.proxy_badge)
+        self.set_collapsed(otro._colapsado)
+
+    def marcas_texto(self) -> list[str]:
+        """Los tres numeros de los puntos, en el orden del mockup."""
+        return [self._marcas[flag][1].text() for flag, _ in self.MARCAS]
+
+    def set_source(self, texto: str) -> None:
+        self.source_label.setText(texto)
+
+    def set_proxies(self, enganchados: int, total: int) -> None:
+        """La insignia del mockup.
+
+        El «21/23» es a proposito visible: dos archivos no calzaron cuadro a
+        cuadro y NO se engancharon, que es mejor que enganchar un proxy
+        corrido y poner el in en el cuadro equivocado.
+        """
+        if not enganchados:
+            texto, estado = "sin proxies", "ninguno"
+        elif enganchados < total:
+            texto, estado = f"proxy · {enganchados}/{total}", "parcial"
+        else:
+            texto, estado = f"proxy · {enganchados}/{total}", "completo"
+        self.proxy_badge.setText(texto)
+        if self.proxy_badge.property("estado") != estado:
+            self.proxy_badge.setProperty("estado", estado)
+            self.proxy_badge.style().unpolish(self.proxy_badge)
+            self.proxy_badge.style().polish(self.proxy_badge)
+
+    def set_collapsed(self, colapsado: bool) -> None:
+        self._colapsado = bool(colapsado)
+        self.chevron.setText("▸" if colapsado else "▾")
+        if self.property("colapsado") != self._colapsado:
+            self.setProperty("colapsado", self._colapsado)
+            self.style().unpolish(self)
+            self.style().polish(self)
+
+    # --- interaccion -----------------------------------------------------
+
+    def alternar_colapso(self) -> None:
+        self.collapse_toggled.emit(self.nombre)
+
+    def mousePressEvent(self, event) -> None:  # noqa: N802 -- override de Qt
+        if event.button() == Qt.MouseButton.LeftButton:
+            self.alternar_colapso()
+        super().mousePressEvent(event)
+
+    def mouseDoubleClickEvent(self, event) -> None:  # noqa: N802 -- override de Qt
+        """Doble clic renombra, como en el rail de cuartos. El clic simple ya
+        colapso y expandio de vuelta: es visual y no cuesta nada."""
+        self.empezar_a_renombrar()
+
+    def empezar_a_renombrar(self) -> None:
+        """En el LUGAR, con un `QLineEdit`. Nada de `QInputDialog`: es modal,
+        y la F3 mato el ultimo diálogo modal justo porque colgaba la suite
+        bajo `offscreen`."""
+        self._renombrando = True
+        self.name_edit.setText(self.nombre)
+        self.name_label.hide()
+        self.name_edit.show()
+        self.name_edit.selectAll()
+        self.name_edit.setFocus()
+
+    def _confirmar_nombre(self) -> None:
+        if not self._renombrando:
+            return
+        self._renombrando = False
+        nuevo = self.name_edit.text().strip()
+        self.name_edit.hide()
+        self.name_label.show()
+        # el mismo nombre no es un cambio: avisar igual haria que la ventana
+        # reconstruyera la hoja para nada
+        if nuevo and nuevo != self.nombre:
+            self.rename_requested.emit(self.nombre, nuevo)
+
+    def construir_menu(self) -> QMenu:
+        """El menu del spec §4.2, tal cual la pantalla 3 del mockup.
+
+        Devuelve el `QMenu` en vez de abrirlo para poder probar los renglones
+        sin abrir nada: un menu abierto en un test es un ciclo de eventos
+        esperando un clic que nunca llega.
+        """
+        menu = QMenu(self)
+        renombrar = QAction("Renombrar bin…", menu)
+        renombrar.setShortcut("F2")
+        renombrar.triggered.connect(self.empezar_a_renombrar)
+        menu.addAction(renombrar)
+
+        enlazar = QAction("Enlazar proxies…", menu)
+        enlazar.triggered.connect(lambda: self.proxies_requested.emit(self.nombre))
+        menu.addAction(enlazar)
+
+        quitar_proxies = QAction("Quitar proxies de este bin", menu)
+        quitar_proxies.triggered.connect(lambda: self.proxies_cleared.emit(self.nombre))
+        menu.addAction(quitar_proxies)
+        menu.addSeparator()
+
+        seleccionar = QAction(f"Seleccionar los {self._cuantos} clips", menu)
+        seleccionar.setShortcut("Ctrl+A")
+        seleccionar.triggered.connect(
+            lambda: self.select_all_requested.emit(self.nombre)
+        )
+        menu.addAction(seleccionar)
+
+        colapsar = QAction("Expandir" if self._colapsado else "Colapsar", menu)
+        colapsar.triggered.connect(self.alternar_colapso)
+        menu.addAction(colapsar)
+        menu.addSeparator()
+
+        quitar = QAction("Quitar del proyecto", menu)
+        quitar.triggered.connect(lambda: self.remove_requested.emit(self.nombre))
+        menu.addAction(quitar)
+        return menu
+
+    def contextMenuEvent(self, event) -> None:  # noqa: N802 -- override de Qt
+        self._abrir_menu_en(event.globalPos())
+
+    def _abrir_menu_del_boton(self) -> None:
+        self._abrir_menu_en(self.more_button.mapToGlobal(
+            self.more_button.rect().bottomLeft()
+        ))
+
+    def _abrir_menu_en(self, punto) -> None:
+        # `popup` y no `exec`: `exec` abre un ciclo de eventos propio, que es
+        # exactamente lo que colgaba la suite bajo `offscreen`.
+        self._menu = self.construir_menu()
+        self._menu.popup(punto)
+
+
 class _GroupBlock(QWidget):
     """Encabezado de cuarto mas su grilla propia.
 
     Un bloque por grupo, no una sola grilla gigante: con una sola habria
     que llevar la cuenta de en que fila arranca cada cuarto, y esa
     aritmetica se rompe apenas un grupo se vacia.
+
+    Desde la F4 el grupo es `(bin, cuarto)` --la propuesta A del mockup--
+    pero el bloque solo escribe el CUARTO: el bin ya lo dice su encabezado
+    unas lineas mas arriba, y repetirlo en cada subgrupo seria ruido.
     """
 
-    def __init__(self, titulo: str, parent=None):
+    def __init__(self, clave: tuple[str, str], parent=None):
         super().__init__(parent)
-        self.titulo = titulo
+        self.titulo = clave
+        self.bin_nombre, self.cuarto = clave
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(GAP)
 
         cabecera = QHBoxLayout()
         cabecera.setSpacing(8)
-        self.title_label = ElidedLabel(titulo.upper())
+        self.title_label = ElidedLabel(self.cuarto.upper())
         self.title_label.setObjectName("groupTitle")
         theme.apply_letter_spacing(self.title_label)
         self.count_label = QLabel("0")
@@ -722,6 +983,10 @@ class ClipSheet(QWidget):
     brocha_paso_por = Signal(int)      # el arrastre paso por esta tarjeta
     selection_changed = Signal(list)
     filters_changed = Signal(object)   # FilterState
+    # nacio un encabezado de bin. La ventana lo escucha para enchufarle sus
+    # señales: los bins aparecen y desaparecen con las importaciones, asi
+    # que no alcanza con conectarlos una vez al arrancar.
+    bin_header_created = Signal(object)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -738,7 +1003,16 @@ class ClipSheet(QWidget):
         self._pasos = {False: 0, True: PASO_HOJA}
         self._congelado = False
         self._pincel_activo = False
-        self._blocks: dict[str, _GroupBlock] = {}
+        self._blocks: dict[tuple[str, str], _GroupBlock] = {}
+        # el orden de los bins es el de IMPORTACION, no el alfabetico: es el
+        # orden en que entro el material y el que siguen las flechas.
+        self._bin_order: list[str] = []
+        self._bin_headers: dict[str, _BinHeader] = {}
+        # carpeta de origen y conteo de proxies por bin. Viven aqui y no en
+        # el encabezado porque los encabezados nacen y mueren con cada
+        # reagrupada, y este dato no.
+        self._bin_meta: dict[str, dict] = {}
+        self._colapsados: set[str] = set()
         self._current = -1
         self._selected: set[int] = set()
         self._anchor: int | None = None
@@ -847,6 +1121,37 @@ class ClipSheet(QWidget):
             QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Expanding
         )
         raiz.addWidget(self._scroll, stretch=1)
+
+        # UN encabezado flotante, no uno por bin: es la misma idea de
+        # `batch_bar`, que ya flota sobre la hoja. Se dibuja encima del
+        # viewport en vez de ocupar alto en el contenido; con un widget
+        # pegado por bin habria N peleando por la misma franja.
+        self._pegado = _BinHeader("", self._scroll.viewport())
+        self._pegado.hide()
+        # la sombra del `.bin.stuck` del mockup. QSS no tiene `box-shadow`,
+        # asi que va como efecto -- y solo en ESTE widget, que es uno solo y
+        # no se repinta con el scroll de las tarjetas.
+        sombra = QGraphicsDropShadowEffect(self._pegado)
+        sombra.setBlurRadius(18)
+        sombra.setOffset(0, 8)
+        sombra.setColor(QColor(0, 0, 0, 140))
+        self._pegado.setGraphicsEffect(sombra)
+        # el flotante es una COPIA del encabezado del bin en el que estas,
+        # asi que lo que le hagas tiene que pasarle al de verdad: si no,
+        # el menu del encabezado pegado seria decorativo.
+        self._pegado.collapse_toggled.connect(self._on_colapso_pedido)
+        self._pegado.rename_requested.connect(
+            lambda viejo, nuevo: self._reenviar_del_pegado(
+                "rename_requested", viejo, nuevo)
+        )
+        for senal in ("proxies_requested", "proxies_cleared",
+                      "select_all_requested", "remove_requested"):
+            getattr(self._pegado, senal).connect(
+                lambda nombre, s=senal: self._reenviar_del_pegado(s, nombre)
+            )
+        self._scroll.verticalScrollBar().valueChanged.connect(
+            lambda _: self._actualizar_encabezado_pegado()
+        )
 
         # QSS no tiene `mask-image`: el desvanecido al pie se hace con un
         # widget de degradado encima, transparente al mouse.
@@ -958,8 +1263,69 @@ class ClipSheet(QWidget):
     def count(self) -> int:
         return len(self.item_widgets)
 
-    def group_titles(self) -> list[str]:
+    def group_titles(self) -> list[tuple[str, str]]:
+        """Las claves `(bin, cuarto)` en el orden en que se dibujan."""
         return [b.titulo for b in self._ordered_blocks()]
+
+    def set_bin_order(self, nombres: list[str]) -> None:
+        """El orden de los bins es el de importacion, no el alfabetico: es el
+        orden en que Bruno metio el material y por el que se mueven las
+        flechas."""
+        self._bin_order = list(nombres)
+        self._firma = None
+        self._regroup()
+
+    def set_bin_meta(self, nombre: str, origen: str = "",
+                     proxies: tuple[int, int] | None = None) -> None:
+        """La carpeta de origen y cuantos proxies engancharon.
+
+        Los dos son datos de la VENTANA --la hoja no lee disco ni sondea
+        proxies--, asi que entran por aqui y se guardan aparte del
+        encabezado, que se rehace en cada reagrupada.
+        """
+        meta = self._bin_meta.setdefault(nombre, {})
+        if origen:
+            meta["origen"] = origen
+        if proxies is not None:
+            meta["proxies"] = proxies
+        cabecera = self._bin_headers.get(nombre)
+        if cabecera is not None:
+            self._aplicar_meta(cabecera)
+
+    def _aplicar_meta(self, cabecera: _BinHeader) -> None:
+        meta = self._bin_meta.get(cabecera.nombre, {})
+        cabecera.set_source(meta.get("origen", ""))
+        enganchados, total = meta.get("proxies", (0, 0))
+        cabecera.set_proxies(enganchados, total)
+
+    def bin_headers(self) -> list[str]:
+        """Los bins que hoy tienen encabezado, en el orden en que se ven."""
+        return [
+            w.nombre for w in self._widgets_del_contenido()
+            if isinstance(w, _BinHeader)
+        ]
+
+    def bin_header_widget(self, nombre: str) -> _BinHeader | None:
+        return self._bin_headers.get(nombre)
+
+    def set_bin_collapsed(self, nombre: str, colapsado: bool) -> None:
+        """Colapsar es VISUAL: los clips siguen contando en los totales y
+        siguen en la cola de las flechas. Si sacara clips de la cola seria un
+        filtro escondido, y la flecha se saltaria material sin decir por que.
+        """
+        if colapsado:
+            self._colapsados.add(nombre)
+        else:
+            self._colapsados.discard(nombre)
+        cabecera = self._bin_headers.get(nombre)
+        if cabecera is not None:
+            cabecera.set_collapsed(colapsado)
+        self._aplicar_visibilidad()
+        self._firma = None
+        self._relayout()
+
+    def bin_collapsed(self, nombre: str) -> bool:
+        return nombre in self._colapsados
 
     def set_clips(self, clips: list[ClipThumbnail]) -> None:
         for card in self.item_widgets:
@@ -1043,8 +1409,7 @@ class ClipSheet(QWidget):
         `None` quita el filtro; un conjunto vacio deja la hoja vacia.
         """
         self._visible = None if indices is None else set(indices)
-        for i, card in enumerate(self.item_widgets):
-            card.setVisible(self._es_visible(i))
+        self._aplicar_visibilidad()
         # esconder NO alcanza: el QGridLayout deja el hueco donde estaba la
         # tarjeta. Verificado contra Qt -- hay que re-colocar salteandolas.
         self._regroup()
@@ -1052,24 +1417,48 @@ class ClipSheet(QWidget):
     def _es_visible(self, indice: int) -> bool:
         return self._visible is None or indice in self._visible
 
-    def _group_of(self, clip: ClipThumbnail) -> str:
-        return clip.room_label or SIN_CLASIFICAR
+    def _aplicar_visibilidad(self) -> None:
+        """Una tarjeta se ve si la deja pasar el filtro Y su bin no esta
+        colapsado. Son dos cosas distintas sobre la misma tarjeta, y por eso
+        se deciden juntas y en un solo lugar: puestas en dos lados, la
+        segunda le devuelve la vida a lo que escondio la primera."""
+        for i, card in enumerate(self.item_widgets):
+            card.setVisible(
+                self._es_visible(i) and card.clip.bin_nombre not in self._colapsados
+            )
 
-    def _ordered_blocks(self) -> list[_GroupBlock]:
+    def _group_of(self, clip: ClipThumbnail) -> tuple[str, str]:
+        return (clip.bin_nombre, clip.room_label or SIN_CLASIFICAR)
+
+    def _widgets_del_contenido(self) -> list[QWidget]:
+        """Todo lo que hay en la columna, encabezados de bin incluidos y en
+        el orden en que se dibujan."""
         return [
             self._content_layout.itemAt(i).widget()
             for i in range(self._content_layout.count())
-            if isinstance(self._content_layout.itemAt(i).widget(), _GroupBlock)
+            if self._content_layout.itemAt(i).widget() is not None
         ]
 
+    def _ordered_blocks(self) -> list[_GroupBlock]:
+        return [
+            w for w in self._widgets_del_contenido() if isinstance(w, _GroupBlock)
+        ]
+
+    def _orden_de_grupo(self, clave: tuple[str, str]) -> tuple:
+        """Primero el bin --por su posicion de importacion-- y adentro los
+        cuartos, con «Sin clasificar» arriba porque es la cola de trabajo."""
+        bin_nombre, cuarto = clave
+        pos = (self._bin_order.index(bin_nombre)
+               if bin_nombre in self._bin_order else len(self._bin_order))
+        return (pos, bin_nombre, cuarto != SIN_CLASIFICAR, cuarto)
+
     def _regroup(self) -> None:
-        # los sin clasificar primero: es la cola de trabajo
-        titulos: list[str] = []
+        titulos: list[tuple[str, str]] = []
         for card in self.item_widgets:
             titulo = self._group_of(card.clip)
             if titulo not in titulos:
                 titulos.append(titulo)
-        titulos.sort(key=lambda t: (t != SIN_CLASIFICAR, t))
+        titulos.sort(key=self._orden_de_grupo)
 
         for titulo in titulos:
             if titulo not in self._blocks:
@@ -1088,10 +1477,90 @@ class ClipSheet(QWidget):
             if titulo not in titulos:
                 self._blocks.pop(titulo).setParent(None)
 
+        self._sincronizar_encabezados([b for b, _ in titulos])
+
         while self._content_layout.count():
             self._content_layout.takeAt(0)
+        ultimo_bin = None
         for titulo in titulos:
+            bin_nombre = titulo[0]
+            if bin_nombre != ultimo_bin:
+                # el encabezado va ARRIBA de los grupos de su bin: debajo
+                # diria que el material de la Sony es del dron
+                self._content_layout.addWidget(self._bin_headers[bin_nombre])
+                ultimo_bin = bin_nombre
             self._content_layout.addWidget(self._blocks[titulo])
+        self._refrescar_encabezados()
+
+    def _sincronizar_encabezados(self, presentes: list[str]) -> None:
+        """Crea el encabezado de cada bin que tiene clips y tira el de los
+        que se quedaron sin ninguno."""
+        for nombre in presentes:
+            if nombre not in self._bin_headers:
+                cabecera = _BinHeader(nombre)
+                cabecera.collapse_toggled.connect(self._on_colapso_pedido)
+                self._bin_headers[nombre] = cabecera
+                cabecera.set_collapsed(nombre in self._colapsados)
+                self._aplicar_meta(cabecera)
+                self.bin_header_created.emit(cabecera)
+        for nombre in list(self._bin_headers):
+            if nombre not in presentes:
+                self._bin_headers.pop(nombre).setParent(None)
+
+    def _reenviar_del_pegado(self, senal: str, *args) -> None:
+        real = self._bin_headers.get(self._pegado.nombre)
+        if real is not None:
+            getattr(real, senal).emit(*args)
+
+    def _on_colapso_pedido(self, nombre: str) -> None:
+        self.set_bin_collapsed(nombre, nombre not in self._colapsados)
+
+    def _refrescar_encabezados(self) -> None:
+        """Los conteos del encabezado salen de las TARJETAS, no de un dato
+        aparte: dos vistas del mismo numero se contradicen solas."""
+        totales: dict[str, int] = {}
+        por_flag: dict[str, dict[str, int]] = {}
+        for card in self.item_widgets:
+            nombre = card.clip.bin_nombre
+            totales[nombre] = totales.get(nombre, 0) + 1
+            marcas = por_flag.setdefault(nombre, {})
+            marcas[card.clip.flag] = marcas.get(card.clip.flag, 0) + 1
+        for nombre, cabecera in self._bin_headers.items():
+            cabecera.set_counts(totales.get(nombre, 0), por_flag.get(nombre, {}))
+        self._actualizar_encabezado_pegado()
+
+    def _actualizar_encabezado_pegado(self) -> None:
+        """UN encabezado flotante para todos los bins.
+
+        Se busca el ultimo encabezado que ya paso por arriba del borde del
+        viewport: ese es el bin en el que estas parado. En el tope no hay
+        ninguno y el flotante se esconde, porque el encabezado de verdad ya
+        se ve.
+        """
+        y = self._scroll.verticalScrollBar().value()
+        arriba = None
+        for widget in self._widgets_del_contenido():
+            # ESTRICTO: con `<=`, el primer encabezado --que arranca en y=0--
+            # se daria por pegado ya en el tope, y el flotante taparia al de
+            # verdad sin que hayas movido nada.
+            if isinstance(widget, _BinHeader) and widget.y() < y:
+                arriba = widget
+        if arriba is None:
+            self._pegado.hide()
+            return
+        self._pegado.copiar_de(arriba)
+        # alineado con el contenido, no con el viewport: el contenido lleva
+        # 13 px de margen a cada lado, y sin descontarlos el flotante queda
+        # corrido respecto del encabezado que esta imitando.
+        margenes = self._content_layout.contentsMargins()
+        self._pegado.setGeometry(
+            margenes.left(), 0,
+            max(1, self._scroll.viewport().width()
+                - margenes.left() - margenes.right()),
+            self._pegado.sizeHint().height(),
+        )
+        self._pegado.show()
+        self._pegado.raise_()
 
     @property
     def _paso(self) -> int:
@@ -1147,6 +1616,7 @@ class ClipSheet(QWidget):
             self._ancho_disponible(),
             self._paso,
             self._modo_hoja,
+            frozenset(self._colapsados),
             tuple(
                 (self._group_of(card.clip), self._es_visible(i), card.clip.aspect_ratio)
                 for i, card in enumerate(self.item_widgets)
@@ -1303,7 +1773,7 @@ class ClipSheet(QWidget):
 
         # solo lo visible: las escondidas por el filtro no entran a la grilla,
         # porque esconderlas sin sacarlas deja el hueco donde estaban
-        por_grupo: dict[str, list[ClipCard]] = {}
+        por_grupo: dict[tuple[str, str], list[ClipCard]] = {}
         for indice, card in enumerate(self.item_widgets):
             if self._es_visible(indice):
                 por_grupo.setdefault(self._group_of(card.clip), []).append(card)
@@ -1314,8 +1784,10 @@ class ClipSheet(QWidget):
             tarjetas = por_grupo.get(titulo, [])
             block.set_count(len(tarjetas))
             # un grupo del que el filtro no dejo pasar nada no tiene por que
-            # ocupar su encabezado y su linea
-            block.setVisible(bool(tarjetas))
+            # ocupar su encabezado y su linea. Un bin colapsado esconde los
+            # suyos por lo mismo: si no, el bin cerrado seguiria dejando las
+            # lineas de sus cuartos, que es un hueco que no dice nada.
+            block.setVisible(bool(tarjetas) and titulo[0] not in self._colapsados)
             for posicion, card in enumerate(tarjetas):
                 fila, columna = divmod(posicion, columnas)
                 card.apply_width(ancho_tile)
