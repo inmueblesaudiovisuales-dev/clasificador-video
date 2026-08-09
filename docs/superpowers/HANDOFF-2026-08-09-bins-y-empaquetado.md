@@ -29,7 +29,7 @@ verticales).
 
 ## 2. Dónde está todo hoy
 
-- Rama `master`, árbol limpio. **1003 tests en verde** — ese es el número de
+- Rama `master`, árbol limpio. **1007 tests en verde** — ese es el número de
   partida. (Eran 831 antes de los bins.)
 
 ```bash
@@ -145,17 +145,32 @@ su evidencia se vuelve a discutir en tres meses.
 
 **Medido:**
 
-- **1003 tests en verde**, la suite completa corrida decenas de veces seguidas
-  sin una sola caída. El número importa porque hubo **tres segfaults
-  intermitentes** durante el trabajo (uno de cada diez corridas), y la única
-  forma de saber que están muertos fue repetir.
-- **Los tres segfaults, cada uno con su causa identificada**, no parcheados a
-  ciegas: un `QGraphicsDropShadowEffect` que resultó **no** ser el culpable
-  (medido con un worktree del commit anterior: 16 corridas limpias); un mpv
+- **1007 tests en verde**, y el número de corridas importa más que el de tests:
+  hubo **cuatro segfaults intermitentes** en esta entrega, y el último salió
+  después de que la suite llevara **decenas de corridas limpias seguidas**.
+- **La lección más cara de la noche, y la que hay que recordar:** «corrió
+  limpio veinte veces» **no prueba nada** contra un fallo del 5 %. Veinte
+  limpias salen por azar el 36 % de las veces; setenta y seis, el 2 %. El
+  cuarto segfault sobrevivió a tres rondas de «ya quedó» porque nadie hizo esa
+  cuenta. La forma correcta es **contar fallos sobre un número de corridas
+  decidido de antemano**, y **medir el commit anterior con el mismo número**
+  para saber si el fallo es nuevo: aquí fue 2 de 40 contra 0 de 40, y ese par
+  de números es lo que convirtió «parece que a veces truena» en «lo trajimos
+  nosotros».
+- **Los cuatro, cada uno con su causa identificada**, no parcheados a ciegas:
+  un `QGraphicsDropShadowEffect` que resultó **no** ser el culpable; un mpv
   real encendiéndose porque `cerrar_clip` tocaba `self.player`, que se
   construye perezosamente justo para evitarlo (el volcado traía 100 menciones
-  de `MPVEventHandlerThread`, y con la guarda: 0); y widgets destruidos desde
-  adentro de su propia señal, con 51 menús vivos tras 50 aperturas.
+  de `MPVEventHandlerThread`, y con la guarda: 0); widgets destruidos desde
+  adentro de su propia señal, con 51 menús vivos tras 50 aperturas; y el
+  cuarto, un portador de señales por trabajo que nacía en el hilo de la
+  interfaz y moría en uno del `QThreadPool` (medido: **199 de 200 murieron en
+  el hilo equivocado**).
+- **El cuarto arreglo también se midió antes de elegirlo**, y menos mal:
+  contra un reproductor dirigido, el portador `QWidget` daba 2 caídas de 15,
+  **pasarlo a `QObject` por trabajo daba 15 de 15** —o sea, la corrección
+  «obvia» empeoraba el bug— y un portador único de la ventana daba 0 de 15.
+  Sin esa medición se entregaba algo peor con la suite en verde.
 - **Lo visual, mirando el pixel** y no de palabra: la hoja con tres bins, uno
   colapsado; el encabezado pegado; el menú de clic derecho; las dos zonas de
   arrastre; la barra de filtros a 1027 px (el mínimo real de la ventana), donde
