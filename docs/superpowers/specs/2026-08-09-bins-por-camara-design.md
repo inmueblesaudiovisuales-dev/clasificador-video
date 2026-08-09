@@ -218,6 +218,76 @@ clips. Solo los clips nuevos se sondean y se les piden portadas.
 
 Esto es un requisito, no un efecto secundario: es el bug que Bruno reportó.
 
+## 6.b Enmienda del 2026-08-09 (mañana): el bin es una cosa propia
+
+**Esta sección corrige el alcance de arriba. Donde se contradigan, manda esta.**
+
+Bruno usó la primera entrega y el reclamo fue directo: «yo te dije que lo quería
+como Premiere. Quiero poder arrastrar los archivos a un bin.»
+
+**Tenía razón, y el error fue mío.** Él pidió «drag and drop en bins, como en
+Premiere» y yo lo interpreté como *arrastrar carpetas desde el Finder a la app*.
+Lo que en Premiere hace que un bin sea un bin —**crearlo vacío y meterle clips
+arrastrando, y mover un clip de un bin a otro**— quedó fuera. Peor: lo saqué del
+alcance ofreciéndolo como una opción más de una lista, en vez de nombrarlo por
+lo que era, un recorte de su pedido.
+
+Con la primera entrega, un bin **solo nace al importar**. Si te equivocas al
+importar, no puedes arreglarlo arrastrando: hay que quitar el bin entero y
+volver a empezar. Eso no es como Premiere.
+
+### Lo que cambia
+
+1. **La hoja es lo primero que se ve al abrir la app**, siempre.
+2. **Se pueden crear bins vacíos**, con un botón en la barra de la hoja. Nacen
+   sin clips y con el nombre editable en el acto.
+3. **Un bin vacío no desaparece solo.** Si desapareciera, no se podría crear
+   primero y llenar después — que es justo el gesto que se está agregando.
+4. **Los clips se arrastran entre bins**, uno o varios a la vez (lo que esté
+   seleccionado se va junto).
+5. **Existe una sección «Sin bin», siempre la primera**, con los clips que
+   todavía no pertenecen a ninguno. Se esconde cuando está vacía.
+
+### Las tres decisiones que tomó Bruno
+
+- **Los clips sueltos van a «Sin bin»**, una sección fija hasta arriba, no
+  esparcidos ni metidos en un bin inventado.
+- **Arrastrar cambia el bin y NADA más.** Soltar un clip encima del subgrupo
+  «Cocina» del bin de la Sony lo manda a ese bin, pero **no lo clasifica como
+  cocina**. Los cuartos se siguen poniendo con el teclado. Razón: si los dos
+  ejes se manejaran arrastrando, un gesto mal soltado cambiaría lo que no
+  querías, y el cuarto es el dato que más trabajo cuesta.
+- **El proxy viaja con el clip.** Es del clip, no del bin: mover un clip a otra
+  cámara no lo desengancha. Un bin puede terminar con proxies de resoluciones
+  distintas y la insignia lo dirá.
+
+### El gesto, y por qué no choca con lo que ya existe
+
+La hoja ya usa el mouse para tres cosas. El arrastre de clips entra en el único
+hueco que quedaba libre, y eso **no es casualidad, es la razón de elegirlo**:
+
+| Gesto | Qué hace hoy |
+|---|---|
+| Pasar el mouse **sin apretar** sobre una tarjeta | escrubea la miniatura (`ClipCard` tiene `setMouseTracking(True)`) |
+| Arrastrar en el **vacío** | marquesina de selección |
+| Mantener `1`–`9` y mover | pincel de cuartos |
+| **Botón izquierdo apretado y mover sobre una tarjeta** | **nada — aquí entra el arrastre de clips** |
+
+Reglas de precedencia, para que ninguno se coma a otro:
+
+- Con una tecla de cuarto apretada **gana el pincel**; no se inicia arrastre.
+- El arrastre arranca al superar la distancia de arrastre estándar de Qt, no al
+  primer pixel: un clic con la mano temblorosa sigue siendo un clic.
+- Al arrastrar, la miniatura **deja de escrubear** hasta soltar.
+
+### Lo que NO cambia
+
+- Los bins siguen **sin anidarse**.
+- Mover un clip entre bins **no toca su índice**, así que no se corre nada:
+  ni proxies, ni duraciones, ni el historial. Es el cambio barato de esta
+  enmienda y conviene que siga siéndolo.
+- El manifiesto a Premiere no cambia.
+
 ## 7. Qué NO entra
 
 Decidido con Bruno, para que la primera entrega llegue:
@@ -227,8 +297,10 @@ Decidido con Bruno, para que la primera entrega llegue:
   a existir para colgárselo.
 - **Generar proxies del dron.** Ya está medido (285 MB → 17 MB, 1010 cuadros
   exactos, ~10 s por cada 6 s; ver el handoff §4.b), pero es otra entrega.
-- **Mover clips entre bins arrastrando.** Si te equivocaste al importar,
-  quitas el bin y lo vuelves a soltar.
+- ~~**Mover clips entre bins arrastrando.**~~ — **revertido por la §6.b.** Esto
+  decía «si te equivocaste al importar, quitas el bin y lo vuelves a soltar», y
+  esa frase es el error de alcance completo, escrito con todas sus letras. Era
+  el corazón del pedido de Bruno y lo puse en la lista de lo que no se hace.
 - **Bins anidados.**
 - **Que el bin viaje a Premiere como carpeta del proyecto.** Candidato claro
   para después; el manifiesto no cambia en esta entrega.
