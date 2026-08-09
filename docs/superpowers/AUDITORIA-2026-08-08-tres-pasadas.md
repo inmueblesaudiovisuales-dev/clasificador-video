@@ -108,6 +108,19 @@ ese clip se queda sin proxy — nunca una marca que miente.
 
 ---
 
+## Una cosa que pasó una vez y no se pudo repetir
+
+En una de las ~30 corridas de la suite, el proceso murió **después** de que
+los 792 tests pasaran, en el apagado del intérprete (la traza solo lista los
+módulos de PySide). No volvió a pasar en **26 corridas seguidas** buscándolo a
+propósito.
+
+Queda anotado, sin arreglo inventado: es un apagado de Qt, no un test rojo, y
+no se puede arreglar lo que no se puede reproducir. Si vuelve a aparecer, el
+dato útil es que ocurre al final, con todo ya en verde.
+
+---
+
 ## Rendimiento, al cierre
 
 | Acción | Costo |
