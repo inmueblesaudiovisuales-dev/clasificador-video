@@ -112,3 +112,49 @@ def test_una_sesion_vieja_sin_bins_cae_en_uno_solo():
 
 def test_una_sesion_vieja_sin_clips_no_inventa_un_bin():
     assert BinTree.desde_sesion(None, rutas=[]).nombres() == []
+
+
+def test_desde_sesion_descarta_indices_fuera_de_rango():
+    """Una sesion corrupta o de un proyecto con menos clips que antes no
+    puede dejar un bin apuntando a un indice que no existe -- eso es
+    exactamente el IndexError que revienta el menu de un bin en la F3."""
+    datos = [{"nombre": "Sony", "origen": "/cam", "clips": [-1, 0, 1, 5]}]
+
+    arbol = BinTree.desde_sesion(datos, rutas=[Path("/cam/A.MP4"), Path("/cam/B.MP4")])
+
+    assert arbol.clips_de("Sony") == [0, 1]
+
+
+def test_desde_sesion_mete_los_huerfanos_en_un_bin_aparte():
+    """Si despues de descartar los indices invalidos quedan clips que no
+    estan en NINGUN bin, no se dejan huerfanos: `bin_de` les devolveria
+    `None`, y la F4 trata ese caso como una excepcion, no como un estado
+    normal de una sesion restaurada."""
+    datos = [{"nombre": "Sony", "origen": "/cam", "clips": [0]}]
+
+    arbol = BinTree.desde_sesion(
+        datos, rutas=[Path("/cam/A.MP4"), Path("/dron/D.MP4"), Path("/dron/E.MP4")]
+    )
+
+    assert arbol.clips_de("Sony") == [0]
+    huerfanos = [i for i in (1, 2) if arbol.bin_de(i) is not None]
+    assert huerfanos == [1, 2]
+
+
+def test_bins_vacios_a_proposito_no_inventan_uno_con_las_rutas():
+    """`[]` es distinto de `None`: es que el usuario se quedo sin bins a
+    proposito (por ejemplo, borro el ultimo). Tratarlo como "sesion vieja"
+    resucitaria lo que acaba de borrar."""
+    arbol = BinTree.desde_sesion([], rutas=[])
+
+    assert arbol.nombres() == []
+
+
+def test_from_list_con_basura_no_revienta():
+    """`load_session` en autosave.py ya se blinda contra JSON malformado;
+    `from_list` sigue la misma simetria -- lo que no se entiende se
+    descarta, no revienta `_restore_session` y deja la app sin poder
+    abrir."""
+    assert BinTree.from_list("esto no es una lista").nombres() == []
+    assert BinTree.from_list(["tampoco esto es un bin"]).nombres() == []
+    assert BinTree.from_list([{"nombre": "Dron", "origen": "/d", "clips": ["a"]}]).nombres() == []
