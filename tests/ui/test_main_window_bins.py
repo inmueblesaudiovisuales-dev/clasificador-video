@@ -367,6 +367,52 @@ def test_un_sondeo_viejo_del_MISMO_bin_se_sigue_descartando(qtbot, monkeypatch,
     assert ventana.clips[0].ruta_proxy is None
 
 
+def _sondeos(espia):
+    """Solo `_ProxyProbeJob` es el que trae `proxy`; el otro es de portadas."""
+    return [j for j in espia.jobs if hasattr(j, "proxy")]
+
+
+def _portadas(espia):
+    return [j for j in espia.jobs if not hasattr(j, "proxy")]
+
+
+def test_sondear_un_bin_no_vuelve_a_pedir_las_portadas_del_otro(qtbot, monkeypatch,
+                                                                 ventana):
+    """`_sondear_proxies` acotaba todo lo suyo al bin y despues llamaba a
+    `_schedule_thumbnails()` SIN indices, que sube la generacion y recorre
+    todos los clips. Con la Sony todavia sacando portadas, enganchar los
+    proxies del dron le tiraba las señales en vuelo y le encolaba un segundo
+    trabajo por clip, sobre la misma carpeta y el mismo socket: los
+    abanicos girando sin haber hecho nada.
+    """
+    ventana.load_clips([_clip(0, "/cam/A.MP4"), _clip(1, "/dron/D.MP4")])
+    ventana.bins.agregar("Sony", Path("/cam"), [0])
+    ventana.bins.agregar("Dron", Path("/dron"), [1])
+    generacion = ventana._thumb_generation
+    espia = _PoolEspia()
+    monkeypatch.setattr(ventana, "_thread_pool", espia)
+
+    ventana._sondear_proxies({Path("/dron/D.MP4"): Path("/dron/DP.MP4")},
+                             indices=[1])
+
+    assert [j.index for j in _portadas(espia)] == [1]
+    assert ventana._thumb_generation == generacion
+
+
+def test_re_enlazar_un_bin_no_infla_el_total_de_portadas(qtbot, monkeypatch,
+                                                          ventana):
+    """El total es cuantas portadas tiene el proyecto. Sumarle el bin cada
+    vez que re-enlazas daria «113 de 115» con 109 clips."""
+    ventana.load_clips([_clip(i, f"/cam/C{i:04d}.MP4") for i in range(3)])
+    ventana.bins.agregar("Sony", Path("/cam"), [0, 1, 2])
+    monkeypatch.setattr(ventana, "_thread_pool", _PoolEspia())
+
+    ventana._sondear_proxies({}, indices=[0, 1, 2])
+    ventana._sondear_proxies({}, indices=[0, 1, 2])
+
+    assert ventana._miniaturas_totales == 3
+
+
 def _dos_bins(ventana):
     ventana.load_clips([_clip(0, "/cam/C0001.MP4"), _clip(1, "/dron/DJI_0001.MP4")])
     ventana.bins.agregar("Sony", Path("/cam"), [0])

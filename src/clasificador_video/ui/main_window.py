@@ -1452,7 +1452,14 @@ class MainWindow(QWidget):
         # proxy: es 5.6 veces mas barato (medido con el material real, 5.90 s
         # contra 1.06 s por clip) y es justo lo que hacia trabajar a los
         # ventiladores con 109 clips. Las que ya estan en cache no se rehacen.
-        self._schedule_thumbnails()
+        #
+        # CON EL ALCANCE, no sin el: sin indices esta llamada sube la
+        # generacion y recorre todos los clips, asi que enganchar los
+        # proxies del dron le tiraba a la Sony las señales de las portadas
+        # en vuelo y le encolaba un segundo trabajo por clip --misma carpeta
+        # de salida, mismo socket IPC, uno borrandole el socket al otro--
+        # ademas de reiniciarle la barra de progreso.
+        self._schedule_thumbnails(alcance)
 
     def _on_proxy_sondeado(self, generation: int, index: int, info: dict | None) -> None:
         # contra la generacion de ESTE clip, no contra el contador global:
@@ -1548,7 +1555,12 @@ class MainWindow(QWidget):
             alcance = list(range(len(self.clips)))
         else:
             alcance = [i for i in indices if 0 <= i < len(self.clips)]
-            self._miniaturas_totales += len(alcance)
+            # el total es cuantas portadas tiene el PROYECTO, no cuantas se
+            # pidieron. Sumandole el alcance daba lo mismo mientras el unico
+            # que acotaba era agregar material --los clips nuevos ya estan
+            # en `self.clips`--, pero re-enlazar los proxies de un bin pide
+            # otra vez clips que ya estaban contados: «113 de 115» con 109.
+            self._miniaturas_totales = len(self.clips)
         generation = self._thumb_generation
         cache_root = self._thumbnail_cache_root
         for index in alcance:
