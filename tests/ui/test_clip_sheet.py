@@ -1916,3 +1916,96 @@ def test_construir_el_menu_no_deja_menus_colgados_del_encabezado(qtbot):
         cabecera.construir_menu()
 
     assert cabecera.findChildren(QMenu) == []
+
+
+# --- la fila de chips de bin (F6) ------------------------------------------
+
+
+def test_hay_un_chip_por_bin_mas_el_de_todos(qtbot):
+    hoja = ClipSheet()
+    qtbot.addWidget(hoja)
+    hoja.set_bin_order(["Sony FX30", "Dron"])
+    hoja.set_clips([_thumb(0, bin_nombre="Sony FX30"),
+                    _thumb(1, bin_nombre="Dron")])
+
+    assert hoja.chips_de_bin() == ["Todos", "Sony FX30", "Dron"]
+
+
+def test_el_chip_de_bin_escribe_el_filtro(qtbot):
+    hoja = ClipSheet()
+    qtbot.addWidget(hoja)
+    hoja.set_bin_order(["Sony FX30", "Dron"])
+    hoja.set_clips([_thumb(0, bin_nombre="Sony FX30"),
+                    _thumb(1, bin_nombre="Dron")])
+    estados = []
+    hoja.filters_changed.connect(estados.append)
+
+    hoja.chip_de_bin("Dron").click()
+
+    assert estados[-1].bin == "Dron"
+
+    hoja.chip_de_bin("todos").click()
+
+    assert estados[-1].bin == "todos"
+
+
+def test_el_chip_de_bin_dice_cuantos_clips_tiene(qtbot):
+    hoja = ClipSheet()
+    qtbot.addWidget(hoja)
+    hoja.set_bin_order(["Dron"])
+    hoja.set_clips([_thumb(0, bin_nombre="Dron"), _thumb(1, bin_nombre="Dron")])
+
+    assert "2" in hoja.chip_de_bin("Dron").text()
+
+
+def test_con_un_solo_bin_la_fila_no_aparece(qtbot):
+    """Filtrar por el unico bin que hay no filtra nada: seria una fila mas
+    en una barra que ya lleva dos grupos y siete chips."""
+    hoja = ClipSheet()
+    qtbot.addWidget(hoja)
+    hoja.set_bin_order(["Dron"])
+    hoja.set_clips([_thumb(0, bin_nombre="Dron")])
+
+    assert hoja.fila_de_bins().isHidden()
+
+    hoja.set_bin_order(["Dron", "Sony"])
+    hoja.set_clips([_thumb(0, bin_nombre="Dron"), _thumb(1, bin_nombre="Sony")])
+
+    assert not hoja.fila_de_bins().isHidden()
+
+
+def test_si_el_bin_filtrado_desaparece_el_filtro_vuelve_a_todos(qtbot):
+    """Quitar un bin mientras lo estabas filtrando dejaba la hoja vacia sin
+    ningun chip encendido que explicara por que."""
+    hoja = ClipSheet()
+    qtbot.addWidget(hoja)
+    hoja.set_bin_order(["Sony", "Dron"])
+    hoja.set_clips([_thumb(0, bin_nombre="Sony"), _thumb(1, bin_nombre="Dron")])
+    hoja.chip_de_bin("Dron").click()
+    estados = []
+    hoja.filters_changed.connect(estados.append)
+
+    hoja.set_bin_order(["Sony"])
+
+    assert hoja.filter_state().bin == "todos"
+    assert estados[-1].bin == "todos"
+
+
+def test_un_bin_de_nombre_larguisimo_no_empuja_el_minimo_de_la_hoja(qtbot):
+    """El chip mas ancho de una fila ES su ancho minimo, y ese minimo se
+    propaga hasta la ventana. Las carpetas de verdad se llaman «01. VIDEO
+    CARD A SONY FX30», asi que sin cortar el nombre esto le comeria ancho
+    al video."""
+    hoja = ClipSheet()
+    qtbot.addWidget(hoja)
+    hoja.set_bin_order(["Sony", "Dron"])
+    hoja.set_clips([_thumb(0, bin_nombre="Sony"), _thumb(1, bin_nombre="Dron")])
+    corto = hoja.minimumSizeHint().width()
+
+    largo = "01. VIDEO CARD A SONY FX30 SEGUNDA TARJETA"
+    hoja.set_bin_order(["Sony", largo])
+    hoja.set_clips([_thumb(0, bin_nombre="Sony"), _thumb(1, bin_nombre=largo)])
+
+    assert hoja.minimumSizeHint().width() <= corto
+    # y el nombre completo se sigue leyendo en el encabezado del bin
+    assert hoja.bin_header_widget(largo).name_label.text() == largo

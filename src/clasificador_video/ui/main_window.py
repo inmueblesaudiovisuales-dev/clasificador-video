@@ -720,7 +720,9 @@ class MainWindow(QWidget):
         por separado se desincronizan, y ahi aparecen los bugs de «la flecha
         me llevo a un clip que no estoy viendo».
         """
-        return cola(self.clips, self.filters)
+        # el bin va aparte y no dentro del clip: `Clip.to_dict()` es el
+        # contrato con el plugin de Premiere y no se toca.
+        return cola(self.clips, self.filters, bin_de=self.bins.mapa_por_clip())
 
     def set_filters(self, estado: FilterState) -> None:
         self.filters = estado

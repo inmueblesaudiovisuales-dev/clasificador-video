@@ -58,6 +58,15 @@ class BinTree:
                 return b.origen
         return None
 
+    def mapa_por_clip(self) -> dict[int, str]:
+        """De indice de clip a nombre de bin, de una sola pasada.
+
+        Lo usa el filtro: preguntarle a `bin_de` clip por clip recorreria
+        todos los bins una vez por clip, y eso es la cola de navegacion, que
+        se recalcula en cada tecla.
+        """
+        return {i: b.nombre for b in self._bins for i in b.clips}
+
     def bin_de(self, indice: int) -> str | None:
         for b in self._bins:
             if indice in b.clips:

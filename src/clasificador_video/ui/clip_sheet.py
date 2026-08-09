@@ -255,6 +255,20 @@ def _fuente_mono() -> QFont:
     return QFont(familia, theme.FONT_MICRO)
 
 
+# Cuanto texto de un nombre de bin entra en su chip. El chip mas ancho de una
+# fila ES su ancho minimo, y ese minimo se propaga hasta la ventana: un bin
+# llamado «01. VIDEO CARD A SONY FX30» --que es como se llaman las carpetas de
+# verdad-- le robaria ancho al video, que es lo que el rediseño existe para
+# proteger. El nombre completo se sigue leyendo en el encabezado del bin.
+LARGO_DE_CHIP_DE_BIN = 18
+
+
+def _etiqueta_de_chip(nombre: str) -> str:
+    if len(nombre) <= LARGO_DE_CHIP_DE_BIN:
+        return nombre
+    return nombre[:LARGO_DE_CHIP_DE_BIN - 1] + "…"
+
+
 class _FilaDeChips(QWidget):
     """Etiqueta del grupo + sus chips, envolviendo a otra linea si no caben.
 
@@ -298,6 +312,20 @@ class _FilaDeChips(QWidget):
             chip.setGeometry(x, y, w, alto_chip)
             x += w + self.ESPACIO
         return y + alto_chip
+
+    def set_chips(self, chips: list[_Chip]) -> None:
+        """Cambia los chips de la fila. Solo la de bins la usa: sus chips
+        son los bins que hay, y esos aparecen y desaparecen con cada
+        importacion."""
+        for viejo in self.chips:
+            viejo.setParent(None)
+            viejo.deleteLater()
+        self.chips = chips
+        for chip in chips:
+            chip.setParent(self)
+            chip.show()
+        self.setFixedHeight(self._acomodar(self.width()))
+        self.updateGeometry()
 
     def resizeEvent(self, event) -> None:  # noqa: N802 -- override de Qt
         super().resizeEvent(event)
@@ -1347,6 +1375,16 @@ class ClipSheet(QWidget):
 
         self.chips["todos"].setChecked(True)
         self.chips["todos_estado"].setChecked(True)
+
+        # La fila de bins nace VACIA y escondida: sus chips son los bins que
+        # hay, y al construir la hoja todavia no hay ninguno. Se llena en
+        # `set_bin_order`.
+        self._grupo_de_bins = QButtonGroup(self)
+        self._grupo_de_bins.setExclusive(True)
+        self._chips_de_bin: list[_Chip] = []
+        self.fila_bins = _FilaDeChips("BIN", [])
+        self.fila_bins.hide()
+        filas.append(self.fila_bins)
         return filas
 
     def filter_state(self) -> FilterState:
@@ -1361,8 +1399,59 @@ class ClipSheet(QWidget):
                                               "ocultar_rejects", "sin_marcar")),
             "todos",
         )
-        return FilterState(mostrar=mostrar, estado=estado,
+        # el chip «Todos» de la fila de bins tambien lleva la clave "todos",
+        # asi que no hace falta un caso aparte para «sin filtrar»
+        bin_activo = next(
+            (c.clave for c in self._chips_de_bin if c.isChecked()), "todos"
+        )
+        return FilterState(mostrar=mostrar, estado=estado, bin=bin_activo,
                            busqueda=self.search_input.text())
+
+    # --- los chips de bin -------------------------------------------------
+
+    def fila_de_bins(self) -> "_FilaDeChips":
+        return self.fila_bins
+
+    def chips_de_bin(self) -> list[str]:
+        """Lo que dice cada chip, sin el conteo: `["Todos", "Dron", …]`."""
+        return [c._etiqueta for c in self._chips_de_bin]
+
+    def chip_de_bin(self, nombre: str) -> _Chip | None:
+        """`"todos"` devuelve el chip que quita el filtro."""
+        return next((c for c in self._chips_de_bin if c.clave == nombre), None)
+
+    def _reconstruir_chips_de_bin(self) -> None:
+        """Un chip por bin, en el orden de importacion, mas «Todos».
+
+        Con menos de dos bins la fila se esconde entera: filtrar por el
+        unico bin que hay no filtra nada, y seria un renglon mas en una
+        barra que ya lleva dos grupos y siete chips.
+        """
+        antes = self.filter_state().bin
+        for viejo in self._chips_de_bin:
+            self._grupo_de_bins.removeButton(viejo)
+        chips = [_Chip("todos", "Todos")]
+        chips += [_Chip(nombre, _etiqueta_de_chip(nombre))
+                  for nombre in self._bin_order]
+        for chip in chips:
+            chip.clicked.connect(self._on_filters_changed)
+            self._grupo_de_bins.addButton(chip)
+        self._chips_de_bin = chips
+        self.fila_bins.set_chips(chips)
+        self.fila_bins.setVisible(len(self._bin_order) > 1)
+        # el bin que estabas filtrando puede haberse ido --lo quitaste o lo
+        # renombraste--, y ahi la hoja se quedaba vacia sin ningun chip
+        # encendido que explicara por que
+        elegido = self.chip_de_bin(antes) or chips[0]
+        elegido.setChecked(True)
+        self._marcar_chips_de_cola()
+        if elegido.clave != antes:
+            self.filters_changed.emit(self.filter_state())
+
+    def set_bin_counts(self, conteos: dict[str, int]) -> None:
+        for chip in self._chips_de_bin:
+            if chip.clave != "todos":
+                chip.set_count(conteos.get(chip.clave, 0))
 
     def _on_filters_changed(self) -> None:
         self._marcar_chips_de_cola()
@@ -1375,7 +1464,7 @@ class ClipSheet(QWidget):
         chip `cola de ←→`, el playhead, el clip actual-- y verlo en el chip es
         lo que dice «por aquí se mueven las flechas ahora».
         """
-        for chip in self.chips.values():
+        for chip in list(self.chips.values()) + self._chips_de_bin:
             define_cola = chip.isChecked() and chip.clave not in ("todos", "todos_estado")
             if chip.property("q") != define_cola:
                 chip.setProperty("q", define_cola)
@@ -1409,6 +1498,7 @@ class ClipSheet(QWidget):
         orden en que Bruno metio el material y por el que se mueven las
         flechas."""
         self._bin_order = list(nombres)
+        self._reconstruir_chips_de_bin()
         self._firma = None
         self._regroup()
 
@@ -1711,6 +1801,9 @@ class ClipSheet(QWidget):
             totales[nombre] = totales.get(nombre, 0) + 1
             marcas = por_flag.setdefault(nombre, {})
             marcas[card.clip.flag] = marcas.get(card.clip.flag, 0) + 1
+        # el mismo numero alimenta el encabezado y el chip del filtro: dos
+        # cuentas del mismo dato se contradicen solas
+        self.set_bin_counts(totales)
         for nombre, cabecera in self._bin_headers.items():
             cabecera.set_counts(totales.get(nombre, 0), por_flag.get(nombre, {}))
             cabecera.set_posicion(self._posicion_de_bin(nombre))

@@ -148,3 +148,30 @@ def test_el_conteo_de_destacados_y_el_de_sin_marcar():
     assert conteos["solo_destacados"] == 1
     assert conteos["solo_picks"] == 1
     assert conteos["sin_marcar"] == 1
+
+
+# --- el filtro por bin (F6) ------------------------------------------------
+
+
+def test_el_filtro_de_bin_acota_la_cola():
+    assert cola(CLIPS, FilterState(bin="Dron"),
+                bin_de={0: "Sony", 1: "Dron", 2: "Dron", 3: "Sony"}) == [1, 2]
+
+
+def test_sin_filtro_de_bin_la_cola_es_la_de_siempre():
+    assert cola(CLIPS, FilterState(),
+                bin_de={0: "Sony", 1: "Dron", 2: "Dron", 3: "Sony"}) == [0, 1, 2, 3]
+
+
+def test_el_filtro_de_bin_se_cruza_con_los_otros():
+    """Los filtros de esta app se suman, no se reemplazan: «solo picks del
+    Dron» tiene que dar los picks QUE ADEMAS son del Dron."""
+    assert cola(CLIPS, FilterState(bin="Sony", estado="solo_picks"),
+                bin_de={0: "Sony", 1: "Dron", 2: "Dron", 3: "Sony"}) == [0]
+
+
+def test_filtrar_por_bin_cuenta_como_estar_filtrando():
+    """De esto depende que el visor diga «3 de 12 en la cola» en vez de tu
+    posicion en el shooting entero."""
+    assert FilterState(bin="Dron").esta_filtrando()
+    assert not FilterState().esta_filtrando()

@@ -38,6 +38,11 @@ class FilterState:
     mostrar: str = "todos"
     estado: str = "todos"
     busqueda: str = ""
+    # El bin es el unico filtro que NO se puede resolver mirando el clip:
+    # el bin vive fuera de `Clip` --`to_dict()` es el contrato con el plugin
+    # de Premiere-- asi que `pasa()` no lo conoce y lo aplica `cola()` con el
+    # mapa que le pasan de afuera.
+    bin: str = "todos"
 
     def esta_filtrando(self) -> bool:
         """De esto depende que el visor diga `87 / 128` o `3 de 12 en la
@@ -45,6 +50,7 @@ class FilterState:
         return (
             self.mostrar != "todos"
             or self.estado != "todos"
+            or self.bin != "todos"
             or bool(self.busqueda.strip())
         )
 
@@ -75,13 +81,22 @@ class FilterState:
         return True
 
 
-def cola(clips: list, estado: FilterState) -> list[int]:
+def cola(clips: list, estado: FilterState,
+         bin_de: dict[int, str] | None = None) -> list[int]:
     """Los indices que pasan el filtro, **en el orden de los clips**.
 
     No se reordena nunca: es el orden de rodaje, y de el vive la nocion de
     "el clip anterior".
+
+    `bin_de` viene aparte y no dentro del clip porque el bin no vive en
+    `Clip`. Sin mapa, el filtro de bin no filtra: mas vale no filtrar que
+    esconder todo el material porque quien llamo no sabia de bins.
     """
-    return [i for i, clip in enumerate(clips) if estado.pasa(clip)]
+    return [
+        i for i, clip in enumerate(clips)
+        if estado.pasa(clip)
+        and (estado.bin == "todos" or not bin_de or bin_de.get(i) == estado.bin)
+    ]
 
 
 def contar(clips: list) -> dict[str, int]:

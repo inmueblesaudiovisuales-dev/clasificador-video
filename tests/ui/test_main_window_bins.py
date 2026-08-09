@@ -1199,3 +1199,32 @@ def test_soltar_algo_que_no_es_video_no_deja_un_bin_vacio(qtbot, ventana,
 
     assert ventana.bins.nombres() == []
     assert ventana.clips == []
+
+
+# --- filtrar por bin (F6) --------------------------------------------------
+
+
+def test_filtrar_por_bin_acota_la_cola_de_las_flechas(qtbot, ventana):
+    """Los filtros de esta app no cambian solo lo que ves: cambian por
+    donde se mueven las flechas. El de bin no es la excepcion."""
+    from clasificador_video.filters import FilterState
+
+    ventana.load_clips([_clip(0, "/cam/A.MP4"), _clip(1, "/dron/D.MP4"),
+                        _clip(2, "/dron/E.MP4")])
+    ventana.bins.agregar("Sony", Path("/cam"), [0])
+    ventana.bins.agregar("Dron", Path("/dron"), [1, 2])
+
+    ventana.set_filters(FilterState(bin="Dron"))
+
+    assert ventana.queue() == [1, 2]
+
+
+def test_el_chip_de_bin_de_la_hoja_llega_hasta_la_cola(qtbot, ventana):
+    ventana.load_clips([_clip(0, "/cam/A.MP4"), _clip(1, "/dron/D.MP4")])
+    ventana.bins.agregar("Sony", Path("/cam"), [0])
+    ventana.bins.agregar("Dron", Path("/dron"), [1])
+    ventana._refresh_sheet()
+
+    ventana.clip_sheet.chip_de_bin("Dron").click()
+
+    assert ventana.queue() == [1]

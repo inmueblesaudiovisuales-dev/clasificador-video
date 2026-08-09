@@ -158,3 +158,13 @@ def test_from_list_con_basura_no_revienta():
     assert BinTree.from_list("esto no es una lista").nombres() == []
     assert BinTree.from_list(["tampoco esto es un bin"]).nombres() == []
     assert BinTree.from_list([{"nombre": "Dron", "origen": "/d", "clips": ["a"]}]).nombres() == []
+
+
+def test_el_mapa_de_bin_por_clip():
+    """Lo que necesita el filtro: preguntarle a `bin_de` por cada clip
+    recorreria todos los bins una vez por clip."""
+    arbol = BinTree()
+    arbol.agregar("Sony", Path("/cam"), [0, 2])
+    arbol.agregar("Dron", Path("/dron"), [1])
+
+    assert arbol.mapa_por_clip() == {0: "Sony", 2: "Sony", 1: "Dron"}
