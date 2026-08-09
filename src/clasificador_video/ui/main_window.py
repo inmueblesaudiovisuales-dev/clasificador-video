@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import shutil
 import time
+from dataclasses import replace
 from pathlib import Path
 from typing import Callable
 
@@ -137,6 +138,24 @@ class _ThumbnailJob(QRunnable):
             # la ventana dueña (y su Signals) ya se destruyo mientras este
             # job corria en su propio hilo -- no hay nadie escuchando.
             pass
+
+
+def _con_el_rango_en_orden(clip: Clip) -> Clip:
+    """Copia del clip con `in_frame <= out_frame`, para el manifest.
+
+    Marcar `O` y despues `I` mas adelante deja out < in. La app ya lo
+    MUESTRA en orden --con `abs`, desde la auditoria de la F1-F5-- pero lo
+    exportaba tal cual, y el plugin aplica in/out siempre que vengan los
+    dos: Premiere recibia un rango al reves.
+
+    Se ordena SOLO al exportar. La sesion guarda lo que el editor marco,
+    para que deshacer pueda volver a eso.
+    """
+    if clip.in_frame is None or clip.out_frame is None:
+        return clip
+    if clip.in_frame <= clip.out_frame:
+        return clip
+    return replace(clip, in_frame=clip.out_frame, out_frame=clip.in_frame)
 
 
 def _gigas_del_volumen(ruta: Path) -> int | None:
@@ -1711,7 +1730,7 @@ class MainWindow(QWidget):
         manifest = Manifest(
             proyecto=self.project_name,
             orientacion=self.orientacion_del_proyecto(),
-            clips=self.clips,
+            clips=[_con_el_rango_en_orden(c) for c in self.clips],
         )
         manifest.write_json(Path(path))
 

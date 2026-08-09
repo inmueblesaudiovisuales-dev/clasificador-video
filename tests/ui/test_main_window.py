@@ -3131,3 +3131,36 @@ def test_cargar_material_nuevo_no_arrastra_los_proxies_del_anterior(qtbot, monke
 
     assert window._proxy_sizes == {}
     assert window.etiqueta_de_proxy(0) is None
+
+
+def test_el_manifest_no_exporta_un_rango_invertido(qtbot, monkeypatch, tmp_path):
+    """Marcar `O` y despues `I` mas adelante deja out < in. La app ya lo
+    MUESTRA en orden --se arreglo en la auditoria de la F1-F5, con `abs`--
+    pero lo exportaba tal cual, y el plugin aplica in/out siempre que
+    vengan los dos. Premiere recibia un rango al reves.
+    """
+    window = _window_with_video(qtbot)
+    window.load_clips([
+        Clip(orden=1, ruta=Path("/a.MP4"), categoria_path=["Sala"], fps=59.94,
+             in_frame=90, out_frame=10),
+    ])
+
+    saved = _exportar(window, monkeypatch, tmp_path / "m.json")
+
+    assert saved["clips"][0]["in_frame"] == 10
+    assert saved["clips"][0]["out_frame"] == 90
+
+
+def test_exportar_no_toca_lo_que_esta_en_pantalla(qtbot, monkeypatch, tmp_path):
+    """Ordenar es para el manifest: la sesion guarda lo que el editor
+    marco, y deshacer tiene que poder volver a eso."""
+    window = _window_with_video(qtbot)
+    window.load_clips([
+        Clip(orden=1, ruta=Path("/a.MP4"), categoria_path=["Sala"], fps=59.94,
+             in_frame=90, out_frame=10),
+    ])
+
+    _exportar(window, monkeypatch, tmp_path / "m.json")
+
+    assert window.clips[0].in_frame == 90
+    assert window.clips[0].out_frame == 10
