@@ -1485,3 +1485,105 @@ def test_la_seccion_de_sueltos_no_dice_de_que_carpeta_salio(qtbot, ventana):
     ventana._refresh_sheet()
 
     assert ventana.clip_sheet.bin_header_widget(SIN_BIN).source_label.text() == ""
+
+
+# --- arrastrar clips de un bin a otro (F9) ---------------------------------
+
+
+def test_mover_clips_cambia_el_bin_y_nada_mas(qtbot, ventana):
+    """Lo que hace barata esta operacion: no toca indices, asi que no hay
+    que correr proxies, duraciones ni historial.
+    """
+    ventana.load_clips([_clip(0, "/cam/A.MP4"), _clip(1, "/cam/B.MP4")])
+    ventana.bins.agregar("Sony", Path("/cam"), [0, 1])
+    ventana.bins.crear_vacio("Dron")
+    ventana.clips[0].ruta_proxy = Path("/cam/AS03.MP4")
+    ventana._proxy_sizes[0] = (1080, 1920)
+    ventana.clips[0].categoria_path = ["Cocina"]
+
+    ventana._on_clips_movidos([0], "Dron")
+
+    assert ventana.bins.bin_de(0) == "Dron"
+    assert ventana.bins.bin_de(1) == "Sony"                       # el otro no
+    assert ventana.clips[0].ruta_proxy == Path("/cam/AS03.MP4")   # se lo lleva
+    assert ventana._proxy_sizes[0] == (1080, 1920)
+    assert ventana.clips[0].categoria_path == ["Cocina"]          # el cuarto no se toca
+    assert ventana.clips[0].orden == 1                            # ni el orden
+
+
+def test_mover_clips_a_sin_bin_los_deja_sueltos(qtbot, ventana):
+    """«Sin bin» no es un bin: el destino que llega es `None` y el clip
+    queda sin pertenecer a ninguno."""
+    ventana.load_clips([_clip(0, "/cam/A.MP4")])
+    ventana.bins.agregar("Sony", Path("/cam"), [0])
+
+    ventana._on_clips_movidos([0], None)
+
+    assert ventana.bins.bin_de(0) is None
+    assert ventana.bins.clips_de("Sony") == []
+
+
+def test_mover_clips_se_guarda_solo(qtbot, tmp_path, ventana):
+    """Si no se guardara, reabrir el proyecto te devolveria los clips al bin
+    del que los sacaste."""
+    ventana.session_path = tmp_path / "sesion.json"
+    ventana.load_clips([_clip(0, "/cam/A.MP4")])
+    ventana.bins.agregar("Sony", Path("/cam"), [0])
+    ventana.bins.crear_vacio("Dron")
+
+    ventana._on_clips_movidos([0], "Dron")
+
+    # el guardado es con debounce: mover pide guardar, no escribe en el acto.
+    # Primero se comprueba que lo PIDIO --que es lo que hace este handler-- y
+    # despues se fuerza la escritura para mirar lo que quedo en el archivo.
+    assert ventana._autosave_timer.isActive()
+    ventana._write_autosave_now()
+    assert ventana._autosave_pool.waitForDone(2000)
+
+    datos = json.loads((tmp_path / "sesion.json").read_text())
+    guardados = {b["nombre"]: b["clips"] for b in datos["bins"]}
+    assert guardados["Dron"] == [0]
+    assert guardados["Sony"] == []
+
+
+def test_mover_varios_clips_de_golpe(qtbot, ventana):
+    ventana.load_clips([_clip(i, f"/cam/{i}.MP4") for i in range(3)])
+    ventana.bins.agregar("Sony", Path("/cam"), [0, 1, 2])
+    ventana.bins.crear_vacio("Dron")
+
+    ventana._on_clips_movidos([0, 2], "Dron")
+
+    assert ventana.bins.clips_de("Dron") == [0, 2]
+    assert ventana.bins.clips_de("Sony") == [1]
+
+
+def test_soltar_en_el_cuarto_de_otro_bin_no_reclasifica(qtbot, ventana):
+    """Decision de Bruno: arrastrar es para acomodar por camara. El cuarto
+    se sigue poniendo con el teclado -- un arrastre mal soltado no puede
+    cambiarte el dato que mas trabajo cuesta.
+    """
+    ventana.load_clips([_clip(0, "/cam/A.MP4"), _clip(1, "/dron/B.MP4")])
+    ventana.bins.agregar("Sony", Path("/cam"), [0])
+    ventana.bins.agregar("Dron", Path("/dron"), [1])
+    ventana.clips[0].categoria_path = ["Cocina"]
+    ventana.clips[1].categoria_path = ["Recamara"]
+
+    # soltado encima del subgrupo «Recamara» del Dron
+    ventana._on_clips_movidos([0], "Dron")
+
+    assert ventana.bins.bin_de(0) == "Dron"
+    assert ventana.clips[0].categoria_path == ["Cocina"]
+
+
+def test_la_hoja_no_se_reconstruye_al_mover(qtbot, ventana):
+    """Reconstruir tiraria las portadas ya generadas -- que es justo el bug
+    que Bruno reporto al importar una segunda carpeta."""
+    ventana.load_clips([_clip(0, "/cam/A.MP4")])
+    ventana.bins.agregar("Sony", Path("/cam"), [0])
+    ventana.bins.crear_vacio("Dron")
+    llamadas = []
+    ventana._refresh_sheet = lambda force_rebuild=False: llamadas.append(force_rebuild)
+
+    ventana._on_clips_movidos([0], "Dron")
+
+    assert llamadas == [False]

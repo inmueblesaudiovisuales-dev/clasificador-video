@@ -4,9 +4,27 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-from PySide6.QtCore import QEvent, QPoint, QRect, QRectF, QSize, Qt, Signal
-from PySide6.QtGui import QAction, QColor, QFont, QPainter, QPen
+from PySide6.QtCore import (
+    QEvent,
+    QMimeData,
+    QPoint,
+    QRect,
+    QRectF,
+    QSize,
+    Qt,
+    Signal,
+)
+from PySide6.QtGui import (
+    QAction,
+    QColor,
+    QDrag,
+    QFont,
+    QPainter,
+    QPen,
+    QPixmap,
+)
 from PySide6.QtWidgets import (
+    QApplication,
     QButtonGroup,
     QRubberBand,
     QGridLayout,
@@ -33,6 +51,11 @@ SIN_CLASIFICAR = "Sin clasificar"
 # siempre arriba de todo, que es donde va la cola de trabajo (igual que
 # «Sin clasificar» dentro de un bin), y se esconde cuando no hay sueltos.
 SIN_BIN = "Sin bin"
+# El mime del arrastre INTERNO: clips que ya estan en la hoja y se mueven de
+# bin. Tiene que ser distinto del de archivos (`text/uri-list`) porque los dos
+# viajan por los mismos eventos de drop y significan cosas opuestas -- uno
+# importa material nuevo, el otro reacomoda lo que ya hay.
+MIME_CLIPS = "application/x-clasificador-clips"
 # La marca de camara del encabezado de bin. Un solo glifo para todos: ver
 # el comentario en `_BinHeader.__init__`. Vive en el tema porque el visor
 # usa la misma.
@@ -59,6 +82,10 @@ FADE_HEIGHT = 60
 # umbral, cada click seleccionaria todo lo que hubiera bajo el cursor y no
 # habria forma de elegir un solo clip.
 UMBRAL_ARRASTRE = 6
+# La imagen que cuelga del cursor al mover clips. 160 px: mas chica no se
+# reconoce el frame, y mas grande te tapa el encabezado al que le apuntas.
+ANCHO_IMAGEN_ARRASTRE = 160
+ALTO_INSIGNIA_ARRASTRE = 20
 
 # --- geometria de lo que va encima de la miniatura (del .card del mockup) ---
 STRIPE_WIDTH = 3    # franja de cuarto / rayado de sin clasificar
@@ -368,6 +395,7 @@ class ClipCard(QWidget):
 
     clicked = Signal(object)  # Qt.KeyboardModifier vigente al hacer click
     doble_click = Signal()    # abrir este clip en modo clip (Grid → Loupe)
+    arrastre_pedido = Signal(int)  # indice de clip: agarraron esta tarjeta
 
     def __init__(self, clip: ClipThumbnail, parent=None):
         super().__init__(parent)
@@ -377,6 +405,10 @@ class ClipCard(QWidget):
         self.setMouseTracking(True)
 
         self._clip = clip
+        # Se lo dice la hoja al crearla. La tarjeta NO lo busca en la lista en
+        # cada evento de mouse: el arrastre manda uno por cada movimiento.
+        self.indice = -1
+        self._origen_arrastre: QPoint | None = None
         self._frames: list = []
         self._hover: float | None = None   # fraccion escrubeada, o None
         self._tinte: str | None = None     # color del rastro del pincel
@@ -552,8 +584,19 @@ class ClipCard(QWidget):
 
     def mousePressEvent(self, event) -> None:  # noqa: N802 -- override de Qt
         if event.button() == Qt.MouseButton.LeftButton:
+            # De aqui se mide la distancia de arrastre. Se guarda SIEMPRE, aunque
+            # el gesto termine siendo un click: no se sabe cual de los dos es
+            # hasta que el mouse se mueve.
+            self._origen_arrastre = event.position().toPoint()
             self.clicked.emit(event.modifiers())
         super().mousePressEvent(event)
+
+    def mouseReleaseEvent(self, event) -> None:  # noqa: N802 -- override de Qt
+        # Sin esto, el origen del click anterior sobrevive: mover el mouse con
+        # el boton apretado en OTRO lado y volver a pasar por aqui arrancaria
+        # un arrastre que nadie pidio.
+        self._origen_arrastre = None
+        super().mouseReleaseEvent(event)
 
     def mouseDoubleClickEvent(self, event) -> None:  # noqa: N802 -- override de Qt
         """Grid → Loupe, el gesto de Lightroom. No colisiona con nada: `⏎`
@@ -574,8 +617,30 @@ class ClipCard(QWidget):
         self._overlay.update()
 
     def mouseMoveEvent(self, event) -> None:  # noqa: N802 -- override de Qt
+        """Dos gestos en el mismo evento, separados por si hay boton apretado.
+
+        SIN boton --que llega porque la tarjeta tiene `setMouseTracking`--
+        escrubea la miniatura, como siempre. CON boton, arrastra el clip. Son
+        excluyentes por construccion, que es lo que evita que arrastrar te deje
+        la miniatura parada en un cuadro al azar.
+        """
+        if event.buttons() & Qt.MouseButton.LeftButton:
+            if self._puede_arrastrar(event.position().toPoint()):
+                # una sola vez por gesto: el arrastre ya arranco y los eventos
+                # que sigan llegando son de la sesion de arrastre, no del click
+                self._origen_arrastre = None
+                self.arrastre_pedido.emit(self.indice)
+            return
         self.escrubear_a(event.position().x() / max(self.width(), 1))
         super().mouseMoveEvent(event)
+
+    def _puede_arrastrar(self, punto) -> bool:
+        """El umbral estandar de Qt, no un pixel: un click con la mano
+        temblorosa tiene que seguir siendo un click."""
+        if self._origen_arrastre is None:
+            return False
+        distancia = (punto - self._origen_arrastre).manhattanLength()
+        return distancia >= QApplication.startDragDistance()
 
     def leaveEvent(self, event) -> None:  # noqa: N802 -- override de Qt
         # vuelve a la portada: si cada tarjeta se quedara en el frame por el
@@ -842,7 +907,8 @@ class _BinHeader(QWidget):
             self.proxy_badge.style().unpolish(self.proxy_badge)
             self.proxy_badge.style().polish(self.proxy_badge)
 
-    def set_soltando(self, activo: bool, cuantos: int = 0) -> None:
+    def set_soltando(self, activo: bool, cuantos: int = 0,
+                     moviendo: bool = False) -> None:
         """El resaltado de «suelta aquí y va a este bin» (pantalla 4).
 
         `cuantos` son los VIDEOS que van a entrar, no los iconos que
@@ -850,13 +916,21 @@ class _BinHeader(QWidget):
         es un icono y nada. Prometer «1 archivo» en los dos casos es
         mentirle al gesto justo antes de hacerlo.
 
+        `moviendo` es el otro arrastre, el interno: clips que ya estan en la
+        hoja y cambian de bin. El resaltado es el mismo --el destino es el
+        mismo lugar-- pero el texto no puede serlo: ahi no se suma nada, se
+        muda.
+
         Es una propiedad y no un `setStyleSheet` por bin: el arrastre manda
         un evento por cada movimiento del mouse, y repolir un widget entero
         en cada uno seria repintar la hoja sesenta veces por segundo.
         """
         activo = bool(activo)
         self.drop_label.setVisible(activo)
-        if activo:
+        if activo and moviendo:
+            plural = "clips" if cuantos != 1 else "clip"
+            self.drop_label.setText(f"→ mover {cuantos} {plural} aquí")
+        elif activo:
             if not cuantos:
                 texto = "＋ aquí no hay ningún video"
             else:
@@ -1298,6 +1372,10 @@ class ClipSheet(QWidget):
     # es un bin -- mandarlo como nombre terminaba en `bins.agregar("Sin bin")`
     # y nacia un bin de verdad llamado asi.
     soltado_sin_bin = Signal(list)          # rutas
+    # clips que YA estan en la hoja y cambian de bin. El destino es `object`
+    # porque puede ser `None` --dejarlos sueltos--, y `Signal(list, str)` no
+    # sabe transportar eso.
+    clips_movidos = Signal(list, object)    # indices, nombre del bin o None
     # el boton «+ Bin nuevo» de la barra (F8). La hoja no crea el bin: el dato
     # vive en `BinTree`, que es de la ventana.
     bin_nuevo_pedido = Signal()
@@ -1779,6 +1857,23 @@ class ClipSheet(QWidget):
             self._colapsados.discard(viejo)
             self._colapsados.add(nuevo)
 
+    def _nueva_tarjeta(self, clip: ClipThumbnail, index: int) -> ClipCard:
+        """Una tarjeta con su indice puesto y sus tres señales enchufadas.
+
+        `i=index` captura el indice POR VALOR. Sin eso, todas las tarjetas
+        comparten la misma variable y avisan del ultimo clip.
+
+        Vive aparte porque `set_clips` y `append_clips` tienen que crearlas
+        IGUAL: cuando esto estaba duplicado, agregar una señal nueva en una de
+        las dos dejaba mudas a las tarjetas del otro camino.
+        """
+        card = ClipCard(clip)
+        card.indice = index
+        card.clicked.connect(lambda mods, i=index: self._on_card_clicked(i, mods))
+        card.doble_click.connect(lambda i=index: self.clip_activated.emit(i))
+        card.arrastre_pedido.connect(self._on_arrastre_pedido)
+        return card
+
     def set_clips(self, clips: list[ClipThumbnail]) -> None:
         for card in self.item_widgets:
             self._desechar(card)
@@ -1787,10 +1882,7 @@ class ClipSheet(QWidget):
         self.item_widgets = []
         self._blocks = {}
         for index, clip in enumerate(clips):
-            card = ClipCard(clip)
-            card.clicked.connect(lambda mods, i=index: self._on_card_clicked(i, mods))
-            card.doble_click.connect(lambda i=index: self.clip_activated.emit(i))
-            self.item_widgets.append(card)
+            self.item_widgets.append(self._nueva_tarjeta(clip, index))
         self._current = -1
         self._anchor = None
         # el filtro guarda INDICES: con otra lista de clips apuntarian a
@@ -1821,13 +1913,7 @@ class ClipSheet(QWidget):
         for card, clip in zip(self.item_widgets, clips):
             card.update_content(clip)
         for index in range(viejas, len(clips)):
-            card = ClipCard(clips[index])
-            # `i=index` captura el indice POR VALOR. Sin eso, todas las
-            # tarjetas nuevas comparten la misma variable y avisan del
-            # ultimo clip -- mismo cuidado que en `set_clips`.
-            card.clicked.connect(lambda mods, i=index: self._on_card_clicked(i, mods))
-            card.doble_click.connect(lambda i=index: self.clip_activated.emit(i))
-            self.item_widgets.append(card)
+            self.item_widgets.append(self._nueva_tarjeta(clips[index], index))
         # el filtro guarda INDICES y los nuevos no estaban cuando se calculo:
         # quien filtre vuelve a llamar a set_visible_indices.
         self._visible = None
@@ -2131,6 +2217,130 @@ class ClipSheet(QWidget):
     def zona_de_bin_nuevo(self) -> "_ZonaDeBinNuevo":
         return self._zona_nueva
 
+    # --- arrastrar clips de un bin a otro (el arrastre INTERNO) -----------
+
+    def indices_a_arrastrar(self, indice: int) -> list[int]:
+        """Que se lleva el gesto: la seleccion entera, o solo esa tarjeta.
+
+        Arrastrar uno de tres seleccionados se lleva los tres --es lo que hace
+        Finder y lo que hace Premiere--, pero arrastrar uno que NO esta en la
+        seleccion se lleva solo ese: si se llevara la seleccion vieja, moverias
+        clips que ni estabas mirando.
+        """
+        if indice in self._selected:
+            return sorted(self._selected)
+        return [indice]
+
+    def _on_arrastre_pedido(self, indice: int) -> None:
+        """Agarraron una tarjeta con el boton apretado.
+
+        El pincel se filtra AQUI y no en la tarjeta: los modos de la hoja son
+        de la hoja, y una tarjeta que tuviera que preguntar por ellos sabria
+        de mas.
+        """
+        if self._pincel_activo:
+            return
+        if not (0 <= indice < len(self.item_widgets)):
+            return
+        indices = self.indices_a_arrastrar(indice)
+        mime = QMimeData()
+        mime.setData(MIME_CLIPS, ",".join(str(i) for i in indices).encode())
+        drag = QDrag(self)
+        drag.setMimeData(mime)
+        imagen = self.imagen_de_arrastre(indices)
+        drag.setPixmap(imagen)
+        # el cursor agarra la imagen por la esquina de arriba a la izquierda,
+        # un poco adentro: centrarla taparia justo el encabezado al que le
+        # estas apuntando
+        drag.setHotSpot(QPoint(12, 12))
+        drag.exec(Qt.DropAction.MoveAction)
+
+    def imagen_de_arrastre(self, indices: list[int]) -> QPixmap:
+        """Lo que cuelga del cursor: la miniatura del primer clip y, si son
+        varios, cuantos van.
+
+        Sin la cuenta, arrastrar 12 clips y arrastrar 1 se verian igual y
+        estarias moviendo a ciegas todo lo que no cabe en la miniatura.
+        """
+        if not indices:
+            return QPixmap()
+        card = self.item_widgets[indices[0]]
+        base = card.grab().scaledToWidth(
+            ANCHO_IMAGEN_ARRASTRE, Qt.TransformationMode.SmoothTransformation
+        )
+        if len(indices) < 2:
+            return base
+        # la insignia va ARRIBA de la miniatura, en su propia franja: encimarla
+        # taparia el frame, que es lo que te dice que agarraste lo correcto
+        alto_insignia = ALTO_INSIGNIA_ARRASTRE
+        lienzo = QPixmap(base.width(), base.height() + alto_insignia)
+        lienzo.fill(Qt.GlobalColor.transparent)
+        pintor = QPainter(lienzo)
+        pintor.drawPixmap(0, alto_insignia, base)
+        pintor.setRenderHint(QPainter.RenderHint.Antialiasing)
+        pintor.setPen(Qt.PenStyle.NoPen)
+        # el azul de la seleccion multiple, no el naranja del clip actual: lo
+        # que la insignia cuenta ES la seleccion que se esta moviendo
+        pintor.setBrush(QColor(theme.SELECTION_BORDER))
+        recuadro = QRectF(0, 0, base.width(), alto_insignia)
+        pintor.drawRoundedRect(recuadro, BADGE_RADIUS, BADGE_RADIUS)
+        pintor.setPen(QColor(theme.SELECTION_TICK_INK))
+        pintor.setFont(_fuente_mono())
+        pintor.drawText(recuadro, Qt.AlignmentFlag.AlignCenter,
+                        f"{len(indices)} clips")
+        pintor.end()
+        return lienzo
+
+    @staticmethod
+    def _indices_de(mime) -> list[int]:
+        crudo = bytes(mime.data(MIME_CLIPS)).decode(errors="ignore")
+        return [int(t) for t in crudo.split(",") if t.strip().isdigit()]
+
+    def _bin_de_la_tarjeta(self, indice: int) -> str | None:
+        """El bin en el que ESTA hoy ese clip. `None` = suelto, el mismo
+        valor con el que viaja el destino."""
+        if not (0 <= indice < len(self.item_widgets)):
+            return None
+        return self.item_widgets[indice].clip.bin_nombre or None
+
+    def _destino_de_clips(self, punto, mime):
+        """A donde irian los clips soltados ahi, y cuales se moverian de
+        verdad. Devuelve `(destino, indices)`; `indices` vacio significa que
+        soltar ahi no hace nada.
+
+        Los dos casos de «no hace nada» son el vacio --que para archivos pide
+        un bin nuevo, pero aqui no hay carpeta de la que sacarle nombre-- y
+        soltar en el bin donde los clips ya estan, que es el arrastre fallido
+        mas comun.
+        """
+        seccion = self._bin_bajo(punto)
+        if seccion is None:
+            return None, []
+        destino = None if seccion == SIN_BIN else seccion
+        indices = self._indices_de(mime)
+        if all(self._bin_de_la_tarjeta(i) == destino for i in indices):
+            return destino, []
+        return destino, indices
+
+    def _zona_de_clips(self, punto, mime) -> None:
+        """El resaltado del arrastre interno. El bin de ORIGEN no se enciende:
+        el resaltado es una promesa, y soltar ahi no hace nada.
+
+        La zona de «bin nuevo» se queda escondida -- es de los archivos.
+        """
+        destino, indices = ((None, []) if punto is None
+                            else self._destino_de_clips(punto, mime))
+        nombre_marcado = (SIN_BIN if destino is None else destino) if indices else None
+        for nombre, cabecera in self._bin_headers.items():
+            cabecera.set_soltando(nombre == nombre_marcado, len(indices),
+                                  moviendo=True)
+        if not self._pegado.isHidden():
+            self._pegado.set_soltando(self._pegado.nombre == nombre_marcado,
+                                      len(indices), moviendo=True)
+        self._zona_nueva.hide()
+
+    # --- eventos de arrastre (los dos mimes entran por aqui) --------------
+
     @staticmethod
     def _rutas_de(mime) -> list[Path]:
         """Solo archivos locales. Un arrastre desde el navegador trae URLs
@@ -2138,26 +2348,40 @@ class ClipSheet(QWidget):
         return [Path(u.toLocalFile()) for u in mime.urls() if u.isLocalFile()]
 
     def dragEnterEvent(self, event) -> None:  # noqa: N802 -- override de Qt
-        """Solo archivos. Aceptar texto o cualquier otro mime haria que el
-        cursor prometa algo que al soltar no pasa."""
-        if not event.mimeData().hasUrls():
-            event.ignore()
-            return
-        event.acceptProposedAction()
-        self._marcar_zona(event.position().toPoint(), event.mimeData())
+        """Archivos o clips de la propia hoja. Aceptar texto o cualquier otro
+        mime haria que el cursor prometa algo que al soltar no pasa."""
+        self._entrar_o_moverse(event)
 
     def dragMoveEvent(self, event) -> None:  # noqa: N802 -- override de Qt
-        if not event.mimeData().hasUrls():
+        self._entrar_o_moverse(event)
+
+    def _entrar_o_moverse(self, event) -> None:
+        mime = event.mimeData()
+        if mime.hasFormat(MIME_CLIPS):
+            event.acceptProposedAction()
+            self._zona_de_clips(event.position().toPoint(), mime)
+            return
+        if not mime.hasUrls():
             event.ignore()
             return
         event.acceptProposedAction()
-        self._marcar_zona(event.position().toPoint(), event.mimeData())
+        self._marcar_zona(event.position().toPoint(), mime)
 
     def dragLeaveEvent(self, event) -> None:  # noqa: N802 -- override de Qt
         self._marcar_zona(None, None)
+        self._zona_de_clips(None, None)
 
     def dropEvent(self, event) -> None:  # noqa: N802 -- override de Qt
         self._marcar_zona(None, None)
+        self._zona_de_clips(None, None)
+        if event.mimeData().hasFormat(MIME_CLIPS):
+            destino, indices = self._destino_de_clips(
+                event.position().toPoint(), event.mimeData()
+            )
+            if indices:
+                self.clips_movidos.emit(indices, destino)
+                event.acceptProposedAction()
+            return
         if not event.mimeData().hasUrls():
             return
         rutas = self._rutas_de(event.mimeData())

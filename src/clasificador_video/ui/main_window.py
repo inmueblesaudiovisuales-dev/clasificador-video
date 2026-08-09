@@ -413,6 +413,8 @@ class MainWindow(QWidget):
             lambda rutas: self.importar_rutas(rutas, sueltos=True)
         )
         self.clip_sheet.bin_nuevo_pedido.connect(self._on_bin_nuevo_pedido)
+        # arrastrar clips que YA estan en la hoja de un bin a otro (F9)
+        self.clip_sheet.clips_movidos.connect(self._on_clips_movidos)
 
         self.status_bar = StatusBar()
         self.status_bar.unclassified_clicked.connect(self._filtrar_sin_clasificar)
@@ -1567,6 +1569,25 @@ class MainWindow(QWidget):
         cabecera = self.clip_sheet.bin_header_widget(nombre)
         if cabecera is not None:
             cabecera.empezar_a_renombrar()
+        self._autosave()
+
+    def _on_clips_movidos(self, indices: list[int], destino: str | None) -> None:
+        """Soltaste clips en otro bin.
+
+        Es la operacion mas barata de la app y conviene que siga siendolo:
+        `mover` no toca el indice de ningun clip, asi que no hay que correr
+        `_proxy_sizes`, `_clip_durations` ni el historial -- solo cambia de
+        lista quien esta en cual. El proxy viaja con el clip porque es del
+        clip, no del bin, y el cuarto ni se mira: arrastrar acomoda por
+        camara y nada mas.
+
+        `force_rebuild` no: aqui no cambio ni un clip -- solo en que seccion
+        se dibuja-- y reconstruir tiraria las portadas ya cargadas.
+        """
+        if not indices:
+            return
+        self.bins.mover(indices, destino)
+        self._refresh_sheet()
         self._autosave()
 
     def _on_bin_seleccionado(self, nombre: str) -> None:
