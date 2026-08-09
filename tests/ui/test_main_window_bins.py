@@ -614,3 +614,177 @@ def test_importar_lo_que_ya_esta_lo_dice_con_otras_palabras(
     assert len(avisos) == 1
     assert avisos[0][0] == "Ya están en el proyecto"
     assert len(ventana.clips) == 1
+
+
+# --- F4 Task 10: el menu del bin conectado a la ventana ----------------------
+
+
+def test_renombrar_un_bin_cambia_el_dato_y_la_hoja(qtbot, ventana):
+    ventana.load_clips([_clip(0, "/dron/D.MP4")])
+    ventana.bins.agregar("Dron", Path("/dron"), [0])
+
+    ventana._on_bin_renombrado("Dron", "Dron DJI")
+
+    assert ventana.bins.nombres() == ["Dron DJI"]
+    assert ventana.clip_sheet.bin_headers() == ["Dron DJI"]
+
+
+def test_la_hoja_dibuja_un_encabezado_por_bin_de_la_ventana(qtbot, ventana):
+    ventana.load_clips([_clip(0, "/cam/A.MP4"), _clip(1, "/dron/D.MP4")])
+    ventana.bins.agregar("Sony", Path("/cam"), [0])
+    ventana.bins.agregar("Dron", Path("/dron"), [1])
+
+    ventana._refresh_sheet()
+
+    assert ventana.clip_sheet.bin_headers() == ["Sony", "Dron"]
+    assert ventana.clip_sheet.bin_header_widget("Sony").source_label.text() == "cam"
+
+
+def test_el_encabezado_dice_cuantos_proxies_engancharon(qtbot, ventana):
+    ventana.load_clips([_clip(0, "/cam/A.MP4"), _clip(1, "/cam/B.MP4")])
+    ventana.bins.agregar("Sony", Path("/cam"), [0, 1])
+    ventana.clips[0].ruta_proxy = Path("/cam/A_S03.MP4")
+
+    ventana._refresh_sheet()
+
+    insignia = ventana.clip_sheet.bin_header_widget("Sony").proxy_badge
+    assert insignia.text() == "proxy · 1/2"
+
+
+def test_quitar_un_bin_corre_todo_lo_que_va_por_indice(qtbot, ventana):
+    """El segundo lugar donde esto rompe en silencio.
+
+    `_clip_durations`, `_clip_sizes`, `_clip_rotations`, `_proxy_sizes`,
+    `_proxy_candidatos` y `_proxy_generacion_de` van TODOS por indice de
+    clip. Al quitar los clips 0 y 1, el que era 2 pasa a ser 0 -- y
+    cualquiera de esos diccionarios que no se corra queda describiendo a
+    otro clip, sin dar ningun sintoma hasta que un video se dibuja acostado
+    o un rango cae corrido.
+    """
+    ventana.load_clips([_clip(0, "/cam/A.MP4"), _clip(1, "/cam/B.MP4"),
+                        _clip(2, "/dron/D.MP4")])
+    ventana.bins.agregar("Sony", Path("/cam"), [0, 1])
+    ventana.bins.agregar("Dron", Path("/dron"), [2])
+    ventana._clip_sizes = {0: (100, 200), 1: (100, 200), 2: (1920, 1080)}
+    ventana._clip_durations = {0: 1.0, 1: 2.0, 2: 3.0}
+    ventana._clip_rotations = {0: 0, 1: 0, 2: 90}
+    ventana._proxy_sizes = {2: (640, 360)}
+    ventana._proxy_candidatos = {2: Path("/dron/D_px.MP4")}
+    ventana._proxy_generacion_de = {2: 7}
+
+    ventana._on_bin_quitado("Sony")
+
+    assert [c.ruta for c in ventana.clips] == [Path("/dron/D.MP4")]
+    assert ventana.bins.clips_de("Dron") == [0]
+    assert ventana._clip_sizes == {0: (1920, 1080)}
+    assert ventana._clip_durations == {0: 3.0}
+    assert ventana._clip_rotations == {0: 90}
+    assert ventana._proxy_sizes == {0: (640, 360)}
+    assert ventana._proxy_candidatos == {0: Path("/dron/D_px.MP4")}
+    assert ventana._proxy_generacion_de == {0: 7}
+
+
+def test_quitar_un_bin_renumera_los_clips_que_quedan(qtbot, ventana):
+    """`orden` es el numero que se ve en la tarjeta y el que viaja al
+    manifest: dejar un proyecto que empieza en el clip 3 seria mentira."""
+    ventana.load_clips([_clip(0, "/cam/A.MP4"), _clip(1, "/dron/D.MP4"),
+                        _clip(2, "/dron/E.MP4")])
+    ventana.bins.agregar("Sony", Path("/cam"), [0])
+    ventana.bins.agregar("Dron", Path("/dron"), [1, 2])
+
+    ventana._on_bin_quitado("Sony")
+
+    assert [c.orden for c in ventana.clips] == [1, 2]
+
+
+def test_quitar_un_bin_limpia_el_historial(qtbot, ventana):
+    """El historial guarda INDICES de clip: despues de correrlos ya no
+    apunta a lo mismo, y deshacer moveria el clip equivocado."""
+    ventana.load_clips([_clip(0, "/cam/A.MP4"), _clip(1, "/dron/D.MP4")])
+    ventana.bins.agregar("Sony", Path("/cam"), [0])
+    ventana.bins.agregar("Dron", Path("/dron"), [1])
+    ventana.select_clip(1)
+    ventana.handle_key_press("p")
+    assert ventana.history.entries()
+
+    ventana._on_bin_quitado("Sony")
+
+    assert ventana.history.entries() == []
+
+
+def test_quitar_el_ultimo_bin_deja_el_proyecto_vacio_sin_reventar(qtbot, ventana):
+    ventana.load_clips([_clip(0, "/cam/A.MP4")])
+    ventana.bins.agregar("Sony", Path("/cam"), [0])
+
+    ventana._on_bin_quitado("Sony")
+
+    assert ventana.clips == []
+    assert ventana.bins.nombres() == []
+    assert ventana.current_index == 0
+
+
+def test_quitar_un_bin_que_no_existe_no_hace_nada(qtbot, ventana):
+    ventana.load_clips([_clip(0, "/cam/A.MP4")])
+    ventana.bins.agregar("Sony", Path("/cam"), [0])
+
+    ventana._on_bin_quitado("Fantasma")
+
+    assert len(ventana.clips) == 1
+
+
+def test_el_menu_de_proxies_llama_al_bin_que_se_toco(qtbot, ventana, monkeypatch):
+    ventana.load_clips([_clip(0, "/dron/D.MP4")])
+    ventana.bins.agregar("Dron", Path("/dron"), [0])
+    ventana._refresh_sheet()
+    llamados = []
+    monkeypatch.setattr(ventana, "adjuntar_proxies_de_bin", llamados.append)
+
+    ventana.clip_sheet.bin_header_widget("Dron").proxies_requested.emit("Dron")
+
+    assert llamados == ["Dron"]
+
+
+def test_quitar_proxies_desde_el_menu_llega_a_la_ventana(qtbot, ventana, monkeypatch):
+    ventana.load_clips([_clip(0, "/dron/D.MP4")])
+    ventana.bins.agregar("Dron", Path("/dron"), [0])
+    ventana._refresh_sheet()
+    llamados = []
+    monkeypatch.setattr(ventana, "quitar_proxies_de_bin", llamados.append)
+
+    ventana.clip_sheet.bin_header_widget("Dron").proxies_cleared.emit("Dron")
+
+    assert llamados == ["Dron"]
+
+
+def test_seleccionar_el_bin_desde_el_menu_selecciona_sus_clips(qtbot, ventana):
+    ventana.load_clips([_clip(0, "/cam/A.MP4"), _clip(1, "/dron/D.MP4"),
+                        _clip(2, "/dron/E.MP4")])
+    ventana.bins.agregar("Sony", Path("/cam"), [0])
+    ventana.bins.agregar("Dron", Path("/dron"), [1, 2])
+    ventana._refresh_sheet()
+
+    ventana.clip_sheet.bin_header_widget("Dron").select_all_requested.emit("Dron")
+
+    assert ventana.clip_sheet.selected_indices() == [1, 2]
+
+
+def test_quitar_del_proyecto_desde_el_menu_llega_a_la_ventana(qtbot, ventana):
+    ventana.load_clips([_clip(0, "/cam/A.MP4"), _clip(1, "/dron/D.MP4")])
+    ventana.bins.agregar("Sony", Path("/cam"), [0])
+    ventana.bins.agregar("Dron", Path("/dron"), [1])
+    ventana._refresh_sheet()
+
+    ventana.clip_sheet.bin_header_widget("Sony").remove_requested.emit("Sony")
+
+    assert [c.ruta for c in ventana.clips] == [Path("/dron/D.MP4")]
+
+
+def test_renombrar_desde_el_menu_llega_a_la_ventana(qtbot, ventana):
+    ventana.load_clips([_clip(0, "/dron/D.MP4")])
+    ventana.bins.agregar("Dron", Path("/dron"), [0])
+    ventana._refresh_sheet()
+
+    ventana.clip_sheet.bin_header_widget("Dron").rename_requested.emit(
+        "Dron", "Dron DJI")
+
+    assert ventana.bins.nombres() == ["Dron DJI"]

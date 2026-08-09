@@ -177,6 +177,23 @@ def _gigas_del_volumen(ruta: Path) -> int | None:
         return None
 
 
+def _corrido(mapa: dict, fuera: set[int]) -> dict:
+    """Reindexa un diccionario que va por indice de clip, despues de quitar
+    los indices de `fuera`.
+
+    La app tiene SEIS diccionarios asi --duraciones, tamaños, rotaciones,
+    tamaños de proxy, candidatos a proxy y generaciones de sondeo-- y todos
+    tienen que correrse en la misma operacion. Cualquiera que se quede
+    atras describe a otro clip y no da ningun sintoma hasta que un video se
+    dibuja acostado o un proxy ajeno se engancha como bueno.
+    """
+    return {
+        i - sum(1 for q in fuera if q < i): v
+        for i, v in mapa.items()
+        if i not in fuera
+    }
+
+
 class _ProxyProbeJob(QRunnable):
     """Sondea UN proxy fuera del hilo de la UI.
 
@@ -330,6 +347,12 @@ class MainWindow(QWidget):
         self.clip_sheet.brocha_paso_por.connect(self.pintar)
         self.clip_sheet.selection_changed.connect(self._on_selection_changed)
         self.clip_sheet.filters_changed.connect(self.set_filters)
+        # los encabezados de bin nacen y mueren con las importaciones, asi
+        # que se enchufan cuando nacen y no una sola vez al arrancar
+        # El encabezado PEGADO no se conecta aqui: la hoja ya le reenvia lo
+        # suyo al encabezado de verdad del mismo bin. Conectarlo tambien
+        # haria que cada renglon de su menu se ejecutara dos veces.
+        self.clip_sheet.bin_header_created.connect(self._conectar_bin)
 
         self.status_bar = StatusBar()
         self.status_bar.unclassified_clicked.connect(self._filtrar_sin_clasificar)
@@ -1412,6 +1435,64 @@ class MainWindow(QWidget):
         original, que es lo que hace `_sondear_proxies` al final."""
         self._sondear_proxies({}, indices=self.bins.clips_de(nombre_de_bin))
 
+    # --- el menu del bin -------------------------------------------------
+
+    def _conectar_bin(self, cabecera) -> None:
+        """La hoja crea un encabezado por bin; aqui se le enchufa la ventana.
+
+        Se llama cada vez que nace un encabezado, no una sola vez al
+        arrancar: los bins aparecen y desaparecen con las importaciones.
+        """
+        cabecera.rename_requested.connect(self._on_bin_renombrado)
+        cabecera.proxies_requested.connect(self.adjuntar_proxies_de_bin)
+        cabecera.proxies_cleared.connect(self.quitar_proxies_de_bin)
+        cabecera.select_all_requested.connect(self._on_bin_seleccionado)
+        cabecera.remove_requested.connect(self._on_bin_quitado)
+
+    def _on_bin_renombrado(self, viejo: str, nuevo: str) -> None:
+        self.bins.renombrar(viejo, nuevo)
+        # `force_rebuild` no: reconstruir la hoja tiraria las portadas ya
+        # cargadas, y aqui no cambio ni un clip -- solo como se llama su bin.
+        self._refresh_sheet()
+        self._autosave()
+
+    def _on_bin_seleccionado(self, nombre: str) -> None:
+        self.clip_sheet.set_selected(set(self.bins.clips_de(nombre)))
+
+    def _on_bin_quitado(self, nombre: str) -> None:
+        """Saca los clips del proyecto. NO borra nada del disco.
+
+        Todo lo que va indexado por clip tiene que correrse junto, o queda
+        describiendo al clip equivocado.
+        """
+        quitados = self.bins.quitar(nombre)
+        if not quitados:
+            return
+        fuera = set(quitados)
+        self.clips = [c for i, c in enumerate(self.clips) if i not in fuera]
+        for orden, clip in enumerate(self.clips, start=1):
+            clip.orden = orden
+        self._clip_durations = _corrido(self._clip_durations, fuera)
+        self._clip_sizes = _corrido(self._clip_sizes, fuera)
+        self._clip_rotations = _corrido(self._clip_rotations, fuera)
+        self._proxy_sizes = _corrido(self._proxy_sizes, fuera)
+        self._proxy_candidatos = _corrido(self._proxy_candidatos, fuera)
+        # este es el mas traicionero de los seis: una generacion que
+        # sobrevive apuntando a otro clip hace que un resultado viejo se
+        # acepte como valido y enganche un proxy ajeno.
+        self._proxy_generacion_de = _corrido(self._proxy_generacion_de, fuera)
+        self.bins.reindexar_tras_quitar(quitados)
+        # el historial guarda INDICES de clip: despues de correrlos ya no
+        # apunta a lo mismo, y deshacer moveria el clip equivocado.
+        self.history.clear()
+        self._refresh_history()
+        self.current_index = min(self.current_index, max(0, len(self.clips) - 1))
+        # `force_rebuild` SI: hay menos tarjetas que antes, y `update_clips`
+        # solo sabe actualizar en el lugar cuando el largo no cambio.
+        self._refresh_sheet(force_rebuild=True)
+        self._abrir_clip_actual()
+        self._autosave()
+
     def _sondear_proxies(self, emparejados: dict[Path, Path | None],
                          indices: list[int] | None = None) -> None:
         """Manda a comprobar cada proxy en segundo plano.
@@ -2110,6 +2191,13 @@ class MainWindow(QWidget):
 
     def _refresh_sheet(self, force_rebuild: bool = False) -> None:
         active_rooms = self.room_selection.active_rooms()
+        # el bin de cada clip, de una sola pasada: `bins.bin_de` recorre
+        # todos los bins, y llamarlo por clip seria recorrerlos 151 veces
+        # en cada refresco -- y esto se refresca en cada tecla.
+        bin_de: dict[int, str] = {}
+        for nombre in self.bins.nombres():
+            for indice in self.bins.clips_de(nombre):
+                bin_de[indice] = nombre
         thumbs = [
             ClipThumbnail(
                 path=clip.ruta,
@@ -2130,9 +2218,14 @@ class MainWindow(QWidget):
                     else None
                 ),
                 aspect_ratio=self.aspect_ratio_for(index),
+                bin_nombre=bin_de.get(index, ""),
             )
             for index, clip in enumerate(self.clips)
         ]
+        # el orden va ANTES de las tarjetas: si llegara despues, la primera
+        # agrupada saldria con los bins en el orden equivocado y se veria
+        # saltar.
+        self.clip_sheet.set_bin_order(self.bins.nombres())
         if force_rebuild:
             self.clip_sheet.set_clips(thumbs)
         elif len(thumbs) > self.clip_sheet.count():
@@ -2142,6 +2235,7 @@ class MainWindow(QWidget):
             # actualiza en el lugar: eso es lo que preserva las miniaturas ya
             # cargadas por los _ThumbnailJob al navegar o clasificar.
             self.clip_sheet.update_clips(thumbs)
+        self._refrescar_meta_de_bins()
         # la MISMA lista que recorren las flechas: si se calcularan por
         # separado, la hoja y la navegacion se desincronizan
         indices = self.queue()
@@ -2154,3 +2248,24 @@ class MainWindow(QWidget):
         self._refresh_rail()
         self._refresh_overlays()
         self._update_scrub_bar()
+
+    def _refrescar_meta_de_bins(self) -> None:
+        """La carpeta de origen y cuantos proxies engancharon, por bin.
+
+        Los proxies se cuentan de `ruta_proxy`, que es el que YA valido
+        cuadro a cuadro. Contar los candidatos daria un «23/23» optimista
+        justo cuando dos no calzaron -- y ese «21/23» es el dato que la
+        insignia existe para mostrar.
+        """
+        for nombre in self.bins.nombres():
+            indices = self.bins.clips_de(nombre)
+            enganchados = sum(
+                1 for i in indices
+                if i < len(self.clips) and self.clips[i].ruta_proxy is not None
+            )
+            origen = self.bins.origen_de(nombre)
+            self.clip_sheet.set_bin_meta(
+                nombre,
+                origen=origen.name if origen is not None else "",
+                proxies=(enganchados, len(indices)),
+            )

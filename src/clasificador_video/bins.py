@@ -49,6 +49,15 @@ class BinTree:
                 return list(b.clips)
         return []
 
+    def origen_de(self, nombre: str) -> Path | None:
+        """La carpeta de la que salio el bin. El encabezado la escribe
+        debajo del nombre, en mono y apagada, para responder «¿de que
+        tarjeta salio esto?» sin cambiar de vista."""
+        for b in self._bins:
+            if b.nombre == nombre:
+                return b.origen
+        return None
+
     def bin_de(self, indice: int) -> str | None:
         for b in self._bins:
             if indice in b.clips:
