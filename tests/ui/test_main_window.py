@@ -8,6 +8,7 @@ from clasificador_video.player import QUALITY_PROFILES
 from clasificador_video.rooms import RoomSelection
 from clasificador_video.ui import theme
 from clasificador_video.ui.main_window import MainWindow
+from clasificador_video.ui.video_stage import VideoStage
 from clasificador_video.ui.video_widget import VideoWidget
 
 
@@ -1812,21 +1813,24 @@ def test_todas_las_teclas_que_dibuja_la_interfaz_existen(qtbot):
     # como los escribe la interfaz -> como los nombra Qt
     equivalencias = {
         "←": "Left", "→": "Right", ",": ",", ".": ".",
-        "L": "L", "K": "K", "espacio": "Space",
+        "L": "L", "K": "K", "espacio": "Space", "F": "F", "esc": "Esc",
     }
     for simbolo, secuencia in equivalencias.items():
         if simbolo in dibujadas:
             assert secuencia in registrados, f"la interfaz dibuja {simbolo} y no existe"
 
 
-def test_la_fila_de_teclas_no_promete_lo_que_no_esta_construido(qtbot):
-    """`F` (solo video) y `esc` son de fases posteriores. Aparecen en el
-    mockup, pero anunciarlos antes de construirlos es exactamente el bug que
-    esta guarda existe para evitar."""
+def test_la_fila_de_teclas_anuncia_F_y_esc_ahora_que_existen(qtbot):
+    """Hasta la F6 esta guarda exigia lo CONTRARIO --que no aparecieran--,
+    porque anunciar una tecla que no hace nada es el bug que este proyecto ya
+    tuvo cuatro veces. La F7 construyo el modo solo video, asi que ahora
+    tienen que estar: la guarda cambio de lado, no se borro."""
     from clasificador_video.ui.video_stage import KEYS_HINT_TEXT
 
-    assert " F " not in KEYS_HINT_TEXT
-    assert "esc" not in KEYS_HINT_TEXT
+    window = _window_with_video(qtbot)
+    registrados = {s.key().toString() for s in window._shortcuts}
+    assert "F" in KEYS_HINT_TEXT and "F" in registrados
+    assert "esc" in KEYS_HINT_TEXT and "Esc" in registrados
 
 
 # --- las teclas sueltas no pueden robarle lo que escribes al buscador --------
@@ -2264,3 +2268,93 @@ def test_la_paleta_muestra_los_cuartos_con_sus_conteos(qtbot):
 def test_el_enter_esta_registrado(qtbot):
     window = _window_with_video(qtbot)
     assert "Return" in {s.key().toString() for s in window._shortcuts}
+
+
+# --- F7 Task 12: `F` -- solo video -------------------------------------------
+
+
+def test_F_esconde_todo_menos_el_video(qtbot):
+    window = _window_with_video(qtbot)
+    window.load_clips([_clip(1)])
+    window.handle_key_press("f")
+    for panel in (window.room_rail, window.tool_column, window.clip_sheet,
+                  window.title_bar, window.status_bar):
+        assert panel.isHidden(), panel.objectName()
+    assert not window.video_stage.isHidden()
+
+
+def test_F_otra_vez_devuelve_todo(qtbot):
+    window = _window_with_video(qtbot)
+    window.load_clips([_clip(1)])
+    window.handle_key_press("f")
+    window.handle_key_press("f")
+    assert not window.room_rail.isHidden()
+    assert not window.clip_sheet.isHidden()
+
+
+def test_en_solo_video_el_video_usa_todo_el_ancho_que_puede(qtbot):
+    """Si escondiera los paneles sin recalcular, quedaria el mismo video con
+    franjas negras al costado -- justo lo que este rediseño evita."""
+    window = _window_with_video(qtbot)
+    window.resize(1600, 1000)
+    window.show()
+    qtbot.waitExposed(window)
+    window.load_clips([_clip(1)])
+    qtbot.wait(20)
+    antes = window.video_stage.width()
+    window.handle_key_press("f")
+    qtbot.wait(20)
+    assert window.video_stage.width() > antes
+
+
+def test_en_solo_video_las_teclas_siguen_funcionando(qtbot):
+    """Es una vista, no un modo aparte: sigues clasificando sin ver la hoja."""
+    window = _window_with_video(qtbot, rooms=("Cocina",))
+    window.load_clips([_clip(1), _clip(2)])
+    window.handle_key_press("f")
+    window.handle_key_press("p")
+    assert window.clips[0].flag == "pick"
+    window.handle_key_press("1")
+    assert window.clips[0].categoria_path == ["Cocina"]
+
+
+def test_esc_sale_de_solo_video(qtbot):
+    """`esc` es la salida universal: si solo saliera con `F`, quien entro sin
+    querer no sabe como volver."""
+    window = _window_with_video(qtbot)
+    window.load_clips([_clip(1)])
+    window.handle_key_press("f")
+    window.handle_key_press("escape")
+    assert not window.room_rail.isHidden()
+
+
+def test_esc_sin_estar_en_solo_video_no_hace_nada(qtbot):
+    window = _window_with_video(qtbot)
+    window.load_clips([_clip(1)])
+    window.handle_key_press("escape")
+    assert not window.room_rail.isHidden()
+
+
+def test_las_teclas_de_solo_video_estan_registradas(qtbot):
+    window = _window_with_video(qtbot)
+    registrados = {s.key().toString() for s in window._shortcuts}
+    assert "F" in registrados
+    assert "Esc" in registrados
+
+
+def test_en_solo_video_tambien_se_usa_el_alto_de_las_barras_escondidas(qtbot):
+    """La barra de titulo y la de estado ya no estan: seguir restando su alto
+    dejaba el video mas chico de lo que cabe. Con un clip vertical, que es
+    donde el alto manda, eso son 33 px de ancho perdidos."""
+    window = _window_with_video(qtbot)
+    window.resize(1600, 1000)
+    window.show()
+    qtbot.waitExposed(window)
+    window.load_clips([_clip(1)])
+    window._clip_sizes = {0: (2160, 3840)}
+    window.select_clip(0)
+    qtbot.wait(20)
+    window.handle_key_press("f")
+    qtbot.wait(20)
+    assert window.video_stage.height() == 1000
+    assert window.video_stage.width() == VideoStage.width_for(1000, 9 / 16)

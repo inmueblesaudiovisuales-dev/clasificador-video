@@ -20,9 +20,9 @@ BADGE_BORDER_ALPHA = 140
 
 
 # La chuleta bajo la barra. Solo teclas que EXISTEN: anunciar una que no hace
-# nada es el bug que este proyecto ya tuvo cuatro veces. `F` y `esc` los agrega
-# la F7 y la F8, cuando existan.
-KEYS_HINT_TEXT = "←  →  cola  ·  ,  .  cuadro  ·  L  K  velocidad"
+# nada es el bug que este proyecto ya tuvo cuatro veces. `F` y `esc` entraron
+# con la F7, cuando se construyo el modo solo video.
+KEYS_HINT_TEXT = "←  →  cola  ·  ,  .  cuadro  ·  L  K  velocidad  ·  F  ·  esc"
 TOP_SCRIM_HEIGHT = 90
 
 

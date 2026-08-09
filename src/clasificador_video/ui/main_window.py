@@ -159,6 +159,8 @@ class MainWindow(QWidget):
         # el clip actual arranco solo (y el badge `▶ auto` esta prendido).
         # Se apaga en cuanto pausas y no vuelve hasta el siguiente clip.
         self._auto_reproduciendo = False
+        # solo video: los paneles escondidos y el video con todo el ancho
+        self._solo_video = False
         self._router = KeyboardRouter(active_rooms=room_selection.active_rooms())
         self._probe_clip = probe_clip          # inyectable para tests
         self._thumbnail_cache_root = thumbnail_cache_root or default_cache_root()
@@ -268,7 +270,11 @@ class MainWindow(QWidget):
     def _resize_video_stage(self) -> None:
         """El alto del cuerpo se CALCULA, no se lee de los hijos: durante
         `resizeEvent` los hijos todavia tienen el tamaño anterior."""
-        alto_cuerpo = self.height() - theme.TITLEBAR_HEIGHT - theme.STATUSBAR_HEIGHT
+        # en solo video no hay barras que restar: estan escondidas, y seguir
+        # restandolas dejaba el video 33 px mas angosto de lo que cabe
+        alto_cuerpo = self.height()
+        if not self._solo_video:
+            alto_cuerpo -= theme.TITLEBAR_HEIGHT + theme.STATUSBAR_HEIGHT
         ancho = VideoStage.width_for(alto_cuerpo, self.aspect_ratio_for(self.current_index))
         # El minimo REAL de la hoja, no la constante: su encabezado --titulo,
         # buscador, chip de cola y las dos filas de filtros-- pide bastante mas
@@ -276,10 +282,16 @@ class MainWindow(QWidget):
         # pedia mas ancho del que habia, la ventana crecia, eso agrandaba el
         # maximo, el video crecia otra vez... con un clip horizontal la ventana
         # se inflaba de 1600 a 2653 px.
-        minimo_hoja = max(
-            theme.SHEET_MIN_WIDTH, self.clip_sheet.minimumSizeHint().width()
-        )
-        maximo = self.width() - theme.RAIL_WIDTH - theme.TOOLCOL_WIDTH - minimo_hoja
+        if self._solo_video:
+            # sin paneles no hay nada que restarle: el video se lleva la
+            # ventana entera
+            maximo = self.width()
+        else:
+            minimo_hoja = max(
+                theme.SHEET_MIN_WIDTH, self.clip_sheet.minimumSizeHint().width()
+            )
+            maximo = (self.width() - theme.RAIL_WIDTH - theme.TOOLCOL_WIDTH
+                      - minimo_hoja)
         self.video_stage.setFixedWidth(max(1, min(ancho, maximo)))
 
     def aspect_ratio_for(self, index: int) -> float:
@@ -312,6 +324,8 @@ class MainWindow(QWidget):
             ("S", lambda: self.handle_key_press("s")),
             # `⏎`: la paleta de cuartos. Comparte tecla con renombrar en el
             # rail, y por eso el handler mira quien tiene el foco.
+            ("F", lambda: self.handle_key_press("f")),
+            ("Esc", lambda: self.handle_key_press("escape")),
             ("Return", self._on_enter),
             ("Enter", self._on_enter),
             # `J K L`: la convencion de Premiere, Avid y Resolve
@@ -1019,6 +1033,20 @@ class MainWindow(QWidget):
         self._aplicar_velocidad(SPEED_PROFILES[0])
         self.video_widget.player.pause()
 
+    def alternar_solo_video(self) -> None:
+        """`F`: esconde todo menos el video, y lo vuelve a traer.
+
+        No es un modo aparte: las teclas siguen funcionando, asi que se puede
+        seguir clasificando sin la hoja a la vista. Y se recalcula el ancho,
+        porque esconder los paneles sin recalcular dejaria el mismo video con
+        franjas negras al costado -- justo lo que este rediseño evita.
+        """
+        self._solo_video = not self._solo_video
+        for panel in (self.title_bar, self.room_rail, self.tool_column,
+                      self.clip_sheet, self.status_bar):
+            panel.setVisible(not self._solo_video)
+        self._resize_video_stage()
+
     def _pasar_cuadro(self, delta: int) -> None:
         """`.` adelante, `,` atras. La convencion de Premiere, y la unica
         forma de marcar in/out en el cuadro exacto.
@@ -1070,6 +1098,15 @@ class MainWindow(QWidget):
             return
         if key in (",", "."):
             self._pasar_cuadro(1 if key == "." else -1)
+            return
+        if key == "f":
+            self.alternar_solo_video()
+            return
+        if key == "escape":
+            # `esc` es la salida universal: si de solo video solo se saliera
+            # con `F`, quien entro sin querer no sabe como volver
+            if self._solo_video:
+                self.alternar_solo_video()
             return
         if self.current_clip is None:
             return
