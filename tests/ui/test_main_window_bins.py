@@ -1040,3 +1040,76 @@ def test_renombrar_desde_la_ventana_conserva_el_bin_colapsado(qtbot, ventana):
     ventana._on_bin_renombrado("Dron", "Dron DJI")
 
     assert ventana.clip_sheet.bin_collapsed("Dron DJI")
+
+
+# --- el encabezado pegado y la ventana ---------------------------------------
+
+
+def _pegar_encabezado(qtbot, ventana, nombre):
+    """Deja la hoja desplazada hasta que el flotante sea el de `nombre`."""
+    ventana.resize(1000, 420)
+    ventana.show()
+    ventana.alternar_modo_hoja()
+    hoja = ventana.clip_sheet
+    barra = hoja._scroll.verticalScrollBar()
+    qtbot.waitUntil(lambda: barra.maximum() > 0, timeout=2000)
+    barra.setValue(barra.maximum())
+    assert hoja._pegado.nombre == nombre
+    return hoja._pegado
+
+
+def test_el_menu_del_encabezado_pegado_llega_a_la_ventana_UNA_vez(qtbot, ventana,
+                                                                  monkeypatch):
+    """El flotante es una copia del encabezado del bin en el que estas, y
+    reenvia lo suyo al de verdad. Justamente por eso la ventana NO lo
+    conecta: si lo conectara ademas, cada renglon de su menu se ejecutaria
+    dos veces -- y «Quitar del proyecto» dos veces no es un ruido, es otro
+    bin menos.
+    """
+    ventana.load_clips([_clip(i, f"/dron/D{i}.MP4") for i in range(14)])
+    ventana.bins.agregar("Dron", Path("/dron"), list(range(14)))
+    ventana._refresh_sheet()
+    pegado = _pegar_encabezado(qtbot, ventana, "Dron")
+    llamados = []
+    monkeypatch.setattr(ventana, "adjuntar_proxies_de_bin", llamados.append)
+
+    pegado.proxies_requested.emit("Dron")
+
+    assert llamados == ["Dron"]
+
+
+def test_quitar_desde_el_encabezado_pegado_quita_una_sola_vez(qtbot, ventana,
+                                                              monkeypatch):
+    """El caso que de verdad duele si se ejecutara dos veces.
+
+    Se cuentan las LLAMADAS y no el resultado: la segunda no encontraria
+    el bin y se iria callada, asi que mirar los clips que quedan no
+    distingue una ejecucion de dos.
+    """
+    ventana.load_clips([_clip(i, f"/cam/A{i}.MP4") for i in range(14)]
+                       + [_clip(14, "/dron/D.MP4"), _clip(15, "/dron/E.MP4")])
+    ventana.bins.agregar("Sony", Path("/cam"), list(range(14)))
+    ventana.bins.agregar("Dron", Path("/dron"), [14, 15])
+    ventana._refresh_sheet()
+    pegado = _pegar_encabezado(qtbot, ventana, "Sony")
+    llamados = []
+    monkeypatch.setattr(ventana, "_on_bin_quitado", llamados.append)
+
+    pegado.remove_requested.emit("Sony")
+
+    assert llamados == ["Sony"]
+
+
+def test_renombrar_desde_el_encabezado_pegado_llega_una_sola_vez(qtbot, ventana):
+    """Con dos ejecuciones la segunda pediria renombrar «Dron», que ya no
+    existe -- se traga en silencio, pero el bug seguiria ahi."""
+    ventana.load_clips([_clip(i, f"/dron/D{i}.MP4") for i in range(14)])
+    ventana.bins.agregar("Dron", Path("/dron"), list(range(14)))
+    ventana._refresh_sheet()
+    pegado = _pegar_encabezado(qtbot, ventana, "Dron")
+    avisos = []
+    ventana.bins.renombrar = lambda *a: avisos.append(a)
+
+    pegado.rename_requested.emit("Dron", "Dron DJI")
+
+    assert avisos == [("Dron", "Dron DJI")]
