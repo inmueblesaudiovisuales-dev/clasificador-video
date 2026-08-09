@@ -54,3 +54,17 @@ def test_renombrar_carpeta_top_level(tmp_path):
     tree.rename_folder(origen, "Cámara principal")
 
     assert tree.top_level_folders()[0].display_name == "Cámara principal"
+
+
+def test_un_proxy_dentro_de_la_carpeta_importada_no_entra_como_clip(tmp_path):
+    """Si el `S03` entra como material, Bruno ve 256 clips donde hay 128
+    -- y clasifica dos veces el mismo plano sin darse cuenta."""
+    origen = tmp_path / "FX30"
+    origen.mkdir()
+    (origen / "C0001.MP4").touch()
+    (origen / "C0001S03.MP4").touch()
+
+    tree = IngestTree()
+    tree.import_folder(origen)
+
+    assert [p.name for p in tree.top_level_folders()[0].files] == ["C0001.MP4"]

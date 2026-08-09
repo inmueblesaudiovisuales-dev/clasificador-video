@@ -6,6 +6,16 @@ from pathlib import Path
 
 VIDEO_EXTENSIONS = {".mp4", ".mov", ".mxf", ".lrf"}
 
+# Como nombra la camara a los proxies: `C0001.MP4` -> `C0001S03.MP4`. Vive
+# aca, junto a las extensiones, porque las dos son lo mismo -- hechos sobre
+# COMO SE LLAMAN los archivos que salen de la tarjeta. Emparejarlos ya es
+# otro problema y vive en `proxy_match.py`, que importa de aca.
+SUFIJO_PROXY = "S03"
+
+
+def es_archivo_de_proxy(ruta: Path) -> bool:
+    return ruta.stem.endswith(SUFIJO_PROXY)
+
 
 @dataclass
 class IngestFolder:
@@ -34,7 +44,11 @@ class IngestTree:
         for path in paths:
             files = sorted(
                 p for p in path.iterdir()
-                if p.is_file() and p.suffix.lower() in VIDEO_EXTENSIONS
+                if p.is_file()
+                and p.suffix.lower() in VIDEO_EXTENSIONS
+                # un proxy no es material: si entra, Bruno ve 256 clips
+                # donde hay 128 y clasifica dos veces el mismo plano.
+                and not es_archivo_de_proxy(p)
             )
             self._folders.append(IngestFolder(source_path=path, display_name=path.name, files=files))
 
