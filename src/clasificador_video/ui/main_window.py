@@ -1234,9 +1234,8 @@ class MainWindow(QWidget):
                desde: int = 0) -> tuple[list[Clip], dict[str, dict]]:
         """Corre `ffprobe` sobre cada archivo y arma los `Clip`.
 
-        Vive aparte porque hay DOS caminos que miden material --cargar de
-        cero y agregar-- y tener la misma lectura escrita dos veces era
-        pedir que se desincronizaran.
+        Vive aparte de `importar_rutas` para separar leer el disco de
+        decidir a que bin va lo leido: la parte cara y la parte con reglas.
 
         `desde` es el indice del primer clip nuevo: todo lo que la ventana
         guarda por INDICE de clip (duraciones, tamaños, rotaciones) sale de
