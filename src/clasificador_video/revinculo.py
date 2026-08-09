@@ -1,0 +1,47 @@
+"""Reencontrar el material cuando el proyecto se abre en otro lado.
+
+Dos pasos, y el segundo es el que importa: **buscar** un candidato, y
+**confirmar** que es el archivo que era. Las camaras renumeran desde cero
+en cada tarjeta --la Sony escribe `C0001.MP4` en todas-- asi que el nombre
+solo no alcanza: enganchar el archivo equivocado es peor que no
+encontrarlo, porque nadie se entera.
+
+Sin Qt.
+"""
+from __future__ import annotations
+
+from pathlib import Path
+
+# cuantos cuadros de diferencia se toleran al confirmar. El mismo margen
+# que usa `_el_proxy_calza`: ffprobe redondea distinto segun el contenedor.
+TOLERANCIA_DE_CUADROS = 1
+
+
+def calza(archivo: Path, tamano_esperado: int | None,
+          cuadros_esperados: int | None, medir) -> bool:
+    """¿Este archivo es el que el proyecto tenia?
+
+    `medir` es la funcion que lee el video (en la app, `probe_clip`); se
+    inyecta para poder probar esto sin ffprobe.
+
+    El tamaño solo ya descarta al tocayo de otra tarjeta. Los cuadros se
+    comprueban ADEMAS cuando el proyecto los sabia, porque dos tomas de la
+    misma duracion pesan distinto pero dos archivos del mismo peso podrian
+    ser el mismo material recodificado.
+    """
+    if tamano_esperado is not None:
+        try:
+            if archivo.stat().st_size != tamano_esperado:
+                return False
+        except OSError:
+            return False
+    if cuadros_esperados is None:
+        return True
+    try:
+        info = medir(archivo)
+    except Exception:
+        # Un archivo que ffprobe no puede leer no es «el que era»: es un
+        # archivo roto con el nombre correcto.
+        return False
+    cuadros = int((info or {}).get("duration_frames") or 0)
+    return abs(cuadros - cuadros_esperados) <= TOLERANCIA_DE_CUADROS
