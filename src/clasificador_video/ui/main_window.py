@@ -312,6 +312,8 @@ class MainWindow(QWidget):
         self._autosave_pool.setMaxThreadCount(1)
 
         self.bins = BinTree()
+        # guarda de reentrada de `_refresh_sheet` (ver ahi el porque)
+        self._refrescando_hoja = False
 
         # ---------------- las tres filas ----------------
         self.title_bar = TitleBar()
@@ -2261,6 +2263,25 @@ class MainWindow(QWidget):
         self.importar_rutas([carpeta])
 
     def _refresh_sheet(self, force_rebuild: bool = False) -> None:
+        # NO REENTRA. La hoja avisa de un filtro nuevo desde adentro de
+        # `set_bin_order` --cuando el bin que estabas filtrando desaparece--
+        # y ese aviso vuelve por `set_filters` hasta aqui, antes de que el
+        # refresco de afuera haya tocado las tarjetas. Sin esta guarda,
+        # quitar un bin hacia DOS `set_clips` seguidos: destruir y recrear
+        # las 132 tarjetas dos veces, en la unica operacion destructiva de la
+        # app y en el terreno donde ya hubo tres segfaults.
+        #
+        # Saltarse el de adentro no pierde nada: `self.filters` ya quedo
+        # actualizado antes de la llamada, y el de afuera lo lee mas abajo.
+        if self._refrescando_hoja:
+            return
+        self._refrescando_hoja = True
+        try:
+            self._refrescar_hoja_de_verdad(force_rebuild)
+        finally:
+            self._refrescando_hoja = False
+
+    def _refrescar_hoja_de_verdad(self, force_rebuild: bool) -> None:
         active_rooms = self.room_selection.active_rooms()
         # el bin de cada clip, de una sola pasada: `bins.bin_de` recorre
         # todos los bins, y llamarlo por clip seria recorrerlos 151 veces

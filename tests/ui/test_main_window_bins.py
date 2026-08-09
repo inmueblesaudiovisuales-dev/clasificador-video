@@ -1300,3 +1300,28 @@ def test_renombrar_desde_el_menu_no_destruye_el_menu_bajo_los_pies(qtbot, ventan
     qtbot.wait(10)
 
     assert ventana.bins.nombres() == ["Dron DJI"]
+
+
+def test_quitar_el_bin_que_estabas_filtrando_recrea_las_tarjetas_UNA_vez(
+        qtbot, ventana):
+    """`set_bin_order` corre desde `_refresh_sheet` y, al desaparecer el bin
+    filtrado, la hoja avisa que el filtro volvio a «todos». Ese aviso
+    reentra a `_refresh_sheet` antes de que el de afuera actualice las
+    tarjetas, y quedaban DOS `set_clips` seguidos: destruir y recrear las
+    132 tarjetas dos veces, en la unica operacion destructiva de la app y
+    en el terreno donde ya hubo segfaults.
+    """
+    ventana.load_clips([_clip(0, "/cam/A.MP4"), _clip(1, "/dron/D.MP4")])
+    ventana.bins.agregar("Sony", Path("/cam"), [0])
+    ventana.bins.agregar("Dron", Path("/dron"), [1])
+    ventana._refresh_sheet()
+    ventana.clip_sheet.chip_de_bin("Dron").click()
+    veces = []
+    original = ventana.clip_sheet.set_clips
+    ventana.clip_sheet.set_clips = lambda thumbs: (veces.append(len(thumbs)),
+                                                   original(thumbs))[1]
+
+    ventana._on_bin_quitado("Dron")
+
+    assert len(veces) == 1
+    assert ventana.filters.bin == "todos"
