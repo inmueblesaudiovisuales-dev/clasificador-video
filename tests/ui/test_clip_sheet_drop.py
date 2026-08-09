@@ -246,3 +246,61 @@ def test_la_franja_de_un_bin_colapsado_es_solo_su_encabezado(qtbot, tmp_path):
     arriba = cabecera.mapTo(hoja, cabecera.rect().topLeft()).y()
 
     assert hoja._regiones_de_bin() == [["Sony", arriba, arriba + cabecera.height()]]
+
+
+# --- lo que dice el cartel es lo que va a entrar (revision final) ----------
+
+
+def test_el_cartel_cuenta_los_videos_de_la_carpeta_no_la_carpeta(qtbot, tmp_path):
+    """Soltar una carpeta de 23 clips decia «1 archivo»: se contaban las
+    URLs crudas. Lo que importa es lo que VA A ENTRAR."""
+    carpeta = tmp_path / "02. VIDEO DRONE"
+    carpeta.mkdir()
+    for i in range(3):
+        (carpeta / f"DJI_{i}.MP4").touch()
+    (carpeta / "notas.txt").touch()
+    hoja = _hoja(qtbot, [_thumb(0, bin_nombre="Dron")], bins=["Dron"])
+
+    _arrastrar_encima(hoja, [carpeta], _centro_del_encabezado(hoja, "Dron"))
+
+    assert "3" in hoja.bin_header_widget("Dron").drop_label.text()
+
+
+def test_el_cartel_dice_a_cuantos_se_suman(qtbot, tmp_path):
+    """«se suman a los 23 que ya tiene», como el mockup: el dato lo
+    tenemos y es lo que responde «¿voy a duplicar la tarjeta?»."""
+    archivo = tmp_path / "nuevo.MP4"
+    archivo.touch()
+    hoja = _hoja(
+        qtbot,
+        [_thumb(0, bin_nombre="Dron"), _thumb(1, bin_nombre="Dron")],
+        bins=["Dron", "Sony"],
+    )
+
+    _arrastrar_encima(hoja, [archivo], _centro_del_encabezado(hoja, "Dron"))
+
+    assert "2" in hoja.bin_header_widget("Dron").drop_label.text()
+
+
+def test_soltar_algo_que_no_es_video_lo_dice_en_vez_de_prometer_uno(
+        qtbot, tmp_path):
+    notas = tmp_path / "notas.txt"
+    notas.touch()
+    hoja = _hoja(qtbot, [_thumb(0, bin_nombre="Dron")], bins=["Dron"])
+
+    _arrastrar_encima(hoja, [notas], _centro_del_encabezado(hoja, "Dron"))
+
+    texto = hoja.bin_header_widget("Dron").drop_label.text()
+    assert "1 archivo" not in texto
+    assert "ningún video" in texto
+
+
+def test_la_zona_de_bin_nuevo_tampoco_promete_un_bin_vacio(qtbot, tmp_path):
+    notas = tmp_path / "notas.txt"
+    notas.touch()
+    hoja = _hoja(qtbot, [_thumb(0, bin_nombre="Dron")], bins=["Dron"])
+
+    _arrastrar_encima(hoja, [notas], QPoint(20, hoja.height() - 4))
+
+    assert "ningún video" in hoja.zona_de_bin_nuevo().title_label.text()
+    assert not hoja.zona_de_bin_nuevo().property("activa")

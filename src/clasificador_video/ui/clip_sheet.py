@@ -22,6 +22,7 @@ from PySide6.QtWidgets import (
 )
 
 from clasificador_video.filters import FilterState
+from clasificador_video.ingest import archivos_de_video
 from clasificador_video.ui import theme
 from clasificador_video.ui.text import ElidedLabel
 
@@ -818,6 +819,11 @@ class _BinHeader(QWidget):
     def set_soltando(self, activo: bool, cuantos: int = 0) -> None:
         """El resaltado de «suelta aquí y va a este bin» (pantalla 4).
 
+        `cuantos` son los VIDEOS que van a entrar, no los iconos que
+        soltaste: una carpeta es un icono y veintitrés clips, y un `.txt`
+        es un icono y nada. Prometer «1 archivo» en los dos casos es
+        mentirle al gesto justo antes de hacerlo.
+
         Es una propiedad y no un `setStyleSheet` por bin: el arrastre manda
         un evento por cada movimiento del mouse, y repolir un widget entero
         en cada uno seria repintar la hoja sesenta veces por segundo.
@@ -825,12 +831,15 @@ class _BinHeader(QWidget):
         activo = bool(activo)
         self.drop_label.setVisible(activo)
         if activo:
-            # cuantos archivos traes es lo que el mockup pone en la zona: sin
-            # el numero no sabes si soltaste la carpeta o un archivo suelto
-            self.drop_label.setText(
-                f"＋ soltar aquí · {cuantos} archivos" if cuantos != 1
-                else "＋ soltar aquí · 1 archivo"
-            )
+            if not cuantos:
+                texto = "＋ aquí no hay ningún video"
+            else:
+                # «se suman a los 23 que ya tiene», como el mockup: es lo que
+                # responde «¿estoy por importar esto dos veces?»
+                plural = "videos" if cuantos != 1 else "video"
+                texto = (f"＋ soltar aquí · {cuantos} {plural} · "
+                         f"se suman a los {self._cuantos} que ya tiene")
+            self.drop_label.setText(texto)
         if self.property("soltando") != activo:
             self.setProperty("soltando", activo)
             self.style().unpolish(self)
@@ -965,6 +974,9 @@ class _ZonaDeBinNuevo(QWidget):
     tiempo, y ademas le comeria alto a las tarjetas.
     """
 
+    HINT = ("suelta aquí y se crea un bin con el nombre de la carpeta · "
+            "lo renombras con doble clic")
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setObjectName("dropNew")
@@ -976,23 +988,34 @@ class _ZonaDeBinNuevo(QWidget):
         self.title_label = QLabel("＋ Bin nuevo")
         self.title_label.setObjectName("dropNewTitle")
         self.title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.hint_label = QLabel(
-            "suelta aquí y se crea un bin con el nombre de la carpeta · "
-            "lo renombras con doble clic"
-        )
+        self.hint_label = QLabel(self.HINT)
         self.hint_label.setObjectName("dropNewHint")
         self.hint_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         columna.addWidget(self.title_label)
         columna.addWidget(self.hint_label)
         self.hide()
 
-    def set_carpeta(self, nombre: str) -> None:
+    def set_carpeta(self, nombre: str, cuantos: int = 0) -> None:
         """El nombre que va a tener el bin, que es el de la carpeta que
         traes. Con varias carpetas o archivos sueltos se queda generico:
-        adivinar cual manda seria decir un nombre que no va a salir."""
+        adivinar cual manda seria decir un nombre que no va a salir.
+
+        Sin ningun video no se promete bin: al soltar no naceria, y el
+        cartel habria dicho que si.
+        """
+        if not cuantos:
+            self.title_label.setText("＋ aquí no hay ningún video")
+            # el subtitulo tambien: dejarlo prometiendo el bin decia lo
+            # contrario del renglon de arriba
+            self.hint_label.setText(
+                "se aceptan .mp4, .mov, .mxf y .lrf · los proxies de cámara "
+                "se descartan a propósito"
+            )
+            return
         self.title_label.setText(
             f"＋ Bin nuevo: «{nombre}»" if nombre else "＋ Bin nuevo"
         )
+        self.hint_label.setText(self.HINT)
 
     def set_activa(self, activa: bool) -> None:
         """Encendida = el cursor esta sobre ella, no sobre un bin. Las dos
@@ -1344,6 +1367,8 @@ class ClipSheet(QWidget):
         # alcanza para las dos zonas.
         self.setAcceptDrops(True)
         self._zona_nueva = _ZonaDeBinNuevo()
+        # (rutas soltadas, cuantos videos tienen). Ver `_cuantos_videos`.
+        self._cache_de_arrastre: tuple[tuple, int] | None = None
 
         # QSS no tiene `mask-image`: el desvanecido al pie se hace con un
         # widget de degradado encima, transparente al mouse.
@@ -1963,18 +1988,43 @@ class ClipSheet(QWidget):
         nuevo. Nunca las dos, que seria prometer dos cosas distintas."""
         destino = None if punto is None else self._bin_bajo(punto)
         rutas = self._rutas_de(mime) if mime is not None else []
+        cuantos = self._cuantos_videos(rutas)
         for nombre, cabecera in self._bin_headers.items():
-            cabecera.set_soltando(nombre == destino, len(rutas))
+            cabecera.set_soltando(nombre == destino, cuantos)
         # el flotante tapa al encabezado de verdad: si no se marcara tambien,
         # el unico encabezado que estas viendo se quedaria apagado
         if not self._pegado.isHidden():
-            self._pegado.set_soltando(self._pegado.nombre == destino, len(rutas))
+            self._pegado.set_soltando(self._pegado.nombre == destino, cuantos)
         if punto is None:
             self._zona_nueva.hide()
             return
-        self._zona_nueva.set_carpeta(self._nombre_probable(rutas))
-        self._zona_nueva.set_activa(destino is None)
+        self._zona_nueva.set_carpeta(self._nombre_probable(rutas), cuantos)
+        self._zona_nueva.set_activa(destino is None and bool(cuantos))
         self._zona_nueva.show()
+
+    def _cuantos_videos(self, rutas: list[Path]) -> int:
+        """Cuantos videos entrarian de verdad, con la MISMA regla que usa la
+        importacion (`archivos_de_video`): una carpeta cuenta por sus clips,
+        y los proxies de camara y los `.txt` no cuentan.
+
+        Se cachea por tanda porque esto mira el disco y el arrastre dispara
+        un evento por cada movimiento del mouse: sin cache seria un
+        `iterdir` sesenta veces por segundo sobre una tarjeta SD.
+        """
+        if not rutas:
+            self._cache_de_arrastre = None
+            return 0
+        clave = tuple(rutas)
+        if self._cache_de_arrastre and self._cache_de_arrastre[0] == clave:
+            return self._cache_de_arrastre[1]
+        try:
+            cuantos = len(archivos_de_video(rutas))
+        except OSError:
+            # una unidad que se desmonto a mitad del arrastre no puede
+            # tumbar la ventana; el cartel se queda sin numero y ya
+            cuantos = 0
+        self._cache_de_arrastre = (clave, cuantos)
+        return cuantos
 
     @staticmethod
     def _nombre_probable(rutas: list[Path]) -> str:
