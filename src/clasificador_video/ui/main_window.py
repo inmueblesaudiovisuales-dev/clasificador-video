@@ -279,6 +279,10 @@ class MainWindow(QWidget):
         self._miniaturas_pendientes = 0
         self._miniaturas_totales = 0
         self._proxy_generation = 0
+        # indice -> generacion del sondeo que sigue siendo valido para ese
+        # clip. Con bins, cada tanda toca un bin nada mas: el contador
+        # global ya no alcanza para saber que resultado sigue vigente.
+        self._proxy_generacion_de: dict[int, int] = {}
         self.transicion = TransicionDeTarjeta(self)
 
         # autosave con debounce: coalesca ediciones rapidas seguidas en un
@@ -1129,6 +1133,7 @@ class MainWindow(QWidget):
         # llenar despues de llamar aca.
         self._proxy_sizes = {}
         self._proxy_candidatos = {}
+        self._proxy_generacion_de = {}
         # y los bins: van por INDICE de clip, igual que el historial y los
         # proxies de arriba. Dejarlos vivos aca era el bug real -- una
         # sesion restaurada de 109 clips mas una carpeta importada quedaba
@@ -1378,22 +1383,39 @@ class MainWindow(QWidget):
         )
         self._sondear_proxies(emparejados)
 
-    def _sondear_proxies(self, emparejados: dict[Path, Path | None]) -> None:
+    def _sondear_proxies(self, emparejados: dict[Path, Path | None],
+                         indices: list[int] | None = None) -> None:
         """Manda a comprobar cada proxy en segundo plano.
 
         Emparejar es barato (mirar nombres); validar cuesta un `ffprobe`
         por archivo --26.7 ms, o sea 3.4 s en 128 clips-- y eso no puede
         bloquear la ventana.
+
+        `indices` acota a los clips de UN bin. Y acotar significa acotar
+        tambien lo que se limpia: esta funcion arrancaba con
+        `self._proxy_sizes = {}` y reconstruia `_proxy_candidatos` entero,
+        y dejarlo asi haria que enganchar los proxies del dron borrara los
+        de la Sony.
         """
-        self._proxy_sizes = {}
+        alcance = list(range(len(self.clips))) if indices is None else list(indices)
+        for i in alcance:
+            self._proxy_sizes.pop(i, None)
+            self._proxy_candidatos.pop(i, None)
+            self._proxy_generacion_de.pop(i, None)
+            self.clips[i].ruta_proxy = None
         self._proxy_generation += 1
         generation = self._proxy_generation
-        self._proxy_candidatos = {
-            index: emparejados[clip.ruta]
-            for index, clip in enumerate(self.clips)
-            if emparejados.get(clip.ruta) is not None
+        nuevos = {
+            i: emparejados[self.clips[i].ruta]
+            for i in alcance
+            if emparejados.get(self.clips[i].ruta) is not None
         }
-        for index, proxy in self._proxy_candidatos.items():
+        self._proxy_candidatos.update(nuevos)
+        for index, proxy in nuevos.items():
+            # la generacion se anota POR CLIP: el contador global sube en
+            # cada tanda, y compararlo contra el a secas tiraba los
+            # resultados en vuelo del OTRO bin, que nadie invalido.
+            self._proxy_generacion_de[index] = generation
             job = _ProxyProbeJob(generation, index, proxy, self._probe_clip)
             job.signals.done.connect(self._on_proxy_sondeado)
             self._thread_pool.start(job)
@@ -1404,8 +1426,12 @@ class MainWindow(QWidget):
         self._schedule_thumbnails()
 
     def _on_proxy_sondeado(self, generation: int, index: int, info: dict | None) -> None:
-        if generation != self._proxy_generation:
-            return  # resultado de una importacion ya descartada
+        # contra la generacion de ESTE clip, no contra el contador global:
+        # el global sube en cada tanda y con bins las tandas son por bin,
+        # asi que enganchar el dron descartaba los resultados de la Sony
+        # que seguian en vuelo -- y esos ya no vuelven a pedirse.
+        if generation != self._proxy_generacion_de.get(index):
+            return  # resultado de una tanda ya descartada para este clip
         if not info or index >= len(self.clips):
             return
         proxy = self._proxy_candidatos.get(index)

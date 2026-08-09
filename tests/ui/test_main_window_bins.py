@@ -264,6 +264,109 @@ def test_agregar_material_solo_pide_las_portadas_de_los_clips_nuevos(
     assert ventana._thumb_generation == generacion
 
 
+def _con_medidas(ventana, *indices):
+    """Un original medido para cada indice.
+
+    `_el_proxy_calza` compara contra `_clip_durations` y `_clip_sizes`: sin
+    ellos descarta todo y los tests de abajo pasarian por la razon
+    equivocada.
+    """
+    for i in indices:
+        ventana._clip_durations[i] = 10.0   # 300 cuadros a 30 fps
+        ventana._clip_sizes[i] = (1080, 1920)
+
+
+_INFO_QUE_CALZA = {"fps": 30.0, "duration_frames": 300,
+                   "width": 540, "height": 960, "rotation": 0}
+
+
+def test_enganchar_los_proxies_de_un_bin_no_borra_los_del_otro(qtbot, ventana):
+    """El bug que este plan existe para no cometer.
+
+    `_sondear_proxies` arrancaba con `_proxy_sizes = {}`. Al volverse por
+    bin, eso borraria los proxies de la camara que no estas tocando.
+    """
+    ventana.load_clips([_clip(0, "/cam/A.MP4"), _clip(1, "/dron/D.MP4")])
+    ventana.bins.agregar("Sony", Path("/cam"), [0])
+    ventana.bins.agregar("Dron", Path("/dron"), [1])
+    ventana.clips[0].ruta_proxy = Path("/cam/AS03.MP4")
+    ventana._proxy_sizes[0] = (1080, 1920)
+    ventana._proxy_candidatos[0] = Path("/cam/AS03.MP4")
+
+    ventana._sondear_proxies({Path("/dron/D.MP4"): Path("/dron/DPROXY.MP4")},
+                             indices=[1])
+
+    assert ventana.clips[0].ruta_proxy == Path("/cam/AS03.MP4")
+    assert ventana._proxy_sizes[0] == (1080, 1920)
+    assert ventana._proxy_candidatos[0] == Path("/cam/AS03.MP4")
+
+
+def test_volver_a_enganchar_el_mismo_bin_si_limpia_lo_suyo(qtbot, ventana):
+    ventana.load_clips([_clip(0, "/dron/D.MP4")])
+    ventana.bins.agregar("Dron", Path("/dron"), [0])
+    ventana.clips[0].ruta_proxy = Path("/dron/VIEJO.MP4")
+    ventana._proxy_sizes[0] = (1080, 1920)
+
+    ventana._sondear_proxies({Path("/dron/D.MP4"): None}, indices=[0])
+
+    assert ventana.clips[0].ruta_proxy is None
+    assert 0 not in ventana._proxy_sizes
+
+
+def test_sin_indices_el_sondeo_sigue_alcanzando_a_todos(qtbot, ventana):
+    """`indices=None` es el alcance de siempre: todo el proyecto. Lo usa
+    `load_clips` y lo usaria cualquier llamada vieja."""
+    ventana.load_clips([_clip(0, "/cam/A.MP4"), _clip(1, "/cam/B.MP4")])
+    ventana.clips[0].ruta_proxy = Path("/cam/AS03.MP4")
+    ventana.clips[1].ruta_proxy = Path("/cam/BS03.MP4")
+
+    ventana._sondear_proxies({})
+
+    assert [c.ruta_proxy for c in ventana.clips] == [None, None]
+
+
+def test_un_sondeo_del_otro_bin_que_llega_tarde_sigue_contando(qtbot, monkeypatch,
+                                                               ventana):
+    """`_proxy_generation` es global: subirla al enganchar el dron
+    descartaba los trabajos de la Sony que seguian en vuelo, y esos
+    resultados se perdian sin que nada lo dijera. La generacion se compara
+    ahora por clip, no contra el contador global."""
+    ventana.load_clips([_clip(0, "/cam/A.MP4"), _clip(1, "/dron/D.MP4")])
+    _con_medidas(ventana, 0, 1)
+    espia = _PoolEspia()
+    monkeypatch.setattr(ventana, "_thread_pool", espia)
+
+    ventana._sondear_proxies({Path("/cam/A.MP4"): Path("/cam/AS03.MP4")},
+                             indices=[0])
+    sondeos = [j for j in espia.jobs if hasattr(j, "proxy")]
+    ventana._sondear_proxies({Path("/dron/D.MP4"): Path("/dron/DP.MP4")},
+                             indices=[1])
+
+    ventana._on_proxy_sondeado(sondeos[0]._generation, 0, dict(_INFO_QUE_CALZA))
+
+    assert ventana.clips[0].ruta_proxy == Path("/cam/AS03.MP4")
+
+
+def test_un_sondeo_viejo_del_MISMO_bin_se_sigue_descartando(qtbot, monkeypatch,
+                                                            ventana):
+    """La otra mitad: volver a enganchar el mismo bin si invalida lo que
+    quedo corriendo, o el resultado viejo pisaria al nuevo."""
+    ventana.load_clips([_clip(0, "/cam/A.MP4")])
+    _con_medidas(ventana, 0)
+    espia = _PoolEspia()
+    monkeypatch.setattr(ventana, "_thread_pool", espia)
+
+    ventana._sondear_proxies({Path("/cam/A.MP4"): Path("/cam/VIEJO.MP4")},
+                             indices=[0])
+    viejo = [j for j in espia.jobs if hasattr(j, "proxy")][0]
+    ventana._sondear_proxies({Path("/cam/A.MP4"): Path("/cam/NUEVO.MP4")},
+                             indices=[0])
+
+    ventana._on_proxy_sondeado(viejo._generation, 0, dict(_INFO_QUE_CALZA))
+
+    assert ventana.clips[0].ruta_proxy is None
+
+
 @pytest.fixture
 def avisos(monkeypatch):
     """Cachar los QMessageBox: son modales y bajo offscreen cuelgan la suite."""
