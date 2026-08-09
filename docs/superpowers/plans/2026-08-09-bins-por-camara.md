@@ -1102,7 +1102,7 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
   `_group_of` ~1019, `_regroup` ~1030, `_acomodar_de_verdad` ~1264)
 - Test: `tests/ui/test_clip_sheet.py`
 
-- [ ] **Paso 1: escribir los tests que fallan**
+- [x] **Paso 1: escribir los tests que fallan**
 
 ```python
 def test_los_bins_van_en_orden_de_importacion_y_los_cuartos_adentro(qtbot):
@@ -1128,9 +1128,9 @@ def test_un_clip_sin_bin_cae_en_uno_solo_y_no_revienta(qtbot):
     assert hoja.group_titles() == [("", "Cocina")]
 ```
 
-- [ ] **Paso 2: correr y ver que fallan**
+- [x] **Paso 2: correr y ver que fallan**
 
-- [ ] **Paso 3: implementar**
+- [x] **Paso 3: implementar**
 
 `ClipThumbnail` gana un campo:
 
@@ -1180,9 +1180,9 @@ primero):
 > `group_titles()` ahora devuelve tuplas. **Buscar todos sus usos en los tests
 > y arreglarlos**; es el cambio con más radio de impacto de la fase.
 
-- [ ] **Paso 4: correr la suite completa y arreglar lo que caiga**
+- [x] **Paso 4: correr la suite completa y arreglar lo que caiga**
 
-- [ ] **Paso 5: commit**
+- [x] **Paso 5: commit**
 
 ```bash
 git add -A
@@ -1203,7 +1203,7 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 - Modificar: `src/clasificador_video/ui/theme.py` (QSS)
 - Test: `tests/ui/test_clip_sheet.py`
 
-- [ ] **Paso 1: escribir los tests que fallan**
+- [x] **Paso 1: escribir los tests que fallan**
 
 ```python
 def test_hay_un_encabezado_por_bin_arriba_de_su_primer_grupo(qtbot):
@@ -1243,9 +1243,9 @@ def test_colapsar_esconde_las_tarjetas_pero_no_las_saca_de_la_cola(qtbot):
     assert hoja.count() == 1
 ```
 
-- [ ] **Paso 2: correr y ver que fallan**
+- [x] **Paso 2: correr y ver que fallan**
 
-- [ ] **Paso 3: implementar `_BinHeader`**
+- [x] **Paso 3: implementar `_BinHeader`**
 
 ```python
 class _BinHeader(QWidget):
@@ -1296,7 +1296,7 @@ modal y cuelga la suite bajo `offscreen`.
 `_GroupBlock` de cada bin. `_ordered_blocks()` ya filtra por
 `isinstance(..., _GroupBlock)`, así que sigue funcionando sin cambios.
 
-- [ ] **Paso 4: el QSS en `theme.py`**
+- [x] **Paso 4: el QSS en `theme.py`**
 
 ```css
 #binHeader { background: %(BG_SURFACE_1)s; border: 1px solid %(LINE)s;
@@ -1313,7 +1313,7 @@ modal y cuelga la suite bajo `offscreen`.
 > recordar que los tests de UI aplican la hoja de estilo por la fixture de
 > `tests/ui/conftest.py`: sin ella se mide una app que no existe.
 
-- [ ] **Paso 5: que se quede pegado arriba al hacer scroll**
+- [x] **Paso 5: que se quede pegado arriba al hacer scroll**
 
 Esto es nuevo — el `_GroupBlock` de cuarto que hay hoy **no** se pega, se va
 con el scroll. Se hace con un solo encabezado flotante sobre el viewport, no
@@ -1347,7 +1347,7 @@ Test: con dos bins y la hoja desplazada más allá del primer encabezado,
 > caerse sin romper el diseño. Lo que NO se hace es entregarlo a medias y no
 > decirlo.
 
-- [ ] **Paso 6: verificación visual — obligatoria**
+- [x] **Paso 6: verificación visual — obligatoria**
 
 ```python
 # script del scratchpad, NO del repo
@@ -1361,7 +1361,7 @@ encabezado presente, nombre legible, insignia alineada a la derecha, un bin
 colapsado que no deja hueco. Comparar contra la pantalla 1 del mockup. Si no
 se miró la imagen, no se afirma que se ve bien.
 
-- [ ] **Paso 7: commit**
+- [x] **Paso 7: commit**
 
 ```bash
 git add -A
@@ -1381,7 +1381,7 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 - Modificar: `src/clasificador_video/ui/main_window.py`
 - Test: `tests/ui/test_main_window_bins.py`
 
-- [ ] **Paso 1: escribir los tests que fallan**
+- [x] **Paso 1: escribir los tests que fallan**
 
 ```python
 def test_renombrar_un_bin_cambia_el_dato_y_la_hoja(qtbot, ventana):
@@ -1433,14 +1433,14 @@ def test_el_menu_de_proxies_llama_al_bin_que_se_toco(qtbot, ventana, monkeypatch
     assert llamados == ["Dron"]
 ```
 
-- [ ] **Paso 2: correr y ver que fallan**
+- [x] **Paso 2: correr y ver que fallan**
 
 ```bash
 QT_QPA_PLATFORM=offscreen .venv/bin/pytest tests/ui/test_main_window_bins.py -q
 ```
 Esperado: `AttributeError: … has no attribute '_on_bin_renombrado'`
 
-- [ ] **Paso 3: implementar**
+- [x] **Paso 3: implementar**
 
 ```python
     def _conectar_bin(self, cabecera) -> None:
@@ -1504,17 +1504,17 @@ def _corrido(mapa: dict, fuera: set[int]) -> dict:
     }
 ```
 
-- [ ] **Paso 4: correr los tests**
+- [x] **Paso 4: correr los tests**
 
 Esperado: PASS
 
-- [ ] **Paso 5: correr la suite completa**
+- [x] **Paso 5: correr la suite completa**
 
 ```bash
 QT_QPA_PLATFORM=offscreen .venv/bin/pytest tests/ -q
 ```
 
-- [ ] **Paso 6: commit**
+- [x] **Paso 6: commit**
 
 ```bash
 git add -A
