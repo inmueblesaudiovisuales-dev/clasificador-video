@@ -2138,6 +2138,28 @@ def test_llegar_con_la_flecha_a_un_bin_cerrado_lo_abre(qtbot):
     assert not hoja.item_widgets[1].isHidden()
 
 
+def test_llegar_con_la_flecha_a_SIN_BIN_cerrado_tambien_lo_abre(qtbot):
+    """La seccion de sueltos esta arriba de todo y estorba, asi que
+    colapsarla es el gesto obvio. Leyendo `clip.bin_nombre` crudo esto no
+    funcionaba: un clip suelto trae la cadena vacia, y la vacia nunca esta
+    en `_colapsados`, donde lo que vive es «Sin bin». Sintoma: avanzas con
+    las flechas, el video cambia, la seccion no se abre y la tarjeta sigue
+    escondida -- no ves donde estas parado.
+    """
+    hoja = ClipSheet()
+    qtbot.addWidget(hoja)
+    hoja.resize(815, 900)
+    hoja.set_bin_order(["Sony"])
+    hoja.set_clips([_thumb(0, bin_nombre="Sony"), _thumb(1, bin_nombre="")])
+    hoja.centrar_en(0)
+    hoja.set_bin_collapsed(SIN_BIN, True)
+
+    hoja.centrar_en(1)
+
+    assert not hoja.bin_collapsed(SIN_BIN)
+    assert not hoja.item_widgets[1].isHidden()
+
+
 def test_colapsar_el_bin_del_clip_actual_no_lo_reabre_solo(qtbot):
     """Lo abre la flecha que te LLEVA ahi, no cualquier refresco: la hoja
     se refresca en cada tecla, y con eso el bin que acabas de cerrar se

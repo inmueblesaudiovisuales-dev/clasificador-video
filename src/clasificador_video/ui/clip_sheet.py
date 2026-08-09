@@ -2578,9 +2578,13 @@ class ClipSheet(QWidget):
         # adentro-- se reabriria solo al primer pick.
         cambio = index != self._ultimo_centrado
         self._ultimo_centrado = index
-        if (cambio and tarjeta.clip.bin_nombre in self._colapsados
-                and self._es_visible(index)):
-            self.set_bin_collapsed(tarjeta.clip.bin_nombre, False)
+        # por SECCION, como todo lo demas: `_colapsados` guarda «Sin bin», y
+        # un clip suelto trae el nombre VACIO. Leyendolo crudo, colapsar la
+        # seccion de sueltos --el gesto obvio, porque esta arriba estorbando--
+        # dejaba a la flecha llegando ahi sin abrir nada.
+        seccion = self._group_of(tarjeta.clip)[0]
+        if cambio and seccion in self._colapsados and self._es_visible(index):
+            self.set_bin_collapsed(seccion, False)
         if tarjeta.isHidden():
             # la escondio el filtro: el clip actual quedo fuera de la cola y
             # no hay a donde desplazarse
