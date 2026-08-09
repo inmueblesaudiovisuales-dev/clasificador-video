@@ -1877,3 +1877,16 @@ def test_un_bin_colapsado_sigue_colapsado_despues_de_renombrarlo(qtbot):
 
     assert hoja.bin_collapsed("Dron DJI")
     assert hoja.item_widgets[0].isHidden()
+
+
+def test_el_encabezado_pegado_se_distingue_del_que_va_en_el_flujo(qtbot):
+    """El `.bin.stuck` del mockup. Va por propiedad y QSS, no con un
+    `QGraphicsDropShadowEffect`: ese efecto segfauteo en la suite --
+    doble propiedad entre el padre y `setGraphicsEffect`-- y una sombra no
+    vale una caida intermitente.
+    """
+    hoja = ClipSheet()
+    qtbot.addWidget(hoja)
+
+    assert hoja._pegado.property("pegado") is True
+    assert hoja.bin_header_widget("Sony") is None

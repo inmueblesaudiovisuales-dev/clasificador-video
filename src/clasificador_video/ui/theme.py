@@ -828,6 +828,13 @@ def build_stylesheet() -> str:
         border: 1px solid {LINE};
         border-radius: {RADIUS_LG}px;
     }}
+    /* el encabezado PEGADO arriba: sin sombra --ver el comentario en
+       clip_sheet.py-- pero con el borde subido, que es lo otro que el
+       mockup le cambia al `.bin.stuck`. */
+    QWidget#binHeader[pegado="true"] {{
+        background-color: {BG_SURFACE_2};
+        border: 1px solid {aclarar(LINE, 0.18)};
+    }}
     QWidget#binHeader[colapsado="true"] {{
         background-color: {BG_SURFACE_0};
     }}

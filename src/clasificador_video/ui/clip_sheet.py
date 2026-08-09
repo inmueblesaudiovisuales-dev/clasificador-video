@@ -8,7 +8,6 @@ from PySide6.QtCore import QEvent, QPoint, QRect, QRectF, Qt, Signal
 from PySide6.QtGui import QAction, QColor, QFont, QPainter, QPen
 from PySide6.QtWidgets import (
     QButtonGroup,
-    QGraphicsDropShadowEffect,
     QRubberBand,
     QGridLayout,
     QHBoxLayout,
@@ -1171,14 +1170,17 @@ class ClipSheet(QWidget):
         # pegado por bin habria N peleando por la misma franja.
         self._pegado = _BinHeader("", self._scroll.viewport())
         self._pegado.hide()
-        # la sombra del `.bin.stuck` del mockup. QSS no tiene `box-shadow`,
-        # asi que va como efecto -- y solo en ESTE widget, que es uno solo y
-        # no se repinta con el scroll de las tarjetas.
-        sombra = QGraphicsDropShadowEffect(self._pegado)
-        sombra.setBlurRadius(18)
-        sombra.setOffset(0, 8)
-        sombra.setColor(QColor(0, 0, 0, 140))
-        self._pegado.setGraphicsEffect(sombra)
+        # El `.bin.stuck` del mockup, por propiedad y QSS.
+        #
+        # Antes era un `QGraphicsDropShadowEffect` --QSS no tiene
+        # `box-shadow`-- y SEGFAUTEO la suite: el efecto queda con dos
+        # dueños, el padre que se le pasa y el `setGraphicsEffect` que se lo
+        # queda, y eso termina en doble liberacion. Salio una vez cada
+        # ~20 corridas completas, siempre en la linea que lo construye.
+        # El mockup, ademas de la sombra, le sube el borde al `.bin.stuck`,
+        # asi que el estado se sigue leyendo sin ella -- y una caida
+        # intermitente no se cambia por una sombra.
+        self._pegado.setProperty("pegado", True)
         # el flotante es una COPIA del encabezado del bin en el que estas,
         # asi que lo que le hagas tiene que pasarle al de verdad: si no,
         # el menu del encabezado pegado seria decorativo.
