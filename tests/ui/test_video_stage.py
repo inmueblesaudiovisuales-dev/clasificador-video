@@ -560,7 +560,7 @@ def test_ningun_control_de_arriba_se_sale_del_video(qtbot):
     # sin mostrarlo el acomodo de overlays no corre nunca -- el test pasaria
     # sin probar nada.
     stage = _stage_visible(qtbot)
-    stage.file_label.setText("C0087.MP4    87 / 128")
+    stage.set_file_label("C0087.MP4    87 / 128")
     stage.resize(416, 740)
     qtbot.wait(1)
 
@@ -576,7 +576,7 @@ def test_lo_primero_que_se_esconde_es_la_velocidad(qtbot):
     # sin mostrarlo el acomodo de overlays no corre nunca -- el test pasaria
     # sin probar nada.
     stage = _stage_visible(qtbot)
-    stage.file_label.setText("C0087.MP4    87 / 128")
+    stage.set_file_label("C0087.MP4    87 / 128")
     stage.resize(416, 740)
     qtbot.wait(1)
 
@@ -590,7 +590,7 @@ def test_con_ancho_de_sobra_la_velocidad_vuelve(qtbot):
     # sin mostrarlo el acomodo de overlays no corre nunca -- el test pasaria
     # sin probar nada.
     stage = _stage_visible(qtbot)
-    stage.file_label.setText("C0087.MP4    87 / 128")
+    stage.set_file_label("C0087.MP4    87 / 128")
     stage.resize(416, 740)
     qtbot.wait(1)
     stage.resize(529, 940)
@@ -608,10 +608,59 @@ def test_los_badges_no_se_encaraman_con_la_fila_de_arriba(qtbot):
     general: hay que ampliar para notarlo.
     """
     stage = _stage_visible(qtbot)
-    stage.file_label.setText("C0087.MP4    87 / 128")
+    stage.set_file_label("C0087.MP4    87 / 128")
     stage.badges.set_room("Comedor", theme.room_color(0))
     stage.badges.set_proxy("1080p")
     qtbot.wait(1)
 
     fila_de_arriba = stage.quality.geometry().united(stage.file_label.geometry())
     assert not fila_de_arriba.intersects(stage.badges.geometry())
+
+
+# --- textos largos sobre el video (auditoria, pasada 3) ----------------
+
+
+def test_el_nombre_del_archivo_no_se_mete_bajo_los_controles(qtbot):
+    """Un nombre largo --y el de la app es `archivo   87 / 128`-- crecia
+    hasta pasar POR DEBAJO del selector de calidad: se veia el nombre
+    cortado a la mitad por una caja translucida encima.
+
+    QSS no tiene `text-overflow: ellipsis`, asi que hay que cortarlo a
+    mano, igual que en el rail (`ui/text.py`).
+    """
+    stage = _stage_visible(qtbot)
+    stage.set_file_label("UN_NOMBRE_DE_ARCHIVO_MUY_LARGO_PARA_UN_CLIP_0001.MP4    87 / 128")
+    qtbot.wait(1)
+
+    assert not stage.file_label.geometry().intersects(stage.quality.geometry())
+    assert stage.file_label.geometry().right() <= stage.video.width()
+
+
+def test_poner_el_nombre_reacomoda_la_fila_de_arriba(qtbot):
+    """El orden de los eventos otra vez: en la app los datos llegan
+    DESPUES del ultimo resize, asi que colocar los controles solo al
+    redimensionar los deja donde estaban. Ya paso con el pie en la F7.
+    """
+    stage = _stage_visible(qtbot)
+    stage.set_file_label("corto.MP4")
+    qtbot.wait(1)
+    assert not stage.speed.isHidden()
+
+    stage.set_file_label("UN_NOMBRE_DE_ARCHIVO_MUY_LARGO_PARA_UN_CLIP_0001.MP4    87 / 128")
+    qtbot.wait(1)
+
+    assert stage.speed.isHidden() or stage.speed.geometry().right() <= stage.video.width()
+
+
+def test_un_cuarto_de_nombre_largo_no_desborda_la_fila_de_badges(qtbot):
+    """El badge del cuarto crecia con el nombre y empujaba al de `▶ AUTO`
+    fuera de la imagen."""
+    stage = _stage_visible(qtbot)
+    stage.badges.set_room("Recámara principal con vestidor y baño completo",
+                          theme.room_color(0))
+    stage.badges.set_flag("destacado")
+    stage.badges.set_auto(True)
+    stage.badges.set_proxy("720p")
+    qtbot.wait(1)
+
+    assert stage.badges.geometry().right() <= stage.video.width()

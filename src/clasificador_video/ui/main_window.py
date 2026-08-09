@@ -892,7 +892,7 @@ class MainWindow(QWidget):
             )
             return
         if clip is None:
-            stage.file_label.setText("")
+            stage.set_file_label("")
             stage.badges.set_room(None, None)
             stage.badges.set_flag("none")
             stage.badges.set_proxy(None)
@@ -910,15 +910,15 @@ class MainWindow(QWidget):
             indices = self.queue()
             if self.current_index in indices:
                 posicion = indices.index(self.current_index) + 1
-                stage.file_label.setText(
+                stage.set_file_label(
                     f"{nombre}    {posicion} de {len(indices)} en la cola"
                 )
             else:
                 # el clip actual quedo fuera del filtro -- pasa apenas lo
                 # resuelves. Inventarle una posicion ("0 de 12") seria mentir
-                stage.file_label.setText(f"{nombre}    {len(indices)} en la cola")
+                stage.set_file_label(f"{nombre}    {len(indices)} en la cola")
         else:
-            stage.file_label.setText(
+            stage.set_file_label(
                 f"{nombre}    {self.current_index + 1} / {len(self.clips)}"
             )
 

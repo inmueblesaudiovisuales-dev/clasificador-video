@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from PySide6.QtCore import QEvent, QObject, Qt
+from PySide6.QtGui import QFontMetrics
 from PySide6.QtWidgets import QHBoxLayout, QLabel, QVBoxLayout, QWidget
 
 from clasificador_video.player import SPEED_PROFILES
@@ -175,6 +176,7 @@ class VideoStage(QWidget):
         # --- overlays: hijos del VideoWidget, no hermanos ---
         self.scrim = QLabel("", self.video)
         self.scrim.setObjectName("overlayScrim")
+        self._nombre_completo = ""
         self.file_label = QLabel("", self.video)
         self.file_label.setObjectName("overlayFile")
         self.badges = _BadgeRow(self.video)
@@ -353,14 +355,26 @@ class VideoStage(QWidget):
             estorba = fin_pastilla + 12 > ancho - M - self.keys_hint.sizeHint().width()
         self.keys_hint.setVisible(not estorba)
 
+    def set_file_label(self, texto: str) -> None:
+        """El nombre del clip (y su posicion en la cola) sobre el video.
+
+        Pasa por aca y no por `file_label.setText` porque el texto DECIDE
+        el acomodo de la fila de arriba: cuanto queda para el nombre y si
+        el control de velocidad entra. En la app los datos llegan DESPUES
+        del ultimo resize, asi que colocar solo al redimensionar deja los
+        controles donde estaban -- el mismo bug que tuvo el pie en la F7.
+        """
+        if texto == self._nombre_completo:
+            return
+        self._nombre_completo = texto
+        self._place_overlays()
+
     def _place_overlays(self) -> None:
         ancho, alto = self.video.width(), self.video.height()
 
         self.scrim.setGeometry(0, alto - SCRIM_HEIGHT, ancho, SCRIM_HEIGHT)
         self.top_scrim.setGeometry(0, 0, ancho, TOP_SCRIM_HEIGHT)
 
-        self.file_label.adjustSize()
-        self.file_label.move(M, M)
 
         self.quality.adjustSize()
         self.quality.move(ancho - self.quality.width() - M, M)
@@ -377,10 +391,33 @@ class VideoStage(QWidget):
         # vertical el ancho del video sale de la altura, asi que a 800 px de
         # alto el video mide 416 px y ahi el control terminaba en x = -165,
         # fuera de la imagen y encimado con el nombre.
-        cabe = x_velocidad >= self.file_label.x() + self.file_label.width() + 8
+        metricas = QFontMetrics(self.file_label.font())
+        entero = metricas.horizontalAdvance(self._nombre_completo)
+        # cabe si el nombre ENTERO sigue entrando a su lado. Cuando no,
+        # antes de cortar el nombre se va la velocidad: lo eligio Bruno,
+        # porque `J K L` la siguen cambiando y el nombre es lo que te dice
+        # que clip estas viendo.
+        cabe = x_velocidad - M - 8 >= entero
         self.speed.setVisible(cabe)
         if cabe:
             self.speed.move(x_velocidad, M)
+
+        # Y si ni asi entra, se corta con puntos suspensivos. QSS no tiene
+        # `text-overflow: ellipsis`: sin cortarlo, un nombre largo seguia
+        # de largo POR DEBAJO del selector de calidad y se leia partido a
+        # la mitad por una caja translucida encima.
+        limite = (x_velocidad if cabe else self.quality.x()) - M - 8
+        # `elidedText` mide TEXTO y la etiqueta ademas trae relleno del QSS:
+        # cortar a `limite` a secas dejaba la caja ~20 px mas ancha que el
+        # hueco, y volvia a meterse debajo del selector.
+        self.file_label.setText(self._nombre_completo)
+        self.file_label.adjustSize()
+        relleno = self.file_label.width() - metricas.horizontalAdvance(self._nombre_completo)
+        self.file_label.setText(metricas.elidedText(
+            self._nombre_completo, Qt.TextElideMode.ElideMiddle,
+            max(0, limite - relleno)))
+        self.file_label.adjustSize()
+        self.file_label.move(M, M)
 
         # Los badges van debajo de TODA la fila de arriba, no debajo del
         # nombre. El nombre mide 15 px y los controles 25, asi que
