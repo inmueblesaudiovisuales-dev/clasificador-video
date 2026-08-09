@@ -50,6 +50,21 @@ def rutas_relativas(clips: list, bins) -> dict[int, str]:
     return relativas
 
 
+def _tamanos_en_disco(clips: list) -> dict[int, int]:
+    """El peso de cada archivo, para poder confirmarlo al reencontrarlo.
+
+    Lo que no se puede leer se omite: guardar tiene que funcionar con el
+    disco desconectado, o se pierde trabajo justo cuando mas duele.
+    """
+    tamanos: dict[int, int] = {}
+    for indice, clip in enumerate(clips):
+        try:
+            tamanos[indice] = Path(clip.ruta).stat().st_size
+        except OSError:
+            continue
+    return tamanos
+
+
 def a_dict(proyecto: str, rooms: list[str], clips: list, bins,
            tamanos: dict, duraciones: dict, rotaciones: dict) -> dict:
     return {
@@ -64,6 +79,10 @@ def a_dict(proyecto: str, rooms: list[str], clips: list, bins,
         "rotaciones": {str(i): r for i, r in rotaciones.items()},
         "bins": bins.to_list(),
         "relativas": {str(i): r for i, r in rutas_relativas(clips, bins).items()},
+        # El peso en bytes es lo unico con que se puede confirmar que un
+        # archivo reencontrado es el que era: el nombre lo repiten las
+        # camaras y la duracion sola no distingue dos tomas iguales.
+        "bytes": {str(i): t for i, t in _tamanos_en_disco(clips).items()},
     }
 
 

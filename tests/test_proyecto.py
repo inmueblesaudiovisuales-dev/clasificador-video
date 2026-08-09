@@ -148,3 +148,30 @@ def test_una_escritura_fallida_no_deja_basura_en_la_carpeta(tmp_path, monkeypatc
 
     monkeypatch.undo()
     assert list(tmp_path.iterdir()) == []
+
+
+def test_el_proyecto_guarda_el_tamano_de_cada_archivo(tmp_path):
+    """Sin esto no hay como confirmar que un archivo reencontrado es el que
+    era: el nombre lo repiten las camaras y la duracion sola no distingue
+    dos tomas iguales."""
+    archivo = tmp_path / "C0001.MP4"
+    archivo.write_bytes(b"x" * 700)
+    bins = BinTree()
+    bins.agregar("Sony", tmp_path, [0])
+
+    data = a_dict(proyecto="P", rooms=[], clips=[_clip(0, str(archivo))],
+                  bins=bins, tamanos={}, duraciones={}, rotaciones={})
+
+    assert data["bytes"] == {"0": 700}
+
+
+def test_un_archivo_que_ya_no_esta_no_impide_guardar(tmp_path):
+    """Guardar tiene que funcionar con el disco desconectado: si no, se
+    pierde el trabajo justo cuando mas duele."""
+    bins = BinTree()
+    bins.agregar("Sony", Path("/no/existe"), [0])
+
+    data = a_dict(proyecto="P", rooms=[], clips=[_clip(0, "/no/existe/X.MP4")],
+                  bins=bins, tamanos={}, duraciones={}, rotaciones={})
+
+    assert data["bytes"] == {}
