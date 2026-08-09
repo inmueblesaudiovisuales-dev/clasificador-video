@@ -1,5 +1,7 @@
 from pathlib import Path
 
+import pytest
+
 from clasificador_video.bins import BinTree
 from clasificador_video.manifest import Clip
 from clasificador_video.proyecto import a_dict, abrir, guardar, rutas_relativas
@@ -127,3 +129,22 @@ def test_guardar_es_atomico(tmp_path):
 
     assert abrir(ruta)["proyecto"] == "B"
     assert not (tmp_path / "p.cvproj.tmp").exists()
+
+
+def test_una_escritura_fallida_no_deja_basura_en_la_carpeta(tmp_path, monkeypatch):
+    """Con el disco lleno el temporal quedaba a la vista en la carpeta de
+    Bruno, como un `Casa Lomas.cvproj.tmp` que nadie sabe que es."""
+    ruta = tmp_path / "Casa Lomas.cvproj"
+    original = Path.write_text
+
+    def se_llena_el_disco(self, texto, *args, **kwargs):
+        original(self, texto[:5])          # alcanzo a escribir un pedazo
+        raise OSError("No space left on device")
+
+    monkeypatch.setattr(Path, "write_text", se_llena_el_disco)
+
+    with pytest.raises(OSError):
+        guardar(ruta, {"version": 1, "proyecto": "Casa Lomas"})
+
+    monkeypatch.undo()
+    assert list(tmp_path.iterdir()) == []

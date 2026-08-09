@@ -76,8 +76,15 @@ def guardar(ruta: Path, data: dict) -> None:
     """
     ruta.parent.mkdir(parents=True, exist_ok=True)
     tmp = ruta.with_suffix(ruta.suffix + ".tmp")
-    tmp.write_text(json.dumps(data, indent=2, ensure_ascii=False))
-    os.replace(tmp, ruta)
+    try:
+        tmp.write_text(json.dumps(data, indent=2, ensure_ascii=False))
+        os.replace(tmp, ruta)
+    finally:
+        # Si la escritura falla a medias --el disco lleno es el caso real--
+        # el temporal quedaba a la vista en la carpeta de Bruno, como un
+        # `Casa Lomas.cvproj.tmp` que nadie sabe que es. Tras el `replace`
+        # ya no existe, y por eso el `missing_ok`.
+        tmp.unlink(missing_ok=True)
 
 
 def abrir(ruta: Path) -> dict | None:
