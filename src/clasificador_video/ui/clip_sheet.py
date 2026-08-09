@@ -711,19 +711,25 @@ class _BinHeader(QWidget):
     def set_source(self, texto: str) -> None:
         self.source_label.setText(texto)
 
-    def set_proxies(self, enganchados: int, total: int) -> None:
-        """La insignia del mockup.
+    def set_proxies(self, enganchados: int, total: int,
+                    resolucion: str = "") -> None:
+        """La insignia del mockup: `proxy 1080p · 23/23`.
 
         El «21/23» es a proposito visible: dos archivos no calzaron cuadro a
         cuadro y NO se engancharon, que es mejor que enganchar un proxy
         corrido y poner el in en el cuadro equivocado.
+
+        `resolucion` viene vacia cuando en el bin hay mas de una --mismo
+        criterio que `_resumen_de_proxies`--: decir una de las dos seria
+        mentir sobre la otra mitad.
         """
+        marca = f"proxy {resolucion}" if resolucion else "proxy"
         if not enganchados:
             texto, estado = "sin proxies", "ninguno"
         elif enganchados < total:
-            texto, estado = f"proxy · {enganchados}/{total}", "parcial"
+            texto, estado = f"{marca} · {enganchados}/{total}", "parcial"
         else:
-            texto, estado = f"proxy · {enganchados}/{total}", "completo"
+            texto, estado = f"{marca} · {enganchados}/{total}", "completo"
         self.proxy_badge.setText(texto)
         if self.proxy_badge.property("estado") != estado:
             self.proxy_badge.setProperty("estado", estado)
@@ -1276,7 +1282,8 @@ class ClipSheet(QWidget):
         self._regroup()
 
     def set_bin_meta(self, nombre: str, origen: str = "",
-                     proxies: tuple[int, int] | None = None) -> None:
+                     proxies: tuple[int, int] | None = None,
+                     resolucion: str | None = None) -> None:
         """La carpeta de origen y cuantos proxies engancharon.
 
         Los dos son datos de la VENTANA --la hoja no lee disco ni sondea
@@ -1288,6 +1295,8 @@ class ClipSheet(QWidget):
             meta["origen"] = origen
         if proxies is not None:
             meta["proxies"] = proxies
+        if resolucion is not None:
+            meta["resolucion"] = resolucion
         cabecera = self._bin_headers.get(nombre)
         if cabecera is not None:
             self._aplicar_meta(cabecera)
@@ -1296,7 +1305,7 @@ class ClipSheet(QWidget):
         meta = self._bin_meta.get(cabecera.nombre, {})
         cabecera.set_source(meta.get("origen", ""))
         enganchados, total = meta.get("proxies", (0, 0))
-        cabecera.set_proxies(enganchados, total)
+        cabecera.set_proxies(enganchados, total, meta.get("resolucion", ""))
 
     def bin_headers(self) -> list[str]:
         """Los bins que hoy tienen encabezado, en el orden en que se ven."""

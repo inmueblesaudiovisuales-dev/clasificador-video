@@ -2307,13 +2307,22 @@ class MainWindow(QWidget):
         """
         for nombre in self.bins.nombres():
             indices = self.bins.clips_de(nombre)
-            enganchados = sum(
-                1 for i in indices
+            con_proxy = [
+                i for i in indices
                 if i < len(self.clips) and self.clips[i].ruta_proxy is not None
-            )
+            ]
+            # una sola resolucion o ninguna, el mismo criterio que
+            # `_resumen_de_proxies`: con dos mezcladas en el mismo bin,
+            # escribir una seria mentir sobre la otra mitad.
+            etiquetas = {
+                etiqueta_de_resolucion(*self._proxy_sizes[i])
+                for i in con_proxy if i in self._proxy_sizes
+            }
+            etiquetas.discard("")
             origen = self.bins.origen_de(nombre)
             self.clip_sheet.set_bin_meta(
                 nombre,
                 origen=origen.name if origen is not None else "",
-                proxies=(enganchados, len(indices)),
+                proxies=(len(con_proxy), len(indices)),
+                resolucion=etiquetas.pop() if len(etiquetas) == 1 else "",
             )

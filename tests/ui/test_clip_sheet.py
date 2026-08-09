@@ -1683,3 +1683,30 @@ def test_en_el_tope_no_hay_encabezado_pegado(qtbot):
     hoja._scroll.verticalScrollBar().setValue(0)
 
     assert hoja._pegado.isHidden()
+
+
+def test_la_insignia_dice_la_resolucion_del_proxy(qtbot):
+    """`proxy 1080p · 23/23`, como el mockup. La resolucion es el dato que
+    dice si el proxy sirve para trabajar o es una estampilla."""
+    hoja = ClipSheet()
+    qtbot.addWidget(hoja)
+    hoja.set_bin_order(["Dron"])
+    hoja.set_clips([_thumb(i, bin_nombre="Dron") for i in range(3)])
+
+    hoja.set_bin_meta("Dron", origen="/dron", proxies=(3, 3), resolucion="1080p")
+
+    assert hoja.bin_header_widget("Dron").proxy_badge.text() == "proxy 1080p · 3/3"
+
+
+def test_sin_resolucion_conocida_la_insignia_no_la_inventa(qtbot):
+    """Con dos resoluciones mezcladas en el mismo bin se colapsa a vacio,
+    igual que hace `_resumen_de_proxies`: decir una de las dos seria
+    mentir sobre la otra mitad."""
+    hoja = ClipSheet()
+    qtbot.addWidget(hoja)
+    hoja.set_bin_order(["Dron"])
+    hoja.set_clips([_thumb(i, bin_nombre="Dron") for i in range(3)])
+
+    hoja.set_bin_meta("Dron", origen="/dron", proxies=(2, 3), resolucion="")
+
+    assert hoja.bin_header_widget("Dron").proxy_badge.text() == "proxy · 2/3"

@@ -986,3 +986,46 @@ def test_decir_que_no_deja_todo_como_estaba(qtbot, ventana, monkeypatch):
 
     assert len(ventana.clips) == 2
     assert ventana.bins.nombres() == ["Sony", "Dron"]
+
+
+def test_la_ventana_le_pasa_la_resolucion_del_proxy_al_encabezado(qtbot, ventana):
+    ventana.load_clips([_clip(0, "/cam/A.MP4"), _clip(1, "/cam/B.MP4")])
+    ventana.bins.agregar("Sony", Path("/cam"), [0, 1])
+    ventana.clips[0].ruta_proxy = Path("/cam/A_S03.MP4")
+    ventana._proxy_sizes = {0: (1920, 1080)}
+
+    ventana._refresh_sheet()
+
+    insignia = ventana.clip_sheet.bin_header_widget("Sony").proxy_badge
+    assert insignia.text() == "proxy 1080p · 1/2"
+
+
+def test_con_dos_resoluciones_en_el_mismo_bin_no_se_dice_ninguna(qtbot, ventana):
+    ventana.load_clips([_clip(0, "/cam/A.MP4"), _clip(1, "/cam/B.MP4")])
+    ventana.bins.agregar("Sony", Path("/cam"), [0, 1])
+    ventana.clips[0].ruta_proxy = Path("/cam/A_S03.MP4")
+    ventana.clips[1].ruta_proxy = Path("/cam/B_S03.MP4")
+    ventana._proxy_sizes = {0: (1920, 1080), 1: (1280, 720)}
+
+    ventana._refresh_sheet()
+
+    insignia = ventana.clip_sheet.bin_header_widget("Sony").proxy_badge
+    assert insignia.text() == "proxy · 2/2"
+
+
+def test_la_resolucion_de_un_bin_no_se_contagia_del_otro(qtbot, ventana):
+    """El bug que este proyecto ya tuvo con los proxies: la Sony y el dron
+    tienen su propio patron y su propia resolucion, y mezclarlos es como
+    empezo todo esto."""
+    ventana.load_clips([_clip(0, "/cam/A.MP4"), _clip(1, "/dron/D.MP4")])
+    ventana.bins.agregar("Sony", Path("/cam"), [0])
+    ventana.bins.agregar("Dron", Path("/dron"), [1])
+    ventana.clips[0].ruta_proxy = Path("/cam/A_S03.MP4")
+    ventana.clips[1].ruta_proxy = Path("/dron/D_px.MP4")
+    ventana._proxy_sizes = {0: (1920, 1080), 1: (1280, 720)}
+
+    ventana._refresh_sheet()
+
+    hoja = ventana.clip_sheet
+    assert hoja.bin_header_widget("Sony").proxy_badge.text() == "proxy 1080p · 1/1"
+    assert hoja.bin_header_widget("Dron").proxy_badge.text() == "proxy 720p · 1/1"
