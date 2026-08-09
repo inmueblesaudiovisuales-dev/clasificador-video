@@ -27,8 +27,21 @@ falta probarlo en otra computadora.
 
 ### Lo que está en marcha ahora mismo
 
-- **Importación tipo Premiere: bins, drag and drop, y acciones por bin.**
-  Es el pedido más reciente y el más grande que queda:
+- ~~**Importación tipo Premiere: bins, drag and drop, y acciones por bin.**~~
+  — **hecho** (F1 a F6 del plan `2026-08-09-bins-por-camara.md`). El material
+  se agrupa por bin en la hoja, cada bin tiene su encabezado con menú de clic
+  derecho (renombrar, enlazar/quitar proxies con su propio patrón de nombre,
+  seleccionar, quitar del proyecto), se arrastran carpetas y archivos sueltos
+  —encima de un bin se suman ahí, en el vacío nace un bin nuevo con el nombre
+  de la carpeta—, hay filtro por bin en la barra de filtros y el nombre del
+  bin aparece junto al del archivo en modo clip. De paso se arregló el bug de
+  las portadas: agregar material ya no reinicia el proyecto.
+
+  Lo que **no** entró, a propósito (spec §7): LUT por bin, generar los proxies
+  del dron, mover clips entre bins arrastrando, bins anidados, y que el bin
+  viaje a Premiere como carpeta del proyecto.
+
+  El pedido original, para que no se pierda el porqué:
 
   > «No me encanta la importación. Es difícil importar archivos individuales,
   > solo se pueden carpetas. No se distinguen entre carpetas o cámaras. Me
@@ -39,12 +52,8 @@ falta probarlo en otra computadora.
 
   El fondo del pedido es correcto y va más allá de la comodidad: **el proxy y
   el LUT son propiedades de la CÁMARA, no del clip suelto**. Un LUT de S-Log de
-  la FX30 no va sobre material del dron. Hoy no existe ninguna forma de decir
-  «estos 23 son del dron».
-
-  Y media pieza ya existe sin interfaz: `ingest.py` ya guarda las carpetas
-  importadas por separado, con nombre editable (`IngestFolder.display_name`,
-  `rename_folder`). El rediseño de la UI quitó el panel que las mostraba.
+  la FX30 no va sobre material del dron. Decir «estos 23 son del dron» ya se
+  puede; ponerles el LUT todavía no.
 
 - **Proxies del dron.** Medido: el `.LRF` que escribe el DJI **no sirve como
   proxy** aunque se le cambie la extensión —el contenido está corrido entre 1 y

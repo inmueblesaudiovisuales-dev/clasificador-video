@@ -72,7 +72,7 @@ no con la vista.
 - Crear: `src/clasificador_video/bins.py`
 - Test: `tests/test_bins.py`
 
-- [ ] **Paso 1: escribir el test que falla**
+- [x] **Paso 1: escribir el test que falla**
 
 ```python
 # tests/test_bins.py
@@ -112,14 +112,14 @@ def test_dos_bins_no_pueden_llamarse_igual():
     assert arbol.nombres() == ["Dron", "Dron 2"]
 ```
 
-- [ ] **Paso 2: correrlo y ver que falla**
+- [x] **Paso 2: correrlo y ver que falla**
 
 ```bash
 QT_QPA_PLATFORM=offscreen .venv/bin/pytest tests/test_bins.py -q
 ```
 Esperado: `ModuleNotFoundError: No module named 'clasificador_video.bins'`
 
-- [ ] **Paso 3: la implementación mínima**
+- [x] **Paso 3: la implementación mínima**
 
 ```python
 # src/clasificador_video/bins.py
@@ -181,14 +181,14 @@ class BinTree:
         return None
 ```
 
-- [ ] **Paso 4: correr y ver que pasa**
+- [x] **Paso 4: correr y ver que pasa**
 
 ```bash
 QT_QPA_PLATFORM=offscreen .venv/bin/pytest tests/test_bins.py -q
 ```
 Esperado: 3 passed
 
-- [ ] **Paso 5: commit**
+- [x] **Paso 5: commit**
 
 ```bash
 git add src/clasificador_video/bins.py tests/test_bins.py
@@ -208,7 +208,7 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 - Modificar: `src/clasificador_video/bins.py`
 - Test: `tests/test_bins.py`
 
-- [ ] **Paso 1: escribir los tests que fallan**
+- [x] **Paso 1: escribir los tests que fallan**
 
 ```python
 def test_renombrar_conserva_la_posicion():
@@ -265,14 +265,14 @@ def test_reindexar_despues_de_quitar_clips():
     assert arbol.clips_de("Sony") == [0, 1]
 ```
 
-- [ ] **Paso 2: correrlos y ver que fallan**
+- [x] **Paso 2: correrlos y ver que fallan**
 
 ```bash
 QT_QPA_PLATFORM=offscreen .venv/bin/pytest tests/test_bins.py -q
 ```
 Esperado: 5 failed con `AttributeError: 'BinTree' object has no attribute 'renombrar'`
 
-- [ ] **Paso 3: implementar**
+- [x] **Paso 3: implementar**
 
 ```python
     def renombrar(self, nombre: str, nuevo: str) -> None:
@@ -313,14 +313,14 @@ Esperado: 5 failed con `AttributeError: 'BinTree' object has no attribute 'renom
             ]
 ```
 
-- [ ] **Paso 4: correr y ver que pasan**
+- [x] **Paso 4: correr y ver que pasan**
 
 ```bash
 QT_QPA_PLATFORM=offscreen .venv/bin/pytest tests/test_bins.py -q
 ```
 Esperado: 8 passed
 
-- [ ] **Paso 5: commit**
+- [x] **Paso 5: commit**
 
 ```bash
 git add src/clasificador_video/bins.py tests/test_bins.py
@@ -342,7 +342,7 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 - Modificar: `src/clasificador_video/app.py` (`_restore_session`, ~66)
 - Test: `tests/test_bins.py`, `tests/test_app.py`
 
-- [ ] **Paso 1: escribir los tests que fallan**
+- [x] **Paso 1: escribir los tests que fallan**
 
 ```python
 # tests/test_bins.py
@@ -374,14 +374,14 @@ def test_una_sesion_vieja_sin_clips_no_inventa_un_bin():
     assert BinTree.desde_sesion(None, rutas=[]).nombres() == []
 ```
 
-- [ ] **Paso 2: correrlos y ver que fallan**
+- [x] **Paso 2: correrlos y ver que fallan**
 
 ```bash
 QT_QPA_PLATFORM=offscreen .venv/bin/pytest tests/test_bins.py -q
 ```
 Esperado: 3 failed con `AttributeError: type object 'BinTree' has no attribute 'from_list'`
 
-- [ ] **Paso 3: implementar en `bins.py`**
+- [x] **Paso 3: implementar en `bins.py`**
 
 ```python
     def to_list(self) -> list[dict]:
@@ -417,14 +417,14 @@ Esperado: 3 failed con `AttributeError: type object 'BinTree' has no attribute '
         return arbol
 ```
 
-- [ ] **Paso 4: correr y ver que pasan**
+- [x] **Paso 4: correr y ver que pasan**
 
 ```bash
 QT_QPA_PLATFORM=offscreen .venv/bin/pytest tests/test_bins.py -q
 ```
 Esperado: 11 passed
 
-- [ ] **Paso 5: escribir el test de que la ventana lo guarda**
+- [x] **Paso 5: escribir el test de que la ventana lo guarda**
 
 ```python
 # tests/ui/test_main_window_bins.py  (archivo nuevo)
@@ -456,11 +456,11 @@ def test_el_autosave_escribe_los_bins(qtbot, tmp_path, ventana):
 > `tests/ui/`. Copiar el patrón del archivo de tests de main_window que ya
 > exista; no inventar una fixture nueva si ya hay una equivalente.
 
-- [ ] **Paso 6: correr y ver que falla**
+- [x] **Paso 6: correr y ver que falla**
 
 Esperado: `AttributeError: 'MainWindow' object has no attribute 'bins'`
 
-- [ ] **Paso 7: implementar en `main_window.py`**
+- [x] **Paso 7: implementar en `main_window.py`**
 
 En `__init__`, junto a `self.ingest_tree = IngestTree()`:
 
@@ -478,7 +478,7 @@ Y en `_write_autosave_now`, dentro del `data = {...}`, después de
             "bins": self.bins.to_list(),
 ```
 
-- [ ] **Paso 8: implementar el restaurado en `app.py`**
+- [x] **Paso 8: implementar el restaurado en `app.py`**
 
 En `_restore_session`, después de cargar los clips:
 
@@ -488,14 +488,14 @@ En `_restore_session`, después de cargar los clips:
     )
 ```
 
-- [ ] **Paso 9: correr la suite completa**
+- [x] **Paso 9: correr la suite completa**
 
 ```bash
 QT_QPA_PLATFORM=offscreen .venv/bin/pytest tests/ -q
 ```
 Esperado: todo verde, sin tests nuevos rotos.
 
-- [ ] **Paso 10: commit**
+- [x] **Paso 10: commit**
 
 ```bash
 git add -A
@@ -524,7 +524,7 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 - Modificar: `src/clasificador_video/ui/clip_sheet.py` (`update_clips`, ~985)
 - Test: `tests/ui/test_clip_sheet.py`
 
-- [ ] **Paso 1: escribir el test que falla**
+- [x] **Paso 1: escribir el test que falla**
 
 ```python
 def test_agregar_clips_no_recrea_las_tarjetas_de_antes(qtbot):
@@ -547,14 +547,14 @@ def test_agregar_clips_no_recrea_las_tarjetas_de_antes(qtbot):
 > `_thumb(i)` es el ayudante que ya usan los tests de este archivo para
 > construir un `ClipThumbnail`. Reusarlo, no escribir otro.
 
-- [ ] **Paso 2: correr y ver que falla**
+- [x] **Paso 2: correr y ver que falla**
 
 ```bash
 QT_QPA_PLATFORM=offscreen .venv/bin/pytest tests/ui/test_clip_sheet.py -q
 ```
 Esperado: `AttributeError: 'ClipSheet' object has no attribute 'append_clips'`
 
-- [ ] **Paso 3: implementar**
+- [x] **Paso 3: implementar**
 
 ```python
     def append_clips(self, clips: list[ClipThumbnail]) -> None:
@@ -583,11 +583,11 @@ Esperado: `AttributeError: 'ClipSheet' object has no attribute 'append_clips'`
         self._redraw()
 ```
 
-- [ ] **Paso 4: correr y ver que pasa**
+- [x] **Paso 4: correr y ver que pasa**
 
 Esperado: PASS
 
-- [ ] **Paso 5: commit**
+- [x] **Paso 5: commit**
 
 ```bash
 git add src/clasificador_video/ui/clip_sheet.py tests/ui/test_clip_sheet.py
@@ -604,7 +604,7 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 - Modificar: `src/clasificador_video/ui/main_window.py` (junto a `load_clips`, ~1119)
 - Test: `tests/ui/test_main_window_bins.py`
 
-- [ ] **Paso 1: escribir los tests que fallan**
+- [x] **Paso 1: escribir los tests que fallan**
 
 ```python
 def test_agregar_clips_conserva_los_proxies_ya_enganchados(qtbot, ventana):
@@ -646,11 +646,11 @@ def test_agregar_clips_crea_el_bin_con_los_indices_nuevos(qtbot, ventana):
 > escribir el test (`ventana.clasificar` / `ventana.history.entries()`): si en
 > el código se llaman de otro modo, usar los del código, no los de aquí.
 
-- [ ] **Paso 2: correr y ver que fallan**
+- [x] **Paso 2: correr y ver que fallan**
 
 Esperado: `AttributeError: 'MainWindow' object has no attribute 'agregar_clips'`
 
-- [ ] **Paso 3: implementar**
+- [x] **Paso 3: implementar**
 
 ```python
     def agregar_clips(self, nuevos: list[Clip], nombre_de_bin: str,
@@ -682,7 +682,7 @@ Esperado: `AttributeError: 'MainWindow' object has no attribute 'agregar_clips'`
         self._autosave()
 ```
 
-- [ ] **Paso 4: hacer que `_refresh_sheet` use `append_clips` cuando creció**
+- [x] **Paso 4: hacer que `_refresh_sheet` use `append_clips` cuando creció**
 
 En `_refresh_sheet`, donde hoy dice:
 
@@ -707,14 +707,14 @@ pasa a:
             self.clip_sheet.update_clips(thumbs)
 ```
 
-- [ ] **Paso 5: correr los tests**
+- [x] **Paso 5: correr los tests**
 
 ```bash
 QT_QPA_PLATFORM=offscreen .venv/bin/pytest tests/ui/test_main_window_bins.py -q
 ```
 Esperado: PASS
 
-- [ ] **Paso 6: cambiar la importación para que agregue**
+- [x] **Paso 6: cambiar la importación para que agregue**
 
 `_on_import_folders` (~1899) pasa a:
 
@@ -762,7 +762,7 @@ Y se agrega el método que usarán también el arrastre (Fase 5) y los tests:
 > `_avisar_que_no_se_pudo_leer_nada()`. **No duplicar la lógica en dos
 > lugares.**
 
-- [ ] **Paso 7: `archivos_de_video` en `ingest.py`**
+- [x] **Paso 7: `archivos_de_video` en `ingest.py`**
 
 Test primero:
 
@@ -809,14 +809,14 @@ def archivos_de_video(rutas: list[Path]) -> list[Path]:
     return encontrados
 ```
 
-- [ ] **Paso 8: correr la suite completa**
+- [x] **Paso 8: correr la suite completa**
 
 ```bash
 QT_QPA_PLATFORM=offscreen .venv/bin/pytest tests/ -q
 ```
 Esperado: todo verde.
 
-- [ ] **Paso 9: commit**
+- [x] **Paso 9: commit**
 
 ```bash
 git add -A
@@ -1542,7 +1542,7 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 > Hoy **no hay drag and drop en ninguna parte de la app** — comprobado con
 > `grep setAcceptDrops src/`, que no devuelve nada. Todo esto es nuevo.
 
-- [ ] **Paso 1: escribir los tests que fallan**
+- [x] **Paso 1: escribir los tests que fallan**
 
 ```python
 # tests/ui/test_clip_sheet_drop.py
@@ -1613,14 +1613,14 @@ def test_soltar_algo_que_no_son_archivos_no_hace_nada(qtbot):
     assert not evento.isAccepted()
 ```
 
-- [ ] **Paso 2: correr y ver que fallan**
+- [x] **Paso 2: correr y ver que fallan**
 
 ```bash
 QT_QPA_PLATFORM=offscreen .venv/bin/pytest tests/ui/test_clip_sheet_drop.py -q
 ```
 Esperado: `AttributeError: 'ClipSheet' object has no attribute 'soltado_en_bin'`
 
-- [ ] **Paso 3: implementar en `ClipSheet`**
+- [x] **Paso 3: implementar en `ClipSheet`**
 
 ```python
     soltado_en_bin = Signal(str, list)      # nombre del bin, rutas
@@ -1680,11 +1680,11 @@ pinta en el `paintEvent` del encabezado (borde punteado verde y el texto
 «Soltar en “Dron”»), y la zona de bin nuevo es un widget punteado al final del
 contenido, visible solo mientras hay un arrastre encima.
 
-- [ ] **Paso 4: correr y ver que pasan**
+- [x] **Paso 4: correr y ver que pasan**
 
 Esperado: 3 passed
 
-- [ ] **Paso 5: conectar en `MainWindow`**
+- [x] **Paso 5: conectar en `MainWindow`**
 
 ```python
         self.clip_sheet.soltado_en_bin.connect(
@@ -1699,12 +1699,12 @@ Con su test: soltar dos archivos que ya están en el proyecto no agrega nada
 (lo filtra `importar_rutas`), y soltar algo que no es video no agrega un bin
 vacío.
 
-- [ ] **Paso 6: verificación visual — obligatoria**
+- [x] **Paso 6: verificación visual — obligatoria**
 
 Captura con `grab()` de los dos estados de arrastre y compararlos contra la
 pantalla 4 del mockup. Mirar el PNG.
 
-- [ ] **Paso 7: commit**
+- [x] **Paso 7: commit**
 
 ```bash
 git add -A
@@ -1728,7 +1728,7 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 - Modificar: `src/clasificador_video/ui/main_window.py` (`queue`, ~677)
 - Test: `tests/test_filters.py`
 
-- [ ] **Paso 1: test**
+- [x] **Paso 1: test**
 
 ```python
 def test_el_filtro_de_bin_acota_la_cola():
@@ -1744,7 +1744,7 @@ def test_sin_filtro_de_bin_la_cola_es_la_de_siempre():
     assert cola(clips, FilterState(), bin_de={0: "Sony", 1: "Dron"}) == [0, 1]
 ```
 
-- [ ] **Paso 2: implementar**
+- [x] **Paso 2: implementar**
 
 `FilterState` gana `bin: str = "todos"`, `esta_filtrando()` lo incluye, y
 `cola` gana el parámetro:
@@ -1772,7 +1772,7 @@ Y `MainWindow.queue()`:
 
 con `BinTree.mapa_por_clip() -> dict[int, str]` y su test en `tests/test_bins.py`.
 
-- [ ] **Paso 3: los chips en la barra de filtros**
+- [x] **Paso 3: los chips en la barra de filtros**
 
 `_FilaDeChips` ya existe y arma un grupo exclusivo con su chip «Todos»
 (`clip_sheet.py` ~628 y ~860). Se agrega una fila más, «Bin», construida con
@@ -1788,9 +1788,9 @@ trae `bin == "Dron"`; el chip «Todos» lo devuelve a `"todos"`.
 > `grab()` a 1027 px de ancho, que es el mínimo real al que se puede arrastrar
 > la ventana hoy.
 
-- [ ] **Paso 4: correr la suite completa**
+- [x] **Paso 4: correr la suite completa**
 
-- [ ] **Paso 5: commit**
+- [x] **Paso 5: commit**
 
 ```bash
 git add -A
@@ -1808,7 +1808,7 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 - Modificar: `src/clasificador_video/ui/main_window.py` (`_refresh_overlays`)
 - Test: `tests/ui/test_video_stage.py`
 
-- [ ] **Paso 1: escribir el test que falla**
+- [x] **Paso 1: escribir el test que falla**
 
 ```python
 def test_el_bin_aparece_junto_al_nombre_del_archivo(qtbot):
@@ -1840,11 +1840,11 @@ def test_con_poco_ancho_se_esconde_el_bin_antes_que_el_nombre(qtbot):
 > `VideoStage` de prueba y reusar ese ayudante en vez de escribir `_falso_mpv`
 > de nuevo.
 
-- [ ] **Paso 2: correr y ver que falla**
+- [x] **Paso 2: correr y ver que falla**
 
 Esperado: `TypeError: set_file_label() got an unexpected keyword argument 'bin_nombre'`
 
-- [ ] **Paso 3: implementar**
+- [x] **Paso 3: implementar**
 
 `set_file_label` gana `bin_nombre: str = ""`, y la etiqueta del bin sigue la
 misma regla de espacio que ya usa el control de velocidad: **si la fila de
@@ -1854,12 +1854,12 @@ orden de sacrificio queda: velocidad → bin → elidir el nombre.
 En `main_window._refresh_overlays`, donde hoy se llama a `set_file_label`, se
 pasa `bin_nombre=self.bins.bin_de(self.current_index) or ""`.
 
-- [ ] **Paso 4: verificación visual — obligatoria**
+- [x] **Paso 4: verificación visual — obligatoria**
 
 `grab()` del `VideoStage` en dos anchos, y **mirar los dos PNG**: que el bin
 no se encime con la insignia de proxy ni empuje el nombre fuera de la fila.
 
-- [ ] **Paso 5: commit**
+- [x] **Paso 5: commit**
 
 ```bash
 git add -A
@@ -1872,10 +1872,10 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 
 ## Al terminar
 
-- [ ] Suite completa verde: `QT_QPA_PLATFORM=offscreen .venv/bin/pytest tests/ -q`
-- [ ] `git status` limpio, sin archivos sueltos en la raíz y sin restos del
+- [x] Suite completa verde: `QT_QPA_PLATFORM=offscreen .venv/bin/pytest tests/ -q`
+- [x] `git status` limpio, sin archivos sueltos en la raíz y sin restos del
       scratchpad dentro del repo.
-- [ ] Actualizar `docs/superpowers/CONTEXTO-Y-METAS.md`: los bins pasan de «en
+- [x] Actualizar `docs/superpowers/CONTEXTO-Y-METAS.md`: los bins pasan de «en
       marcha» a hecho, y el bug de las portadas sale de la lista.
 - [ ] Anotar en el handoff qué quedó **medido** y qué quedó **supuesto**, con
       el mismo criterio de la sección 4.b: el veredicto sin la evidencia se
