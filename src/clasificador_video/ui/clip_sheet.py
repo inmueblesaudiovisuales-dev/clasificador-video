@@ -635,6 +635,19 @@ class ClipCard(QWidget):
                 # que sigan llegando son de la sesion de arrastre, no del click
                 self._origen_arrastre = None
                 self.arrastre_pedido.emit(self.indice)
+            # NO se escrubea, pero el evento sigue su camino igual. Qt lo
+            # propaga al viewport solo si el hijo lo IGNORA, y eso es lo que
+            # hace `super()`. Devolverse aqui lo mataba, y con el pincel
+            # cargado y el boton apretado --gesto natural-- el pincel dejaba de
+            # pintar: el arrastre cortaba por `_pincel_activo` y el
+            # `eventFilter` del viewport ya no veia el movimiento. No pasaba
+            # nada en absoluto.
+            #
+            # Cuando el arrastre SI arranco, esto propaga un movimiento viejo
+            # --`QDrag.exec()` ya volvio-- y no molesta a nadie: la marquesina
+            # quedo desarmada y el pincel no esta activo, que son los dos
+            # unicos que lo miran.
+            super().mouseMoveEvent(event)
             return
         self.escrubear_a(event.position().x() / max(self.width(), 1))
         super().mouseMoveEvent(event)

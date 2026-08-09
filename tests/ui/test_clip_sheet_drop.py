@@ -916,3 +916,53 @@ def test_despues_de_arrastrar_mover_el_mouse_no_selecciona_solo(qtbot):
 
     assert hoja.selected_indices() == [0]
     assert hoja.marquesina.isHidden()
+
+
+# --- el evento tiene que seguir su camino ---------------------------------
+#
+# Qt propaga un evento de mouse al widget padre solo si el hijo lo IGNORA, y
+# `QWidget.mouseMoveEvent` lo ignora por default. O sea que llamar a `super()`
+# es literalmente «dejalo subir al viewport», que es donde viven el pincel y
+# la marquesina. Devolverse sin llamarlo lo mata ahi mismo.
+
+
+def test_con_el_pincel_activo_el_movimiento_sigue_llegando_al_viewport(qtbot):
+    """Con el pincel cargado Y el boton apretado --gesto natural, y que
+    funcionaba antes de la F9-- el pincel dejaba de pintar: el arrastre
+    cortaba por `_pincel_activo` y el evento ya no subia. No pasaba nada en
+    absoluto. «Gana el pincel» tiene que significar que el pincel PINTA, no
+    solo que el arrastre no arranca.
+    """
+    hoja = _hoja(qtbot, [_thumb(0)])
+    hoja.set_pincel_activo(True)
+    tarjeta = hoja.item_widgets[0]
+    tarjeta.mousePressEvent(_press(QPoint(5, 5)))
+
+    evento = _move(QPoint(60, 60), boton=True)
+    tarjeta.mouseMoveEvent(evento)
+
+    assert not evento.isAccepted()
+
+
+def test_antes_del_umbral_el_movimiento_tambien_sigue_su_camino(qtbot):
+    """Mientras el gesto todavia puede ser un click, nadie se lo queda."""
+    hoja = _hoja(qtbot, [_thumb(0)])
+    tarjeta = hoja.item_widgets[0]
+    tarjeta.mousePressEvent(_press(QPoint(5, 5)))
+
+    evento = _move(QPoint(7, 6), boton=True)
+    tarjeta.mouseMoveEvent(evento)
+
+    assert not evento.isAccepted()
+
+
+def test_pasar_sin_boton_sigue_su_camino_como_siempre(qtbot):
+    """La rama del escrubeo ya lo hacia y tiene que seguir haciendolo: de ahi
+    salen los eventos que el viewport usa para el pincel sin boton."""
+    hoja = _hoja(qtbot, [_thumb(0)])
+    tarjeta = hoja.item_widgets[0]
+
+    evento = _move(QPoint(60, 60), boton=False)
+    tarjeta.mouseMoveEvent(evento)
+
+    assert not evento.isAccepted()
