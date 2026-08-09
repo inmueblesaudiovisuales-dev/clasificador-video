@@ -529,6 +529,12 @@ def build_stylesheet() -> str:
         font-family: {MONO_FONT};
         font-size: {FONT_MICRO}px;
     }}
+    QLabel#legendCount {{
+        background-color: transparent;
+        color: {TEXT_3};
+        font-family: {SANS_FONT};
+        font-size: {FONT_MICRO}px;
+    }}
     QLabel#keyCap {{
         background-color: {BG_SURFACE_2};
         border: 1px solid {LINE};

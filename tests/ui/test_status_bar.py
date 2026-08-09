@@ -109,3 +109,18 @@ def test_sin_clips_el_contador_no_se_ve(qtbot):
     bar = _bar(qtbot)
     bar.set_proxies(0, 0, "")
     assert bar.proxy_label.isHidden()
+
+
+def test_el_volumen_lleva_su_tamano(qtbot):
+    """El mockup escribe `/Volumes/FX30/CasaLomas · 214 GB`."""
+    bar = _bar(qtbot)
+    bar.set_volume("/Volumes/FX30/CasaLomas", 214)
+    assert bar.volume_label.text() == "/Volumes/FX30/CasaLomas · 214 GB"
+
+
+def test_sin_saber_el_tamano_va_solo_la_ruta(qtbot):
+    """Un volumen de red o una carpeta que ya no esta: no se inventa un
+    `0 GB`, que ademas se leeria como disco lleno."""
+    bar = _bar(qtbot)
+    bar.set_volume("/Volumes/FX30/CasaLomas")
+    assert bar.volume_label.text() == "/Volumes/FX30/CasaLomas"

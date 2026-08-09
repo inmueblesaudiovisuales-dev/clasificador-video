@@ -112,3 +112,13 @@ def test_los_botones_del_switch_no_toman_el_foco(qtbot):
     bar = _bar(qtbot)
     for boton in bar.mode_switch.buttons:
         assert boton.focusPolicy() == Qt.FocusPolicy.NoFocus
+
+
+def test_el_icono_de_la_app_lleva_el_triangulo_de_play(qtbot):
+    """El mockup dibuja un play adentro del cuadro ambar; la app tenia el
+    cuadro liso. Va como pixmap pintado y no como caracter `▶`: un glifo
+    de fuente no cae igual en todas las maquinas."""
+    bar = _bar(qtbot)
+    pixmap = bar.mark.pixmap()
+    assert pixmap is not None and not pixmap.isNull()
+    assert pixmap.deviceIndependentSize().toSize() == bar.mark.size()

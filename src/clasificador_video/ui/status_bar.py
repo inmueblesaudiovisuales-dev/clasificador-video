@@ -107,5 +107,11 @@ class StatusBar(QWidget):
         self.proxy_label.setText(f"{etiqueta}{cuantos}/{total}")
         self.proxy_label.show()
 
-    def set_volume(self, ruta: str) -> None:
-        self.volume_label.setText(ruta)
+    def set_volume(self, ruta: str, gigabytes: int | None = None) -> None:
+        """`/Volumes/FX30/CasaLomas · 214 GB`, como el mockup.
+
+        Sin tamaño va solo la ruta: pasa con un volumen de red o con una
+        carpeta que ya no esta montada, y un `0 GB` inventado se leeria
+        como disco lleno.
+        """
+        self.volume_label.setText(f"{ruta} · {gigabytes} GB" if gigabytes else ruta)

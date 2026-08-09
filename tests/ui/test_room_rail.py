@@ -61,8 +61,11 @@ def test_la_leyenda_usa_etiquetas_cortas_que_entran_en_200px(qtbot):
     cortaba a la mitad. El mockup se apoya en el color, no en el texto."""
     rail = _rail(qtbot)
     rail.set_flags(41, 9, 12, destacados=6)
-    # cuatro estados desde la F7: el `dest.` va primero, como en el mockup
-    assert [p.text() for p in rail.leyenda.puntos] == ["6", "41", "9", "12"]
+    # cuatro estados desde la F7: el `dest.` va primero, como en el mockup.
+    # Y solo el primero lleva palabra --`6 dest.`--, tambien como el mockup:
+    # es el estado que menos clips tiene y el mas facil de confundir con un
+    # conteo de picks si va pelado. La F10 le devolvio la palabra.
+    assert [p.text() for p in rail.leyenda.puntos] == ["6 dest.", "41", "9", "12"]
     assert rail.leyenda.sizeHint().width() <= theme.RAIL_WIDTH
 
 
@@ -480,7 +483,7 @@ def test_la_leyenda_se_actualiza_sin_recrearse(qtbot):
     antes = list(rail.leyenda.puntos)
     rail.set_flags(42, 9, 11)
     assert rail.leyenda.puntos == antes, "recrear no hace falta: cambia el texto"
-    assert [p.text() for p in rail.leyenda.puntos] == ["0", "42", "9", "11"]
+    assert [p.text() for p in rail.leyenda.puntos] == ["0 dest.", "42", "9", "11"]
 
 
 def test_la_barra_de_progreso_no_se_recrea_si_no_cambio(qtbot):

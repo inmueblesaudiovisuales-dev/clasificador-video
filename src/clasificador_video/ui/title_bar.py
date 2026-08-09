@@ -1,7 +1,8 @@
 # src/clasificador_video/ui/title_bar.py
 from __future__ import annotations
 
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import QPointF, QSize, Qt, Signal
+from PySide6.QtGui import QColor, QPainter, QPixmap, QPolygonF
 from PySide6.QtWidgets import QHBoxLayout, QLabel, QPushButton, QWidget
 
 from clasificador_video.ui import theme
@@ -10,6 +11,37 @@ from clasificador_video.ui.segmented import SegmentedControl
 MODO_CLIP = "Clip"
 MODO_HOJA = "Hoja"
 TECLA_MODO = "⇥"
+
+
+def _marca_de_play(tamano: QSize) -> QPixmap:
+    """El triangulo de play del icono de la app.
+
+    Pintado y no escrito: un `▶` de fuente cambia de forma, de peso y de
+    alineacion vertical segun la maquina, y este es el primer pixel que se
+    ve al abrir la app. El fondo ambar y el radio siguen viniendo del QSS
+    (`QLabel#appMark`), asi que aca solo va el triangulo.
+    """
+    escala = 2  # para que no se vea dentado en pantalla retina
+    pixmap = QPixmap(tamano * escala)
+    pixmap.setDevicePixelRatio(escala)
+    pixmap.fill(Qt.GlobalColor.transparent)
+    ancho, alto = tamano.width(), tamano.height()
+    # proporciones del mockup: un triangulo de 7x9 en una caja de 9x9
+    lado = min(ancho, alto) * 0.52
+    izquierda = (ancho - lado * 0.78) / 2
+    arriba = (alto - lado) / 2
+    triangulo = QPolygonF([
+        QPointF(izquierda, arriba),
+        QPointF(izquierda, arriba + lado),
+        QPointF(izquierda + lado * 0.86, arriba + lado / 2),
+    ])
+    pintor = QPainter(pixmap)
+    pintor.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+    pintor.setPen(Qt.PenStyle.NoPen)
+    pintor.setBrush(QColor(theme.BG_APP))
+    pintor.drawPolygon(triangulo)
+    pintor.end()
+    return pixmap
 
 
 def _boton(texto: str, atajo: str, object_name: str) -> QPushButton:
@@ -47,6 +79,8 @@ class TitleBar(QWidget):
         self.mark = QLabel("")
         self.mark.setObjectName("appMark")
         self.mark.setFixedSize(17, 17)
+        self.mark.setPixmap(_marca_de_play(self.mark.size()))
+        self.mark.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         self.project_label = QLabel("")
         self.project_label.setObjectName("projectLabel")

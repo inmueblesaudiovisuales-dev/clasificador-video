@@ -16,6 +16,10 @@ from PySide6.QtWidgets import (
 from clasificador_video.ui import theme
 from clasificador_video.ui.text import ElidedLabel
 
+
+def _texto_de_estado(cuantos: int, palabra: str) -> str:
+    return f"{cuantos} {palabra}" if palabra else str(cuantos)
+
 MAX_TECLAS = 9      # los atajos numericos llegan hasta el noveno cuarto
 MAX_HISTORIAL = 4   # el rail mide 200 px: mas filas empujan la lista de cuartos
 
@@ -93,15 +97,15 @@ class _Leyenda(QWidget):
         self.puntos: list[QLabel] = []
         self._cuadros: list[QLabel] = []
 
-    def set_estados(self, estados: list[tuple[int, str, str]]) -> None:
+    def set_estados(self, estados: list[tuple[int, str, str, str]]) -> None:
         # si la estructura es la misma --y lo es siempre, salvo cuando la F7
         # agregue el chip de destacados-- basta con cambiar textos y colores.
         # Recrear los widgets en cada tecla los dejaba huerfanos.
         if len(estados) == len(self.puntos):
-            for punto, cuadro, (cuantos, color, que_es) in zip(
+            for punto, cuadro, (cuantos, color, que_es, palabra) in zip(
                 self.puntos, self._cuadros, estados
             ):
-                punto.setText(str(cuantos))
+                punto.setText(_texto_de_estado(cuantos, palabra))
                 punto.setToolTip(f"{cuantos} {que_es}")
                 cuadro.setToolTip(punto.toolTip())
                 estilo = f"background-color: {color}; border-radius: 2px;"
@@ -116,13 +120,17 @@ class _Leyenda(QWidget):
         self._cuadros = []
         while self._layout.count():
             self._layout.takeAt(0)
-        for cuantos, color, que_es in estados:
+        for cuantos, color, que_es, palabra in estados:
             cuadro = QLabel("")
             cuadro.setFixedSize(6, 6)
             cuadro.setAttribute(Qt.WA_StyledBackground, True)
             cuadro.setStyleSheet(f"background-color: {color}; border-radius: 2px;")
-            numero = QLabel(str(cuantos))
-            numero.setObjectName("roomCount")
+            numero = QLabel(_texto_de_estado(cuantos, palabra))
+            # objectName propio: el mockup escribe la leyenda en la fuente de
+            # interfaz, no en la monoespaciada de los conteos por cuarto.
+            # Con `dest.` adentro, la mono se nota -- las letras salen
+            # separadas como en una terminal.
+            numero.setObjectName("legendCount")
             numero.setToolTip(f"{cuantos} {que_es}")
             cuadro.setToolTip(numero.toolTip())
             fila = QHBoxLayout()
@@ -600,11 +608,15 @@ class RoomRail(QWidget):
         # el `dest.` va primero, como en el mockup: es el estado mas alto de
         # la escalera y el que menos clips tiene, asi que leerlo de un vistazo
         # es lo que mas aporta
+        # Solo el primero lleva palabra (`6 dest.`), como el mockup: es el
+        # estado con menos clips y el mas facil de confundir con un conteo de
+        # picks si va pelado. Los otros tres se apoyan en el color, que es de
+        # lo que se trata la leyenda.
         self.leyenda.set_estados([
-            (destacados, theme.STAR_COLOR, "destacados"),
-            (picks, theme.PICK_COLOR, "picks"),
-            (rejects, theme.REJECT_COLOR, "rejects"),
-            (sin_clasificar, theme.PENDING_COLOR, "sin clasificar"),
+            (destacados, theme.STAR_COLOR, "destacados", "dest."),
+            (picks, theme.PICK_COLOR, "picks", ""),
+            (rejects, theme.REJECT_COLOR, "rejects", ""),
+            (sin_clasificar, theme.PENDING_COLOR, "sin clasificar", ""),
         ])
 
     def set_current_room(self, cuarto: str | None) -> None:

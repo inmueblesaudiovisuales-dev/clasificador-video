@@ -42,6 +42,7 @@ CLIP_ACTUAL = 86  # el mockup muestra el clip 087, que es el indice 86
 VERTICAL = (2160, 3840)
 HORIZONTAL = (3840, 2160)
 VOLUMEN = "/Volumes/FX30/CasaLomas"  # la misma ruta que muestra el mockup
+VOLUMEN_GB = 214                     # y el mismo tamaño
 
 
 class _MpvFalso:
@@ -227,7 +228,7 @@ def construir_ventana_de_ejemplo() -> MainWindow:
     ventana.select_clip(CLIP_ACTUAL)
     # sin importación real la barra de estado sale sin ruta y no se puede
     # comparar contra el mockup, que sí muestra una
-    ventana.status_bar.set_volume(VOLUMEN)
+    ventana.status_bar.set_volume(VOLUMEN, VOLUMEN_GB)
     _historial_de_ejemplo(ventana)
 
     # miniaturas sintéticas, sin lanzar mpv

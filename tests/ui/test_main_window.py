@@ -148,7 +148,8 @@ def test_importar_carpetas_puebla_el_ingest_list(qtbot, monkeypatch, tmp_path):
     # el panel de carpetas importadas murio; lo que importa es que la
     # carpeta entro al ingest y que la ruta se ve en la barra de estado
     assert [c.display_name for c in window.ingest_tree.top_level_folders()] == ["FX30"]
-    assert window.status_bar.volume_label.text() == str(carpeta_a)
+    # la ruta va con el tamaño del volumen desde la F10 (`· 214 GB`)
+    assert window.status_bar.volume_label.text().startswith(str(carpeta_a))
 
 
 class FakeProbe:
@@ -598,7 +599,7 @@ def test_toolbar_muestra_posicion_y_resumen_de_estado(qtbot):
     # numero: `● 41 picks ● 9 rejects ● 12 sin clasificar` no entraba en los
     # 200 px del rail y se cortaba (ver ANALISIS-2026-08-08-post-f2 §3)
     # cuatro numeros desde la F7: destacados, picks, rejects, sin clasificar
-    assert [p.text() for p in window.room_rail.leyenda.puntos] == ["0", "1", "1", "3"]
+    assert [p.text() for p in window.room_rail.leyenda.puntos] == ["0 dest.", "1", "1", "3"]
     assert "destacados" in window.room_rail.leyenda.puntos[0].toolTip()
     assert "picks" in window.room_rail.leyenda.puntos[1].toolTip()
     assert "3 sin clasificar" in window.status_bar.unclassified_label.text()
@@ -2131,7 +2132,7 @@ def test_destacado_se_ve_en_todos_lados(qtbot):
     assert window.tool_column.star_indicator.is_on()
     assert "DESTACADO" in window.video_stage.badges.flag_badge.text()
     assert "solo_destacados" in window.clip_sheet.chips
-    assert window.room_rail.leyenda.puntos[0].text() == "1"   # el chip `dest.`
+    assert window.room_rail.leyenda.puntos[0].text() == "1 dest."
 
 
 def test_el_atajo_de_destacado_esta_registrado(qtbot):

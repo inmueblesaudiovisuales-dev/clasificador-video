@@ -1,6 +1,7 @@
 # src/clasificador_video/ui/main_window.py
 from __future__ import annotations
 
+import shutil
 import time
 from pathlib import Path
 from typing import Callable
@@ -135,6 +136,20 @@ class _ThumbnailJob(QRunnable):
             # la ventana dueña (y su Signals) ya se destruyo mientras este
             # job corria en su propio hilo -- no hay nadie escuchando.
             pass
+
+
+def _gigas_del_volumen(ruta: Path) -> int | None:
+    """El `· 214 GB` de la barra de estado. En GB decimales, que es como
+    viene etiquetada la tarjeta.
+
+    Devuelve `None` si no se puede leer --volumen de red, carpeta ya
+    desmontada--: la barra escribe solo la ruta, porque un `0 GB` se
+    leeria como disco lleno.
+    """
+    try:
+        return round(shutil.disk_usage(ruta).total / 1_000_000_000)
+    except OSError:
+        return None
 
 
 class _ProxyProbeJob(QRunnable):
@@ -1648,7 +1663,7 @@ class MainWindow(QWidget):
         if not folder:
             return
         self.ingest_tree.import_folder(Path(folder))
-        self.status_bar.set_volume(folder)
+        self.status_bar.set_volume(folder, _gigas_del_volumen(Path(folder)))
         self._load_clips_from_ingest()
 
     def _refresh_sheet(self, force_rebuild: bool = False) -> None:
