@@ -152,7 +152,7 @@ def render_mockup(salida: Path, pantalla: int) -> None:
         raise SystemExit(f"Chrome no escribió {salida}")
 
 
-def render_app(salida: Path) -> None:
+def render_app(salida: Path, pantalla: int = 0) -> None:
     from PySide6.QtWidgets import QApplication
 
     from clasificador_video.app import configure_gl_surface_format
@@ -173,6 +173,12 @@ def render_app(salida: Path) -> None:
     ventana.resize(ANCHO, ALTO)
     ventana.show()
     app.processEvents()
+    if pantalla == 1:
+        # `--pantalla 1` es la hoja a pantalla completa. Sin esto la
+        # comparacion ponia la hoja del mockup contra el MODO CLIP de la app,
+        # o sea dos cosas distintas: no decia nada.
+        ventana.alternar_modo_hoja()
+        app.processEvents()
     # DESPUES del resize: `VideoStage._place_overlays` corre en cada resize
     # del video y hace `scrim.lower()`, asi que un frame agregado antes
     # terminaria por encima del scrim en vez de debajo de todo.
@@ -227,7 +233,7 @@ def main() -> None:
     tmp = Path(tempfile.mkdtemp())
     izq, der = tmp / "mockup.png", tmp / "app.png"
     render_mockup(izq, args.pantalla)  # subproceso externo, antes de crear la QApplication
-    render_app(der)                    # la unica QApplication del proceso vive aca
+    render_app(der, args.pantalla)     # la unica QApplication del proceso vive aca
     componer(izq, der, args.salida)    # reusa esa misma QApplication
     if args.recorte:
         ampliar_recorte(args.salida, parsear_recorte(args.recorte), args.zoom)

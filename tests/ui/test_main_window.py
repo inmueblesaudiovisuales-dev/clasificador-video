@@ -2358,3 +2358,97 @@ def test_en_solo_video_tambien_se_usa_el_alto_de_las_barras_escondidas(qtbot):
     qtbot.wait(20)
     assert window.video_stage.height() == 1000
     assert window.video_stage.width() == VideoStage.width_for(1000, 9 / 16)
+
+
+# --- F8 Task 15: el modo hoja ------------------------------------------------
+
+
+def test_tab_alterna_entre_los_dos_modos(qtbot):
+    window = _window_with_video(qtbot)
+    window.load_clips([_clip(1)])
+    window.handle_key_press("tab")
+    assert window.video_stage.isHidden()
+    assert not window.clip_sheet.isHidden()
+    window.handle_key_press("tab")
+    assert not window.video_stage.isHidden()
+
+
+def test_en_modo_hoja_la_columna_de_herramientas_se_va_con_el_video(qtbot):
+    """La columna es del visor: sin video no tiene de que ser el estado."""
+    window = _window_with_video(qtbot)
+    window.load_clips([_clip(1)])
+    window.handle_key_press("tab")
+    assert window.tool_column.isHidden()
+    assert not window.room_rail.isHidden()      # el rail SI se queda
+
+
+def test_el_clip_actual_sobrevive_el_cruce(qtbot):
+    """`⇥` lleva SIEMPRE al clip actual, en los dos sentidos."""
+    window = _window_with_video(qtbot)
+    window.load_clips([_clip(i) for i in range(1, 6)])
+    window.select_clip(3)
+    window.handle_key_press("tab")
+    assert window.clip_sheet.current_index() == 3
+    window.handle_key_press("tab")
+    assert window.current_index == 3
+
+
+def test_la_seleccion_sobrevive_el_cruce(qtbot):
+    """Es lo que Lightroom hace mal y no hay razon para copiarlo."""
+    window = _window_with_video(qtbot)
+    window.load_clips([_clip(i) for i in range(1, 8)])
+    window._on_selection_changed([1, 2, 3])
+    window.handle_key_press("tab")
+    window.handle_key_press("tab")
+    assert window.selected_indices == [1, 2, 3]
+
+
+def test_esc_sale_primero_de_solo_video_y_despues_a_la_hoja(qtbot):
+    """`esc` es la salida universal y ya la usaba solo video (F7): tiene que
+    deshacer una capa por vez, no saltarse una."""
+    window = _window_with_video(qtbot)
+    window.load_clips([_clip(1)])
+    window.handle_key_press("f")
+    window.handle_key_press("escape")
+    assert not window.room_rail.isHidden()          # salio de solo video
+    assert not window.video_stage.isHidden()        # sigue en modo clip
+    window.handle_key_press("escape")
+    assert window.video_stage.isHidden()            # ahora si, a la hoja
+
+
+def test_doble_click_en_una_tarjeta_abre_ese_clip(qtbot):
+    """El gesto de Grid → Loupe."""
+    window = _window_with_video(qtbot)
+    window.load_clips([_clip(1), _clip(2)])
+    window.handle_key_press("tab")
+    window.clip_sheet.clip_activated.emit(1)
+    assert window.current_index == 1
+    assert not window.video_stage.isHidden()
+
+
+def test_en_modo_hoja_las_teclas_siguen_clasificando(qtbot):
+    """La hoja no es un visor aparte: sigues marcando y asignando."""
+    window = _window_with_video(qtbot, rooms=("Cocina",))
+    window.load_clips([_clip(1), _clip(2)])
+    window.handle_key_press("tab")
+    window.handle_key_press("1")
+    assert window.clips[0].categoria_path == ["Cocina"]
+
+
+def test_mas_y_menos_llegan_a_la_hoja(qtbot):
+    window = _window_with_video(qtbot)
+    window.load_clips([_clip(i) for i in range(1, 13)])
+    window.show()
+    qtbot.waitExposed(window)
+    paso = window.clip_sheet._paso
+    window.handle_key_press("+")
+    assert window.clip_sheet._paso > paso
+    window.handle_key_press("-")
+    assert window.clip_sheet._paso == paso
+
+
+def test_las_teclas_del_modo_hoja_estan_registradas(qtbot):
+    window = _window_with_video(qtbot)
+    registrados = {s.key().toString() for s in window._shortcuts}
+    for tecla in ("Tab", "+", "-"):
+        assert tecla in registrados, f"{tecla} se maneja pero no está registrada"

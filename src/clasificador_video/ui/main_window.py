@@ -161,6 +161,8 @@ class MainWindow(QWidget):
         self._auto_reproduciendo = False
         # solo video: los paneles escondidos y el video con todo el ancho
         self._solo_video = False
+        # modo hoja: la hoja a pantalla completa, sin video ni columna
+        self._modo_hoja = False
         self._router = KeyboardRouter(active_rooms=room_selection.active_rooms())
         self._probe_clip = probe_clip          # inyectable para tests
         self._thumbnail_cache_root = thumbnail_cache_root or default_cache_root()
@@ -219,6 +221,7 @@ class MainWindow(QWidget):
 
         self.clip_sheet = ClipSheet()
         self.clip_sheet.clip_clicked.connect(self.select_clip)
+        self.clip_sheet.clip_activated.connect(self._on_clip_activado)
         self.clip_sheet.selection_changed.connect(self._on_selection_changed)
         self.clip_sheet.filters_changed.connect(self.set_filters)
 
@@ -325,6 +328,10 @@ class MainWindow(QWidget):
             # `⏎`: la paleta de cuartos. Comparte tecla con renombrar en el
             # rail, y por eso el handler mira quien tiene el foco.
             ("F", lambda: self.handle_key_press("f")),
+            # modo hoja y tamaño de miniatura
+            ("Tab", lambda: self.handle_key_press("tab")),
+            ("+", lambda: self.handle_key_press("+")),
+            ("-", lambda: self.handle_key_press("-")),
             ("Esc", lambda: self.handle_key_press("escape")),
             ("Return", self._on_enter),
             ("Enter", self._on_enter),
@@ -1047,6 +1054,29 @@ class MainWindow(QWidget):
             panel.setVisible(not self._solo_video)
         self._resize_video_stage()
 
+    def _on_clip_activado(self, indice: int) -> None:
+        """Doble click en una tarjeta: abre ESE clip en modo clip."""
+        self.select_clip(indice)
+        if self._modo_hoja:
+            self.alternar_modo_hoja()
+
+    def alternar_modo_hoja(self) -> None:
+        """`⇥`: la hoja a pantalla completa, y de vuelta.
+
+        Los dos modos comparten TODO el estado --el clip actual, la seleccion
+        y el scroll-- porque la division es de atencion, no de computo: nada
+        se pierde al cruzar (DECISIONES.md). Por eso aqui solo se esconden
+        widgets; no hay un segundo "cual es el actual" que pueda desincronizarse.
+
+        La columna de herramientas se va con el video: es el estado del clip
+        que estas viendo, y sin visor no tiene de que ser el estado.
+        """
+        self._modo_hoja = not self._modo_hoja
+        for panel in (self.video_stage, self.tool_column):
+            panel.setVisible(not self._modo_hoja)
+        self.clip_sheet.set_modo_hoja(self._modo_hoja)
+        self._resize_video_stage()
+
     def _pasar_cuadro(self, delta: int) -> None:
         """`.` adelante, `,` atras. La convencion de Premiere, y la unica
         forma de marcar in/out en el cuadro exacto.
@@ -1103,10 +1133,19 @@ class MainWindow(QWidget):
             self.alternar_solo_video()
             return
         if key == "escape":
-            # `esc` es la salida universal: si de solo video solo se saliera
-            # con `F`, quien entro sin querer no sabe como volver
+            # `esc` es la salida universal, y deshace UNA capa por vez: si se
+            # saltara una, saldrias de solo video y de la vista de clip con la
+            # misma tecla sin haber visto el paso intermedio.
             if self._solo_video:
                 self.alternar_solo_video()
+            elif not self._modo_hoja:
+                self.alternar_modo_hoja()
+            return
+        if key == "tab":
+            self.alternar_modo_hoja()
+            return
+        if key in ("+", "-"):
+            (self.clip_sheet.agrandar if key == "+" else self.clip_sheet.achicar)()
             return
         if self.current_clip is None:
             return

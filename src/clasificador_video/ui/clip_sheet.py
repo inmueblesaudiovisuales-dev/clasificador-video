@@ -29,6 +29,17 @@ SIN_CLASIFICAR = "Sin clasificar"
 # cuatro tarjetas de 186 px -- mas gordas y menos densas que las del mockup.
 # Medido en la comparacion de cierre de la F2.1.
 MIN_TILE_WIDTH = 140
+# Los pasos de `+`/`−`. Son anchos MINIMOS de tarjeta: cuantas columnas caben
+# lo sigue decidiendo el viewport, asi que un paso no fija el ancho, fija la
+# densidad. El modo clip arranca en el primero --140 da las cinco columnas
+# medidas en la F2.1-- y el modo hoja en `PASO_HOJA`, que da las siete del
+# mockup a 1600 px.
+PASOS_DE_TILE = (140, 170, 210, 260, 320)
+# 170 y no 210: medido en la VENTANA real, donde la hoja tiene 1382 px porque
+# el rail se queda. Ahi 170 da las siete columnas del mockup y 210 da seis.
+# Medirlo sobre una hoja suelta a 1600 px daba otro numero -- el ancho de la
+# hoja nunca es el de la ventana.
+PASO_HOJA = 1
 GAP = 9
 FADE_HEIGHT = 60
 
@@ -246,6 +257,7 @@ class ClipCard(QWidget):
     """
 
     clicked = Signal(object)  # Qt.KeyboardModifier vigente al hacer click
+    doble_click = Signal()    # abrir este clip en modo clip (Grid → Loupe)
 
     def __init__(self, clip: ClipThumbnail, parent=None):
         super().__init__(parent)
@@ -385,6 +397,11 @@ class ClipCard(QWidget):
         if event.button() == Qt.MouseButton.LeftButton:
             self.clicked.emit(event.modifiers())
         super().mousePressEvent(event)
+
+    def mouseDoubleClickEvent(self, event) -> None:  # noqa: N802 -- override de Qt
+        """Grid → Loupe, el gesto de Lightroom. No colisiona con nada: `⏎`
+        sigue siendo la paleta de cuartos."""
+        self.doble_click.emit()
 
     def mouseMoveEvent(self, event) -> None:  # noqa: N802 -- override de Qt
         if len(self._frames) > 1:
@@ -535,6 +552,7 @@ class ClipSheet(QWidget):
     """
 
     clip_clicked = Signal(int)
+    clip_activated = Signal(int)       # doble click: abrir en modo clip
     selection_changed = Signal(list)
     filters_changed = Signal(object)   # FilterState
 
@@ -542,6 +560,15 @@ class ClipSheet(QWidget):
         super().__init__(parent)
         self.setObjectName("clipSheet")
         self.item_widgets: list[ClipCard] = []
+        # Tamaño de miniatura: es una preferencia de VISTA, asi que vive aqui
+        # y no en `set_clips` -- ahi se reiniciaria con cada shooting que
+        # abras, justo despues de que lo hayas ajustado.
+        # Un paso por MODO: en la hoja a pantalla completa estas mirando de
+        # mas lejos y con mas ancho, asi que la densidad util es otra. Que
+        # `+`/`−` se recuerden por separado evita tener que reajustar en cada
+        # cruce.
+        self._modo_hoja = False
+        self._pasos = {False: 0, True: PASO_HOJA}
         self._blocks: dict[str, _GroupBlock] = {}
         self._current = -1
         self._selected: set[int] = set()
@@ -764,6 +791,7 @@ class ClipSheet(QWidget):
         for index, clip in enumerate(clips):
             card = ClipCard(clip)
             card.clicked.connect(lambda mods, i=index: self._on_card_clicked(i, mods))
+            card.doble_click.connect(lambda i=index: self.clip_activated.emit(i))
             self.item_widgets.append(card)
         self._current = -1
         self._anchor = None
@@ -850,6 +878,38 @@ class ClipSheet(QWidget):
         for titulo in titulos:
             self._content_layout.addWidget(self._blocks[titulo])
 
+    @property
+    def _paso(self) -> int:
+        return self._pasos[self._modo_hoja]
+
+    def set_modo_hoja(self, activo: bool) -> None:
+        """La hoja a pantalla completa arranca con tarjetas mas grandes: son
+        las siete columnas del mockup a 1600 px, contra las cinco del modo
+        clip."""
+        if activo == self._modo_hoja:
+            return
+        self._modo_hoja = activo
+        self._relayout()
+
+    def _ancho_de_tile(self) -> int:
+        """El ancho MINIMO de una tarjeta segun el paso de zoom vigente."""
+        return PASOS_DE_TILE[self._paso]
+
+    def agrandar(self) -> None:
+        self._set_paso(self._paso + 1)
+
+    def achicar(self) -> None:
+        self._set_paso(self._paso - 1)
+
+    def _set_paso(self, paso: int) -> None:
+        """Con tope por los dos lados: sin el, `−` repetido deja tarjetas de
+        3 px y `+` una sola tarjeta por pantalla. Los dos son inservibles."""
+        nuevo = max(0, min(paso, len(PASOS_DE_TILE) - 1))
+        if nuevo == self._paso:
+            return
+        self._pasos[self._modo_hoja] = nuevo
+        self._relayout()
+
     def _ancho_disponible(self) -> int:
         """El ancho REAL para las tarjetas: el viewport del area de scroll.
 
@@ -870,6 +930,8 @@ class ClipSheet(QWidget):
         """
         return (
             self._ancho_disponible(),
+            self._paso,
+            self._modo_hoja,
             tuple(
                 (self._group_of(card.clip), self._es_visible(i), card.clip.aspect_ratio)
                 for i, card in enumerate(self.item_widgets)
@@ -890,9 +952,8 @@ class ClipSheet(QWidget):
         self._acomodar_de_verdad()
 
     def _acomodar_de_verdad(self) -> None:
-        ancho_util = max(self._ancho_disponible(), MIN_TILE_WIDTH)
-        ancho_util -= 26  # margenes del contenido
-        columnas = max(1, (ancho_util + GAP) // (MIN_TILE_WIDTH + GAP))
+        ancho_util = self._ancho_util()
+        columnas = self.columnas_visibles()
         ancho_tile = max(1, (ancho_util - GAP * (columnas - 1)) // columnas)
 
         # solo lo visible: las escondidas por el filtro no entran a la grilla,
@@ -916,6 +977,43 @@ class ClipSheet(QWidget):
                 # addWidget sobre un widget que ya existe solo lo reubica:
                 # no lo destruye ni le borra la miniatura ya cargada
                 block.grid.addWidget(card, fila, columna)
+
+    def _ancho_util(self) -> int:
+        """El ancho para tarjetas, ya descontados los margenes del contenido."""
+        return max(self._ancho_disponible(), MIN_TILE_WIDTH) - 26
+
+    def columnas_visibles(self) -> int:
+        """Cuantas columnas arma la grilla con el ancho de ahora.
+
+        **Es la MISMA cuenta que usa `_acomodar_de_verdad`**, no una copia: al
+        construir el zoom estuvieron un rato separadas y el resultado fue que
+        este metodo reportaba 6 columnas mientras la grilla seguia armando 8.
+        Dos vistas del mismo dato se contradicen solas -- van cuatro veces en
+        este proyecto.
+        """
+        return max(1, (self._ancho_util() + GAP) // (self._ancho_de_tile() + GAP))
+
+    def orden_visual(self) -> list[int]:
+        """Los numeros de clip en el orden en que se ven.
+
+        Ojo: NO es el orden de `item_widgets`, que va por indice de clip. Este
+        sirve para probar que una pincelada no reacomoda la hoja bajo el
+        cursor mientras pintas.
+        """
+        numeros = []
+        for block in self._blocks.values():
+            if block.isHidden():
+                continue
+            for posicion in range(block.grid.count()):
+                item = block.grid.itemAt(posicion)
+                if item is not None and item.widget() is not None:
+                    numeros.append(item.widget()._clip.numero)
+        return numeros
+
+    def current_index(self) -> int:
+        """El clip actual segun la hoja. La hoja LEE este dato, no guarda una
+        segunda copia: dos vistas del mismo estado se contradicen solas."""
+        return self._current
 
     def resizeEvent(self, event) -> None:  # noqa: N802 -- override de Qt
         super().resizeEvent(event)

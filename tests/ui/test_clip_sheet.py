@@ -5,6 +5,7 @@ from PySide6.QtGui import QPixmap
 
 from clasificador_video.ui import theme
 from clasificador_video.ui.clip_sheet import (
+    MIN_TILE_WIDTH,
     GAP,
     SIN_CLASIFICAR,
     ClipCard,
@@ -695,3 +696,136 @@ def test_marcar_OUT_antes_que_IN_dibuja_el_rango_igual(qtbot):
     """
     plan = _card(in_frame=400, out_frame=100, duration_frames=800).plan_de_pintado()
     assert plan["rango"] == (0.125, 0.5)
+
+
+# --- F8 Task 15: el modo hoja ------------------------------------------------
+
+
+def _thumb(i: int, cuarto=SIN_CLASIFICAR) -> ClipThumbnail:
+    """Un clip de ejemplo para llenar la hoja."""
+    return ClipThumbnail(path=Path(f"/tmp/C{i:04d}.MP4"), room_label=cuarto,
+                         flag="none", numero=i)
+
+
+def test_columnas_visibles_cuenta_lo_que_hay_en_la_grilla(qtbot):
+    """Existe para poder probar el acomodo sin medir pixeles a mano, que es
+    como se colaron los bugs de ancho de la F2."""
+    hoja = _sheet(qtbot, [_thumb(i) for i in range(1, 21)])
+    hoja.resize(815, 900)
+    hoja.show()
+    qtbot.waitExposed(hoja)
+    qtbot.wait(50)
+    assert hoja.columnas_visibles() == 5      # la medida de la F2.1
+
+
+def test_a_pantalla_completa_la_hoja_arma_siete_columnas(qtbot):
+    """El numero del mockup. Con menos, las tarjetas quedan enormes y se
+    pierde el contexto, que es la razon de este modo."""
+    # 1382 px es el ancho REAL de la hoja en modo hoja con la ventana a
+    # 1600: el rail de 200 px se queda. Medirlo a 1600 daria otro numero y el
+    # test no diria nada del caso que importa.
+    hoja = _sheet(qtbot, [_thumb(i) for i in range(1, 31)])
+    hoja.resize(1382, 900)
+    hoja.show()
+    qtbot.waitExposed(hoja)
+    hoja.set_modo_hoja(True)
+    qtbot.wait(50)
+    assert hoja.columnas_visibles() == 7
+
+
+def test_cada_modo_recuerda_su_tamano_de_miniatura(qtbot):
+    """En la hoja a pantalla completa miras de mas lejos: la densidad util es
+    otra, y tener que reajustar en cada cruce seria un peaje."""
+    hoja = _sheet(qtbot, [_thumb(i) for i in range(1, 13)])
+    hoja.show()
+    qtbot.waitExposed(hoja)
+    en_clip = hoja._paso
+    hoja.set_modo_hoja(True)
+    assert hoja._paso != en_clip
+    hoja.agrandar()
+    en_hoja = hoja._paso
+    hoja.set_modo_hoja(False)
+    assert hoja._paso == en_clip
+    hoja.set_modo_hoja(True)
+    assert hoja._paso == en_hoja
+
+
+def test_el_orden_visual_es_el_de_la_grilla(qtbot):
+    """Los numeros de clip en el orden en que se ven. Sirve para probar que
+    una pincelada no reacomoda la hoja bajo el cursor."""
+    hoja = _sheet(qtbot, [_thumb(i) for i in range(1, 7)])
+    hoja.show()
+    qtbot.waitExposed(hoja)
+    qtbot.wait(50)
+    assert hoja.orden_visual() == [1, 2, 3, 4, 5, 6]
+
+
+def test_la_hoja_sabe_cual_es_el_clip_actual(qtbot):
+    """Un solo estado: la hoja LEE cual es el actual en vez de guardar su
+    propia copia. Dos vistas del mismo dato se contradicen solas -- ya paso
+    tres veces en este proyecto."""
+    hoja = _sheet(qtbot, [_thumb(i) for i in range(1, 5)])
+    hoja.set_current(2)
+    assert hoja.current_index() == 2
+
+
+def test_doble_click_en_una_tarjeta_avisa_cual_es(qtbot):
+    """El gesto de Grid → Loupe. No colisiona con nada: `⏎` sigue siendo la
+    paleta."""
+    hoja = _sheet(qtbot, [_thumb(i) for i in range(1, 5)])
+    with qtbot.waitSignal(hoja.clip_activated) as blocker:
+        hoja.item_widgets[2].doble_click.emit()
+    assert blocker.args == [2]
+
+
+# --- F8 Task 16: `+` / `−`, tamaño de miniatura ------------------------------
+
+
+def test_mas_y_menos_cambian_el_tamano_de_las_tarjetas(qtbot):
+    hoja = _sheet(qtbot, [_thumb(i) for i in range(1, 13)])
+    hoja.resize(1200, 800)
+    hoja.show()
+    qtbot.waitExposed(hoja)
+    qtbot.wait(50)
+    columnas = hoja.columnas_visibles()
+    antes = hoja.item_widgets[0].width()
+
+    hoja.agrandar()
+    qtbot.wait(50)
+    assert hoja.item_widgets[0].width() > antes
+    assert hoja.columnas_visibles() < columnas
+
+    hoja.achicar()
+    qtbot.wait(50)
+    assert hoja.columnas_visibles() == columnas
+
+
+def test_el_tamano_tiene_tope_por_los_dos_lados(qtbot):
+    """Sin topes, `−` repetido deja tarjetas de 3 px y `+` una sola tarjeta
+    por pantalla: los dos casos son inservibles."""
+    hoja = _sheet(qtbot, [_thumb(i) for i in range(1, 13)])
+    hoja.resize(1200, 800)
+    hoja.show()
+    qtbot.waitExposed(hoja)
+    qtbot.wait(50)
+    for _ in range(20):
+        hoja.achicar()
+    qtbot.wait(50)
+    assert hoja.item_widgets[0].width() >= MIN_TILE_WIDTH
+    for _ in range(40):
+        hoja.agrandar()
+    qtbot.wait(50)
+    assert hoja.columnas_visibles() >= 2
+
+
+def test_el_tamano_sobrevive_a_cargar_otro_shooting(qtbot):
+    """Es una preferencia de vista, no un dato del material: si se reiniciara
+    con cada `set_clips`, lo ajustarias y se perderia al importar."""
+    hoja = _sheet(qtbot, [_thumb(i) for i in range(1, 13)])
+    hoja.show()
+    qtbot.waitExposed(hoja)
+    hoja.agrandar()
+    hoja.agrandar()
+    paso = hoja._paso
+    hoja.set_clips([_thumb(i) for i in range(1, 5)])
+    assert hoja._paso == paso
