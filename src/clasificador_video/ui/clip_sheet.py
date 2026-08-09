@@ -2258,9 +2258,21 @@ class ClipSheet(QWidget):
         Finder y lo que hace Premiere--, pero arrastrar uno que NO esta en la
         seleccion se lleva solo ese: si se llevara la seleccion vieja, moverias
         clips que ni estabas mirando.
+
+        Los ESCONDIDOS por el filtro no entran, misma regla que la marquesina
+        en `indices_tocados_por` y por el mismo motivo: seleccionar en lote,
+        filtrar, y arrastrar te cambiaba de bin material que no estabas
+        viendo -- filtrar no limpia la seleccion, asi que es alcanzable. Y
+        `mover` no entra al historial, o sea que ⌘Z no lo devuelve.
         """
         if indice in self._selected:
-            return sorted(self._selected)
+            # `_es_visible` y no `isHidden()`: lo que se pregunta es «lo
+            # esconde el FILTRO», que es el caso peligroso. `isHidden()` ademas
+            # da True cuando la hoja entera todavia no se mostro, y ahi podaria
+            # todo por un motivo que no tiene nada que ver.
+            visibles = [i for i in sorted(self._selected) if self._es_visible(i)]
+            if visibles:
+                return visibles
         return [indice]
 
     def _on_arrastre_pedido(self, indice: int) -> None:

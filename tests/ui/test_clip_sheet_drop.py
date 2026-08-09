@@ -1010,3 +1010,42 @@ def test_reponer_la_portada_es_lo_mismo_que_salir_de_la_tarjeta(qtbot):
     tarjeta.reponer_portada()
 
     assert (tarjeta._hover, tarjeta._shown_index) == por_salir
+
+
+# --- el filtro manda tambien aqui -----------------------------------------
+
+
+def test_el_arrastre_no_se_lleva_clips_escondidos_por_el_filtro(qtbot):
+    """La misma regla que ya aplica la marquesina, con el mismo motivo:
+    «seleccionar algo que no ves y despues asignarle un cuarto en lote es el
+    error mas caro de la app». Filtrar NO limpia la seleccion, asi que es
+    alcanzable de verdad -- seleccionas en lote, filtras, arrastras, y te
+    llevas de bin material que no estas viendo. Y `mover` no entra al
+    historial: ⌘Z no lo devuelve.
+    """
+    hoja = _hoja(qtbot, [_thumb(i, bin_nombre="Sony") for i in range(4)],
+                 bins=["Sony", "Dron"])
+    hoja.set_selected({0, 1, 2, 3})
+    hoja.set_visible_indices([0, 1])
+    qtbot.wait(10)
+
+    assert hoja.indices_a_arrastrar(0) == [0, 1]
+
+
+def test_el_gesto_completo_tampoco_se_lleva_los_escondidos(qtbot):
+    hoja = _hoja(qtbot, [_thumb(i, bin_nombre="Sony") for i in range(4)],
+                 bins=["Sony", "Dron"])
+    hoja.set_selected({0, 1, 2, 3})
+    hoja.set_visible_indices([0, 1])
+    qtbot.wait(10)
+
+    assert _arrastrar_de_verdad(hoja, hoja.item_widgets[0]) == [[0, 1]]
+
+
+def test_sin_filtro_se_van_todos_los_seleccionados(qtbot):
+    """La guarda no puede volverse una poda silenciosa cuando no hay filtro."""
+    hoja = _hoja(qtbot, [_thumb(i, bin_nombre="Sony") for i in range(4)],
+                 bins=["Sony"])
+    hoja.set_selected({0, 1, 2, 3})
+
+    assert hoja.indices_a_arrastrar(0) == [0, 1, 2, 3]
