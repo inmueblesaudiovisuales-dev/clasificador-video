@@ -29,7 +29,7 @@ verticales).
 
 ## 2. Dónde está todo hoy
 
-- Rama `master`, árbol limpio. **988 tests en verde** — ese es el número de
+- Rama `master`, árbol limpio. **1003 tests en verde** — ese es el número de
   partida. (Eran 831 antes de los bins.)
 
 ```bash
@@ -131,6 +131,43 @@ mirándolas:
   entrega.
 - **Mover clips entre bins arrastrando**, **bins anidados**, y **que el bin
   viaje a Premiere como carpeta del proyecto**.
+
+### Qué quedó MEDIDO y qué quedó SUPUESTO
+
+Se separa a propósito, con el mismo criterio de la sección 4.b: un veredicto sin
+su evidencia se vuelve a discutir en tres meses.
+
+**Medido:**
+
+- **1003 tests en verde**, la suite completa corrida decenas de veces seguidas
+  sin una sola caída. El número importa porque hubo **tres segfaults
+  intermitentes** durante el trabajo (uno de cada diez corridas), y la única
+  forma de saber que están muertos fue repetir.
+- **Los tres segfaults, cada uno con su causa identificada**, no parcheados a
+  ciegas: un `QGraphicsDropShadowEffect` que resultó **no** ser el culpable
+  (medido con un worktree del commit anterior: 16 corridas limpias); un mpv
+  real encendiéndose porque `cerrar_clip` tocaba `self.player`, que se
+  construye perezosamente justo para evitarlo (el volcado traía 100 menciones
+  de `MPVEventHandlerThread`, y con la guarda: 0); y widgets destruidos desde
+  adentro de su propia señal, con 51 menús vivos tras 50 aperturas.
+- **Lo visual, mirando el pixel** y no de palabra: la hoja con tres bins, uno
+  colapsado; el encabezado pegado; el menú de clic derecho; las dos zonas de
+  arrastre; la barra de filtros a 1027 px (el mínimo real de la ventana), donde
+  la fila de bins envuelve a segunda línea y cuesta 48 px de alto y **0 de
+  ancho**; y el visor a 900 y a 430 px comprobando el orden de sacrificio.
+
+**Supuesto, no medido — esto es lo que falta y no se puede afirmar:**
+
+- **Nadie ha usado esto con material real.** Todo se probó con archivos
+  inventados y `ffprobe` falso. Los 109 clips de la Sony y los 23 del dron no
+  han pasado por aquí ni una vez.
+- **El arrastre desde Finder de verdad.** Bajo `offscreen` no se puede arrastrar;
+  lo que está probado son eventos sintéticos. El arranque del arrastre, el
+  cursor y el `dragLeave` al salir de la ventana **no están comprobados**.
+- **El encabezado pegado en una pantalla Retina real**, con el scroll por
+  trackpad y su inercia.
+- **Cuánto cuesta todo esto con 132 clips de verdad.** Los ~12 ms de re-acomodo
+  son una medición vieja, de antes de que la hoja agrupara en dos niveles.
 
 ### Advertencia para la primera vez que Bruno abra esto
 

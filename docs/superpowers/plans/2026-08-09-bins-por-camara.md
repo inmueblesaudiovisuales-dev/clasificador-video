@@ -1877,7 +1877,7 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
       scratchpad dentro del repo.
 - [x] Actualizar `docs/superpowers/CONTEXTO-Y-METAS.md`: los bins pasan de «en
       marcha» a hecho, y el bug de las portadas sale de la lista.
-- [ ] Anotar en el handoff qué quedó **medido** y qué quedó **supuesto**, con
+- [x] Anotar en el handoff qué quedó **medido** y qué quedó **supuesto**, con
       el mismo criterio de la sección 4.b: el veredicto sin la evidencia se
       vuelve a discutir en tres meses.
 
