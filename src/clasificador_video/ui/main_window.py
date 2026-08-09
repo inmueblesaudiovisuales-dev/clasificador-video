@@ -642,9 +642,6 @@ class MainWindow(QWidget):
             return [self.current_index]
         return []
 
-    def _bulk_targets(self) -> list[Clip]:
-        return [self.clips[i] for i in self._bulk_target_indices()]
-
     def _apply_categoria_to_targets(self, path: list[str]) -> None:
         indices = self._bulk_target_indices()
         if not indices:
