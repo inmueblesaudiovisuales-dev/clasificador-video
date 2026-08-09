@@ -180,3 +180,61 @@ def test_restaurar_una_sesion_devuelve_los_tamanos(qtbot, tmp_path):
     assert ventana._clip_sizes == {0: (2160, 3840)}
     assert ventana._clip_durations == {0: 18.4}
     assert ventana.aspect_ratio_for(0) == 2160 / 3840
+
+
+def _restaurar(tmp_path, data, qtbot):
+    """Ayudante comun a los tests de bins de abajo: arma la sesion, la
+    restaura y devuelve la ventana ya con `bins` puesto (o no)."""
+    from clasificador_video.app import _restore_session
+    from clasificador_video.rooms import RoomSelection
+    from clasificador_video.ui.main_window import MainWindow
+
+    sesion = tmp_path / "s.json"
+    sesion.write_text(json.dumps(data))
+    ventana = MainWindow(project_name="P", room_selection=RoomSelection(),
+                         thumbnail_cache_root=tmp_path / "cache")
+    qtbot.addWidget(ventana)
+    original = app_module.QMessageBox.question
+    app_module.QMessageBox.question = staticmethod(lambda *a, **k: QMessageBox.Yes)
+    try:
+        _restore_session(ventana, sesion)
+    finally:
+        app_module.QMessageBox.question = original
+    return ventana
+
+
+def _datos_de_sesion(extra=None):
+    data = {
+        "proyecto": "P",
+        "rooms": ["Sala"],
+        "clips": [
+            {"orden": 1, "ruta": "/cam/A.MP4", "categoria_path": [], "fps": 30.0,
+             "in_frame": None, "out_frame": None, "flag": "none", "ruta_proxy": None},
+            {"orden": 2, "ruta": "/cam/B.MP4", "categoria_path": [], "fps": 30.0,
+             "in_frame": None, "out_frame": None, "flag": "none", "ruta_proxy": None},
+        ],
+    }
+    data.update(extra or {})
+    return data
+
+
+def test_restaurar_una_sesion_con_bins_deja_bins_puestos(qtbot, tmp_path):
+    """La tarea 3 del plan escribio la llave "bins" en el autosave pero
+    nadie probaba que _restore_session la leyera de vuelta -- solo estaba
+    cubierto a nivel BinTree, no en el camino real de arrancar la app."""
+    data = _datos_de_sesion({"bins": [
+        {"nombre": "Sony", "origen": "/cam", "clips": [0, 1]},
+    ]})
+    ventana = _restaurar(tmp_path, data, qtbot)
+
+    assert ventana.bins.nombres() == ["Sony"]
+    assert ventana.bins.clips_de("Sony") == [0, 1]
+
+
+def test_restaurar_una_sesion_vieja_sin_bins_cae_en_uno_solo(qtbot, tmp_path):
+    """Una sesion de antes de que existieran los bins no trae la llave.
+    No se pierde: todo el material cae en un bin unico."""
+    ventana = _restaurar(tmp_path, _datos_de_sesion(), qtbot)
+
+    assert ventana.bins.nombres() == ["cam"]
+    assert ventana.bins.clips_de("cam") == [0, 1]
