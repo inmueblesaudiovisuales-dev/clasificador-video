@@ -22,14 +22,16 @@ pulido de lo que ya existe y features nuevas que todavía no se construyeron.
   (relevante porque parte del material real es vertical, ver
   `docs/superpowers/archive/HALLAZGOS-2026-08-05-rotacion-vertical.md` para el
   contexto de por qué la rotación importa tanto en este proyecto).
-- **Mejor performance de reproducción, menos latencia frame por frame** — la
-  navegación cuadro a cuadro (marcar in/out con precisión) tiene que sentirse
-  instantánea, no la siente así hoy.
-- **Proxies** — poder trabajar con archivos proxy más livianos en vez del
-  material original de la cámara, para mejorar el rendimiento general de
-  reproducción/scrub. (Nota: existe `src/clasificador_video/proxy_match.py`
-  y un `js/proxy.js` en el plugin UXP — revisar qué tan lejos llegó ese
-  trabajo antes de asumir que se arranca de cero.)
+- ~~**Mejor performance de reproducción, menos latencia frame por frame**~~ —
+  **hecho en la F9, y no como se esperaba.** No era la app: era el material.
+  Un cuadro atrás sobre el 4K HEVC 10-bit de la FX30 (268 Mbps) cuesta
+  **530 ms**; sobre el proxy, **22 ms**. Reproducir el proxy lo resolvió sin
+  tocar el reproductor.
+- ~~**Proxies**~~ — **hecho en la F9.** La app busca el proxy alrededor de la
+  carpeta importada, lo valida cuadro a cuadro contra el original, **lo
+  reproduce**, lo anuncia con el badge `PROXY 720P` y el contador de la barra
+  de estado, y lo escribe en el manifest — así que Premiere por fin lo
+  engancha (el `js/proxy.js` del plugin ya sabía hacerlo y nunca recibía uno).
 
 ### Diseño visual
 - **Rediseño más pulido** — la dirección "Console" actual (`theme.py`) es un

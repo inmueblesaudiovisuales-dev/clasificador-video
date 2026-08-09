@@ -185,20 +185,20 @@ La regla, que sale de la decisión 1 de Bruno:
   `ingest.py`) **cuyo stem termine en `S03`**.
 
 **Tests (antes):**
-- [ ] El proxy está en una **carpeta hermana** de la importada → lo encuentra.
+- [x] El proxy está en una **carpeta hermana** de la importada → lo encuentra.
       Es el caso real de `sample-media/` (`clips/` y `proxy/`) y también el de
       la tarjeta Sony (`Clip/` y `Sub/`).
-- [ ] El proxy está suelto en la carpeta **padre** → lo encuentra.
-- [ ] El proxy está revuelto con los originales → lo encuentra igual (que la
+- [x] El proxy está suelto en la carpeta **padre** → lo encuentra.
+- [x] El proxy está revuelto con los originales → lo encuentra igual (que la
       decisión 1 no se convierta en una limitación).
-- [ ] Un archivo tres niveles abajo **no** se busca: el tope de profundidad
+- [x] Un archivo tres niveles abajo **no** se busca: el tope de profundidad
       existe y hay un test que lo fija.
-- [ ] Una carpeta sin ningún `S03` devuelve lista vacía, sin reventar.
-- [ ] Una carpeta padre inaccesible (permisos) devuelve vacío, no una
+- [x] Una carpeta sin ningún `S03` devuelve lista vacía, sin reventar.
+- [x] Una carpeta padre inaccesible (permisos) devuelve vacío, no una
       excepción: importar de un volumen ajeno no puede tumbar la app.
 
 **Y una guarda en el ingest:**
-- [ ] `tests/test_ingest.py`: un archivo `…S03.MP4` dentro de la carpeta
+- [x] `tests/test_ingest.py`: un archivo `…S03.MP4` dentro de la carpeta
       importada **no entra como clip**. Hoy entraría, y Bruno vería 256 clips
       en vez de 128 si importa la carpeta equivocada.
 
@@ -225,14 +225,14 @@ segundos después de importar**, y hay que probar explícitamente que un clip
 abierto ANTES de que su proxy valide se abre con el original y no se rompe.
 
 **Tests (antes):**
-- [ ] Con un proxy que valida, `clips[i].ruta_proxy` queda apuntando al `S03`.
-- [ ] Con un proxy que **no** valida (fps distinto), `ruta_proxy` queda en
+- [x] Con un proxy que valida, `clips[i].ruta_proxy` queda apuntando al `S03`.
+- [x] Con un proxy que **no** valida (fps distinto), `ruta_proxy` queda en
       `None`. Y el mismo test con cantidad de cuadros distinta.
-- [ ] Un clip sin proxy sigue con `None` y no rompe nada — es el caso normal
+- [x] Un clip sin proxy sigue con `None` y no rompe nada — es el caso normal
       del dron, dice el docstring de `proxy_match.py`.
-- [ ] `_clip_sizes` **sigue saliendo del original** aunque haya proxy
+- [x] `_clip_sizes` **sigue saliendo del original** aunque haya proxy
       (advertencia 3). Este test es el guardián del layout.
-- [ ] La sesión guardada trae `ruta_proxy` y al restaurarla vuelve. `app.py` ya
+- [x] La sesión guardada trae `ruta_proxy` y al restaurarla vuelve. `app.py` ya
       lo hace: el test es para que nadie lo rompa.
 
 ---
@@ -250,15 +250,15 @@ clip (`status_bar.py::set_clip_info`): que las dos llamen a la misma función
 (advertencia 4).
 
 **Tests (antes):**
-- [ ] Mayoría vertical → `"vertical"`. Mayoría horizontal → `"horizontal"`.
-- [ ] **Empate → `"vertical"`**, y el test lo dice con esas palabras. No es
+- [x] Mayoría vertical → `"vertical"`. Mayoría horizontal → `"horizontal"`.
+- [x] **Empate → `"vertical"`**, y el test lo dice con esas palabras. No es
       arbitrario: el material de Bruno es mayoría vertical y una secuencia
       vertical con material horizontal adentro se arregla en Premiere; al
       revés, se recorta.
-- [ ] **Sin ningún tamaño conocido** (sesión restaurada de disco, donde no se
+- [x] **Sin ningún tamaño conocido** (sesión restaurada de disco, donde no se
       volvió a correr `ffprobe`) → `"horizontal"`, el default de hoy, y no
       revienta. Este es el caso que se olvida.
-- [ ] Un clip cuadrado no cuenta como vertical.
+- [x] Un clip cuadrado no cuenta como vertical.
 
 ---
 
@@ -272,8 +272,8 @@ clip (`status_bar.py::set_clip_info`): que las dos llamen a la misma función
 **lado corto**, para que un proxy vertical de 1080×1920 también diga `1080p` y
 no `1920p`.
 
-- [ ] `1920×1080` → `"1080p"`; `1080×1920` → `"1080p"`; `1280×720` → `"720p"`.
-- [ ] La usan **las dos** vistas (badge y contador). Un test lo comprueba
+- [x] `1920×1080` → `"1080p"`; `1080×1920` → `"1080p"`; `1280×720` → `"720p"`.
+- [x] La usan **las dos** vistas (badge y contador). Un test lo comprueba
       llamando a las dos y comparando el texto, no leyendo el código.
 
 ---
@@ -293,13 +293,13 @@ badge — y si hace falta uno, **va en `theme.py`**, que el candado 1 ya saltó 
 vez por esto.
 
 **Tests (antes):**
-- [ ] Clip con proxy validado de 1280×720 → el badge se ve y dice `PROXY 720P`
+- [x] Clip con proxy validado de 1280×720 → el badge se ve y dice `PROXY 720P`
       (la resolución sale del archivo, no del texto del mockup; mayúsculas
       escritas a mano: `text-transform` no existe en QSS, ya pasó con `▶ AUTO`).
-- [ ] Clip sin proxy → el badge está escondido, no vacío.
-- [ ] El badge declara `background-color: transparent` — la regla global
+- [x] Clip sin proxy → el badge está escondido, no vacío.
+- [x] El badge declara `background-color: transparent` — la regla global
       `QWidget { background-color }` alcanza a las QLabel y ya costó dos bugs.
-- [ ] Cambiar de clip con proxy a uno sin proxy y volver: aparece y desaparece
+- [x] Cambiar de clip con proxy a uno sin proxy y volver: aparece y desaparece
       sin dejar hueco en la fila.
 
 ---
@@ -317,12 +317,12 @@ lo dibuja (solo lo pide `DECISIONES.md`), así que esta ubicación es una
 decisión de este plan y queda escrita aquí.
 
 **Tests (antes):**
-- [ ] Con 118 de 128 validados dice `proxies 1080p · 118/128`.
-- [ ] **Con cero proxies el contador no se ve** — un `· 0/128` es ruido en cada
+- [x] Con 118 de 128 validados dice `proxies 1080p · 118/128`.
+- [x] **Con cero proxies el contador no se ve** — un `· 0/128` es ruido en cada
       sesión de dron.
-- [ ] Si los proxies conocidos tienen resoluciones distintas, **se cae la
+- [x] Si los proxies conocidos tienen resoluciones distintas, **se cae la
       palabra**: `proxies · 118/128`. Mejor callar que mentir.
-- [ ] Sin clips importados, vacío.
+- [x] Sin clips importados, vacío.
 
 ---
 
@@ -337,12 +337,12 @@ Una sola función decide qué archivo se abre: proxy si validó, original si no.
 viendo.
 
 **Tests (antes):**
-- [ ] Con proxy validado, `open_clip` recibe la ruta del **proxy**.
-- [ ] Sin proxy, recibe la del original. Con proxy no validado, también.
-- [ ] El `in`/`out` marcado sobre el proxy queda en el mismo número de cuadro
+- [x] Con proxy validado, `open_clip` recibe la ruta del **proxy**.
+- [x] Sin proxy, recibe la del original. Con proxy no validado, también.
+- [x] El `in`/`out` marcado sobre el proxy queda en el mismo número de cuadro
       que sobre el original — el criterio de la Task 0 es lo que lo garantiza,
       y este test lo fija.
-- [ ] El manifest exporta **`ruta` del original y `ruta_proxy` del proxy**, en
+- [x] El manifest exporta **`ruta` del original y `ruta_proxy` del proxy**, en
       ese orden y sin cruzarse. Es el test que protege a Premiere: si se cruzan,
       el proyecto se arma con el material de 720p y nadie lo nota hasta exportar.
 
@@ -361,16 +361,16 @@ está en `DECISIONES.md`. Se anota en el punto de control, no se hace aquí.
 
 ## Task 8: Cierre de fase
 
-- [ ] Suite completa en verde (sin `--ignore`), y el número anotado.
-- [ ] Los detectores de la §8 del handoff: señales sin conectar, tokens
+- [x] Suite completa en verde (sin `--ignore`), y el número anotado.
+- [x] Los detectores de la §8 del handoff: señales sin conectar, tokens
       huérfanos, widgets huérfanos tras 60 teclas (procesando `DeferredDelete`
       antes de contar), y textos de la app contra atajos registrados.
-- [ ] **cProfile** de la importación y de la tecla de cuarto. Encontró algo las
+- [x] **cProfile** de la importación y de la tecla de cuarto. Encontró algo las
       tres veces que se corrió; esta fase agrega trabajo al import, que es
       justo donde no se ha perfilado nunca.
-- [ ] Los **dos anchos** (1600 y 1150 px): el badge nuevo alarga la fila de
+- [x] Los **dos anchos** (1600 y 1150 px): el badge nuevo alarga la fila de
       badges, y a 1150 px la fila de badges es más angosta.
-- [ ] El arnés en las **dos pantallas**, mirando la imagen:
+- [x] El arnés en las **dos pantallas**, mirando la imagen:
 
 ```bash
 .venv/bin/python scripts/comparar_con_mockup.py --salida /tmp/comp.png
@@ -378,9 +378,71 @@ está en `DECISIONES.md`. Se anota en el punto de control, no se hace aquí.
 .venv/bin/python scripts/comparar_con_mockup.py --salida /tmp/rec.png --recorte 200,800,420,160 --zoom 3
 ```
 
-- [ ] **`scripts/_datos_de_ejemplo.py` tiene que ejercitar lo nuevo**: sin un
+- [x] **`scripts/_datos_de_ejemplo.py` tiene que ejercitar lo nuevo**: sin un
       clip con proxy en los datos, el arnés compara el badge del mockup contra
       un hueco y no dice nada. Ya pasó tres veces.
-- [ ] Sacar el renglón de la orientación hardcodeada de la lista de ejecución
+- [x] Sacar el renglón de la orientación hardcodeada de la lista de ejecución
       —era el único vivo— y verificar con `grep`, no de memoria.
-- [ ] Actualizar `CONTEXTO-Y-METAS.md`: la meta «Proxies» deja de ser futura.
+- [x] Actualizar `CONTEXTO-Y-METAS.md`: la meta «Proxies» deja de ser futura.
+
+
+---
+
+## Cierre de la F9 — 2026-08-08
+
+**751 tests en verde** (venían 704), árbol limpio, y **la lista de ejecución
+quedó vacía**: la orientación hardcodeada era su último renglón vivo desde la
+F2.
+
+### Los detectores, corridos
+
+| Detector | Resultado |
+|---|---|
+| Señales declaradas sin conectar | ninguna |
+| Tokens del tema huérfanos | ninguno |
+| Funciones nuevas que nadie llama | ninguna |
+| Widgets huérfanos tras 60 teclas | 698 → 698 |
+| Tecla de cuarto, con y sin proxies | 3.48 → **3.56 ms** |
+
+Es la primera vez que cProfile no encuentra nada. Tiene explicación: esta fase
+casi no agrega trabajo por tecla — el contador recorre 128 clips en 0.019 ms — y
+el trabajo pesado que sí agrega (un `ffprobe` por proxy) se mandó al thread pool
+justo por haberlo medido antes de escribirlo.
+
+### Lo que enseñó esta fase
+
+- **Medir antes de construir cambió dos decisiones y justificó una tercera.**
+  El spike decidió que el sondeo fuera asíncrono (3.42 s), corrigió el texto del
+  badge (720p, no 1080p) y convirtió «reproducir el proxy» de preferencia en
+  número: 530 ms → 22 ms por cuadro.
+- **Una búsqueda puede fallar por una letra.** El plan afirmaba que el mockup no
+  dibujaba el contador de proxies. Sí lo dibuja, en dos pantallas — `grep proxy`
+  no encuentra `proxies`. Cuando una afirmación sobre el mockup sostenga una
+  decisión de diseño, **hay que mirarlo**, no solo buscarlo.
+- **Un test que afirma `is None` puede pasar por la razón equivocada.** Tres de
+  los tests de validación pasaban antes de existir la validación. Se comprobó
+  con un mutante (hacer que `_el_proxy_calza` devuelva siempre `True`) que los
+  tres se ponen rojos. Sin ese paso, tres tests verdes no probaban nada.
+- **Un archivo que no existe apaga la función que se quiere comparar.** Los
+  datos de ejemplo del arnés usan proxies vacíos **de verdad**, porque la app
+  pregunta si el proxy sigue en disco antes de mostrar el badge. Una ruta
+  inventada habría dado un arnés que compara el badge del mockup contra un
+  hueco — la cuarta vez que pasa algo así.
+
+### Dos huecos que este cierre encontró y NO son de la F9
+
+Los dos son del **barrido de la F10**, y quedan anotados aquí para que no se
+pierdan:
+
+1. **A 1150×800 la fila de arriba del video se sale.** El control de velocidad
+   queda en `x = -165`, o sea fuera de la imagen, encimado con el nombre del
+   archivo. No lo causó la F9 —son los controles de la F6— y solo aparece
+   cuando la ventana es **baja**, porque con un clip vertical el ancho del video
+   sale de la altura: a 800 px de alto el video mide 416 px y ahí no cabe
+   `nombre + velocidad + calidad`. A 1000 px de alto entra bien, que es por qué
+   ninguna revisión anterior lo vio.
+2. **En modo hoja la barra de estado del mockup dice otra cosa.** Muestra
+   `128 clips · 74 verticales · 54 horizontales` en vez de los datos del clip
+   actual. La app muestra siempre el clip actual. El dato ya existe
+   (`orientacion_de` sobre `_clip_sizes`); lo que falta es que la barra cambie
+   de contenido con el modo.
