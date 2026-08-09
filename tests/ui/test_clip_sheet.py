@@ -2009,3 +2009,70 @@ def test_un_bin_de_nombre_larguisimo_no_empuja_el_minimo_de_la_hoja(qtbot):
     assert hoja.minimumSizeHint().width() <= corto
     # y el nombre completo se sigue leyendo en el encabezado del bin
     assert hoja.bin_header_widget(largo).name_label.text() == largo
+
+
+# --- lo que se saca de la vista no se destruye AHORA (revision final) ------
+
+
+def test_el_encabezado_que_se_va_no_se_destruye_en_el_acto(qtbot):
+    """`pop(nombre).setParent(None)` destruia el widget de C++ EN ESA LINEA:
+    `pop` devuelve un temporal, PySide le devuelve la propiedad a Python al
+    quitarle el padre, y al morir la ultima referencia se borra.
+
+    El camino que lo dispara es renombrar: el encabezado viejo se destruye
+    --con su `QLineEdit` adentro-- mientras el stack sigue dentro del evento
+    de teclado de ese mismo `QLineEdit`. Use-after-free, la misma familia de
+    los tres segfaults que ya costaron arreglos en este archivo.
+
+    El test NO puede quedarse con una referencia al encabezado: teniendola,
+    el envoltorio de Python no muere y el bug no aparece. Por eso se escucha
+    `destroyed`, que es una conexion de C++, y se suelta la referencia antes
+    de disparar.
+    """
+    hoja = ClipSheet()
+    qtbot.addWidget(hoja)
+    hoja.set_bin_order(["Sony", "Dron"])
+    hoja.set_clips([_thumb(0, bin_nombre="Sony"), _thumb(1, bin_nombre="Dron")])
+    destruido = []
+    hoja.bin_header_widget("Dron").destroyed.connect(lambda *_: destruido.append(1))
+
+    hoja.set_bin_order(["Sony"])
+    hoja.set_clips([_thumb(0, bin_nombre="Sony")])
+
+    assert hoja.bin_headers() == ["Sony"]
+    # todavia no: lo mata el ciclo de eventos, no la linea que lo saco
+    assert destruido == []
+
+
+def test_el_bloque_de_grupo_que_se_vacia_tampoco(qtbot):
+    """Mismo patron, mismo riesgo: los bloques se sacan desde `_regroup`,
+    que corre dentro del click que reclasifico el clip."""
+    hoja = ClipSheet()
+    qtbot.addWidget(hoja)
+    hoja.set_clips([_thumb(0, room_label="Cocina")])
+    destruido = []
+    hoja._blocks[("", "Cocina")].destroyed.connect(lambda *_: destruido.append(1))
+
+    hoja.set_clips([_thumb(0, room_label="Baño")])
+
+    assert destruido == []
+
+
+def test_el_menu_del_bin_que_se_va_tampoco_se_destruye_en_el_acto(qtbot):
+    """«Quitar del proyecto» y «Renombrar» rehacen la hoja desde adentro del
+    `triggered` de su propia accion, y rehacer la hoja se lleva puesto el
+    encabezado -- con su menu."""
+    hoja = ClipSheet()
+    qtbot.addWidget(hoja)
+    hoja.set_bin_order(["Sony", "Dron"])
+    hoja.set_clips([_thumb(0, bin_nombre="Sony"), _thumb(1, bin_nombre="Dron")])
+    cabecera = hoja.bin_header_widget("Dron")
+    cabecera._menu = cabecera.construir_menu()
+    destruido = []
+    cabecera._menu.destroyed.connect(lambda *_: destruido.append(1))
+    del cabecera
+
+    hoja.set_bin_order(["Sony"])
+    hoja.set_clips([_thumb(0, bin_nombre="Sony")])
+
+    assert destruido == []

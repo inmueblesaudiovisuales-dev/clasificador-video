@@ -1241,3 +1241,62 @@ def test_el_visor_dice_de_que_bin_es_el_clip_actual(qtbot, ventana):
     ventana.select_clip(1)
 
     assert "Dron" in ventana.video_stage.bin_label.text()
+
+
+# --- renombrar desde el teclado de verdad (revision final) -----------------
+
+
+def test_renombrar_con_la_tecla_enter_no_destruye_el_campo_bajo_los_pies(
+        qtbot, ventana):
+    """El encabezado viejo se destruye DENTRO del evento de teclado de su
+    propio `QLineEdit`.
+
+    `_confirmar_nombre` corre dentro de `returnPressed`, emite
+    `rename_requested`, y eso termina en `_sincronizar_encabezados`, que ya
+    no encuentra el nombre viejo y le saca el padre al encabezado -- con su
+    `name_edit` adentro -- mientras el stack de C++ sigue dentro de
+    `QLineEdit::keyPressEvent`. Use-after-free.
+
+    Emitir `returnPressed` desde Python NO lo ve: ahi no hay ningun frame de
+    C++ al que volver. Por eso este test manda la tecla de verdad.
+    """
+    from PySide6.QtCore import Qt
+    from PySide6.QtTest import QTest
+
+    ventana.load_clips([_clip(0, "/dron/D.MP4")])
+    ventana.bins.agregar("Dron", Path("/dron"), [0])
+    ventana._refresh_sheet()
+    ventana.show()
+    qtbot.waitExposed(ventana)
+    cabecera = ventana.clip_sheet.bin_header_widget("Dron")
+    cabecera.empezar_a_renombrar()
+    cabecera.name_edit.setText("Dron DJI")
+
+    QTest.keyClick(cabecera.name_edit, Qt.Key.Key_Return)
+    qtbot.wait(10)
+
+    assert ventana.bins.nombres() == ["Dron DJI"]
+    assert ventana.clip_sheet.bin_headers() == ["Dron DJI"]
+
+
+def test_renombrar_desde_el_menu_no_destruye_el_menu_bajo_los_pies(qtbot, ventana):
+    """El mismo camino, pero disparado desde el `QAction` del menu: ahi
+    ademas se suelta `self._menu` desde adentro de su propio `triggered`."""
+    from PySide6.QtCore import Qt
+    from PySide6.QtTest import QTest
+
+    ventana.load_clips([_clip(0, "/dron/D.MP4")])
+    ventana.bins.agregar("Dron", Path("/dron"), [0])
+    ventana._refresh_sheet()
+    ventana.show()
+    qtbot.waitExposed(ventana)
+    cabecera = ventana.clip_sheet.bin_header_widget("Dron")
+    menu = cabecera.construir_menu()
+    cabecera._menu = menu
+
+    menu.actions()[0].trigger()      # «Renombrar bin…»
+    cabecera.name_edit.setText("Dron DJI")
+    QTest.keyClick(cabecera.name_edit, Qt.Key.Key_Return)
+    qtbot.wait(10)
+
+    assert ventana.bins.nombres() == ["Dron DJI"]

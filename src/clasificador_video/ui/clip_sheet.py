@@ -938,8 +938,23 @@ class _BinHeader(QWidget):
     def _abrir_menu_en(self, punto) -> None:
         # `popup` y no `exec`: `exec` abre un ciclo de eventos propio, que es
         # exactamente lo que colgaba la suite bajo `offscreen`.
+        self.soltar_menu()
         self._menu = self.construir_menu()
         self._menu.popup(punto)
+
+    def soltar_menu(self) -> None:
+        """Suelta el menu SIN destruirlo en el acto.
+
+        `self._menu = otra_cosa` --o que muera el encabezado entero-- borra
+        el `QMenu` por cuenta de referencias, y eso puede pasar DENTRO del
+        `triggered` de una de sus propias acciones: «Quitar del proyecto» y
+        «Renombrar» rehacen la hoja, y rehacer la hoja se lleva puesto este
+        encabezado. `deleteLater` lo difiere al ciclo de eventos, que es
+        cuando ya no queda ningun frame de C++ apoyado en el menu.
+        """
+        if self._menu is not None:
+            self._menu.deleteLater()
+            self._menu = None
 
 
 class _ZonaDeBinNuevo(QWidget):
@@ -1593,9 +1608,9 @@ class ClipSheet(QWidget):
 
     def set_clips(self, clips: list[ClipThumbnail]) -> None:
         for card in self.item_widgets:
-            card.setParent(None)
+            self._desechar(card)
         for block in self._blocks.values():
-            block.setParent(None)
+            self._desechar(block)
         self.item_widgets = []
         self._blocks = {}
         for index, clip in enumerate(clips):
@@ -1748,7 +1763,7 @@ class ClipSheet(QWidget):
 
         for titulo in list(self._blocks):
             if titulo not in titulos:
-                self._blocks.pop(titulo).setParent(None)
+                self._desechar(self._blocks.pop(titulo))
 
         self._sincronizar_encabezados([b for b, _ in titulos])
 
@@ -1783,7 +1798,7 @@ class ClipSheet(QWidget):
                 self.bin_header_created.emit(cabecera)
         for nombre in list(self._bin_headers):
             if nombre not in presentes:
-                self._bin_headers.pop(nombre).setParent(None)
+                self._desechar(self._bin_headers.pop(nombre))
         # la meta y el colapso van por NOMBRE y no se podaban solos: la
         # carpeta de origen de un bin que ya no existe se quedaba en memoria
         # para siempre, y un bin nuevo con el mismo nombre la heredaba.
@@ -1858,6 +1873,33 @@ class ClipSheet(QWidget):
         self._pegado.raise_()
 
     # --- arrastrar material a la hoja (F5) --------------------------------
+
+    def _desechar(self, widget: QWidget) -> None:
+        """Saca un widget de la vista sin destruirlo AHORA.
+
+        `self._blocks.pop(t).setParent(None)` destruia el objeto de C++ en
+        esa misma linea: `pop` devuelve un temporal, quitarle el padre le
+        devuelve la propiedad a Python, y al morir la ultima referencia
+        --que es el temporal-- shiboken lo borra en el acto.
+
+        El problema no es borrarlo, es CUANDO. Estas podas corren dentro de
+        `_regroup`, y `_regroup` corre dentro del evento que las provoco:
+        renombrar un bin destruia el encabezado viejo --con su `QLineEdit`
+        adentro-- mientras el stack seguia dentro del `keyPressEvent` de ese
+        mismo `QLineEdit`. Use-after-free, la misma familia de los tres
+        segfaults que ya costaron arreglos en este archivo.
+
+        `deleteLater` lo difiere al ciclo de eventos, que es cuando ya no
+        queda ningun frame de C++ apoyado en el widget. Es el patron que ya
+        usan `room_rail.py` y `transicion.py`.
+        """
+        if isinstance(widget, _BinHeader):
+            # su menu de clic derecho se va con el, y puede estar corriendo
+            # una de sus acciones justo ahora
+            widget.soltar_menu()
+        widget.hide()
+        widget.setParent(None)
+        widget.deleteLater()
 
     def zona_de_bin_nuevo(self) -> "_ZonaDeBinNuevo":
         return self._zona_nueva

@@ -1,8 +1,10 @@
 # Handoff — 2026-08-09 — desde el rediseño terminado
 
-El rediseño de la UI **está cerrado** (once fases, F0 a F10). Lo que sigue no
-es más UI: es **el rediseño de la importación** que pidió Bruno, y **repartir
-la app** a las computadoras de su equipo.
+El rediseño de la UI **está cerrado** (once fases, F0 a F10), y **la
+importación por bins también** — se hizo la noche del 2026-08-09 y esta sección
+3 quedó como registro de lo entregado, no como tarea. Lo que sigue abierto es
+**repartir la app** a las computadoras del equipo de Bruno, los **proxies del
+dron** y el **LUT hacia Premiere**.
 
 Reemplaza a [`archive/HANDOFF-2026-08-08-rediseno-ui-desde-f9.md`](archive/HANDOFF-2026-08-08-rediseno-ui-desde-f9.md).
 
@@ -27,8 +29,8 @@ verticales).
 
 ## 2. Dónde está todo hoy
 
-- Rama `master`, árbol limpio. **831 tests en verde** — ese es el número de
-  partida.
+- Rama `master`, árbol limpio. **988 tests en verde** — ese es el número de
+  partida. (Eran 831 antes de los bins.)
 
 ```bash
 QT_QPA_PLATFORM=offscreen .venv/bin/pytest tests/ -q
@@ -45,7 +47,8 @@ verdad**: `tests/conftest.py` lo impide, y romper esa guarda es el síntoma.
 | **Marcar** | `1`–`9` cuartos, `S` igual al anterior, `⏎` paleta, `P`/`X`/`⇧P`, **`↑`/`↓` suben y bajan el estado** |
 | **En lote** | marquesina, `⇧`+click, `⌘A`, pincel (mantener `1`–`9` y arrastrar) — y **todo** lo de marcar aplica a la selección |
 | **Dos vistas** | `⇥` alterna clip ↔ hoja, llevando siempre al clip actual, con transición animada |
-| **Proxies** | **a mano**: eliges el de un clip y del par sale el patrón para los demás |
+| **Importar** | arrastrar carpetas y archivos; cada tanda es un **bin** (una cámara), con nombre editable |
+| **Proxies** | **a mano y por bin**: eliges el de un clip y del par sale el patrón para los demás de ESA cámara |
 | **Entregar** | `⌘E` exporta el manifest; el plugin arma el proyecto |
 
 ### Arquitectura
@@ -63,14 +66,84 @@ MainWindow  (ui/main_window.py)   — ensambla y orquesta; TRES filas y ninguna 
 ```
 
 Lógica pura, sin Qt: `history.py`, `filters.py`, `rooms.py`, `keyboard.py`,
-`player.py`, `probe.py`, `proxy_match.py`, `binarios.py`, `ingest.py`.
+`player.py`, `probe.py`, `proxy_match.py`, `binarios.py`, `ingest.py`,
+`bins.py`.
 
-## 3. Tu primera tarea: la importación por bins
+## 3. La importación por bins — HECHA (2026-08-09, de noche)
 
-**No tiene spec ni plan. Empieza por el brainstorm con Bruno**, porque es un
-cambio de estructura y hay una decisión de fondo sin tomar.
+**Ya no es una tarea abierta.** Se hizo entera en una sesión, con Bruno
+dormido: brainstorm → mockup que él aprobó viéndolo → spec → plan → seis fases
+implementadas con TDD y revisadas una por una.
 
-Lo que pidió, textual:
+- Spec: [`specs/2026-08-09-bins-por-camara-design.md`](specs/2026-08-09-bins-por-camara-design.md)
+- Plan: [`plans/2026-08-09-bins-por-camara.md`](plans/2026-08-09-bins-por-camara.md)
+- Mockup aprobado: [`mockups/bins-2026-08-09/mockup.html`](mockups/bins-2026-08-09/mockup.html), **propuesta A**
+
+### La decisión de fondo, ya tomada
+
+La hoja **ya agrupaba, y agrupaba por cuarto** (`ClipSheet._group_of` devolvía
+`room_label`). O sea que los bins no llegaban a un espacio vacío: competían con
+la jerarquía que había. Se le dibujaron a Bruno las dos salidas y eligió
+mirándolas:
+
+- **A (elegida)** — el bin agrupa arriba, el cuarto baja a subgrupo adentro.
+  Costo aceptado: un cuarto grabado con dos cámaras aparece dos veces, una en
+  cada bin.
+- **B (descartada)** — el cuarto se vuelve solo una etiqueta en la tarjeta. Más
+  limpio, pero se pierde el bloque por cuarto que Bruno usa para pintar en lote.
+
+**No reabrir sin razón nueva.** El costo de A se evaluó y se aceptó.
+
+### Lo que quedó construido
+
+| | |
+|---|---|
+| **El dato** | `bins.py` — `BinTree`, sin Qt. Va por índice de clip y viaja **aparte** en el autosave: `Clip.to_dict()` es el contrato con el plugin y no se tocó |
+| **Importar** | arrastrar carpetas y archivos; sobre un bin se suman ahí, en el vacío nace un bin nuevo con el nombre de la carpeta |
+| **Agregar agrega** | los índices viejos no se mueven, así que portadas, proxies, marcas e historial sobreviven |
+| **Proxies** | por bin, con su propio patrón de nombre — la Sony con `S03` y el dron con el suyo, sin pisarse |
+| **La hoja** | encabezado por bin (nombre editable, origen, conteos, insignia de proxies), pegado arriba al hacer scroll, colapsable, con menú de clic derecho |
+| **Filtrar** | chips por bin, que también acotan la cola de las flechas |
+| **En modo clip** | el bin junto al nombre del archivo, con orden de sacrificio velocidad → bin → elidir |
+
+### Lo que se arregló de paso
+
+- **Las portadas se caían al importar una segunda carpeta** (lo reportó Bruno).
+  Causa: importar reconstruía la lista entera y `load_clips` limpia el
+  historial, vacía los proxies y recrea todas las tarjetas — con sus miniaturas
+  adentro.
+- **Se re-pedían las portadas de todo** al agregar material o al enganchar
+  proxies, duplicando trabajos sobre la misma carpeta y el mismo socket IPC.
+  Eso es lo que ponía a girar los abanicos «sin haber hecho nada».
+- **Tres segfaults intermitentes de la suite**, todos de la misma familia:
+  widgets destruidos desde adentro de su propia señal, y un mpv real
+  encendiéndose porque `cerrar_clip` tocaba `self.player`, que se construye
+  perezosamente justo para que eso no pase.
+- **Código muerto borrado**: `IngestTree`/`IngestFolder` ya no los usaba nadie
+  desde la interfaz. `ingest.py` conserva `VIDEO_EXTENSIONS`, `SUFIJO_PROXY`,
+  `es_archivo_de_proxy` y `archivos_de_video`.
+
+### Lo que NO entró, y por qué
+
+- **LUT por bin** — falta comprobar dentro de Premiere que el parámetro de LUT
+  de entrada de Lumetri acepta una ruta. El bin ya existe para colgárselo.
+- **Generar los proxies del dron** — medido y aprobado por Bruno, es otra
+  entrega.
+- **Mover clips entre bins arrastrando**, **bins anidados**, y **que el bin
+  viaje a Premiere como carpeta del proyecto**.
+
+### Advertencia para la primera vez que Bruno abra esto
+
+La sesión que tiene guardada es **anterior a los bins**, así que al restaurarla
+cae en **un solo bin** con el nombre de la carpeta del primer clip — y ahí
+adentro están mezclados la Sony y el dron. Los proxies por bin no le van a
+servir sobre esa sesión. **Conviene empezar de cero, arrastrando cada carpeta a
+su bin.** La otra salida sería «Quitar del proyecto», que se lleva la
+clasificación, las marcas y el historial.
+
+### El pedido original, para no perder el porqué
+
+Lo que Bruno pidió, textual:
 
 > «No me encanta la importación. Es difícil importar archivos individuales,
 > solo se pueden carpetas. No se distinguen entre carpetas o cámaras. Me
@@ -79,26 +152,16 @@ Lo que pidió, textual:
 > otros ya sé que son de un dron. Poder hacer clic derecho en esos bins y
 > enlazar los proxies. También meter los LUTs a esos videos.»
 
-**Por qué el fondo del pedido es correcto, y no solo comodidad:** el proxy y el
-LUT son propiedades **de la cámara**, no del clip suelto. El LUT de S-Log de la
-FX30 no va sobre material del dron. Hoy no hay forma de decir «estos 23 son del
-dron», y por eso enganchar proxies es un gesto por shooting entero en vez de
-por fuente.
+**Por qué el fondo del pedido era correcto, y no solo comodidad:** el proxy y
+el LUT son propiedades **de la cámara**, no del clip suelto. El LUT de S-Log de
+la FX30 no va sobre material del dron. Antes no había forma de decir «estos 23
+son del dron», y por eso enganchar proxies era un gesto por shooting entero en
+vez de por fuente.
 
-**Media pieza ya existe, sin interfaz**: `ingest.py` guarda cada carpeta
-importada por separado, con nombre editable (`IngestFolder.display_name`,
-`rename_folder`). El rediseño quitó el panel que las mostraba; el dato quedó.
-
-**La decisión de fondo, que es de Bruno y no del código:** la hoja de contactos
-**agrupa por cuarto**. Las fuentes son un segundo eje. Si las fuentes también
-agrupan, hay dos jerarquías compitiendo en la misma vista. La salida más
-probable es que **la fuente sea un filtro y una etiqueta, no una agrupación** —
-pero eso se pregunta, no se asume.
-
-**Y una advertencia de alcance**, escrita en `CONTEXTO-Y-METAS.md`: no se trata
-de reconstruir el panel de proyecto de Premiere con jerarquía y arrastre
-anidado. Se trata de saber de qué cámara viene cada clip y poder actuar por
-cámara.
+**La advertencia de alcance sigue vigente**, y está en `CONTEXTO-Y-METAS.md`:
+no se trata de reconstruir el panel de proyecto de Premiere con jerarquía y
+arrastre anidado. Se trata de saber de qué cámara viene cada clip y poder
+actuar por cámara. Lo entregado se queda de este lado de esa línea a propósito.
 
 ## 4. Lo demás que está abierto
 
