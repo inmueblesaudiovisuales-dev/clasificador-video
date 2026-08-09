@@ -1052,7 +1052,11 @@ def _pegar_encabezado(qtbot, ventana, nombre):
     """Deja la hoja desplazada hasta que el flotante sea el de `nombre`."""
     ventana.resize(1000, 420)
     ventana.show()
-    ventana.alternar_modo_hoja()
+    # NO se llama a `alternar_modo_hoja`: desde la F7 la app ya arranca en
+    # la hoja, y llamarlo aqui la SACABA -- todo este bloque corria con la
+    # hoja angosta del modo clip en vez de a pantalla completa, que es
+    # donde el encabezado pegado tiene sentido.
+    assert ventana._modo_hoja
     hoja = ventana.clip_sheet
     barra = hoja._scroll.verticalScrollBar()
     qtbot.waitUntil(lambda: barra.maximum() > 0, timeout=2000)

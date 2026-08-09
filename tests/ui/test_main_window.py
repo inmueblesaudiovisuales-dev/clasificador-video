@@ -2411,10 +2411,14 @@ def test_esc_sale_de_solo_video(qtbot):
 
 
 def test_esc_sin_estar_en_solo_video_no_hace_nada(qtbot):
-    window = _window_with_video(qtbot)
+    # a modo clip: es la rama que el nombre promete. Arrancando en la hoja,
+    # `esc` no entraba a ninguna de las dos ramas y el test pasaba sin
+    # ejercitar nada.
+    window = _a_modo_clip(_window_with_video(qtbot))
     window.load_clips([_clip(1)])
     window.handle_key_press("escape")
     assert not window.room_rail.isHidden()
+    assert not window._solo_video
 
 
 def test_las_teclas_de_solo_video_estan_registradas(qtbot):
@@ -2469,7 +2473,10 @@ def test_en_modo_hoja_la_columna_de_herramientas_se_va_con_el_video(qtbot):
 
 def test_el_clip_actual_sobrevive_el_cruce(qtbot):
     """`⇥` lleva SIEMPRE al clip actual, en los dos sentidos."""
-    window = _window_with_video(qtbot)
+    # desde el visor: el orden importa, porque llevar al clip actual es lo
+    # que corre al ENTRAR a la hoja. Arrancando en la hoja el primer `⇥`
+    # salia, y el test comprobaba los dos sentidos al reves.
+    window = _a_modo_clip(_window_with_video(qtbot))
     window.load_clips([_clip(i) for i in range(1, 6)])
     window.select_clip(3)
     window.handle_key_press("tab")
@@ -3109,12 +3116,15 @@ def test_al_entrar_a_la_hoja_la_barra_resume_el_shooting(qtbot):
 def test_volver_al_visor_anima_la_tarjeta(qtbot):
     """`DECISIONES.md`: la tarjeta crece hasta la posicion del visor,
     medio segundo que evita el «¿donde estaba?» en cada cruce."""
-    window = _window(qtbot)
-    window.resize(1600, 1000)
-    window.show()
+    # Desde el visor. Arrancando en la hoja los dos comentarios quedaban
+    # invertidos --el primer `⇥` iba AL visor y el segundo a la hoja-- y el
+    # test pasaba porque la animacion de medio segundo de la primera
+    # llamada seguia viva, no porque la transicion al visor funcionara.
+    window = _a_modo_clip(_window(qtbot))
     window.load_clips([_clip(i) for i in range(1, 6)])
     window.alternar_modo_hoja()          # a la hoja
     qtbot.wait(10)
+    assert not window.transicion.corriendo(), "entrar a la hoja no anima"
 
     window.alternar_modo_hoja()          # y de vuelta al visor
     assert window.transicion.corriendo()
@@ -3183,7 +3193,11 @@ def test_solo_video_desde_la_hoja_no_deja_la_ventana_vacia(qtbot):
     window.resize(1600, 1000)
     window.show()
     window.load_clips([_clip(1), _clip(2)])
-    window.alternar_modo_hoja()
+    # sin `alternar_modo_hoja`: la ventana YA arranca en la hoja desde la
+    # F7, y llamarlo aqui la sacaba -- la rama que este test cuida, la que
+    # impide que `⇥`+`F` deje la ventana en negro, no llegaba a correr y la
+    # asercion pasaba por trivialidad.
+    assert window._modo_hoja
 
     window.alternar_solo_video()
 
