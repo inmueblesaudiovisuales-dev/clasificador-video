@@ -95,7 +95,7 @@ otro. Cuando eso pase, hay que recortar cada mitad por separado.
 | 3 | Rail, leyenda | El primer chip dice `7`; el mockup dice **`6 dest.`** — le falta la palabra. Los otros tres sí van sin palabra |
 | 4 | Barra de estado | La ruta del volumen va sola; el mockup escribe **`/Volumes/FX30/CasaLomas · 214 GB`** |
 | 5 | Barra de estado, modo hoja | El mockup cambia el texto a **`128 clips · 74 verticales · 54 horizontales`**; la app sigue mostrando el clip actual |
-| 6 | Overlays del video, ventana **baja** | A 1150×800 el control de velocidad queda en `x = -165`, **fuera de la imagen** y encimado con el nombre del archivo |
+| 6 | Overlays del video, ventana **baja** | ~~A 1150×800 el control de velocidad queda en `x = -165`~~ — **este renglón era falso**, ver la corrección al final: se midió sin la hoja de estilos. Lo que sí había era el nombre del archivo metiéndose bajo el selector de calidad |
 | 7 | Todo | **Falta la transición animada** de la tarjeta al visor (Task 3) |
 
 El 6 merece una nota: **solo aparece con la ventana baja, no angosta.** Con un
@@ -349,3 +349,39 @@ Corrida a pedido de Bruno, **ejecutando** y no leyendo. **787 tests en verde.**
 En modo hoja `esc` no hace nada, y **está bien así**: deshace una capa por vez
 —solo video → clip → hoja— y la hoja es la capa de más afuera. No hay nada
 debajo que devolver.
+
+
+---
+
+## Corrección — el renglón 6 del barrido era un espejismo (2026-08-08)
+
+**Se midió sin la hoja de estilos puesta**, y sin ella Qt le da a cada
+`QPushButton` el ancho mínimo de plataforma —80 px en macOS—, así que el
+selector de calidad pasa de **149 px a 320**. Con esos números falsos, el
+control de velocidad «quedaba» en `x = -165`. Con la hoja puesta, a 1150×800
+los tres elementos entran.
+
+La misma falla estaba en la suite: `tests/ui/` no aplicaba la hoja, y
+`pytest tests/ui/test_video_stage.py` **a solas daba dos tests en rojo**
+mientras que en la suite completa pasaban, porque otro archivo la aplicaba
+antes. Ya hay un `conftest.py` que la aplica una vez por sesión.
+
+**Lo que sí era un bug, y que este espejismo tapaba**: un nombre de archivo
+largo seguía de largo **por debajo** del selector de calidad. Arreglado
+cortándolo con puntos suspensivos, con la regla que Bruno eligió: primero se
+va la velocidad, y solo después se corta el nombre.
+
+Medido de nuevo, con estilos, en cuatro tamaños:
+
+| Ventana | Video | Velocidad | Algo fuera de la imagen |
+|---|---|---|---|
+| 1600×1000 | 529 px | visible | nada |
+| 1440×900 | 472 px | visible | nada |
+| 1150×800 | 416 px | oculta | nada |
+| 1280×720 | 394 px | oculta | nada |
+
+**La lección, que vale más que el bug**: *un arnés de medición que no monta la
+app completa mide otra app*. Es prima hermana de las dos trampas que ya estaban
+anotadas (contar widgets sin procesar `DeferredDelete`, y un doble de pruebas
+que tapa el bug que existe), y esta vez costó un diagnóstico entero y un
+arreglo mal justificado.
