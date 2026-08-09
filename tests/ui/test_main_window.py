@@ -2948,13 +2948,13 @@ def test_el_contador_de_proxies_se_llena_al_importar(qtbot, monkeypatch, tmp_pat
     assert window.status_bar.proxy_label.text() == "proxies 720p · 1/1"
 
 
-def test_sin_proxies_el_contador_queda_escondido(qtbot, monkeypatch, tmp_path):
+def test_sin_proxies_la_barra_lo_dice(qtbot, monkeypatch, tmp_path):
     window = _window_with_video(qtbot, cache_root=tmp_path / "cache")
     monkeypatch.setattr(window, "_probe_clip", _ProbeConProxy())
     _importar_con_proxy(window, monkeypatch, tmp_path, con_proxy=False)
     _esperar_a_los_proxies(window)
 
-    assert window.status_bar.proxy_label.isHidden()
+    assert window.status_bar.proxy_label.text() == "sin proxies"
 
 
 # --- switch Clip | Hoja en la barra de titulo (F10) --------------------

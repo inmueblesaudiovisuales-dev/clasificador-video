@@ -7,6 +7,17 @@ from PySide6.QtWidgets import QHBoxLayout, QLabel, QPushButton, QWidget
 from clasificador_video.probe import orientacion_de
 from clasificador_video.ui import theme
 
+# Lo que hay que saber para que los proxies funcionen, en el lugar donde
+# uno se pregunta por ellos. No hay nada que configurar: la app los busca.
+EXPLICACION_DE_PROXIES = (
+    "Los proxies se encuentran solos: mismo nombre del clip terminado en "
+    "S03 (C0001.MP4 → C0001S03.MP4).\n"
+    "Se buscan en la carpeta que importaste, en sus subcarpetas y en las "
+    "carpetas hermanas — así que la de proxies puede ir al lado de la de "
+    "clips.\n"
+    "Un proxy que no coincida cuadro a cuadro con el original se descarta."
+)
+
 
 class StatusBar(QWidget):
     """Barra inferior de 24 px: los datos que se CONSULTAN, no los que se
@@ -141,11 +152,21 @@ class StatusBar(QWidget):
         cae la palabra de resolucion y queda `proxies · 118/128`. Mejor
         callar que decir una resolucion que no es la de todos.
         """
-        if not cuantos or not total:
+        if not total:
             self.proxy_label.hide()
+            return
+        if not cuantos:
+            # Antes se escondia. Callar cuando no hay ninguno dejaba a Bruno
+            # sin saber si la app siquiera los busca -- lo reporto como «no
+            # entiendo como poner proxies». Decir que no hay es una linea de
+            # texto; no decir nada es un misterio.
+            self.proxy_label.setText("sin proxies")
+            self.proxy_label.setToolTip(EXPLICACION_DE_PROXIES)
+            self.proxy_label.show()
             return
         etiqueta = f"proxies {resolucion} · " if resolucion else "proxies · "
         self.proxy_label.setText(f"{etiqueta}{cuantos}/{total}")
+        self.proxy_label.setToolTip(EXPLICACION_DE_PROXIES)
         self.proxy_label.show()
 
     def set_volume(self, ruta: str, gigabytes: int | None = None) -> None:

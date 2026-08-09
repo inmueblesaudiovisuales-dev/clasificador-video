@@ -33,6 +33,27 @@ python -m venv .venv
 
 O con doble click en `scripts/abrir_app.command` una vez instalado.
 
+## Proxies
+
+**No hay nada que configurar.** Al importar, la app busca sola el proxy de cada
+clip:
+
+- **Se reconoce por el nombre**: el mismo del clip, terminado en `S03`. Así los
+  escribe la FX30 — `C0001.MP4` → `C0001S03.MP4`.
+- **Se busca** en la carpeta que importaste, en sus subcarpetas y en las
+  **carpetas hermanas**. O sea que la carpeta de proxies puede ir al lado de la
+  de clips, que es como vienen de la cámara.
+- **Se comprueba** que el proxy tenga exactamente los mismos cuadros y los
+  mismos fps que el original. El que no coincida se descarta: con un proxy
+  corrido, el `in`/`out` que marcas caería en el cuadro equivocado.
+
+Cuando hay proxy, la app **lo reproduce a él** (ir un cuadro atrás pasa de
+~530 ms a ~22 ms), saca de él las miniaturas, y se lo pasa a Premiere en el
+manifest para que quede enganchado.
+
+La barra de estado lo dice siempre: `proxies 720p · 118/128`, o `sin proxies`
+si no encontró ninguno.
+
 ## Tests
 
 ```bash

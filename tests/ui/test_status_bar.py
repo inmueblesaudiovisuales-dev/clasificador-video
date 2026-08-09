@@ -89,12 +89,13 @@ def test_el_contador_dice_cuantos_clips_tienen_proxy(qtbot):
     assert not bar.proxy_label.isHidden()
 
 
-def test_sin_ningun_proxy_el_contador_no_se_ve(qtbot):
-    """Un `· 0/128` seria ruido en cada sesion de dron, que es la mitad
-    de los shootings."""
+def test_sin_ningun_proxy_lo_dice_con_palabras(qtbot):
+    """Antes se escondia, con el argumento de que un `· 0/128` era ruido.
+    Bruno demostro que el silencio era peor: «no entiendo como poner
+    proxies». Un `0/128` sigue siendo ruido, pero `sin proxies` informa."""
     bar = _bar(qtbot)
     bar.set_proxies(0, 128, "720p")
-    assert bar.proxy_label.isHidden()
+    assert bar.proxy_label.text() == "sin proxies"
 
 
 def test_con_resoluciones_distintas_se_cae_la_palabra(qtbot):
@@ -150,3 +151,27 @@ def test_sin_clips_el_resumen_queda_vacio(qtbot):
     bar = _bar(qtbot)
     bar.set_resumen(0, verticales=0, horizontales=0)
     assert bar.clip_label.text() == ""
+
+
+def test_sin_proxies_lo_dice_en_vez_de_callarse(qtbot):
+    """«No entiendo como poner proxies»: la app los busca sola, pero si no
+    encontraba ninguno no decia NADA, asi que no habia forma de saber si
+    los estaba buscando siquiera."""
+    bar = _bar(qtbot)
+    bar.set_proxies(0, 128, "")
+    assert bar.proxy_label.text() == "sin proxies"
+    assert not bar.proxy_label.isHidden()
+    assert "S03" in bar.proxy_label.toolTip()
+
+
+def test_el_aviso_de_sin_proxies_se_va_cuando_aparece_uno(qtbot):
+    bar = _bar(qtbot)
+    bar.set_proxies(0, 128, "")
+    bar.set_proxies(1, 128, "720p")
+    assert bar.proxy_label.text() == "proxies 720p · 1/128"
+
+
+def test_sin_clips_no_dice_nada_de_proxies(qtbot):
+    bar = _bar(qtbot)
+    bar.set_proxies(0, 0, "")
+    assert bar.proxy_label.isHidden()
