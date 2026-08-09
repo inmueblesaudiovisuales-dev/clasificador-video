@@ -1451,6 +1451,11 @@ class MainWindow(QWidget):
 
     def _on_bin_renombrado(self, viejo: str, nuevo: str) -> None:
         self.bins.renombrar(viejo, nuevo)
+        # la hoja guarda por NOMBRE dos cosas suyas que el dato no conoce:
+        # si el bin esta colapsado y su carpeta de origen. Se le avisa antes
+        # de refrescar, porque el refresco ya trae el nombre nuevo.
+        if nuevo in self.bins.nombres():
+            self.clip_sheet.renombrar_bin(viejo, nuevo)
         # `force_rebuild` no: reconstruir la hoja tiraria las portadas ya
         # cargadas, y aqui no cambio ni un clip -- solo como se llama su bin.
         self._refresh_sheet()

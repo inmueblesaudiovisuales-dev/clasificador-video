@@ -1778,3 +1778,102 @@ def test_renombrar_el_bin_no_le_cambia_el_color(qtbot):
     hoja.set_clips([_thumb(0, bin_nombre="Sony"), _thumb(1, bin_nombre="Dron DJI")])
 
     assert hoja.bin_header_widget("Dron DJI").cam_mark.styleSheet() == antes
+
+
+# --- los cuatro cabos sueltos del encabezado ---------------------------------
+
+
+def test_el_encabezado_pegado_se_reajusta_al_cambiar_el_ancho(qtbot):
+    """Se re-geometriza al hacer scroll, y si eso fuera todo, cambiar el
+    ancho de la ventana lo dejaba con el ancho viejo hasta el proximo
+    scroll -- o sea colgando fuera de la hoja."""
+    hoja = ClipSheet()
+    qtbot.addWidget(hoja)
+    hoja.resize(815, 300)
+    hoja.set_bin_order(["Sony"])
+    hoja.set_clips([_thumb(i, bin_nombre="Sony") for i in range(12)])
+    hoja.show()
+    barra = hoja._scroll.verticalScrollBar()
+    qtbot.waitUntil(lambda: barra.maximum() > 0, timeout=2000)
+    # un valor chico, que no se recorte al cambiar el ancho: si el scroll
+    # saltara, `valueChanged` re-geometrizaria el flotante de rebote y el
+    # test no probaria nada.
+    barra.setValue(1)
+    assert not hoja._pegado.isHidden()
+
+    hoja.resize(1100, 300)
+    qtbot.wait(10)
+
+    margenes = hoja._content_layout.contentsMargins()
+    esperado = (hoja._scroll.viewport().width()
+                - margenes.left() - margenes.right())
+    assert hoja._pegado.width() == esperado
+
+
+def test_colapsar_desde_el_flotante_actualiza_el_flotante(qtbot):
+    """Si no, el chevron del pegado se queda en `▾` con el bin ya
+    colapsado: el unico encabezado que estas viendo miente."""
+    hoja = ClipSheet()
+    qtbot.addWidget(hoja)
+    hoja.resize(815, 300)
+    hoja.set_bin_order(["Sony"])
+    hoja.set_clips([_thumb(i, bin_nombre="Sony") for i in range(12)])
+    hoja.show()
+    barra = hoja._scroll.verticalScrollBar()
+    qtbot.waitUntil(lambda: barra.maximum() > 0, timeout=2000)
+    barra.setValue(barra.maximum())
+    assert hoja._pegado.nombre == "Sony"
+
+    hoja._pegado.alternar_colapso()
+
+    assert hoja.bin_collapsed("Sony")
+    assert hoja._pegado.chevron.text() == "▸"
+
+
+def test_quitar_un_bin_se_lleva_su_meta(qtbot):
+    """`_bin_meta` va por nombre y no se podaba: la carpeta de origen de un
+    bin que ya no existe se quedaba en memoria para siempre, y un bin nuevo
+    con el mismo nombre la heredaba."""
+    hoja = ClipSheet()
+    qtbot.addWidget(hoja)
+    hoja.set_bin_order(["Sony", "Dron"])
+    hoja.set_clips([_thumb(0, bin_nombre="Sony"), _thumb(1, bin_nombre="Dron")])
+    hoja.set_bin_meta("Dron", origen="02. VIDEO DRONE", proxies=(1, 1))
+
+    hoja.set_bin_order(["Sony"])
+    hoja.set_clips([_thumb(0, bin_nombre="Sony")])
+
+    assert "Dron" not in hoja._bin_meta
+
+
+def test_renombrar_un_bin_se_lleva_su_meta_al_nombre_nuevo(qtbot):
+    hoja = ClipSheet()
+    qtbot.addWidget(hoja)
+    hoja.set_bin_order(["Dron"])
+    hoja.set_clips([_thumb(0, bin_nombre="Dron")])
+    hoja.set_bin_meta("Dron", origen="02. VIDEO DRONE", proxies=(1, 1))
+
+    hoja.renombrar_bin("Dron", "Dron DJI")
+    hoja.set_bin_order(["Dron DJI"])
+    hoja.set_clips([_thumb(0, bin_nombre="Dron DJI")])
+
+    assert "Dron" not in hoja._bin_meta
+    cabecera = hoja.bin_header_widget("Dron DJI")
+    assert cabecera.source_label.text() == "02. VIDEO DRONE"
+
+
+def test_un_bin_colapsado_sigue_colapsado_despues_de_renombrarlo(qtbot):
+    """`_colapsados` va por nombre: sin migrarlo, cambiarle el nombre a un
+    bin cerrado lo abria solo."""
+    hoja = ClipSheet()
+    qtbot.addWidget(hoja)
+    hoja.set_bin_order(["Dron"])
+    hoja.set_clips([_thumb(0, bin_nombre="Dron")])
+    hoja.set_bin_collapsed("Dron", True)
+
+    hoja.renombrar_bin("Dron", "Dron DJI")
+    hoja.set_bin_order(["Dron DJI"])
+    hoja.set_clips([_thumb(0, bin_nombre="Dron DJI")])
+
+    assert hoja.bin_collapsed("Dron DJI")
+    assert hoja.item_widgets[0].isHidden()

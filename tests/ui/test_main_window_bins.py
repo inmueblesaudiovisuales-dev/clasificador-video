@@ -1029,3 +1029,14 @@ def test_la_resolucion_de_un_bin_no_se_contagia_del_otro(qtbot, ventana):
     hoja = ventana.clip_sheet
     assert hoja.bin_header_widget("Sony").proxy_badge.text() == "proxy 1080p · 1/1"
     assert hoja.bin_header_widget("Dron").proxy_badge.text() == "proxy 720p · 1/1"
+
+
+def test_renombrar_desde_la_ventana_conserva_el_bin_colapsado(qtbot, ventana):
+    ventana.load_clips([_clip(0, "/dron/D.MP4")])
+    ventana.bins.agregar("Dron", Path("/dron"), [0])
+    ventana._refresh_sheet()
+    ventana.clip_sheet.set_bin_collapsed("Dron", True)
+
+    ventana._on_bin_renombrado("Dron", "Dron DJI")
+
+    assert ventana.clip_sheet.bin_collapsed("Dron DJI")

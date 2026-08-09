@@ -1369,9 +1369,28 @@ class ClipSheet(QWidget):
         self._aplicar_visibilidad()
         self._firma = None
         self._relayout()
+        # el flotante es una copia, y si se quedara con el chevron viejo el
+        # UNICO encabezado que estas viendo estaria mintiendo
+        self._actualizar_encabezado_pegado()
 
     def bin_collapsed(self, nombre: str) -> bool:
         return nombre in self._colapsados
+
+    def renombrar_bin(self, viejo: str, nuevo: str) -> None:
+        """Le lleva al nombre nuevo lo que la hoja guarda POR NOMBRE.
+
+        Son dos cosas y las dos se notan: la meta --carpeta de origen y
+        conteo de proxies-- y el colapso. Sin esto, cambiarle el nombre a un
+        bin cerrado lo abria solo y le borraba la carpeta de origen de la
+        vista.
+        """
+        if viejo == nuevo:
+            return
+        if viejo in self._bin_meta:
+            self._bin_meta[nuevo] = self._bin_meta.pop(viejo)
+        if viejo in self._colapsados:
+            self._colapsados.discard(viejo)
+            self._colapsados.add(nuevo)
 
     def set_clips(self, clips: list[ClipThumbnail]) -> None:
         for card in self.item_widgets:
@@ -1514,6 +1533,11 @@ class ClipSheet(QWidget):
             if titulo not in self._blocks:
                 self._blocks[titulo] = _GroupBlock(titulo)
 
+        # las tarjetas de un bin colapsado se esconden aqui y no solo en
+        # `set_bin_collapsed`: `set_clips` las vuelve a crear visibles, y sin
+        # esto un bin cerrado se abria solo apenas se refrescaba la hoja.
+        self._aplicar_visibilidad()
+
         # RE-COLOCAR PRIMERO. `_relayout` reparenta cada tarjeta al bloque que
         # le toca ahora. Hacerlo antes de sacar los bloques vacios no es un
         # detalle de estilo: un bloque al que se le quita el padre se destruye
@@ -1557,6 +1581,19 @@ class ClipSheet(QWidget):
         for nombre in list(self._bin_headers):
             if nombre not in presentes:
                 self._bin_headers.pop(nombre).setParent(None)
+        # la meta y el colapso van por NOMBRE y no se podaban solos: la
+        # carpeta de origen de un bin que ya no existe se quedaba en memoria
+        # para siempre, y un bin nuevo con el mismo nombre la heredaba.
+        #
+        # Vale tambien el orden declarado, no solo los bins con tarjetas:
+        # entre `set_bin_order` y `set_clips` hay un instante en que el orden
+        # ya trae el nombre nuevo y las tarjetas todavia el viejo, y podar
+        # ahi contra las tarjetas tiraba justo lo que se acababa de renombrar.
+        vivos = set(presentes) | set(self._bin_order)
+        for nombre in list(self._bin_meta):
+            if nombre not in vivos:
+                self._bin_meta.pop(nombre)
+        self._colapsados &= vivos
 
     def _reenviar_del_pegado(self, senal: str, *args) -> None:
         real = self._bin_headers.get(self._pegado.nombre)
@@ -1903,6 +1940,10 @@ class ClipSheet(QWidget):
             0, self._scroll.height() - FADE_HEIGHT, self._scroll.width(), FADE_HEIGHT
         )
         self._fade.raise_()
+        # el flotante se coloca al hacer scroll, y sin esto cambiar el ancho
+        # lo dejaba con el de antes hasta el proximo scroll -- colgando
+        # fuera de la hoja.
+        self._actualizar_encabezado_pegado()
 
     # --- seleccion -------------------------------------------------------
 
