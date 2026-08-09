@@ -2,7 +2,7 @@ from pathlib import Path
 
 from clasificador_video.bins import BinTree
 from clasificador_video.manifest import Clip
-from clasificador_video.proyecto import a_dict, rutas_relativas
+from clasificador_video.proyecto import a_dict, abrir, guardar, rutas_relativas
 
 
 def _clip(i, ruta):
@@ -64,3 +64,43 @@ def test_el_dict_del_proyecto_lleva_todo_lo_de_la_sesion_mas_las_relativas():
     assert data["rotaciones"] == {"0": 0}
     assert data["relativas"] == {"0": "C0001.MP4"}
     assert data["version"] == 1
+
+
+def test_ida_y_vuelta_a_disco(tmp_path):
+    bins = BinTree()
+    bins.agregar("Sony", Path("/cam"), [0])
+    ruta = tmp_path / "Casa Lomas.cvproj"
+
+    guardar(ruta, a_dict(proyecto="Casa Lomas", rooms=["Cocina"],
+                         clips=[_clip(0, "/cam/C0001.MP4")], bins=bins,
+                         tamanos={}, duraciones={}, rotaciones={}))
+
+    data = abrir(ruta)
+    assert data["proyecto"] == "Casa Lomas"
+    assert data["relativas"] == {"0": "C0001.MP4"}
+
+
+def test_abrir_algo_que_no_es_un_proyecto_no_revienta(tmp_path):
+    """Un archivo corrupto o de otra cosa se trata como «no se pudo abrir»,
+    igual que hace `load_session`. Reventar aqui deja a Bruno sin forma de
+    salir: esto corre al elegir un archivo."""
+    malo = tmp_path / "cualquiera.cvproj"
+    malo.write_text("esto no es json {")
+
+    assert abrir(malo) is None
+
+
+def test_abrir_uno_que_no_existe_devuelve_None(tmp_path):
+    assert abrir(tmp_path / "no-esta.cvproj") is None
+
+
+def test_guardar_es_atomico(tmp_path):
+    """Mismo criterio que `autosave.save_session`: temporal + rename. Si la
+    app muere a medio escribir, el archivo queda con lo viejo completo o
+    con lo nuevo completo, nunca a medias."""
+    ruta = tmp_path / "p.cvproj"
+    guardar(ruta, {"version": 1, "proyecto": "A"})
+    guardar(ruta, {"version": 1, "proyecto": "B"})
+
+    assert abrir(ruta)["proyecto"] == "B"
+    assert not (tmp_path / "p.cvproj.tmp").exists()
