@@ -317,10 +317,17 @@ class _FilaDeChips(QWidget):
     def set_chips(self, chips: list[_Chip]) -> None:
         """Cambia los chips de la fila. Solo la de bins la usa: sus chips
         son los bins que hay, y esos aparecen y desaparecen con cada
-        importacion."""
+        importacion.
+
+        Los que salen se ESCONDEN, no se destruyen. Destruir widgets que
+        estan colgados de la hoja mientras Qt puede estar repoliendola es
+        justo la familia de segfaults que ya costo dos arreglos en este
+        archivo (el QMenu del encabezado y la sombra del encabezado
+        pegado). Quien llama reusa los mismos objetos.
+        """
         for viejo in self.chips:
-            viejo.setParent(None)
-            viejo.deleteLater()
+            if viejo not in chips:
+                viejo.hide()
         self.chips = chips
         for chip in chips:
             chip.setParent(self)
@@ -1383,6 +1390,7 @@ class ClipSheet(QWidget):
         self._grupo_de_bins = QButtonGroup(self)
         self._grupo_de_bins.setExclusive(True)
         self._chips_de_bin: list[_Chip] = []
+        self._pool_de_bins: list[_Chip] = []
         self.fila_bins = _FilaDeChips("BIN", [])
         self.fila_bins.hide()
         filas.append(self.fila_bins)
@@ -1429,21 +1437,27 @@ class ClipSheet(QWidget):
         barra que ya lleva dos grupos y siete chips.
         """
         antes = self.filter_state().bin
-        for viejo in self._chips_de_bin:
-            self._grupo_de_bins.removeButton(viejo)
-        chips = [_Chip("todos", "Todos")]
-        chips += [_Chip(nombre, _etiqueta_de_chip(nombre))
-                  for nombre in self._bin_order]
-        for chip in chips:
+        claves = ["todos"] + list(self._bin_order)
+        # el pool solo CRECE: los chips se reusan cambiandoles la clave y la
+        # etiqueta, nunca se destruyen (ver `_FilaDeChips.set_chips`)
+        while len(self._pool_de_bins) < len(claves):
+            chip = _Chip("todos", "Todos", self.fila_bins)
             chip.clicked.connect(self._on_filters_changed)
             self._grupo_de_bins.addButton(chip)
-        self._chips_de_bin = chips
-        self.fila_bins.set_chips(chips)
+            self._pool_de_bins.append(chip)
+        for chip, clave in zip(self._pool_de_bins, claves):
+            chip.clave = clave
+            chip._etiqueta = "Todos" if clave == "todos" else _etiqueta_de_chip(clave)
+            chip.set_count(None)
+        self._chips_de_bin = self._pool_de_bins[:len(claves)]
+        self.fila_bins.set_chips(self._chips_de_bin)
         self.fila_bins.setVisible(len(self._bin_order) > 1)
         # el bin que estabas filtrando puede haberse ido --lo quitaste o lo
         # renombraste--, y ahi la hoja se quedaba vacia sin ningun chip
         # encendido que explicara por que
-        elegido = self.chip_de_bin(antes) or chips[0]
+        elegido = self.chip_de_bin(antes) or self._chips_de_bin[0]
+        # primero se prende el que queda: el grupo es exclusivo, asi que
+        # prenderlo es lo que apaga a los sobrantes escondidos
         elegido.setChecked(True)
         self._marcar_chips_de_cola()
         if elegido.clave != antes:

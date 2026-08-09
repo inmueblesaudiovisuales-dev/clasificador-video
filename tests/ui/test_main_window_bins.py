@@ -1123,7 +1123,10 @@ def test_vaciar_el_proyecto_no_enciende_un_reproductor_que_no_existia(qtbot):
     """
     from clasificador_video.rooms import RoomSelection
 
-    ventana = MainWindow(project_name="Casa Jardin", room_selection=RoomSelection())
+    # con el doble aunque el test sea justamente sobre NO encender el
+    # reproductor: si el test fallara, sin esto encenderia un mpv de verdad
+    ventana = MainWindow(project_name="Casa Jardin", room_selection=RoomSelection(),
+                         video_factory=FakeMpv)
     qtbot.addWidget(ventana)
 
     ventana.load_clips([])

@@ -42,7 +42,12 @@ def _seleccion(rooms) -> RoomSelection:
 
 
 def _window(qtbot, rooms=("Sala", "Cocina")) -> MainWindow:
-    window = MainWindow(project_name="Casa Jardin", room_selection=_seleccion(rooms))
+    # con el doble SIEMPRE, aunque el test no hable del reproductor: sin el,
+    # cualquier camino que toque `video_widget.player` enciende un mpv de
+    # verdad --con sus hilos-- y esos hilos son el segfault intermitente que
+    # aparecia en una de cada ocho corridas completas.
+    window = MainWindow(project_name="Casa Jardin", room_selection=_seleccion(rooms),
+                        video_factory=FakeMpvForWindow)
     qtbot.addWidget(window)
     return window
 

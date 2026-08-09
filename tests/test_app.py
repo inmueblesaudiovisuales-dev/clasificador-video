@@ -167,7 +167,8 @@ def test_restaurar_una_sesion_devuelve_los_tamanos(qtbot, tmp_path):
     from clasificador_video.ui.main_window import MainWindow
     from clasificador_video.rooms import RoomSelection
     ventana = MainWindow(project_name="P", room_selection=RoomSelection(),
-                         thumbnail_cache_root=tmp_path / "cache")
+                         thumbnail_cache_root=tmp_path / "cache",
+                         video_factory=_MpvFalso)
     qtbot.addWidget(ventana)
     import clasificador_video.app as app_mod
     original = app_mod.QMessageBox.question
@@ -182,6 +183,24 @@ def test_restaurar_una_sesion_devuelve_los_tamanos(qtbot, tmp_path):
     assert ventana.aspect_ratio_for(0) == 2160 / 3840
 
 
+class _MpvFalso:
+    """Restaurar una sesion abre el clip actual, y abrirlo enciende el
+    reproductor. Sin este doble eso es un mpv DE VERDAD, con sus hilos: el
+    segfault intermitente de la suite completa --una de cada ocho corridas--
+    salia de aqui.
+    """
+
+    def __init__(self, **kwargs):
+        self.pause = True
+        self.time_pos = 0.0
+
+    def play(self, path):
+        self.loaded_path = path
+
+    def command(self, *args):
+        pass
+
+
 def _restaurar(tmp_path, data, qtbot):
     """Ayudante comun a los tests de bins de abajo: arma la sesion, la
     restaura y devuelve la ventana ya con `bins` puesto (o no)."""
@@ -192,7 +211,8 @@ def _restaurar(tmp_path, data, qtbot):
     sesion = tmp_path / "s.json"
     sesion.write_text(json.dumps(data))
     ventana = MainWindow(project_name="P", room_selection=RoomSelection(),
-                         thumbnail_cache_root=tmp_path / "cache")
+                         thumbnail_cache_root=tmp_path / "cache",
+                         video_factory=_MpvFalso)
     qtbot.addWidget(ventana)
     original = app_module.QMessageBox.question
     app_module.QMessageBox.question = staticmethod(lambda *a, **k: QMessageBox.Yes)
