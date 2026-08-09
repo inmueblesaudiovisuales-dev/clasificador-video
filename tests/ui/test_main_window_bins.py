@@ -186,3 +186,38 @@ def test_importar_la_misma_carpeta_dos_veces_no_duplica(qtbot, tmp_path,
 
     assert len(ventana.clips) == 1
     assert ventana.bins.nombres() == ["FX30"]
+
+
+def test_importar_con_la_app_vacia_abre_el_primer_clip(qtbot, tmp_path,
+                                                       monkeypatch, ventana):
+    """`load_clips` terminaba abriendo el clip; al pasar la importacion por
+    `agregar_clips` eso se perdio y la app quedaba con la hoja llena y el
+    visor en negro hasta que hicieras clic."""
+    monkeypatch.setattr(
+        "clasificador_video.ui.main_window.extract_thumbnail_strip", lambda *a, **k: []
+    )
+    sony = _carpeta_con(tmp_path, "FX30", "C0001.MP4", "C0002.MP4")
+    abiertos = []
+    monkeypatch.setattr(ventana, "_abrir_clip_actual",
+                        lambda: abiertos.append(ventana.current_index))
+
+    ventana.importar_rutas([sony])
+
+    assert abiertos == [0]
+
+
+def test_agregar_material_no_saca_a_bruno_del_clip_donde_estaba(qtbot, monkeypatch,
+                                                                ventana):
+    """Solo se abre cuando NO habia nada abierto. Saltar al primero de la
+    carpeta nueva seria perder el lugar de trabajo a media clasificacion."""
+    ventana.load_clips([_clip(i, f"/cam/C{i:04d}.MP4") for i in range(41)])
+    ventana.current_index = 40
+    abiertos = []
+    monkeypatch.setattr(ventana, "_abrir_clip_actual",
+                        lambda: abiertos.append(ventana.current_index))
+
+    ventana.agregar_clips([_clip(41, "/dron/D.MP4")], nombre_de_bin="Dron",
+                          origen=Path("/dron"))
+
+    assert abiertos == []
+    assert ventana.current_index == 40

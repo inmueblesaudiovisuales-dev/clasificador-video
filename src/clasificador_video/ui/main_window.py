@@ -1159,6 +1159,11 @@ class MainWindow(QWidget):
         if not nuevos:
             return
         primero = len(self.clips)
+        # ¿habia algo abierto antes? Solo si NO lo habia se abre el primero:
+        # saltar al material recien importado sacaria a Bruno del clip donde
+        # estaba trabajando, y agregar una tarjeta a media clasificacion es
+        # justo cuando eso mas molesta.
+        estaba_vacio = primero == 0
         for offset, clip in enumerate(nuevos):
             # `orden` es el numero que se ve en la tarjeta y el que viaja al
             # manifest: el que traiga el clip nuevo no sabe de los que ya
@@ -1172,6 +1177,12 @@ class MainWindow(QWidget):
             self.bins.agregar(nombre_de_bin, origen, indices)
         self._refresh_sheet()
         self._schedule_thumbnails()
+        if estaba_vacio:
+            self.current_index = 0
+            # por `_abrir_clip_actual` y no abriendo a mano: es el unico
+            # camino que abre un clip, a proposito (ver su docstring).
+            self._abrir_clip_actual()
+            self._resize_video_stage()
         self._autosave()
 
     def _autosave(self) -> None:
