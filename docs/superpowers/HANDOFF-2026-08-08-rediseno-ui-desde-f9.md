@@ -251,8 +251,10 @@ cuatro fases lo detectó la suite, y ninguno se ve en una captura general.**
 ### El contrato con Premiere no se toca
 
 `categoria_path` sigue siendo una **lista** aunque los cuartos sean planos, y
-`"destacado"` es **aditivo**: el plugin mapea `pick→FOREST`, `reject→ROSE` e
-**ignora lo que no conoce**.
+`"destacado"` es **aditivo**: el plugin mapea `pick→FOREST`, `reject→ROSE`,
+`destacado→MANGO` —el dorado, elegido por Bruno— e **ignora lo que no
+conoce**. Hasta agosto de 2026 `destacado` NO estaba en esa tabla, así que la
+estrella se perdía al cruzar a Premiere.
 
 ## 11. Lo que quedó pendiente de verificar a mano
 

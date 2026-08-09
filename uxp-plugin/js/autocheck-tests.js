@@ -189,6 +189,37 @@ registrarPrueba("applyFlagLabel: 'pick' pone el label FOREST en el clip", async 
   };
 });
 
+registrarPrueba("applyFlagLabel: 'destacado' pone el label MANGO en el clip", async (project) => {
+  const premierepro = require("premierepro");
+  const rootItem = await project.getRootItem();
+  const rootFolder = premierepro.FolderItem.cast(rootItem);
+
+  const folder = await resolveBinChain(project, rootFolder, ["PruebaTask4"]);
+  const clip = await importOrReuseClip(project, folder, CLIP_587);
+
+  // Mismo cuidado que la prueba de 'pick': el clip se reusa entre
+  // recargas, asi que primero se fuerza otro color para que la
+  // comparacion antes/despues pruebe algo.
+  applyFlagLabel(project, clip, "reject");
+  const indiceAntes = await clip.getColorLabelIndex();
+  applyFlagLabel(project, clip, "destacado");
+  const indiceDespues = await clip.getColorLabelIndex();
+
+  const colores = premierepro.Constants.ProjectItemColorLabel;
+  const indiceMango = colores.MANGO;
+  const ok = indiceMango !== undefined &&
+    indiceAntes === colores.ROSE && indiceDespues === indiceMango;
+
+  return {
+    ok: ok,
+    detalle:
+      indiceMango === undefined
+        ? "MANGO no existe en esta version. Colores disponibles: " + Object.keys(colores).join(", ")
+        : "indice MANGO esperado=" + indiceMango + ", indice despues=" + indiceDespues +
+          " | indice antes (tras forzar reject)=" + indiceAntes,
+  };
+});
+
 // fps del clip de prueba CLIP_588 (dron 4K/60p real, ver Task 5). Se
 // reutiliza tal cual porque el manifest real (Task 8) todavia no exporta
 // fps por clip.
