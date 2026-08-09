@@ -1176,7 +1176,8 @@ class MainWindow(QWidget):
         else:
             self.bins.agregar(nombre_de_bin, origen, indices)
         self._refresh_sheet()
-        self._schedule_thumbnails()
+        # solo las portadas de los nuevos: las que ya estan no se rehacen
+        self._schedule_thumbnails(indices)
         if estaba_vacio:
             self.current_index = 0
             # por `_abrir_clip_actual` y no abriendo a mano: es el unico
@@ -1474,16 +1475,32 @@ class MainWindow(QWidget):
             self._miniaturas_totales,
         )
 
-    def _schedule_thumbnails(self) -> None:
+    def _schedule_thumbnails(self, indices: list[int] | None = None) -> None:
+        """Pide las portadas que falten.
+
+        `indices` acota a los clips nuevos, que es lo que hace agregar
+        material. Y acotar significa tambien NO subir la generacion: subirla
+        descarta las señales de los trabajos del lote anterior que siguen en
+        vuelo, y ademas los vuelve a encolar -- dos trabajos para el mismo
+        clip, compartiendo carpeta de salida y socket IPC, uno borrandole el
+        socket al otro. Con los 109 clips de Bruno eso son 109 extracciones
+        de mas por cada carpeta que agrega.
+        """
         if not self.clips:
             return
-        # una importacion nueva invalida las señales stale de la anterior
-        self._thumb_generation += 1
+        if indices is None:
+            # material nuevo: invalida las señales stale de la tanda anterior
+            self._thumb_generation += 1
+            self._miniaturas_pendientes = 0
+            self._miniaturas_totales = len(self.clips)
+            alcance = list(range(len(self.clips)))
+        else:
+            alcance = [i for i in indices if 0 <= i < len(self.clips)]
+            self._miniaturas_totales += len(alcance)
         generation = self._thumb_generation
-        self._miniaturas_pendientes = 0
-        self._miniaturas_totales = len(self.clips)
         cache_root = self._thumbnail_cache_root
-        for index, clip in enumerate(self.clips):
+        for index in alcance:
+            clip = self.clips[index]
             cache_dir = cache_dir_for(clip.ruta, cache_root)
             cached_frames = sorted(cache_dir.glob("strip_*.jpg")) if cache_dir.exists() else []
             if not cached_frames and cache_dir.exists():

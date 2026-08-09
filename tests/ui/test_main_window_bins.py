@@ -221,3 +221,43 @@ def test_agregar_material_no_saca_a_bruno_del_clip_donde_estaba(qtbot, monkeypat
 
     assert abiertos == []
     assert ventana.current_index == 40
+
+
+class _PoolEspia:
+    """Cola falsa: registra los trabajos en vez de correrlos."""
+
+    def __init__(self):
+        self.jobs = []
+
+    def start(self, job, *a, **k):
+        self.jobs.append(job)
+
+    def waitForDone(self, *a, **k):
+        # la ventana lo llama al cerrarse
+        return True
+
+
+def test_agregar_material_solo_pide_las_portadas_de_los_clips_nuevos(
+        qtbot, tmp_path, monkeypatch, ventana):
+    """Spec §6. Antes se re-encolaban los 109 clips viejos ademas de los
+    nuevos, se invalidaban los trabajos del primer lote que seguian en
+    vuelo y quedaban DOS trabajos para el mismo clip compartiendo carpeta
+    y socket IPC, con uno borrandole el socket al otro. Ese es el «se me
+    prendieron los abanicos sin hacer nada» que reporto Bruno.
+    """
+    monkeypatch.setattr(
+        "clasificador_video.ui.main_window.extract_thumbnail_strip", lambda *a, **k: []
+    )
+    sony = _carpeta_con(tmp_path, "FX30", "C0001.MP4", "C0002.MP4")
+    dron = _carpeta_con(tmp_path, "DRON", "DJI_0001.MP4")
+    ventana.importar_rutas([sony])
+    generacion = ventana._thumb_generation
+    espia = _PoolEspia()
+    monkeypatch.setattr(ventana, "_thread_pool", espia)
+
+    ventana.importar_rutas([dron])
+
+    assert [j.index for j in espia.jobs] == [2]
+    # y la generacion NO sube: subirla tira las señales de los trabajos del
+    # primer lote que todavia no llegaron.
+    assert ventana._thumb_generation == generacion
