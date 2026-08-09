@@ -51,6 +51,10 @@ PENDING_COLOR = "#2a2f38"
 CARD_BADGE_BG_RGBA = (4, 5, 7, 165)     # pastilla del numero de clip y la duracion
 CARD_BADGE_TEXT = "#e4e8ee"
 RANGE_TRACK_RGBA = (255, 255, 255, 26)  # riel de la barra de rango, SOBRE la imagen
+# Grosor del borde de estado de la tarjeta (actual / seleccionada /
+# pick / reject). Es el token que faltaba: el valor vivia escrito en la
+# regla de QSS que nunca llegaba al pixel.
+CARD_STATE_BORDER = 2
 UNCLASSIFIED_STRIPE = "#3a4150"         # rayado de "sin clasificar"
 SELECTION_BORDER = "#8fb4ff"            # borde y palomita de seleccion multiple
 SELECTION_TICK_INK = "#0a1024"

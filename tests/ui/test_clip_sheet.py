@@ -1176,3 +1176,61 @@ def test_centrar_en_un_indice_que_no_existe_no_truena(qtbot):
     sheet.show()
     sheet.centrar_en(50)
     sheet.centrar_en(-1)
+
+
+# --- el borde de estado se PINTA (reporte de Bruno) --------------------
+
+
+def _color_del_borde_arriba(card):
+    img = card.grab().toImage()
+    return img.pixelColor(img.width() // 2, 0).name()
+
+
+def test_la_tarjeta_actual_se_marca_con_pixeles_de_verdad(qtbot):
+    """«En el modo clip no se marca en cual clip estoy»: la hoja de
+    estilos decia `border: 2px solid ambar`, pero la miniatura tapa el
+    borde y el QSS nunca llegaba al pixel. El estado se pinta ahora en el
+    mismo `paintEvent` que el resto de lo que va encima.
+
+    Este test mira el PIXEL a proposito: el plan de pintado y un widget
+    que no dibuja nada se ven igual desde el otro lado.
+    """
+    card = _card()
+    qtbot.addWidget(card)
+    card.resize(150, 267)
+    card.set_pixmap(_pixmap())
+    card.show()
+    qtbot.wait(10)
+
+    normal = _color_del_borde_arriba(card)
+    card.set_visual_state(is_current=True)
+    qtbot.wait(10)
+
+    assert _color_del_borde_arriba(card) == theme.CURRENT_COLOR
+    assert normal != theme.CURRENT_COLOR
+
+
+def test_el_pick_y_el_reject_tambien_se_ven_en_el_borde(qtbot):
+    for flag, color in (("pick", theme.PICK_COLOR), ("reject", theme.REJECT_COLOR)):
+        card = _card(flag=flag)
+        qtbot.addWidget(card)
+        card.resize(150, 267)
+        card.set_pixmap(_pixmap())
+        card.show()
+        qtbot.wait(10)
+        assert _color_del_borde_arriba(card) == color, flag
+
+
+def test_la_seleccion_gana_al_estado_pero_no_al_actual(qtbot):
+    card = _card(flag="pick")
+    qtbot.addWidget(card)
+    card.resize(150, 267)
+    card.set_pixmap(_pixmap())
+    card.show()
+    card.set_visual_state(is_current=False, is_selected=True)
+    qtbot.wait(10)
+    assert _color_del_borde_arriba(card) == theme.SELECTION_BORDER
+
+    card.set_visual_state(is_current=True, is_selected=True)
+    qtbot.wait(10)
+    assert _color_del_borde_arriba(card) == theme.CURRENT_COLOR

@@ -4,8 +4,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-from PySide6.QtCore import QEvent, QPoint, QRect, Qt, Signal
-from PySide6.QtGui import QColor, QFont, QPainter
+from PySide6.QtCore import QEvent, QPoint, QRect, QRectF, Qt, Signal
+from PySide6.QtGui import QColor, QFont, QPainter, QPen
 from PySide6.QtWidgets import (
     QButtonGroup,
     QRubberBand,
@@ -126,9 +126,25 @@ class _CardOverlay(QWidget):
         if plan["tinte"]:
             pintor.fillRect(self.rect(),
                             QColor(*theme.con_alfa(plan["tinte"], theme.BRUSH_TINT_ALPHA)))
+        # el ultimo, encima de todo: es lo que hay que ver aunque la
+        # miniatura sea clara y el tinte del pincel este puesto
+        if plan["borde"]:
+            self._pintar_borde(pintor, plan["borde"], ancho, alto)
         pintor.end()
 
     # --- piezas ----------------------------------------------------------
+
+    def _pintar_borde(self, pintor: QPainter, color: str, ancho: int, alto: int) -> None:
+        lapiz = QPen(QColor(color))
+        lapiz.setWidth(theme.CARD_STATE_BORDER)
+        # el trazo se centra en la linea, asi que sin el medio pixel de
+        # adentro la mitad del borde cae fuera del widget y se ve la mitad
+        # de grueso
+        pintor.setPen(lapiz)
+        pintor.setBrush(Qt.BrushStyle.NoBrush)
+        mitad = theme.CARD_STATE_BORDER / 2
+        pintor.drawRect(QRectF(mitad, mitad, ancho - theme.CARD_STATE_BORDER, alto - theme.CARD_STATE_BORDER))
+
 
     def _pintar_franja(self, pintor: QPainter, franja: str, alto: int) -> None:
         rect = QRect(0, 0, STRIPE_WIDTH, alto)
@@ -368,7 +384,23 @@ class ClipCard(QWidget):
             # como una astilla de 1 px. La ScrubBar ya lo resuelve con min/max
             # y las dos vistas del mismo dato tienen que coincidir.
             rango = (min(inicio, fin), max(inicio, fin))
+        # El BORDE es el canal de estado del clip, y se pinta ACA -- no con
+        # QSS. La regla de QSS existia desde la F5 y nunca llego al pixel: la
+        # miniatura ocupa toda la tarjeta y tapa el borde del padre. Bruno lo
+        # reporto como «no se marca en cual clip estoy».
+        #
+        # El orden es el de la atencion: donde estas parado gana sobre lo que
+        # tienes seleccionado, y eso sobre el estado del clip.
+        if getattr(self, "_is_current", False):
+            borde = theme.CURRENT_COLOR
+        elif getattr(self, "_is_selected", False):
+            borde = theme.SELECTION_BORDER
+        else:
+            borde = {"pick": theme.PICK_COLOR,
+                     "reject": theme.REJECT_COLOR,
+                     "destacado": theme.STAR_COLOR}.get(clip.flag)
         return {
+            "borde": borde,
             "numero": f"{clip.numero:03d}",
             "duracion": self.texto_duracion(),
             "glifo": glifo,
