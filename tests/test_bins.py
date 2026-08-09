@@ -168,3 +168,64 @@ def test_el_mapa_de_bin_por_clip():
     arbol.agregar("Dron", Path("/dron"), [1])
 
     assert arbol.mapa_por_clip() == {0: "Sony", 2: "Sony", 1: "Dron"}
+
+
+def test_un_bin_vacio_existe_y_se_queda():
+    """Si un bin sin clips desapareciera, no se podria crear primero y
+    llenar despues -- que es justo el gesto que se esta agregando."""
+    arbol = BinTree()
+    arbol.crear_vacio("Dron")
+
+    assert arbol.nombres() == ["Dron"]
+    assert arbol.clips_de("Dron") == []
+
+
+def test_crear_vacio_no_repite_nombres():
+    arbol = BinTree()
+    arbol.crear_vacio("Dron")
+
+    assert arbol.crear_vacio("Dron") == "Dron 2"
+
+
+def test_mover_saca_del_bin_viejo_y_mete_en_el_nuevo():
+    arbol = BinTree()
+    arbol.agregar("Sony", Path("/cam"), [0, 1, 2])
+    arbol.crear_vacio("Dron")
+
+    arbol.mover([0, 2], "Dron")
+
+    assert arbol.clips_de("Sony") == [1]
+    assert arbol.clips_de("Dron") == [0, 2]
+
+
+def test_mover_a_ningun_bin_los_deja_sueltos():
+    """`None` es «sacalo de donde este»: los clips sueltos son un estado
+    valido, no un error. Van a la seccion «Sin bin»."""
+    arbol = BinTree()
+    arbol.agregar("Sony", Path("/cam"), [0, 1])
+
+    arbol.mover([0], None)
+
+    assert arbol.clips_de("Sony") == [1]
+    assert arbol.bin_de(0) is None
+
+
+def test_mover_a_su_propio_bin_no_hace_nada():
+    arbol = BinTree()
+    arbol.agregar("Sony", Path("/cam"), [0, 1])
+
+    arbol.mover([0], "Sony")
+
+    assert arbol.clips_de("Sony") == [0, 1]
+
+
+def test_mover_conserva_el_orden_de_llegada():
+    """El orden dentro del bin es el orden de rodaje, no el de arrastre:
+    de el vive la nocion de «el clip anterior»."""
+    arbol = BinTree()
+    arbol.agregar("Sony", Path("/cam"), [5])
+    arbol.crear_vacio("Dron")
+
+    arbol.mover([3, 1], "Dron")
+
+    assert arbol.clips_de("Dron") == [1, 3]

@@ -31,6 +31,41 @@ class BinTree:
         self._bins.append(Bin(nombre=nombre, origen=origen, clips=list(clips)))
         return nombre
 
+    def crear_vacio(self, nombre: str) -> str:
+        """Un bin sin clips todavia.
+
+        Existe porque el gesto que Bruno pidio es el de Premiere: creas el
+        bin y luego le arrastras material. Nada lo poda cuando se queda sin
+        clips -- si se podara, el bin desapareceria en el instante entre
+        crearlo y soltarle el primer clip.
+        """
+        return self.agregar(nombre or "Bin", Path(""), [])
+
+    def mover(self, indices: list[int], destino: str | None) -> None:
+        """Cambia de bin a esos clips y NADA mas.
+
+        No toca el indice de ningun clip, y por eso no hay que correr
+        `_proxy_sizes`, `_clip_durations` ni el historial: mover entre bins
+        es solo cambiar de lista quien esta en cual. Ese es el motivo de que
+        esta operacion sea barata, y conviene que siga siendolo.
+
+        `destino=None` los deja sueltos, que es un estado valido: caen en la
+        seccion «Sin bin».
+        """
+        moviendo = set(indices)
+        for b in self._bins:
+            if b.nombre != destino:
+                b.clips = [i for i in b.clips if i not in moviendo]
+        if destino is None:
+            return
+        for b in self._bins:
+            if b.nombre == destino:
+                ya = set(b.clips)
+                # ordenados: el orden dentro del bin es el de rodaje, no el
+                # del arrastre
+                b.clips = sorted(ya | moviendo)
+                return
+
     def _nombre_libre(self, nombre: str) -> str:
         usados = self.nombres()
         if nombre not in usados:
