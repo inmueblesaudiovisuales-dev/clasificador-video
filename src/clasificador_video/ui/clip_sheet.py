@@ -4,7 +4,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-from PySide6.QtCore import QEvent, QPoint, QRect, QRectF, Qt, Signal
+from PySide6.QtCore import QEvent, QPoint, QRect, QRectF, QSize, Qt, Signal
 from PySide6.QtGui import QAction, QColor, QFont, QPainter, QPen
 from PySide6.QtWidgets import (
     QButtonGroup,
@@ -972,6 +972,53 @@ class _BinHeader(QWidget):
             self._menu = None
 
 
+class _BotonDeBinNuevo(QPushButton):
+    """«＋ Bin nuevo»: se queda en el glifo antes que exigir su ancho.
+
+    Un `QPushButton` pide su texto completo como MINIMO, y ese minimo sube
+    por la fila hasta volverse el minimo de la hoja entera -- que es ancho
+    que se le resta al video. Medido: con el minimo de fabrica, la hoja
+    pasaba de pedir 481 px a pedir 583, y el test
+    `test_la_hoja_puede_encogerse_para_dejarle_ancho_al_video` --que existe
+    justo para proteger ese ancho-- se ponia rojo.
+
+    Asi que el boton baja SOLO su minimo y, cuando no le alcanza para el
+    texto, cambia el texto por el glifo solo. El cambio de texto es la parte
+    que no se puede saltear: un `QPushButton` no elide, RECORTA -- a 30 px se
+    veia media letra partida, que parece un error de dibujo.
+
+    `sizeHint` queda clavado en el ancho del texto largo, medido una sola vez.
+    Si saliera del texto de ahora, al encogerse pediria el ancho del glifo y
+    ya nunca volveria a estirarse: se quedaria corto para siempre.
+    """
+
+    LARGO = "＋ Bin nuevo"
+    CORTO = "＋"
+    LADO = 30
+
+    def __init__(self, parent=None):
+        super().__init__(self.LARGO, parent)
+        # el nombre va ANTES de medir: de el cuelga el QSS del boton --que le
+        # cambia el relleno-- y midiendo sin el, el ancho completo saldria el
+        # de un boton que no existe.
+        self.setObjectName("sheetNewBin")
+        self._ancho_completo = super().sizeHint().width()
+
+    def sizeHint(self) -> QSize:  # noqa: N802 -- override de Qt
+        return QSize(self._ancho_completo, super().sizeHint().height())
+
+    def minimumSizeHint(self) -> QSize:  # noqa: N802 -- override de Qt
+        return QSize(self.LADO, super().minimumSizeHint().height())
+
+    def resizeEvent(self, event) -> None:  # noqa: N802 -- override de Qt
+        super().resizeEvent(event)
+        texto = self.LARGO if self.width() >= self._ancho_completo else self.CORTO
+        # solo si cambio: `setText` repinta, y esto corre en cada resize de la
+        # ventana. Y no reentra, porque el `sizeHint` no depende del texto.
+        if self.text() != texto:
+            self.setText(texto)
+
+
 class _ZonaDeBinNuevo(QWidget):
     """El `.dropnew` del mockup: soltar aquí crea un bin.
 
@@ -1289,8 +1336,28 @@ class ClipSheet(QWidget):
         self.queue_chip = QLabel("")
         self.queue_chip.setObjectName("queueChip")
         self.queue_chip.hide()
+        # «+ Bin nuevo»: crear el bin ANTES de tener el material es el gesto
+        # de Premiere, y hasta la F8 la unica forma de que naciera un bin era
+        # importar. Va en esta fila y no junto a los filtros porque no filtra
+        # nada: es una accion.
+        self.boton_bin_nuevo = _BotonDeBinNuevo()
+        self.boton_bin_nuevo.setCursor(Qt.CursorShape.PointingHandCursor)
+        # mismo criterio que el resto de la barra: con el foco puesto, el
+        # espacio activaria el boton en vez de reproducir
+        self.boton_bin_nuevo.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self.boton_bin_nuevo.setFixedHeight(26)
+        self.boton_bin_nuevo.setToolTip("Crea un bin vacío para arrastrarle clips")
+        # `Preferred` y no el `Minimum` de fabrica de un boton: `Minimum` no
+        # lleva la marca de encoger, asi que Qt le daria su texto completo
+        # como piso y el minimo chico de `_BotonDeBinNuevo` no serviria de
+        # nada (ver alli por que ese piso importa).
+        self.boton_bin_nuevo.setSizePolicy(
+            QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed
+        )
+        self.boton_bin_nuevo.clicked.connect(self.bin_nuevo_pedido.emit)
         fila_arriba.addWidget(self.title_label)
         fila_arriba.addWidget(self.search_input)
+        fila_arriba.addWidget(self.boton_bin_nuevo)
         fila_arriba.addWidget(self.queue_chip)
         fila_arriba.addStretch(1)
         fila_arriba.addWidget(self.hint_label)

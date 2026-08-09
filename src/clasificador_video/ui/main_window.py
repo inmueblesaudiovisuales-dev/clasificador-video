@@ -407,6 +407,7 @@ class MainWindow(QWidget):
         self.clip_sheet.soltado_en_nuevo_bin.connect(
             lambda rutas: self.importar_rutas(rutas)
         )
+        self.clip_sheet.bin_nuevo_pedido.connect(self._on_bin_nuevo_pedido)
 
         self.status_bar = StatusBar()
         self.status_bar.unclassified_clicked.connect(self._filtrar_sin_clasificar)
@@ -1528,6 +1529,23 @@ class MainWindow(QWidget):
         # `force_rebuild` no: reconstruir la hoja tiraria las portadas ya
         # cargadas, y aqui no cambio ni un clip -- solo como se llama su bin.
         self._refresh_sheet()
+        self._autosave()
+
+    def _on_bin_nuevo_pedido(self) -> None:
+        """Un bin vacio, listo para que le arrastres clips.
+
+        Nace con un nombre generico y el encabezado entra en modo edicion en
+        el acto: ponerle nombre es parte de crearlo, no un segundo paso que
+        haya que recordar.
+
+        `_refresh_sheet` sin `force_rebuild`: aqui no cambio ni un clip -- solo
+        hay un bin mas-- y reconstruir tiraria las portadas ya cargadas.
+        """
+        nombre = self.bins.crear_vacio("Bin")
+        self._refresh_sheet()
+        cabecera = self.clip_sheet.bin_header_widget(nombre)
+        if cabecera is not None:
+            cabecera.empezar_a_renombrar()
         self._autosave()
 
     def _on_bin_seleccionado(self, nombre: str) -> None:

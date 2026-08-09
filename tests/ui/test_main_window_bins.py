@@ -1335,3 +1335,58 @@ def test_quitar_el_bin_que_estabas_filtrando_recrea_las_tarjetas_UNA_vez(
 
     assert len(veces) == 1
     assert ventana.filters.bin == "todos"
+
+
+# --- F8 Tarea 4: el boton «+ Bin nuevo» --------------------------------------
+
+
+def test_crear_un_bin_lo_deja_listo_para_recibir_clips(qtbot, ventana):
+    ventana.load_clips([_clip(0, "/cam/A.MP4")])
+
+    ventana._on_bin_nuevo_pedido()
+
+    assert "Bin" in ventana.bins.nombres()[-1]
+    assert ventana.clip_sheet.bin_headers()[-1] == ventana.bins.nombres()[-1]
+
+
+def test_el_bin_nuevo_nace_con_el_nombre_en_edicion(qtbot, ventana):
+    """Ponerle nombre es parte de crearlo, no un segundo paso que haya que
+    recordar."""
+    ventana.load_clips([_clip(0, "/cam/A.MP4")])
+
+    ventana._on_bin_nuevo_pedido()
+
+    cabecera = ventana.clip_sheet.bin_header_widget(ventana.bins.nombres()[-1])
+    assert not cabecera.name_edit.isHidden()
+    assert cabecera.name_label.isHidden()
+
+
+def test_dos_bins_nuevos_no_se_pisan_el_nombre(qtbot, ventana):
+    ventana.load_clips([_clip(0, "/cam/A.MP4")])
+
+    ventana._on_bin_nuevo_pedido()
+    ventana._on_bin_nuevo_pedido()
+
+    assert ventana.bins.nombres() == ["Bin", "Bin 2"]
+
+
+def test_el_bin_nuevo_se_guarda(qtbot, tmp_path, ventana):
+    ventana.session_path = tmp_path / "sesion.json"
+    ventana.load_clips([_clip(0, "/cam/A.MP4")])
+
+    ventana._on_bin_nuevo_pedido()
+    ventana._write_autosave_now()
+    assert ventana._autosave_pool.waitForDone(2000)
+
+    data = json.loads((ventana.session_path).read_text())
+    assert data["bins"][-1]["clips"] == []
+
+
+def test_el_boton_de_la_hoja_llega_hasta_la_ventana(qtbot, ventana):
+    """La señal de la hoja tiene que estar enchufada: sin esto el boton se
+    ve, se aprieta y no pasa nada."""
+    ventana.load_clips([_clip(0, "/cam/A.MP4")])
+
+    ventana.clip_sheet.boton_bin_nuevo.click()
+
+    assert ventana.bins.nombres() == ["Bin"]

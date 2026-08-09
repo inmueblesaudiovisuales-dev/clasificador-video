@@ -812,6 +812,23 @@ def build_stylesheet() -> str:
         color: {TEXT_3};
         font-size: {FONT_MICRO}px;
     }}
+    /* «+ Bin nuevo» (F8). Se ve como el buscador que tiene al lado --mismo
+       fondo, mismo borde, mismo radio-- y no como un boton de acento: crear
+       un bin es rutina, no la accion principal de la pantalla. */
+    QPushButton#sheetNewBin {{
+        background-color: {BG_SURFACE_1};
+        border: 1px solid {LINE};
+        border-radius: {RADIUS_MD}px;
+        /* 8 y no 11: al encogerse a un cuadrado, el relleno es lo unico que
+           le deja lugar al glifo -- con 11 por lado quedaba una caja vacia */
+        padding: 0 8px;
+        color: {TEXT_2};
+        font-size: {FONT_SMALL}px;
+    }}
+    QPushButton#sheetNewBin:hover {{
+        background-color: {BG_SURFACE_2};
+        color: {TEXT};
+    }}
     QLabel#groupTitle {{
         color: {TEXT_3};
         font-size: {FONT_MICRO}px;

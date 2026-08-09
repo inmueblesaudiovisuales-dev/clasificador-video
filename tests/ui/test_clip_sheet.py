@@ -2234,3 +2234,47 @@ def test_colapsar_sin_bin_esconde_sus_tarjetas(qtbot):
     hoja.set_bin_collapsed(SIN_BIN, True)
 
     assert hoja.item_widgets[0].isHidden()
+
+
+# --- F8 Tarea 4: el boton «+ Bin nuevo» --------------------------------------
+
+
+def test_el_boton_pide_un_bin_nuevo(qtbot):
+    hoja = ClipSheet()
+    qtbot.addWidget(hoja)
+    pedidos = []
+    hoja.bin_nuevo_pedido.connect(lambda: pedidos.append(1))
+
+    hoja.boton_bin_nuevo.click()
+
+    assert pedidos == [1]
+
+
+def test_el_boton_no_se_roba_el_foco(qtbot):
+    """Mismo criterio que el resto de la barra: con el foco puesto, el
+    espacio activaria el boton en vez de reproducir."""
+    hoja = ClipSheet()
+    qtbot.addWidget(hoja)
+
+    assert hoja.boton_bin_nuevo.focusPolicy() == Qt.FocusPolicy.NoFocus
+
+
+def test_el_boton_se_queda_en_el_glifo_cuando_no_cabe(qtbot):
+    """Un QPushButton no elide, RECORTA: con el texto largo a 30 px se veia
+    media letra partida, que parece un error de dibujo. Y tiene que VOLVER al
+    texto completo cuando hay lugar -- si el ancho que pide saliera del texto
+    de ahora, al encogerse pediria el del glifo y se quedaria corto para
+    siempre.
+    """
+    hoja = ClipSheet()
+    qtbot.addWidget(hoja)
+    hoja.show()
+    qtbot.waitExposed(hoja)
+
+    hoja.resize(400, 300)
+    qtbot.wait(10)
+    assert hoja.boton_bin_nuevo.text() == "＋"
+
+    hoja.resize(900, 300)
+    qtbot.wait(10)
+    assert hoja.boton_bin_nuevo.text() == "＋ Bin nuevo"
