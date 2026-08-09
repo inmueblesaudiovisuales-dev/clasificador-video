@@ -42,7 +42,25 @@ registrarPrueba("resolveBinChain crea y reusa bins anidados", async (project) =>
   };
 });
 
-const RUTA_TEST_DIR = "/Users/brunogutierrez/Documents/CLAUDE CODE/ORGANIZADOR VIDEO/TEST";
+// LA UNICA LINEA QUE HAY QUE EDITAR PARA CORRER ESTO EN OTRA COMPUTADORA.
+//
+// Estas pruebas corren DENTRO de Premiere, no en el repo, asi que no hay
+// forma de resolver una ruta relativa: Premiere abre el plugin desde su
+// propia carpeta y no sabe donde vive el proyecto. Por eso es una ruta
+// absoluta y por eso va sola, arriba, en vez de repartida por el archivo
+// (la usan 44 lineas de aqui abajo).
+//
+// Apuntaba a `.../ORGANIZADOR VIDEO/TEST`, que dejo de existir: la limpieza
+// de agosto de 2026 renombro `TEST/` a `sample-media/` --colisionaba con
+// `tests/` en un filesystem que no distingue mayusculas-- y ademas movio los
+// clips a `sample-media/clips/`. O sea que estaba mal por dos motivos a la
+// vez, y quien corriera esto se habria topado con «archivo no encontrado» en
+// la primera prueba sin saber por que.
+const RUTA_MEDIA = "/Users/brunogutierrez/Documents/CLAUDE CODE/ORGANIZADOR VIDEO/sample-media";
+const RUTA_TEST_DIR = RUTA_MEDIA + "/clips";
+// El proxy NO vive junto a los clips: `sample-media/` los separa en `clips/`
+// y `proxy/`, que es como llegan de la tarjeta de la camara.
+const RUTA_PROXY_DIR = RUTA_MEDIA + "/proxy";
 const CLIP_588 = RUTA_TEST_DIR + "/20260804_PIB0588.MP4";
 const CLIP_589 = RUTA_TEST_DIR + "/20260804_PIB0589.MP4";
 
@@ -305,7 +323,7 @@ registrarPrueba("applyInOut: con null/null no toca el in/out existente", async (
   };
 });
 
-const PROXY_587 = RUTA_TEST_DIR + "/20260804_PIB0587S03.MP4";
+const PROXY_587 = RUTA_PROXY_DIR + "/20260804_PIB0587S03.MP4";
 
 registrarPrueba("attachProxyIfPresent: adjunta el proxy y hasProxy()/getProxyPath() lo confirman", async (project) => {
   const premierepro = require("premierepro");
@@ -863,6 +881,11 @@ async function findClipsConRutaEnArbol(folder, filePath) {
 //
 // La rotacion se difiere a Task 13 -- la API de premierepro no la expone
 // (ver nota en el plan).
+// OJO: esta carpeta NO existe en el repo. La prueba simula dos tarjetas
+// distintas con un archivo del mismo nombre, y para correrla hay que crear
+// `sample-media/clips/tarjeta2/` y copiar ahi el 0587. Se deja escrito aqui
+// porque antes fallaba con «archivo no encontrado» sin decir que faltaba
+// prepararla.
 const RUTA_TARJETA2_587 = RUTA_TEST_DIR + "/tarjeta2/20260804_PIB0587.MP4";
 
 const manifestE2E = {

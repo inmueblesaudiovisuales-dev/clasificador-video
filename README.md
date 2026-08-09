@@ -77,12 +77,21 @@ que un programa arranque. **No** lleva la firma de pago de Apple, así que:
 ## Tests
 
 ```bash
-QT_QPA_PLATFORM=offscreen .venv/bin/pytest tests/ --ignore=tests/test_app.py -q
+QT_QPA_PLATFORM=offscreen .venv/bin/pytest tests/ -q
 ```
 
-`tests/test_app.py` tiene un cuelgue preexistente en entornos sin pantalla
-real (limitación conocida del `QOpenGLWidget` de video bajo `offscreen`) — no
-es parte de la suite normal.
+La suite corre **completa**, sin ignorar nada. Hasta agosto de 2026 este
+comando llevaba `--ignore=tests/test_app.py` porque ese archivo colgaba bajo
+`offscreen`; la F3 lo reescribió —el diálogo de configuración que abría con
+`exec()` murió con ella— y desde entonces corre en medio segundo. Si alguna
+vez vuelve a colgarse, es un bug a resolver, no una limitación a esquivar.
+
+**Y córrela varias veces cuando toques la interfaz.** Este proyecto ha tenido
+cuatro segfaults intermitentes, y el último apareció después de decenas de
+corridas limpias seguidas: contra un fallo que sale 1 de cada 20 veces, veinte
+corridas en verde salen por azar más de un tercio de las veces. Lo que sirve
+es contar fallos sobre un número de corridas decidido de antemano — y, si
+sospechas que el fallo es nuevo, medir el commit anterior con el mismo número.
 
 ## Historia
 
