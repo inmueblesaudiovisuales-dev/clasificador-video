@@ -1991,6 +1991,14 @@ class ClipSheet(QWidget):
                 y = widget.mapTo(self, QPoint(0, 0)).y()
                 regiones.append([widget.nombre, y, y + widget.height()])
             elif regiones and isinstance(widget, _GroupBlock):
+                # los ESCONDIDOS no cuentan. Un widget invisible conserva la
+                # geometria que tenia, muy abajo: con un bin colapsado --que
+                # es justo lo que haces con la camara que no estas
+                # trabajando-- su franja seguia llegando hasta donde llegaba
+                # antes y se tragaba entera la del bin de abajo, asi que el
+                # material caia en la camara equivocada.
+                if widget.isHidden():
+                    continue
                 y = widget.mapTo(self, QPoint(0, 0)).y()
                 regiones[-1][2] = max(regiones[-1][2], y + widget.height())
         return regiones

@@ -207,3 +207,42 @@ def test_al_soltar_se_apaga_el_resaltado(qtbot, tmp_path):
 
     assert hoja.bin_header_widget("Dron").property("soltando") is not True
     assert hoja.zona_de_bin_nuevo().isHidden()
+
+
+def test_un_bin_colapsado_no_se_traga_la_franja_del_de_abajo(qtbot, tmp_path):
+    """Bruno colapsa «Sony FX30» --109 clips, altisimo-- para trabajar el
+    dron. Los bloques escondidos CONSERVAN la geometria que tenian, muy
+    abajo, asi que la franja de Sony seguia llegando hasta ahi y se tragaba
+    entera la del Dron, que ahora esta arriba: el resaltado marcaba Sony y
+    los archivos entraban a Sony.
+    """
+    hoja = _hoja(
+        qtbot,
+        [_thumb(i, bin_nombre="Sony") for i in range(8)]
+        + [_thumb(8, bin_nombre="Dron")],
+        bins=["Sony", "Dron"],
+    )
+    hoja.set_bin_collapsed("Sony", True)
+    qtbot.wait(10)
+    archivo = tmp_path / "nuevo.MP4"
+    archivo.touch()
+    recibido = []
+    hoja.soltado_en_bin.connect(lambda n, r: recibido.append((n, r)))
+
+    _soltar(hoja, [archivo], _centro_del_encabezado(hoja, "Dron"))
+
+    assert recibido == [("Dron", [archivo])]
+
+
+def test_la_franja_de_un_bin_colapsado_es_solo_su_encabezado(qtbot, tmp_path):
+    hoja = _hoja(
+        qtbot,
+        [_thumb(i, bin_nombre="Sony") for i in range(8)],
+        bins=["Sony"],
+    )
+    hoja.set_bin_collapsed("Sony", True)
+    qtbot.wait(10)
+    cabecera = hoja.bin_header_widget("Sony")
+    arriba = cabecera.mapTo(hoja, cabecera.rect().topLeft()).y()
+
+    assert hoja._regiones_de_bin() == [["Sony", arriba, arriba + cabecera.height()]]
