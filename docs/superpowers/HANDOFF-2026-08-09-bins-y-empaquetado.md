@@ -111,6 +111,60 @@ cámara.
 | **`.LRF` como clips** | DJI escribe un `.LRF` junto a cada `.MP4` y el ingest los toma como material: cada toma del dron aparece **dos veces** | decisión de Bruno: ¿fuera, como los `S03`? |
 | **Caída al cerrar** | una de ~30 corridas murió **después** de pasar los 831 tests, en el apagado. 26 corridas seguidas no lo repitieron | anotado, sin arreglo inventado |
 
+## 4.b Lo que ya se midió, para no volver a medirlo
+
+Dos conclusiones de arriba costaron trabajo y se re-litigarían solas si solo
+quedara escrito el veredicto.
+
+### Por qué el `.LRF` del dron no sirve como proxy
+
+El `.LRF` **ya es un MP4 por dentro** (mismo contenedor, H.264 720p), así que
+renombrarlo lo deja perfectamente reproducible. El problema es otro: **el
+contenido no está alineado con el original.**
+
+Medido sobre la carpeta real de dron de Bruno, 23 pares:
+
+- **fps idéntico en los 23**, y el `.LRF` **nunca es más largo**: le faltan
+  entre 0 y 3 cuadros al final.
+- Pero comparando imagen contra imagen —extraer el mismo cuadro de los dos y
+  medir la diferencia media de píxel— el mejor calce **no cae en el mismo
+  número de cuadro**: en el clip `0009` el cuadro 500 del original se parece
+  más al **505** del `.LRF`; en el `0006`, a **+1**. En un clip casi estático
+  la curva sale plana y el método no concluye — por eso se midió en varios.
+- Comparando por **tiempo** en vez de por cuadro pasa lo mismo, así que no es
+  un artefacto de cómo se numeran los cuadros: es el contenido.
+
+**Consecuencia:** para *ver* da igual; para **marcar in/out** no, porque el
+desfase cambia de clip a clip. Y la validación que ya tiene la app los
+rechazaría igual.
+
+**La alternativa medida**, generando el proxy desde el original con el
+codificador del chip (`h264_videotoolbox`, lado corto 720):
+
+| | original | proxy generado |
+|---|---|---|
+| tamaño | 285 MB | 17 MB |
+| cuadros | 1010 | **1010, exactos** |
+| tiempo | — | ~10 s por cada 6 s de video |
+
+Ojo con un detalle que costó una medición equivocada: **los MP4 del dron traen
+una miniatura JPEG incrustada como segunda pista de video**, y sin `-map 0:v:0`
+ffmpeg transcodifica esa en vez del video.
+
+### Qué hace falta para repartir la app
+
+El detalle operativo vive en el `README.md` (sección «Empaquetar como app»), y
+lo que hay que saber para decidir es:
+
+- La **firma propia** (ad-hoc) es gratis, se hace sola al armar, y es lo que el
+  chip M exige para que un binario arranque. Ya está puesta.
+- La **firma de Apple** (99 USD/año) NO hace falta para el caso de Bruno.
+- **Por USB o carpeta compartida la app abre directo.** Mandada por internet,
+  la primera vez hay que ir a *Configuración → Privacidad y seguridad → Abrir
+  de todos modos*, y eso se repite con cada versión nueva.
+- Esto es **cómo funciona macOS 26 según la documentación de Apple, no
+  comprobado**: la única prueba válida es abrirla en otra computadora.
+
 ## 5. Cómo encontrar bugs en este proyecto
 
 Lo que funcionó, **ordenado por lo que realmente encontró**. Casi ningún bug de
