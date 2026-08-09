@@ -10,6 +10,7 @@ Sin Qt.
 """
 from __future__ import annotations
 
+from dataclasses import dataclass
 from pathlib import Path
 
 # cuantos cuadros de diferencia se toleran al confirmar. El mismo margen
@@ -62,3 +63,46 @@ def calza(archivo: Path, tamano_esperado: int | None,
         return False
     cuadros = int((info or {}).get("duration_frames") or 0)
     return abs(cuadros - cuadros_esperados) <= TOLERANCIA_DE_CUADROS
+
+
+@dataclass
+class Reencuentro:
+    """Los tres finales posibles, separados a proposito.
+
+    `sin_confirmar` NO es lo mismo que `no_encontrados`: ahi hay un archivo
+    con el nombre correcto que **no es** el que era, y eso hay que
+    decirselo a Bruno con otras palabras --es el caso de la segunda tarjeta
+    de la misma camara-- en vez de mezclarlo con «no aparecio».
+    """
+    reconectados: dict[int, Path]
+    sin_confirmar: list[int]
+    no_encontrados: list[int]
+
+
+def faltantes_de(rutas: list[Path]) -> list[int]:
+    """Que posiciones de la lista ya no tienen archivo en disco."""
+    return [i for i, r in enumerate(rutas) if not Path(r).is_file()]
+
+
+def reencontrar_bin(carpeta: Path, relativas: dict[int, str],
+                    bytes_esperados: dict[int, int],
+                    cuadros_esperados: dict[int, int], medir) -> Reencuentro:
+    """Buscar y confirmar, clip por clip, bajo la carpeta nueva del bin.
+
+    Lo que no confirma no se engancha: se devuelve aparte para poder
+    decirlo. Enganchar el archivo equivocado seria peor, porque nadie se
+    entera.
+    """
+    reconectados: dict[int, Path] = {}
+    sin_confirmar: list[int] = []
+    no_encontrados: list[int] = []
+    for indice, relativa in relativas.items():
+        candidato = buscar_bajo(carpeta, relativa)
+        if candidato is None:
+            no_encontrados.append(indice)
+        elif calza(candidato, bytes_esperados.get(indice),
+                   cuadros_esperados.get(indice), medir):
+            reconectados[indice] = candidato
+        else:
+            sin_confirmar.append(indice)
+    return Reencuentro(reconectados, sorted(sin_confirmar), sorted(no_encontrados))

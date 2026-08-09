@@ -1,4 +1,9 @@
-from clasificador_video.revinculo import buscar_bajo, calza
+from clasificador_video.revinculo import (
+    buscar_bajo,
+    calza,
+    faltantes_de,
+    reencontrar_bin,
+)
 
 
 def test_NO_calza_un_tocayo_de_otro_tamano(tmp_path):
@@ -104,3 +109,44 @@ def test_si_esta_en_su_sitio_los_tocayos_no_estorban(tmp_path):
 
 def test_una_carpeta_que_no_existe_no_revienta(tmp_path):
     assert buscar_bajo(tmp_path / "no-esta", "C0001.MP4") is None
+
+
+def test_faltantes_de_lista_lo_que_no_esta(tmp_path):
+    esta = tmp_path / "A.MP4"
+    esta.write_bytes(b"x")
+
+    assert faltantes_de([esta, tmp_path / "B.MP4"]) == [1]
+
+
+def test_reencontrar_devuelve_los_que_calzan_y_los_que_no(tmp_path):
+    nueva = tmp_path / "nueva"
+    nueva.mkdir()
+    bueno = nueva / "C0001.MP4"
+    bueno.write_bytes(b"x" * 500)
+    tocayo = nueva / "C0002.MP4"
+    tocayo.write_bytes(b"x" * 111)          # peso equivocado: no calza
+
+    resultado = reencontrar_bin(
+        carpeta=nueva,
+        relativas={0: "C0001.MP4", 1: "C0002.MP4"},
+        bytes_esperados={0: 500, 1: 999},
+        cuadros_esperados={},
+        medir=lambda p: {"duration_frames": 0},
+    )
+
+    assert resultado.reconectados == {0: bueno}
+    assert resultado.sin_confirmar == [1]
+
+
+def test_lo_que_no_aparece_queda_como_no_encontrado(tmp_path):
+    nueva = tmp_path / "nueva"
+    nueva.mkdir()
+
+    resultado = reencontrar_bin(
+        carpeta=nueva, relativas={0: "C0001.MP4"},
+        bytes_esperados={0: 500}, cuadros_esperados={},
+        medir=lambda p: {"duration_frames": 0},
+    )
+
+    assert resultado.reconectados == {}
+    assert resultado.no_encontrados == [0]
