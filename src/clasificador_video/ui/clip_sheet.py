@@ -47,6 +47,9 @@ FADE_HEIGHT = 60
 STRIPE_WIDTH = 3    # franja de cuarto / rayado de sin clasificar
 GLYPH_SIZE = 15     # pastilla del glifo de estado y de la palomita
 RANGE_HEIGHT = 2    # barra de in/out al pie
+HOVER_HEIGHT = 3    # barrita de escrubeo (`.hoverbar` del mockup)
+ALTO_PASTILLA = 16  # alto aproximado de las pastillas de numero y duracion
+PORTADA = 0.25      # el frame de portada, al 25% del clip
 BADGE_RADIUS = 3
 PAD = 5             # separacion de las pastillas al borde de la tarjeta
 
@@ -103,7 +106,9 @@ class _CardOverlay(QWidget):
 
         self._pintar_franja(pintor, plan["franja"], alto)
         self._pintar_pastilla(pintor, plan["numero"], esquina="arriba-izq")
-        if plan["duracion"]:
+        # al escrubear, el timecode REEMPLAZA a la duracion en esa esquina: es
+        # el mismo lugar del mockup y dos pastillas encimadas no se leen
+        if plan["duracion"] and not plan["hover"]:
             self._pintar_pastilla(pintor, plan["duracion"], esquina="abajo-der")
         if plan["glifo"]:
             self._pintar_glifo(pintor, *plan["glifo"])
@@ -111,6 +116,8 @@ class _CardOverlay(QWidget):
             self._pintar_palomita(pintor)
         if plan["rango"]:
             self._pintar_rango(pintor, *plan["rango"])
+        if plan["hover"]:
+            self._pintar_hover(pintor, plan["hover"])
         pintor.end()
 
     # --- piezas ----------------------------------------------------------
@@ -169,6 +176,33 @@ class _CardOverlay(QWidget):
         pintor.setFont(fuente)
         pintor.setPen(QColor(theme.SELECTION_TICK_INK))
         pintor.drawText(rect, Qt.AlignmentFlag.AlignCenter, "✓")
+
+    def _pintar_hover(self, pintor: QPainter, hover: dict) -> None:
+        """La barrita de escrubeo y su timecode (`.hoverbar`/`.hovertc`).
+
+        Va ARRIBA de la barra de rango, no encima: son dos datos distintos
+        --donde estas mirando ahora contra que tramo marcaste-- y encimarlos
+        haria que uno tapara al otro justo cuando los dos importan.
+        """
+        # ARRIBA de la pastilla del timecode, no debajo: si corriera por
+        # atras, la pastilla le tapa el tramo final --justo donde estas
+        # cuando escrubeas hasta el final-- y la barra deja de decir nada.
+        # El mockup la pone a 19 px del borde por lo mismo.
+        y = self.height() - RANGE_HEIGHT - HOVER_HEIGHT - ALTO_PASTILLA - PAD
+        riel = QRect(PAD, y, self.width() - 2 * PAD, HOVER_HEIGHT)
+        pintor.setPen(Qt.PenStyle.NoPen)
+        pintor.setBrush(QColor(*theme.CARD_BADGE_BG_RGBA))
+        pintor.drawRoundedRect(riel, 2, 2)
+        avance = QRect(riel.x(), y, round(riel.width() * hover["progreso"]),
+                       HOVER_HEIGHT)
+        pintor.setBrush(QColor(theme.CARD_BADGE_TEXT))
+        pintor.drawRoundedRect(avance, 2, 2)
+        # la cabeza, en el color del playhead: es el mismo dato que en el
+        # visor --donde estas parado-- y por eso el mismo color
+        pintor.setBrush(QColor(theme.CURRENT_COLOR))
+        pintor.drawRect(QRect(avance.right() - 1, y - 2, 2, HOVER_HEIGHT + 4))
+        if hover["timecode"]:
+            self._pintar_pastilla(pintor, hover["timecode"], esquina="abajo-der")
 
     def _pintar_rango(self, pintor: QPainter, inicio: float, fin: float) -> None:
         y = self.height() - RANGE_HEIGHT
@@ -268,6 +302,7 @@ class ClipCard(QWidget):
 
         self._clip = clip
         self._frames: list = []
+        self._hover: float | None = None   # fraccion escrubeada, o None
         self._scaled_cache: dict[int, object] = {}
         self._poster_index = 0
         self._shown_index: int | None = None
@@ -332,7 +367,23 @@ class ClipCard(QWidget):
             "franja": clip.room_color or "rayada",
             "rango": rango,
             "palomita": bool(getattr(self, "_is_selected", False)),
+            # lo que el mockup dibuja al escrubear: barrita de progreso y
+            # timecode. Va en el mismo plan --y en el mismo paintEvent-- que
+            # el resto: seis QLabel encima de la miniatura es lo que la F2
+            # hizo mal.
+            "hover": None if self._hover is None else {
+                "progreso": self._hover,
+                "timecode": self._timecode_de(self._hover),
+            },
         }
+
+    def _timecode_de(self, fraccion: float) -> str:
+        clip = self._clip
+        if not clip.duration_frames or not clip.fps:
+            return ""
+        from clasificador_video.ui.video_widget import format_timecode
+
+        return format_timecode(round(clip.duration_frames * fraccion), clip.fps)
 
     def update_content(self, clip: ClipThumbnail) -> None:
         """Actualiza estado sin tocar la miniatura ya cargada. Reconstruir
@@ -354,7 +405,11 @@ class ClipCard(QWidget):
             return
         self._frames = pixmaps
         self._scaled_cache = {}
-        self._poster_index = len(pixmaps) // 2
+        # 25% y no el del medio: en un recorrido el primer frame suele ser una
+        # puerta o movimiento borroso, y el del medio puede ser cualquier cosa.
+        # Es el MISMO punto donde el video arranca al abrirlo (F6), asi que la
+        # miniatura muestra lo que vas a ver.
+        self._poster_index = round((len(pixmaps) - 1) * PORTADA)
         self._shown_index = None
         self._show_frame(self._poster_index)
 
@@ -403,16 +458,30 @@ class ClipCard(QWidget):
         sigue siendo la paleta de cuartos."""
         self.doble_click.emit()
 
+    def escrubear_a(self, fraccion: float) -> None:
+        """Muestra el frame que corresponde a esa fraccion del clip, y prende
+        la barrita de progreso del mockup.
+
+        Separado del evento de mouse para poder probarlo sin simular un
+        arrastre: el gesto se prueba aparte, esto se prueba por su efecto.
+        """
+        if len(self._frames) <= 1:
+            return
+        self._hover = max(0.0, min(1.0, fraccion))
+        self._show_frame(round(self._hover * (len(self._frames) - 1)))
+        self._overlay.update()
+
     def mouseMoveEvent(self, event) -> None:  # noqa: N802 -- override de Qt
-        if len(self._frames) > 1:
-            ancho = max(self.width(), 1)
-            ratio = max(0.0, min(1.0, event.position().x() / ancho))
-            self._show_frame(round(ratio * (len(self._frames) - 1)))
+        self.escrubear_a(event.position().x() / max(self.width(), 1))
         super().mouseMoveEvent(event)
 
     def leaveEvent(self, event) -> None:  # noqa: N802 -- override de Qt
+        # vuelve a la portada: si cada tarjeta se quedara en el frame por el
+        # que pasaste, la hoja terminaria siendo un mosaico de frames al azar
+        self._hover = None
         if self._frames:
             self._show_frame(self._poster_index)
+        self._overlay.update()
         super().leaveEvent(event)
 
     # --- estado visual ---------------------------------------------------

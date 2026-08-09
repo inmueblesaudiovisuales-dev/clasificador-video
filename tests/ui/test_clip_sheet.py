@@ -1,5 +1,7 @@
 from pathlib import Path
 
+import pytest
+
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QPixmap
 
@@ -188,20 +190,22 @@ def test_ctrl_click_alterna(qtbot):
 def test_el_hover_cambia_el_frame_mostrado(qtbot):
     sheet = _sheet(qtbot, [_clip(0, "Sala")])
     tarjeta = sheet.item_widgets[0]
-    tarjeta.set_frames([_pixmap(Qt.GlobalColor.red), _pixmap(Qt.GlobalColor.green),
-                        _pixmap(Qt.GlobalColor.blue)])
-    assert tarjeta._shown_index == 1  # poster = el del medio
-    tarjeta._show_frame(2)
-    assert tarjeta._shown_index == 2
+    tarjeta.set_frames([_pixmap() for _ in range(12)])
+    assert tarjeta._shown_index == 3   # portada = el 25% (F8)
+    tarjeta._show_frame(9)
+    assert tarjeta._shown_index == 9
 
 
 def test_al_salir_vuelve_al_poster(qtbot):
+    """La portada se movio del MEDIO al 25% en la F8: en un recorrido el
+    frame del medio puede ser cualquier cosa, y el 25% es el mismo punto donde
+    arranca el video al abrirlo. Con la tira real de 12 frames, el 3."""
     sheet = _sheet(qtbot, [_clip(0, "Sala")])
     tarjeta = sheet.item_widgets[0]
-    tarjeta.set_frames([_pixmap(), _pixmap(), _pixmap()])
-    tarjeta._show_frame(0)
+    tarjeta.set_frames([_pixmap() for _ in range(12)])
+    tarjeta._show_frame(9)
     tarjeta.leaveEvent(None)
-    assert tarjeta._shown_index == 1
+    assert tarjeta._shown_index == 3
 
 
 # --- estado visual ---------------------------------------------------------
@@ -829,3 +833,105 @@ def test_el_tamano_sobrevive_a_cargar_otro_shooting(qtbot):
     paso = hoja._paso
     hoja.set_clips([_thumb(i) for i in range(1, 5)])
     assert hoja._paso == paso
+
+
+# --- F8 Task 17: la barrita de escrubeo sobre la miniatura -------------------
+
+
+def _card_con_frames(qtbot, cuantos: int = 12) -> ClipCard:
+    tarjeta = _card(numero=93, duration_frames=300, fps=30.0)
+    qtbot.addWidget(tarjeta)
+    tarjeta.resize(180, 320)
+    tarjeta.set_frames([_pixmap() for _ in range(cuantos)])
+    return tarjeta
+
+
+def test_la_portada_es_el_frame_del_25_por_ciento(qtbot):
+    """En un recorrido el primer frame suele ser una puerta o movimiento
+    borroso, y el del medio puede ser cualquier cosa. El 25% es el MISMO punto
+    donde arranca el video al abrirlo (F6): la miniatura muestra lo que vas a
+    ver, no otra cosa."""
+    assert _card_con_frames(qtbot, 12)._poster_index == 3
+
+
+def test_al_escrubear_aparece_la_barrita_y_el_timecode(qtbot):
+    tarjeta = _card_con_frames(qtbot, 12)
+    tarjeta.escrubear_a(0.5)
+    hover = tarjeta.plan_de_pintado()["hover"]
+    assert hover is not None
+    assert hover["progreso"] == pytest.approx(0.5, abs=0.1)
+    assert hover["timecode"]           # el mockup lo muestra al escrubear
+
+
+def test_sin_escrubear_no_hay_barrita(qtbot):
+    assert _card_con_frames(qtbot, 12).plan_de_pintado()["hover"] is None
+
+
+def test_al_salir_el_mouse_la_barrita_desaparece(qtbot):
+    """Si se quedara, la tarjeta mentiria: dice que estas escrubeando algo que
+    ya no estas tocando."""
+    tarjeta = _card_con_frames(qtbot, 12)
+    tarjeta.escrubear_a(0.5)
+    tarjeta.leaveEvent(None)
+    assert tarjeta.plan_de_pintado()["hover"] is None
+
+
+def test_al_salir_el_mouse_vuelve_la_portada(qtbot):
+    """La tarjeta tiene que quedar como estaba, o la hoja termina siendo un
+    mosaico de frames al azar segun por donde pasaste el mouse."""
+    tarjeta = _card_con_frames(qtbot, 12)
+    tarjeta.escrubear_a(0.9)
+    tarjeta.leaveEvent(None)
+    assert tarjeta._shown_index == tarjeta._poster_index
+
+
+def test_escrubear_una_tarjeta_sin_frames_no_revienta(qtbot):
+    """Las miniaturas se extraen en segundo plano: al abrir un shooting las
+    tarjetas existen antes que sus frames."""
+    tarjeta = _card(numero=1)
+    qtbot.addWidget(tarjeta)
+    tarjeta.escrubear_a(0.5)
+    assert tarjeta.plan_de_pintado()["hover"] is None
+
+
+def test_al_escrubear_el_timecode_reemplaza_a_la_duracion(qtbot):
+    """Van en la misma esquina --la del mockup-- y dos pastillas encimadas no
+    se leen. Mientras escrubeas importa donde estas, no cuanto dura."""
+    tarjeta = _card_con_frames(qtbot, 12)
+    imagen_quieta = tarjeta.grab().toImage()
+    tarjeta.escrubear_a(0.5)
+    imagen_escrubeando = tarjeta.grab().toImage()
+    assert imagen_quieta != imagen_escrubeando
+
+
+def test_la_barrita_de_escrubeo_no_tapa_la_de_rango(qtbot):
+    """Son dos datos distintos --donde miras ahora contra que tramo marcaste--
+    y encimarlos haria que uno tape al otro justo cuando los dos importan."""
+    tarjeta = _card(numero=93, duration_frames=300, fps=30.0,
+                    in_frame=30, out_frame=200)
+    qtbot.addWidget(tarjeta)
+    tarjeta.resize(180, 320)
+    tarjeta.set_frames([_pixmap() for _ in range(12)])
+    tarjeta.escrubear_a(0.5)
+    imagen = tarjeta.grab().toImage()
+    escala = imagen.width() / max(tarjeta.width(), 1)
+    # la ultima fila es de la barra de rango: tiene que seguir siendo del
+    # color del rango, no del blanco de la barrita de escrubeo
+    y = round((tarjeta.height() - 1) * escala)
+    assert imagen.pixelColor(round(90 * escala), y).name() == theme.TRIM_COLOR
+
+
+def test_la_barrita_de_escrubeo_no_pasa_por_detras_de_la_pastilla(qtbot):
+    """Si corriera por atras, la pastilla del timecode le tapa el tramo final
+    --justo donde estas cuando escrubeas hasta el final-- y la barra deja de
+    decir nada."""
+    tarjeta = _card_con_frames(qtbot, 12)
+    tarjeta.escrubear_a(0.95)
+    imagen = tarjeta.grab().toImage()
+    escala = imagen.width() / max(tarjeta.width(), 1)
+    # la cabeza ambar al 95% tiene que verse: si la pastilla la tapara, ahi
+    # habria fondo de pastilla
+    x = round(tarjeta.width() * 0.93 * escala)
+    columna = [imagen.pixelColor(x, y).name()
+               for y in range(imagen.height() // 2, imagen.height())]
+    assert theme.CURRENT_COLOR in columna, "la cabeza del escrubeo no se ve"
