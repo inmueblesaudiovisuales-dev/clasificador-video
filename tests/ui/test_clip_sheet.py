@@ -9,6 +9,7 @@ from clasificador_video.ui import theme
 from clasificador_video.ui.clip_sheet import (
     MIN_TILE_WIDTH,
     GAP,
+    SIN_BIN,
     SIN_CLASIFICAR,
     ClipCard,
     ClipSheet,
@@ -132,13 +133,13 @@ def test_update_clips_preserva_la_miniatura_si_no_cambio_nada(qtbot):
 
 def test_los_clips_se_agrupan_por_cuarto(qtbot):
     sheet = _sheet(qtbot, [_clip(0, "Sala"), _clip(1, "Cocina"), _clip(2, "Sala")])
-    assert set(sheet.group_titles()) == {("", "Sala"), ("", "Cocina")}
+    assert set(sheet.group_titles()) == {(SIN_BIN, "Sala"), (SIN_BIN, "Cocina")}
 
 
 def test_los_sin_clasificar_van_primero(qtbot):
     """Es la cola de trabajo: lo que falta va arriba."""
     sheet = _sheet(qtbot, [_clip(0, "Sala"), _clip(1, None)])
-    assert sheet.group_titles()[0] == ("", SIN_CLASIFICAR)
+    assert sheet.group_titles()[0] == (SIN_BIN, SIN_CLASIFICAR)
 
 
 def test_un_grupo_que_se_vacia_desaparece(qtbot):
@@ -147,7 +148,7 @@ def test_un_grupo_que_se_vacia_desaparece(qtbot):
     assert len(sheet.group_titles()) == 2
     clips[0] = _clip(0, "Cocina")
     sheet.update_clips(clips)
-    assert sheet.group_titles() == [("", "Cocina")]
+    assert sheet.group_titles() == [(SIN_BIN, "Cocina")]
 
 
 def test_el_encabezado_de_grupo_lleva_su_conteo(qtbot):
@@ -598,7 +599,7 @@ def test_un_cambio_de_grupo_si_recoloca(qtbot):
     sheet._relayout()
     clips[0] = _clip(0, "Cocina")
     sheet.update_clips(clips)
-    assert set(sheet.group_titles()) == {("", "Sala"), ("", "Cocina")}
+    assert set(sheet.group_titles()) == {(SIN_BIN, "Sala"), (SIN_BIN, "Cocina")}
 
 
 def test_esconder_por_filtro_si_recoloca(qtbot):
@@ -1298,16 +1299,24 @@ def test_los_bins_van_en_orden_de_importacion_y_los_cuartos_adentro(qtbot):
 
 
 def test_un_clip_sin_bin_cae_en_uno_solo_y_no_revienta(qtbot):
+    """Desde la F8 el clip suelto cae en la seccion «Sin bin». El DATO sigue
+    siendo el mismo --`bin_nombre` vacio, o sea sin bin--: «Sin bin» es el
+    nombre de la seccion que lo muestra, no un bin al que pertenezca."""
     hoja = ClipSheet()
     qtbot.addWidget(hoja)
     hoja.set_clips([_thumb(0, room_label="Cocina")])
 
-    assert hoja.group_titles() == [("", "Cocina")]
+    assert hoja.group_titles() == [(SIN_BIN, "Cocina")]
 
 
 def test_un_bin_que_no_esta_en_el_orden_va_al_final(qtbot):
     """Puede pasar entre que se agrega material y se refresca el orden: no
-    puede reventar ni colarse arriba de los que si estan ordenados."""
+    puede reventar ni colarse arriba de los que si estan ordenados.
+
+    Y desde la F8 tambien tiene que llevar encabezado: los bins los declara
+    quien llama, y sin este caso las tarjetas de un bin todavia no declarado
+    se quedaban sin encabezado Y sin bloque, o sea invisibles.
+    """
     hoja = ClipSheet()
     qtbot.addWidget(hoja)
     hoja.set_bin_order(["Sony"])
@@ -1317,6 +1326,7 @@ def test_un_bin_que_no_esta_en_el_orden_va_al_final(qtbot):
     ])
 
     assert hoja.group_titles() == [("Sony", "Cocina"), ("Recien llegado", "Cocina")]
+    assert hoja.bin_headers() == ["Sony", "Recien llegado"]
 
 
 def test_el_mismo_cuarto_en_dos_bins_son_dos_bloques(qtbot):
@@ -1407,7 +1417,14 @@ def test_el_encabezado_cuenta_picks_destacados_y_rejects(qtbot):
     assert cabecera.marcas_texto() == ["2", "1", "1"]
 
 
-def test_un_bin_que_se_queda_sin_clips_pierde_su_encabezado(qtbot):
+def test_un_bin_que_SE_VA_DEL_ORDEN_pierde_su_encabezado(qtbot):
+    """Lo que tira el encabezado es dejar de estar declarado, no quedarse sin
+    clips.
+
+    Hasta la F8 era al reves --los bins se deducian de las tarjetas-- y por
+    eso un bin vacio no existia para la hoja. Ahora el bin desaparece cuando
+    de verdad lo quitaste del proyecto, que es cuando sale de `set_bin_order`.
+    """
     hoja = ClipSheet()
     qtbot.addWidget(hoja)
     hoja.set_bin_order(["Sony", "Dron"])
@@ -1416,6 +1433,7 @@ def test_un_bin_que_se_queda_sin_clips_pierde_su_encabezado(qtbot):
     ])
     assert hoja.bin_headers() == ["Sony", "Dron"]
 
+    hoja.set_bin_order(["Sony"])
     hoja.set_clips([_thumb(0, bin_nombre="Sony")])
 
     assert hoja.bin_headers() == ["Sony"]
@@ -2051,7 +2069,7 @@ def test_el_bloque_de_grupo_que_se_vacia_tampoco(qtbot):
     qtbot.addWidget(hoja)
     hoja.set_clips([_thumb(0, room_label="Cocina")])
     destruido = []
-    hoja._blocks[("", "Cocina")].destroyed.connect(lambda *_: destruido.append(1))
+    hoja._blocks[(SIN_BIN, "Cocina")].destroyed.connect(lambda *_: destruido.append(1))
 
     hoja.set_clips([_thumb(0, room_label="Baño")])
 
@@ -2136,3 +2154,83 @@ def test_colapsar_el_bin_del_clip_actual_no_lo_reabre_solo(qtbot):
     hoja.centrar_en(0)
 
     assert hoja.bin_collapsed("Sony")
+
+
+# --- F8 Tarea 3: los bins se DECLARAN, no se deducen -------------------------
+
+
+def test_un_bin_sin_clips_igual_aparece(qtbot):
+    """El gesto de Premiere es crear el bin y despues llenarlo. Si el bin
+    vacio no se dibuja, no hay a donde arrastrar."""
+    hoja = ClipSheet()
+    qtbot.addWidget(hoja)
+    hoja.set_bin_order(["Sony", "Dron"])
+    hoja.set_clips([_thumb(0, bin_nombre="Sony")])
+
+    assert hoja.bin_headers() == ["Sony", "Dron"]
+    assert hoja.bin_header_widget("Dron") is not None
+
+
+def test_los_clips_sin_bin_van_primero_y_en_su_seccion(qtbot):
+    hoja = ClipSheet()
+    qtbot.addWidget(hoja)
+    hoja.set_bin_order(["Sony"])
+    hoja.set_clips([_thumb(0, bin_nombre="Sony"), _thumb(1, bin_nombre="")])
+
+    assert hoja.bin_headers() == [SIN_BIN, "Sony"]
+
+
+def test_la_seccion_sin_bin_se_esconde_cuando_no_hay_sueltos(qtbot):
+    hoja = ClipSheet()
+    qtbot.addWidget(hoja)
+    hoja.set_bin_order(["Sony"])
+    hoja.set_clips([_thumb(0, bin_nombre="Sony")])
+
+    assert hoja.bin_headers() == ["Sony"]
+
+
+def test_un_bin_vacio_no_desaparece_al_refrescar(qtbot):
+    """`_regroup` corre en cada tecla. Si el bin vacio solo sobreviviera a
+    la primera pasada, se iria al primer pick."""
+    hoja = ClipSheet()
+    qtbot.addWidget(hoja)
+    hoja.set_bin_order(["Sony", "Dron"])
+    hoja.set_clips([_thumb(0, bin_nombre="Sony")])
+
+    hoja.update_clips([_thumb(0, bin_nombre="Sony", flag="pick")])
+
+    assert hoja.bin_headers() == ["Sony", "Dron"]
+
+
+def test_el_encabezado_de_un_bin_vacio_dice_cero_clips(qtbot):
+    """El conteo sale de las tarjetas, y un bin vacio no tiene ninguna: sin
+    esto se quedaba con el numero del bin que ocupo ese encabezado antes."""
+    hoja = ClipSheet()
+    qtbot.addWidget(hoja)
+    hoja.set_bin_order(["Sony", "Dron"])
+    hoja.set_clips([_thumb(0, bin_nombre="Sony")])
+
+    assert hoja.bin_header_widget("Dron").count_label.text() == "0 clips"
+
+
+def test_la_seccion_sin_bin_cuenta_sus_clips(qtbot):
+    """Los sueltos tienen `bin_nombre` vacio y el conteo va por nombre de
+    seccion: sin traducirlo, «Sin bin» decia siempre 0."""
+    hoja = ClipSheet()
+    qtbot.addWidget(hoja)
+    hoja.set_clips([_thumb(0), _thumb(1)])
+
+    assert hoja.bin_header_widget(SIN_BIN).count_label.text() == "2 clips"
+
+
+def test_colapsar_sin_bin_esconde_sus_tarjetas(qtbot):
+    """El colapso va por nombre de SECCION. Con el nombre crudo del clip
+    --que en los sueltos es la cadena vacia-- cerrar «Sin bin» no escondia
+    nada."""
+    hoja = ClipSheet()
+    qtbot.addWidget(hoja)
+    hoja.set_clips([_thumb(0)])
+
+    hoja.set_bin_collapsed(SIN_BIN, True)
+
+    assert hoja.item_widgets[0].isHidden()

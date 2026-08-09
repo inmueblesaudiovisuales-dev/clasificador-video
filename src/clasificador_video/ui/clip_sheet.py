@@ -27,6 +27,12 @@ from clasificador_video.ui import theme
 from clasificador_video.ui.text import ElidedLabel
 
 SIN_CLASIFICAR = "Sin clasificar"
+# La seccion de los clips que no pertenecen a ningun bin. NO es un bin: es una
+# VISTA de los sueltos, y por eso no vive en `BinTree` -- un clip suelto se
+# representa por ausencia de bin, no por pertenecer a uno llamado asi. Va
+# siempre arriba de todo, que es donde va la cola de trabajo (igual que
+# «Sin clasificar» dentro de un bin), y se esconde cuando no hay sueltos.
+SIN_BIN = "Sin bin"
 # La marca de camara del encabezado de bin. Un solo glifo para todos: ver
 # el comentario en `_BinHeader.__init__`. Vive en el tema porque el visor
 # usa la misma.
@@ -1188,6 +1194,9 @@ class ClipSheet(QWidget):
     # decide que es material es la ventana, no ella.
     soltado_en_bin = Signal(str, list)      # nombre del bin, rutas
     soltado_en_nuevo_bin = Signal(list)     # rutas
+    # el boton «+ Bin nuevo» de la barra (F8). La hoja no crea el bin: el dato
+    # vive en `BinTree`, que es de la ventana.
+    bin_nuevo_pedido = Signal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -1742,12 +1751,25 @@ class ClipSheet(QWidget):
         se deciden juntas y en un solo lugar: puestas en dos lados, la
         segunda le devuelve la vida a lo que escondio la primera."""
         for i, card in enumerate(self.item_widgets):
+            # por SECCION y no por `clip.bin_nombre` crudo: los sueltos traen
+            # el nombre vacio, y con el crudo colapsar «Sin bin» no escondia
+            # ninguna de sus tarjetas.
             card.setVisible(
-                self._es_visible(i) and card.clip.bin_nombre not in self._colapsados
+                self._es_visible(i)
+                and self._group_of(card.clip)[0] not in self._colapsados
             )
 
     def _group_of(self, clip: ClipThumbnail) -> tuple[str, str]:
-        return (clip.bin_nombre, clip.room_label or SIN_CLASIFICAR)
+        """La seccion en la que cae la tarjeta.
+
+        Un clip suelto llega con `bin_nombre` vacio --asi lo representa el
+        dato: sin bin, no «en un bin llamado Sin bin»-- y aqui se traduce a
+        `SIN_BIN`, que es el nombre de su SECCION. La traduccion vive en un
+        solo lugar a proposito: el colapso, los conteos y el orden van todos
+        por nombre de seccion, y cada uno leyendo el dato crudo por su cuenta
+        se desincroniza.
+        """
+        return (clip.bin_nombre or SIN_BIN, clip.room_label or SIN_CLASIFICAR)
 
     def _widgets_del_contenido(self) -> list[QWidget]:
         """Todo lo que hay en la columna, encabezados de bin incluidos y en
@@ -1771,8 +1793,15 @@ class ClipSheet(QWidget):
         """Primero el bin --por su posicion de importacion-- y adentro los
         cuartos, con «Sin clasificar» arriba porque es la cola de trabajo."""
         bin_nombre, cuarto = clave
-        pos = (self._bin_order.index(bin_nombre)
-               if bin_nombre in self._bin_order else len(self._bin_order))
+        if bin_nombre == SIN_BIN:
+            # los sueltos van ARRIBA de todo, por el mismo motivo que «Sin
+            # clasificar» va arriba dentro de un bin: es lo que falta
+            # acomodar, y al final de una columna larga no se ve
+            pos = -1
+        elif bin_nombre in self._bin_order:
+            pos = self._bin_order.index(bin_nombre)
+        else:
+            pos = len(self._bin_order)
         return (pos, bin_nombre, cuarto != SIN_CLASIFICAR, cuarto)
 
     def _regroup(self) -> None:
@@ -1805,28 +1834,56 @@ class ClipSheet(QWidget):
             if titulo not in titulos:
                 self._desechar(self._blocks.pop(titulo))
 
-        self._sincronizar_encabezados([b for b, _ in titulos])
+        bins_presentes = self._bins_presentes(titulos)
+        self._sincronizar_encabezados(bins_presentes)
 
         while self._content_layout.count():
             self._content_layout.takeAt(0)
-        ultimo_bin = None
-        for titulo in titulos:
-            bin_nombre = titulo[0]
-            if bin_nombre != ultimo_bin:
-                # el encabezado va ARRIBA de los grupos de su bin: debajo
-                # diria que el material de la Sony es del dron
-                self._content_layout.addWidget(self._bin_headers[bin_nombre])
-                ultimo_bin = bin_nombre
-            self._content_layout.addWidget(self._blocks[titulo])
+        for bin_nombre in bins_presentes:
+            # el encabezado va ARRIBA de los grupos de su bin: debajo diria
+            # que el material de la Sony es del dron. Y va aunque el bin no
+            # tenga ni un bloque: un bin vacio se dibuja igual, que es lo que
+            # deja arrastrarle el primer clip.
+            self._content_layout.addWidget(self._bin_headers[bin_nombre])
+            for titulo in titulos:
+                if titulo[0] == bin_nombre:
+                    self._content_layout.addWidget(self._blocks[titulo])
         # al final de todo y escondida: solo se muestra mientras hay un
         # arrastre encima (ver `_marcar_zona`). Se re-agrega aqui porque este
         # bucle vacia el layout entero en cada reagrupada.
         self._content_layout.addWidget(self._zona_nueva)
         self._refrescar_encabezados()
 
+    def _bins_presentes(self, titulos: list[tuple[str, str]]) -> list[str]:
+        """Que secciones llevan encabezado, y en que orden.
+
+        Los bins los DECLARA quien llama, con `set_bin_order`; no se deducen
+        de las tarjetas. Hasta la F8 se deducian, y la consecuencia era que un
+        bin sin clips no existia para la hoja -- justo el que hay que poder
+        dibujar, porque el gesto es el de Premiere: creas el bin y despues le
+        arrastras material.
+
+        Al orden declarado se le suman dos cosas, y las dos tienen razon:
+
+        - «Sin bin» va PRIMERO, y solo si de verdad hay sueltos. No es un bin:
+          es la vista de los clips que no pertenecen a ninguno.
+        - un bin con tarjetas que todavia NO esta declarado va al final, igual
+          que en `_orden_de_grupo`. Pasa en el instante entre agregar material
+          y refrescar el orden; sin esto sus tarjetas se quedarian sin
+          encabezado y sin bloque, o sea invisibles.
+        """
+        con_clips = list(dict.fromkeys(b for b, _ in titulos))
+        presentes = [SIN_BIN] if SIN_BIN in con_clips else []
+        presentes += list(self._bin_order)
+        presentes += [b for b in con_clips if b not in presentes]
+        # sin repetidos: nada impide que un bin de verdad se llame «Sin bin»,
+        # y colocar dos veces el mismo encabezado lo movería de lugar en la
+        # segunda pasada en vez de dibujarlo dos veces.
+        return list(dict.fromkeys(presentes))
+
     def _sincronizar_encabezados(self, presentes: list[str]) -> None:
-        """Crea el encabezado de cada bin que tiene clips y tira el de los
-        que se quedaron sin ninguno."""
+        """Crea el encabezado de cada seccion presente y tira el de las que
+        ya no lo estan."""
         for nombre in presentes:
             if nombre not in self._bin_headers:
                 cabecera = _BinHeader(nombre)
@@ -1867,7 +1924,9 @@ class ClipSheet(QWidget):
         totales: dict[str, int] = {}
         por_flag: dict[str, dict[str, int]] = {}
         for card in self.item_widgets:
-            nombre = card.clip.bin_nombre
+            # por SECCION: los sueltos van a «Sin bin», y con el nombre crudo
+            # su encabezado decia siempre «0 clips».
+            nombre = self._group_of(card.clip)[0]
             totales[nombre] = totales.get(nombre, 0) + 1
             marcas = por_flag.setdefault(nombre, {})
             marcas[card.clip.flag] = marcas.get(card.clip.flag, 0) + 1
