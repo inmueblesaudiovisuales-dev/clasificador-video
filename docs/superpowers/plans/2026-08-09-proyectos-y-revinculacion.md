@@ -77,7 +77,7 @@ duración en cuadros**— y lo que no confirma **no se engancha y se dice**.
 - Crear: `src/clasificador_video/proyecto.py`
 - Test: `tests/test_proyecto.py`
 
-- [ ] **Paso 1: escribir los tests que fallan**
+- [x] **Paso 1: escribir los tests que fallan**
 
 ```python
 # tests/test_proyecto.py
@@ -149,14 +149,14 @@ def test_el_dict_del_proyecto_lleva_todo_lo_de_la_sesion_mas_las_relativas():
     assert data["version"] == 1
 ```
 
-- [ ] **Paso 2: correr y ver que fallan**
+- [x] **Paso 2: correr y ver que fallan**
 
 ```bash
 QT_QPA_PLATFORM=offscreen .venv/bin/pytest tests/test_proyecto.py -q
 ```
 Esperado: `ModuleNotFoundError: No module named 'clasificador_video.proyecto'`
 
-- [ ] **Paso 3: implementar**
+- [x] **Paso 3: implementar**
 
 ```python
 # src/clasificador_video/proyecto.py
@@ -216,9 +216,9 @@ def a_dict(proyecto: str, rooms: list[str], clips: list, bins,
     }
 ```
 
-- [ ] **Paso 4: correr y ver que pasan** — 4 passed
+- [x] **Paso 4: correr y ver que pasan** — 4 passed
 
-- [ ] **Paso 5: commit**
+- [x] **Paso 5: commit**
 
 ```bash
 git add src/clasificador_video/proyecto.py tests/test_proyecto.py
@@ -238,7 +238,7 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 - Modificar: `src/clasificador_video/proyecto.py`
 - Test: `tests/test_proyecto.py`
 
-- [ ] **Paso 1: escribir los tests que fallan**
+- [x] **Paso 1: escribir los tests que fallan**
 
 ```python
 def test_ida_y_vuelta_a_disco(tmp_path):
@@ -281,11 +281,11 @@ def test_guardar_es_atomico(tmp_path):
     assert not (tmp_path / "p.cvproj.tmp").exists()
 ```
 
-- [ ] **Paso 2: correr y ver que fallan**
+- [x] **Paso 2: correr y ver que fallan**
 
 Esperado: `ImportError: cannot import name 'guardar'`
 
-- [ ] **Paso 3: implementar**
+- [x] **Paso 3: implementar**
 
 ```python
 EXTENSION = ".cvproj"
@@ -316,9 +316,9 @@ def abrir(ruta: Path) -> dict | None:
 
 con `import json, os` arriba del módulo.
 
-- [ ] **Paso 4: correr y ver que pasan** — 8 passed
+- [x] **Paso 4: correr y ver que pasan** — 8 passed
 
-- [ ] **Paso 5: commit**
+- [x] **Paso 5: commit**
 
 ---
 
@@ -330,7 +330,7 @@ con `import json, os` arriba del módulo.
 - Crear: `src/clasificador_video/recientes.py`
 - Test: `tests/test_recientes.py`
 
-- [ ] **Paso 1: escribir los tests que fallan**
+- [x] **Paso 1: escribir los tests que fallan**
 
 ```python
 # tests/test_recientes.py
@@ -403,9 +403,9 @@ def test_la_lista_no_crece_sin_limite(tmp_path):
     assert len(r.lista()) == 10
 ```
 
-- [ ] **Paso 2: correr y ver que fallan**
+- [x] **Paso 2: correr y ver que fallan**
 
-- [ ] **Paso 3: implementar**
+- [x] **Paso 3: implementar**
 
 ```python
 # src/clasificador_video/recientes.py
@@ -484,9 +484,19 @@ class Recientes:
         return list(self._entradas)
 ```
 
-- [ ] **Paso 4: correr y ver que pasan** — 7 passed
+- [x] **Paso 4: correr y ver que pasan** — 7 passed
 
-- [ ] **Paso 5: commit**
+- [x] **Paso 5: commit**
+
+> **Cerradas el 2026-08-09.** La revisión de las fases 1 y 2 agregó, sobre lo
+> que este plan pedía: el origen de un bin ahora **sube al ancestro común**
+> cuando se le suma material de otra carpeta (`bins.sumar`) —sin eso, soltar
+> la segunda tarjeta de la Sony dejaba esos clips sin relativa y la fase 3 los
+> daría por «no encontrados» con el archivo ahí enfrente—; `rutas_relativas`
+> descarta la relativa con `..`; `guardar` limpia su `.tmp`; y `Recientes`
+> escribe atómico, traga el `OSError`, deduplica, congela `disponible` al leer
+> y relee antes de mutar. Tests: 10 en `test_proyecto.py`, 12 en
+> `test_recientes.py`, 7 nuevos en `test_bins.py`.
 
 ---
 
@@ -1080,6 +1090,11 @@ def test_abrir_lo_registra_en_recientes(qtbot, tmp_path):
 - [ ] **Paso 2: correr y ver que fallan**
 
 Esperado: `ImportError: cannot import name 'abrir_proyecto'`
+
+> **Pendiente que dejó la fase 1:** `proyecto.abrir` acepta cualquier JSON
+> que sea un objeto, así que elegir un `.json` cualquiera con «Abrir otro…»
+> abriría un «proyecto» vacío sin decir que no lo era. Aquí hay que exigirle
+> al menos `version` o `clips`, y avisar cuando no los trae.
 
 - [ ] **Paso 3: implementar en `app.py`**
 
