@@ -2,141 +2,66 @@
 from pathlib import Path
 
 from clasificador_video.proxy_match import (
-    PROFUNDIDAD_DE_BUSQUEDA,
-    buscar_proxies,
+    emparejar_con_patron,
     etiqueta_de_resolucion,
-    match_proxies,
+    patron_de_proxy,
 )
 
 
-def test_empareja_por_stem_mas_sufijo_s03():
-    originales = [Path("/cam/20260804_PIB0587.MP4")]
-    proxies = [Path("/proxies/20260804_PIB0587S03.MP4")]
-    result = match_proxies(originales, proxies)
-    assert result[Path("/cam/20260804_PIB0587.MP4")] == Path("/proxies/20260804_PIB0587S03.MP4")
-
-
-def test_original_sin_proxy_correspondiente_queda_none():
-    originales = [Path("/cam/DJI_0001.MP4")]
-    proxies: list[Path] = []
-    result = match_proxies(originales, proxies)
-    assert result[Path("/cam/DJI_0001.MP4")] is None
-
-
-def test_no_confunde_prefijos_parecidos():
-    originales = [Path("/cam/C001.MP4"), Path("/cam/C0010.MP4")]
-    proxies = [Path("/proxies/C0010S03.MP4")]
-    result = match_proxies(originales, proxies)
-    assert result[Path("/cam/C001.MP4")] is None
-    assert result[Path("/cam/C0010.MP4")] == Path("/proxies/C0010S03.MP4")
-
-
-# --- buscar_proxies: el paso que faltaba (F9) ---------------------------
+# --- enganche MANUAL, como en Premiere (pedido de Bruno) ---------------
 #
-# match_proxies() recibe dos listas ya armadas y nadie las armaba. Buscar
-# los candidatos es su propio problema porque Bruno guarda los proxies en
-# una carpeta APARTE de los originales, asi que mirar solo la carpeta
-# importada no alcanza.
+# «Necesito que los proxies los ponga manualmente siempre, que sea un
+# proceso como Premiere donde agarras un clip primero y luego se pone
+# todo»: eliges el proxy de UN clip y de ahi sale el patron para los
+# demas.
 
 
-def _video(carpeta: Path, nombre: str) -> Path:
-    carpeta.mkdir(parents=True, exist_ok=True)
-    ruta = carpeta / nombre
-    ruta.touch()
-    return ruta
+def test_deduce_el_sufijo_del_par_que_elegiste():
+    patron = patron_de_proxy(Path("/cam/C0001.MP4"), Path("/px/C0001S03.MP4"))
+    assert patron == ("", "S03")
 
 
-def test_encuentra_el_proxy_en_una_carpeta_hermana(tmp_path):
-    """El caso real de Bruno (`clips/` y `proxy/`) y el de la tarjeta Sony
-    (`CLIP/` y `SUB/`): el proxy nunca esta donde estan los originales."""
-    _video(tmp_path / "clips", "20260804_PIB0587.MP4")
-    proxy = _video(tmp_path / "proxy", "20260804_PIB0587S03.MP4")
-
-    assert buscar_proxies(tmp_path / "clips") == [proxy]
+def test_deduce_un_prefijo():
+    patron = patron_de_proxy(Path("/cam/C0001.MP4"), Path("/px/PRX_C0001.MOV"))
+    assert patron == ("PRX_", "")
 
 
-def test_encuentra_el_proxy_suelto_en_la_carpeta_padre(tmp_path):
-    _video(tmp_path / "clips", "C0001.MP4")
-    proxy = _video(tmp_path, "C0001S03.MP4")
-
-    assert buscar_proxies(tmp_path / "clips") == [proxy]
+def test_el_proxy_puede_llamarse_igual_en_otra_carpeta():
+    assert patron_de_proxy(Path("/cam/C0001.MP4"), Path("/px/C0001.MP4")) == ("", "")
 
 
-def test_encuentra_el_proxy_revuelto_con_los_originales(tmp_path):
-    """Que Bruno los separe no puede convertirse en una limitacion: si
-    algun dia vienen juntos, tienen que emparejarse igual."""
-    carpeta = tmp_path / "clips"
-    _video(carpeta, "C0001.MP4")
-    proxy = _video(carpeta, "C0001S03.MP4")
-
-    assert buscar_proxies(carpeta) == [proxy]
+def test_si_el_nombre_no_tiene_nada_que_ver_no_hay_patron():
+    """Elegiste el archivo equivocado: mejor decirlo que emparejar 128
+    clips con un patron inventado."""
+    assert patron_de_proxy(Path("/cam/C0001.MP4"), Path("/px/otra_cosa.MP4")) is None
 
 
-def test_no_baja_mas_alla_del_tope_de_profundidad(tmp_path):
-    """Sin tope, importar algo de la raiz de un volumen lo recorre entero."""
-    _video(tmp_path / "clips", "C0001.MP4")
-    _video(tmp_path / "otra" / "adentro" / "mas", "C0001S03.MP4")
+def test_aplica_el_patron_a_todos_los_clips(tmp_path):
+    proxies = tmp_path / "proxy"
+    proxies.mkdir()
+    for n in ("C0001S03.MP4", "C0002S03.MP4", "C0004S03.MP4"):
+        (proxies / n).touch()
+    originales = [Path(f"/cam/C{i:04d}.MP4") for i in (1, 2, 3, 4)]
 
-    assert PROFUNDIDAD_DE_BUSQUEDA == 2
-    assert buscar_proxies(tmp_path / "clips") == []
+    r = emparejar_con_patron(originales, proxies, "", "S03", ".MP4")
 
-
-def test_sin_ningun_s03_devuelve_lista_vacia(tmp_path):
-    _video(tmp_path / "clips", "DJI_0001.MP4")
-
-    assert buscar_proxies(tmp_path / "clips") == []
-
-
-def test_ignora_archivos_que_no_son_de_video(tmp_path):
-    _video(tmp_path / "clips", "C0001.MP4")
-    _video(tmp_path, "C0001S03.txt")
-
-    assert buscar_proxies(tmp_path / "clips") == []
+    assert r[originales[0]].name == "C0001S03.MP4"
+    assert r[originales[2]] is None          # C0003 no tiene proxy
+    assert r[originales[3]].name == "C0004S03.MP4"
 
 
-def test_una_carpeta_inaccesible_no_revienta(tmp_path):
-    """Importar de un volumen ajeno con permisos raros no puede tumbar la
-    app: devuelve lo que pudo leer y sigue."""
-    carpeta = tmp_path / "clips"
-    _video(carpeta, "C0001.MP4")
-    prohibida = tmp_path / "prohibida"
-    prohibida.mkdir()
-    prohibida.chmod(0o000)
-    try:
-        assert buscar_proxies(carpeta) == []
-    finally:
-        prohibida.chmod(0o755)
+def test_acepta_otra_extension_de_video(tmp_path):
+    """La camara puede escribir el original en .MP4 y el proxy en .MOV."""
+    proxies = tmp_path / "proxy"
+    proxies.mkdir()
+    (proxies / "C0001S03.MOV").touch()
+    originales = [Path("/cam/C0001.MP4")]
+
+    r = emparejar_con_patron(originales, proxies, "", "S03", ".MP4")
+
+    assert r[originales[0]].name == "C0001S03.MOV"
 
 
-def test_una_carpeta_que_no_existe_devuelve_vacio(tmp_path):
-    assert buscar_proxies(tmp_path / "no-existe" / "clips") == []
-
-
-def test_no_devuelve_el_mismo_proxy_dos_veces(tmp_path):
-    """La carpeta importada esta DENTRO del padre que se recorre: sin
-    cuidado, el proxy revuelto con los originales sale duplicado."""
-    carpeta = tmp_path / "clips"
-    _video(carpeta, "C0001.MP4")
-    proxy = _video(carpeta, "C0001S03.MP4")
-
-    assert buscar_proxies(carpeta) == [proxy]
-
-
-# --- etiqueta_de_resolucion --------------------------------------------
-
-
-def test_la_etiqueta_sale_del_lado_corto():
-    """Un proxy vertical de 1080x1920 es 1080p, no 1920p."""
-    assert etiqueta_de_resolucion(1920, 1080) == "1080p"
-    assert etiqueta_de_resolucion(1080, 1920) == "1080p"
-
-
-def test_la_etiqueta_del_proxy_real_de_bruno_es_720p():
-    """El S03 de la FX30 mide 1280x720 -- el `Proxy 1080p` del mockup era
-    un dibujo, no un dato."""
-    assert etiqueta_de_resolucion(1280, 720) == "720p"
-    assert etiqueta_de_resolucion(720, 1280) == "720p"
-
-
-def test_sin_tamano_no_hay_etiqueta():
-    assert etiqueta_de_resolucion(0, 0) == ""
+def test_una_carpeta_que_ya_no_esta_no_revienta(tmp_path):
+    r = emparejar_con_patron([Path("/cam/C0001.MP4")], tmp_path / "no-existe", "", "S03", ".MP4")
+    assert r == {Path("/cam/C0001.MP4"): None}

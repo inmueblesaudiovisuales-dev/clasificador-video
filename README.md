@@ -35,24 +35,26 @@ O con doble click en `scripts/abrir_app.command` una vez instalado.
 
 ## Proxies
 
-**No hay nada que configurar.** Al importar, la app busca sola el proxy de cada
-clip:
+Se enganchan **a mano**, como el *Attach Proxies* de Premiere: eliges el proxy
+de **un** clip y la app engancha los demás sola.
 
-- **Se reconoce por el nombre**: el mismo del clip, terminado en `S03`. Así los
-  escribe la FX30 — `C0001.MP4` → `C0001S03.MP4`.
-- **Se busca** en la carpeta que importaste, en sus subcarpetas y en las
-  **carpetas hermanas**. O sea que la carpeta de proxies puede ir al lado de la
-  de clips, que es como vienen de la cámara.
-- **Se comprueba** que el proxy tenga exactamente los mismos cuadros y los
-  mismos fps que el original. El que no coincida se descarta: con un proxy
-  corrido, el `in`/`out` que marcas caería en el cuadro equivocado.
+1. Ponte en un clip que sí tenga proxy.
+2. Botón **Proxies**, arriba a la derecha.
+3. Elige el archivo de proxy **de ese clip**.
 
-Cuando hay proxy, la app **lo reproduce a él** (ir un cuadro atrás pasa de
-~530 ms a ~22 ms), saca de él las miniaturas, y se lo pasa a Premiere en el
-manifest para que quede enganchado.
+De ese par sale el patrón de nombre —`C0001.MP4` + `C0001S03.MP4` da el sufijo
+`S03`— y con eso se buscan los demás **en esa misma carpeta**. Da igual cómo se
+llame la carpeta o el sufijo: sale de lo que elegiste.
 
-La barra de estado lo dice siempre: `proxies 720p · 118/128`, o `sin proxies`
-si no encontró ninguno.
+Cada proxy se comprueba antes de engancharlo: tiene que tener exactamente los
+mismos cuadros y los mismos fps que su original. El que no coincida se descarta,
+porque con un proxy corrido el `in`/`out` caería en el cuadro equivocado.
+
+Con proxy, la app **lo reproduce a él** (ir un cuadro atrás pasa de ~530 ms a
+~22 ms), saca de él las miniaturas —5.6 veces más rápido y sin calentar la
+máquina— y se lo pasa a Premiere en el manifest para que quede enganchado allá.
+
+La barra de estado lo dice siempre: `proxies 720p · 118/128`, o `sin proxies`.
 
 ## Tests
 

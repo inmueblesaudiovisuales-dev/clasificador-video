@@ -41,17 +41,19 @@ def test_el_boton_de_exportar_emite_su_senal(qtbot):
         bar.export_button.click()
 
 
-def test_el_boton_de_cuartos_emite_su_senal(qtbot):
+def test_el_boton_de_proxies_emite_su_senal(qtbot):
+    """Ocupa el lugar del de «Cuartos», que solo movia el foco y desde
+    afuera parecia no hacer nada."""
     bar = _bar(qtbot)
-    with qtbot.waitSignal(bar.rooms_requested):
-        bar.rooms_button.click()
+    with qtbot.waitSignal(bar.proxies_requested):
+        bar.proxies_button.click()
 
 
 def test_los_botones_no_roban_el_foco(qtbot):
     """Con un boton enfocable en el camino, Espacio lo activaria en vez de
     reproducir el clip."""
     bar = _bar(qtbot)
-    for boton in (bar.export_button, bar.rooms_button):
+    for boton in (bar.export_button, bar.proxies_button):
         assert boton.focusPolicy() == Qt.FocusPolicy.NoFocus
 
 

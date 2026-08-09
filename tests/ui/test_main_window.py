@@ -1436,13 +1436,18 @@ def test_los_atajos_anunciados_en_la_interfaz_existen(qtbot):
     assert QKeySequence(QKeySequence.StandardKey.SelectAll).toString() == "Ctrl+A"
 
 
-def test_el_boton_de_cuartos_lleva_el_foco_al_rail(qtbot):
-    """Estuvo muerto desde la F2: emitia una señal que nadie escuchaba."""
+def test_el_foco_al_rail_sigue_existiendo_sin_boton(qtbot):
+    """El boton «Cuartos» murio a proposito: solo movia el foco, y desde
+    afuera no se veia pasar nada -- Bruno lo reporto como «no hace nada».
+    Su lugar en la barra lo ocupa «Proxies», que si es una accion.
+
+    La funcion sigue: es lo que hace `⌘R`, que esta en DECISIONES.md."""
     window = _window(qtbot, rooms=("Cocina", "Sala"))
     window.show()
     qtbot.waitExposed(window)
-    window.title_bar.rooms_button.click()
+    window.room_rail.focus_rooms()
     assert window.room_rail.focusWidget() is window.room_rail.rows[0]
+    assert not hasattr(window.title_bar, "rooms_button")
 
 
 def test_deshacer_un_borrado_no_se_lleva_los_cuartos_creados_despues(qtbot):
@@ -2735,7 +2740,7 @@ class _ProbeConProxy:
 
 
 def _importar_con_proxy(window, monkeypatch, tmp_path, con_proxy=True,
-                        parchear_miniaturas=True):
+                        parchear_miniaturas=True, enganchar=True):
     if parchear_miniaturas:
         monkeypatch.setattr(
             "clasificador_video.ui.main_window.extract_thumbnail_strip", lambda *a, **k: []
@@ -2749,7 +2754,26 @@ def _importar_con_proxy(window, monkeypatch, tmp_path, con_proxy=True,
         (proxies / "C0001S03.MP4").touch()
     window.ingest_tree.import_folder(carpeta)
     window._load_clips_from_ingest()
+    # y se enganchan A MANO, que es el unico camino desde que Bruno lo
+    # pidio: importar ya no busca proxies solo.
+    if con_proxy and enganchar:
+        _enganchar_a_mano(window, monkeypatch, tmp_path)
     return carpeta
+
+
+def _enganchar_a_mano(window, monkeypatch, tmp_path, nombre="C0001S03.MP4"):
+    """El camino nuevo: los proxies se enganchan a mano, eligiendo el de un
+    clip. Antes esto pasaba solo al importar."""
+    from PySide6.QtWidgets import QMessageBox
+    monkeypatch.setattr(
+        "clasificador_video.ui.main_window.QFileDialog.getOpenFileName",
+        lambda *a, **k: (str(tmp_path / "tarjeta" / "proxy" / nombre), ""),
+    )
+    monkeypatch.setattr("clasificador_video.ui.main_window.QMessageBox.information",
+                        lambda *a, **k: QMessageBox.Ok)
+    monkeypatch.setattr("clasificador_video.ui.main_window.QMessageBox.warning",
+                        lambda *a, **k: QMessageBox.Ok)
+    window.adjuntar_proxies()
 
 
 def _esperar_a_los_proxies(window):
@@ -3326,8 +3350,10 @@ def test_las_miniaturas_salen_del_proxy_cuando_hay(qtbot, monkeypatch, tmp_path)
     _importar_con_proxy(window, monkeypatch, tmp_path, parchear_miniaturas=False)
     window._thread_pool.waitForDone(5000)
 
-    assert pedidos, "no se pidio ninguna miniatura"
-    assert pedidos[0].name == "C0001S03.MP4"
+    # la primera pasada sale del original --al importar todavia no hay
+    # proxies-- y al engancharlos a mano se vuelven a pedir desde el proxy
+    assert pedidos[0].name == "C0001.MP4"
+    assert pedidos[-1].name == "C0001S03.MP4"
 
 
 def test_sin_proxy_las_miniaturas_salen_del_original(qtbot, monkeypatch, tmp_path):
@@ -3358,3 +3384,138 @@ def test_la_barra_avisa_mientras_se_generan_las_miniaturas(qtbot, monkeypatch, t
     from PySide6.QtWidgets import QApplication
     QApplication.processEvents()
     assert window.status_bar.progress_label.isHidden()
+
+
+# --- enganche MANUAL de proxies, como en Premiere (pedido de Bruno) ----
+
+
+def _material_con_proxies(tmp_path, cuantos=3, sufijo="S03", con_proxy=(0, 1, 2)):
+    clips = tmp_path / "clips"
+    proxies = tmp_path / "proxy"
+    clips.mkdir(parents=True, exist_ok=True)
+    proxies.mkdir(parents=True, exist_ok=True)
+    for i in range(cuantos):
+        (clips / f"C{i:04d}.MP4").touch()
+        if i in con_proxy:
+            (proxies / f"C{i:04d}{sufijo}.MP4").touch()
+    return clips, proxies
+
+
+def _ventana_con_material(qtbot, monkeypatch, tmp_path, **kwargs):
+    window = _window_with_video(qtbot, cache_root=tmp_path / "cache")
+    monkeypatch.setattr(
+        "clasificador_video.ui.main_window.extract_thumbnail_strip", lambda *a, **k: []
+    )
+    monkeypatch.setattr(window, "_probe_clip", _ProbeConProxy())
+    clips, proxies = _material_con_proxies(tmp_path, **kwargs)
+    window.ingest_tree.import_folder(clips)
+    window._load_clips_from_ingest()
+    window._thread_pool.waitForDone(5000)
+    return window, clips, proxies
+
+
+def _elegir(monkeypatch, ruta):
+    monkeypatch.setattr(
+        "clasificador_video.ui.main_window.QFileDialog.getOpenFileName",
+        lambda *a, **k: (str(ruta), ""),
+    )
+
+
+def _sin_avisos(monkeypatch):
+    from PySide6.QtWidgets import QMessageBox
+    monkeypatch.setattr("clasificador_video.ui.main_window.QMessageBox.information",
+                        lambda *a, **k: QMessageBox.Ok)
+    monkeypatch.setattr("clasificador_video.ui.main_window.QMessageBox.warning",
+                        lambda *a, **k: QMessageBox.Ok)
+
+
+def test_al_importar_ya_NO_se_buscan_proxies_solos(qtbot, monkeypatch, tmp_path):
+    """«Necesito que los proxies los ponga manualmente siempre»."""
+    window, _, _ = _ventana_con_material(qtbot, monkeypatch, tmp_path)
+
+    assert all(c.ruta_proxy is None for c in window.clips)
+
+
+def test_elegir_el_proxy_de_un_clip_engancha_todos(qtbot, monkeypatch, tmp_path):
+    window, _, proxies = _ventana_con_material(qtbot, monkeypatch, tmp_path)
+    _elegir(monkeypatch, proxies / "C0000S03.MP4")
+    _sin_avisos(monkeypatch)
+
+    window.adjuntar_proxies()
+    window._thread_pool.waitForDone(5000)
+    from PySide6.QtWidgets import QApplication
+    QApplication.processEvents()
+
+    assert [c.ruta_proxy.name for c in window.clips] == [
+        "C0000S03.MP4", "C0001S03.MP4", "C0002S03.MP4"
+    ]
+
+
+def test_los_clips_sin_proxy_quedan_como_estaban(qtbot, monkeypatch, tmp_path):
+    window, _, proxies = _ventana_con_material(
+        qtbot, monkeypatch, tmp_path, con_proxy=(0, 2))
+    _elegir(monkeypatch, proxies / "C0000S03.MP4")
+    _sin_avisos(monkeypatch)
+
+    window.adjuntar_proxies()
+    window._thread_pool.waitForDone(5000)
+    from PySide6.QtWidgets import QApplication
+    QApplication.processEvents()
+
+    assert window.clips[1].ruta_proxy is None
+    assert window.clips[2].ruta_proxy is not None
+
+
+def test_elegir_un_archivo_que_no_corresponde_avisa_y_no_toca_nada(qtbot, monkeypatch, tmp_path):
+    """Si el nombre no tiene nada que ver con el clip, emparejar 128
+    clips con un patron inventado seria peor que no hacer nada."""
+    window, _, proxies = _ventana_con_material(qtbot, monkeypatch, tmp_path)
+    ajeno = proxies / "cualquier_otra_cosa.MP4"
+    ajeno.touch()
+    _elegir(monkeypatch, ajeno)
+    avisos = []
+    from PySide6.QtWidgets import QMessageBox
+    monkeypatch.setattr("clasificador_video.ui.main_window.QMessageBox.warning",
+                        lambda *a, **k: avisos.append(a) or QMessageBox.Ok)
+
+    window.adjuntar_proxies()
+
+    assert avisos, "no aviso de que el archivo no corresponde"
+    assert all(c.ruta_proxy is None for c in window.clips)
+
+
+def test_cancelar_el_dialogo_no_hace_nada(qtbot, monkeypatch, tmp_path):
+    window, _, _ = _ventana_con_material(qtbot, monkeypatch, tmp_path)
+    monkeypatch.setattr(
+        "clasificador_video.ui.main_window.QFileDialog.getOpenFileName",
+        lambda *a, **k: ("", ""),
+    )
+
+    window.adjuntar_proxies()
+
+    assert all(c.ruta_proxy is None for c in window.clips)
+
+
+def test_sin_clips_importados_no_se_puede_enganchar_nada(qtbot, monkeypatch):
+    window = _window_with_video(qtbot)
+    avisos = []
+    from PySide6.QtWidgets import QMessageBox
+    monkeypatch.setattr("clasificador_video.ui.main_window.QMessageBox.warning",
+                        lambda *a, **k: avisos.append(a) or QMessageBox.Ok)
+
+    window.adjuntar_proxies()
+
+    assert avisos
+
+
+def test_el_boton_de_la_barra_de_titulo_abre_el_dialogo(qtbot, monkeypatch, tmp_path):
+    window, _, proxies = _ventana_con_material(qtbot, monkeypatch, tmp_path)
+    _elegir(monkeypatch, proxies / "C0000S03.MP4")
+    _sin_avisos(monkeypatch)
+
+    window.title_bar.proxies_button.click()
+    window._thread_pool.waitForDone(5000)
+    from PySide6.QtWidgets import QApplication
+    QApplication.processEvents()
+
+    assert window.clips[0].ruta_proxy is not None

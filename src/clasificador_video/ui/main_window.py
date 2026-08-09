@@ -32,9 +32,9 @@ from clasificador_video.probe import (
     probe_clip,
 )
 from clasificador_video.proxy_match import (
-    buscar_proxies,
+    emparejar_con_patron,
     etiqueta_de_resolucion,
-    match_proxies,
+    patron_de_proxy,
 )
 from clasificador_video.rooms import RoomSelection
 from clasificador_video.thumbnails import (
@@ -303,7 +303,7 @@ class MainWindow(QWidget):
         # el boton «Cuartos ⌘R» estuvo muerto desde la F2: emitia una señal
         # que nadie escuchaba. Ahora lleva el foco al rail, para renombrar,
         # reordenar y crear cuartos sin tocar el mouse.
-        self.title_bar.rooms_requested.connect(self.room_rail.focus_rooms)
+        self.title_bar.proxies_requested.connect(self.adjuntar_proxies)
 
         self.video_stage = VideoStage(mpv_factory=video_factory)
         self.video_stage.quality.selected.connect(self._on_quality_changed)
@@ -1197,41 +1197,83 @@ class MainWindow(QWidget):
         self._clip_sizes = sizes
         self._clip_rotations = rotations
         self.load_clips(clips)
-        # el sondeo VA PRIMERO: deja emparejados los proxies --que es solo
-        # mirar nombres, sin abrir nada-- y las miniaturas se sacan de ellos.
-        self._programar_sondeo_de_proxies()
+        # Los proxies NO se buscan solos: se enganchan a mano, con el boton
+        # «Proxies» de la barra de titulo. Decision de Bruno, y por eso las
+        # miniaturas de esta primera pasada salen del original.
         self._schedule_thumbnails()
 
-    def _programar_sondeo_de_proxies(self) -> None:
-        """Busca el proxy de cada clip y manda a sondearlo en segundo plano.
+    def adjuntar_proxies(self) -> None:
+        """El boton «Proxies»: eliges el proxy de UN clip y se enganchan
+        todos, como el «Attach Proxies» de Premiere.
+
+        Es a mano y solo a mano, por pedido de Bruno. Del par que eliges
+        sale el patron de nombre --`C0001.MP4` + `C0001S03.MP4` da el
+        sufijo `S03`-- y con eso se buscan los demas en esa carpeta.
+
+        Cada uno se valida igual que siempre (mismos cuadros, mismo fps,
+        misma orientacion): el que no calce no se engancha, porque un proxy
+        corrido pone el in/out en el cuadro equivocado.
+        """
+        clip = self.current_clip
+        if clip is None:
+            QMessageBox.warning(self, "Sin material",
+                                "Primero importa los clips y luego engancha sus proxies.")
+            return
+        ruta, _ = QFileDialog.getOpenFileName(
+            self,
+            f"Elige el proxy de {clip.ruta.name}",
+            str(clip.ruta.parent),
+            "Video (*.mp4 *.MP4 *.mov *.MOV *.mxf *.MXF)",
+        )
+        if not ruta:
+            return
+        elegido = Path(ruta)
+        patron = patron_de_proxy(clip.ruta, elegido)
+        if patron is None:
+            QMessageBox.warning(
+                self, "Ese archivo no corresponde",
+                f"«{elegido.name}» no lleva el nombre de «{clip.ruta.name}» adentro, "
+                "así que no se puede deducir cómo se llaman los demás proxies.\n\n"
+                "Elige el proxy que corresponde a ESTE clip.",
+            )
+            return
+        prefijo, sufijo = patron
+        emparejados = emparejar_con_patron(
+            [c.ruta for c in self.clips], elegido.parent, prefijo, sufijo, elegido.suffix
+        )
+        encontrados = sum(1 for v in emparejados.values() if v is not None)
+        QMessageBox.information(
+            self, "Proxies",
+            f"Se encontraron {encontrados} de {len(self.clips)}.\n\n"
+            "Se están comprobando uno por uno: solo se enganchan los que "
+            "coinciden cuadro a cuadro con su original.",
+        )
+        self._sondear_proxies(emparejados)
+
+    def _sondear_proxies(self, emparejados: dict[Path, Path | None]) -> None:
+        """Manda a comprobar cada proxy en segundo plano.
 
         Emparejar es barato (mirar nombres); validar cuesta un `ffprobe`
-        por archivo, y eso va al thread pool. Consecuencia visible: el
-        badge y el contador aparecen unos segundos DESPUES de importar, y
-        mientras tanto todo funciona con los originales.
+        por archivo --26.7 ms, o sea 3.4 s en 128 clips-- y eso no puede
+        bloquear la ventana.
         """
         self._proxy_sizes = {}
         self._proxy_generation += 1
         generation = self._proxy_generation
-        # se busca UNA vez por carpeta, no una vez por clip: recorrer el
-        # disco 128 veces para el mismo resultado seria trabajo tirado.
-        por_original: dict[Path, Path | None] = {}
-        for folder in self.ingest_tree.top_level_folders():
-            por_original.update(
-                match_proxies(folder.files, buscar_proxies(folder.source_path))
-            )
-        # el indice va por `self.clips`, no por `folder.files`: los archivos
-        # que el probe rechazo nunca llegaron a ser clips, y contarlos
-        # aterrizaria cada proxy en el clip de al lado.
         self._proxy_candidatos = {
-            index: por_original[clip.ruta]
+            index: emparejados[clip.ruta]
             for index, clip in enumerate(self.clips)
-            if por_original.get(clip.ruta) is not None
+            if emparejados.get(clip.ruta) is not None
         }
         for index, proxy in self._proxy_candidatos.items():
             job = _ProxyProbeJob(generation, index, proxy, self._probe_clip)
             job.signals.done.connect(self._on_proxy_sondeado)
             self._thread_pool.start(job)
+        # y las miniaturas que falten se vuelven a pedir, ahora desde el
+        # proxy: es 5.6 veces mas barato (medido con el material real, 5.90 s
+        # contra 1.06 s por clip) y es justo lo que hacia trabajar a los
+        # ventiladores con 109 clips. Las que ya estan en cache no se rehacen.
+        self._schedule_thumbnails()
 
     def _on_proxy_sondeado(self, generation: int, index: int, info: dict | None) -> None:
         if generation != self._proxy_generation:

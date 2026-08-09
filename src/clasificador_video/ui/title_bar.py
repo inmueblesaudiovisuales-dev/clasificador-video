@@ -63,7 +63,7 @@ class TitleBar(QWidget):
     """
 
     export_requested = Signal()
-    rooms_requested = Signal()
+    proxies_requested = Signal()
     mode_toggled = Signal()
 
     def __init__(self, parent=None):
@@ -101,9 +101,14 @@ class TitleBar(QWidget):
         )
         self.mode_switch.selected.connect(self._al_elegir_modo)
 
-        self.rooms_button = _boton("Cuartos", "⌘R", "railButton")
+        # Aca vivia un boton «Cuartos ⌘R» que solo movia el foco a la
+        # primera fila del rail: desde afuera no pasaba nada, y Bruno lo
+        # reporto como «no hace nada». El atajo ⌘R sigue existiendo para
+        # quien maneja el rail sin mouse; el lugar lo ocupa lo que si es una
+        # accion: enganchar los proxies.
+        self.proxies_button = _boton("Proxies", "", "railButton")
         self.export_button = _boton("Exportar a Premiere", "⌘E", "exportButton")
-        self.rooms_button.clicked.connect(self.rooms_requested.emit)
+        self.proxies_button.clicked.connect(self.proxies_requested.emit)
         self.export_button.clicked.connect(self.export_requested.emit)
 
         layout.addWidget(self.mark)
@@ -113,7 +118,7 @@ class TitleBar(QWidget):
         layout.addStretch(1)
         layout.addWidget(self.saved_led)
         layout.addWidget(self.saved_label)
-        layout.addWidget(self.rooms_button)
+        layout.addWidget(self.proxies_button)
         layout.addWidget(self.export_button)
 
     def set_project(self, nombre: str, total_clips: int) -> None:

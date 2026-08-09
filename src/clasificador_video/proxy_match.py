@@ -1,51 +1,67 @@
 # src/clasificador_video/proxy_match.py
+#
+# Los proxies se enganchan A MANO, como el «Attach Proxies» de Premiere:
+# eliges el proxy de un clip y de ese par sale el patron de nombre para
+# todos los demas. La busqueda automatica que vivia aca --recorrer las
+# carpetas de alrededor buscando archivos terminados en `S03`-- se quito
+# por pedido de Bruno: «necesito que los proxies los ponga manualmente
+# siempre». Esta en el historial de git si algun dia hace falta.
 from __future__ import annotations
 
-from collections.abc import Iterator
 from pathlib import Path
 
-from clasificador_video.ingest import SUFIJO_PROXY, VIDEO_EXTENSIONS, es_archivo_de_proxy
-
-# Cuantos niveles se recorren desde la carpeta PADRE de la importada. Con 2
-# alcanza para los dos casos reales -- el proxy suelto en el padre, y el
-# proxy en una carpeta hermana (`clips/` + `proxy/`, `CLIP/` + `SUB/`) -- y
-# sin tope, importar algo de la raiz de una tarjeta recorreria el volumen
-# entero.
-PROFUNDIDAD_DE_BUSQUEDA = 2
+from clasificador_video.ingest import VIDEO_EXTENSIONS
 
 
-def match_proxies(originales: list[Path], proxies: list[Path]) -> dict[Path, Path | None]:
-    """Empareja cada original con su proxy por 'mismo stem + S03' (spec §3).
+def patron_de_proxy(original: Path, proxy_elegido: Path) -> tuple[str, str] | None:
+    """De UN par (clip, su proxy) saca el patron de nombre: prefijo y sufijo.
 
-    Ej: 20260804_PIB0587.MP4 <-> 20260804_PIB0587S03.MP4. Sin match, None
-    -- no es error (dron y otras fuentes sin proxy son el caso normal).
+    Es el corazon del enganche manual, el que Bruno pidio «como en
+    Premiere: agarras un clip primero y luego se pone todo». De
+    `C0001.MP4` + `C0001S03.MP4` sale `("", "S03")`, y con eso se buscan
+    los otros 127.
+
+    Devuelve `None` si el nombre elegido no contiene el del clip: eso
+    significa que se eligio el archivo equivocado, y emparejar 128 clips
+    con un patron inventado seria peor que no hacer nada.
     """
-    corte = -len(SUFIJO_PROXY)
-    proxy_by_stem: dict[str, Path] = {
-        p.stem[:corte]: p for p in proxies if es_archivo_de_proxy(p)
-    }
-    return {original: proxy_by_stem.get(original.stem) for original in originales}
+    original_stem, proxy_stem = original.stem, proxy_elegido.stem
+    if original_stem not in proxy_stem:
+        return None
+    corte = proxy_stem.index(original_stem)
+    return proxy_stem[:corte], proxy_stem[corte + len(original_stem):]
 
 
-def buscar_proxies(carpeta_importada: Path) -> list[Path]:
-    """Junta los candidatos a proxy alrededor de una carpeta importada.
+def emparejar_con_patron(
+    originales: list[Path], carpeta: Path, prefijo: str, sufijo: str,
+    extension: str,
+) -> dict[Path, Path | None]:
+    """Aplica el patron a todos los clips, dentro de UNA carpeta.
 
-    `match_proxies()` recibe dos listas ya armadas, y hasta la F9 nadie las
-    armaba. Buscarlas es su propio problema porque **el proxy casi nunca
-    esta donde estan los originales**: Bruno los guarda en una carpeta
-    aparte (`clips/` y `proxy/`), y la tarjeta de la FX30 hace lo mismo
-    (`CLIP/` y `SUB/`). Por eso se busca desde la carpeta PADRE de la
-    importada y no desde la importada.
-
-    Nunca levanta: una carpeta sin permisos o que ya no esta devuelve lo
-    que se pudo leer. Importar de un volumen ajeno no puede tumbar la app.
+    Se prueba primero la extension del proxy que se eligio, y despues
+    cualquier otra de video: hay camaras que escriben el original en
+    `.MP4` y el proxy en `.MOV`.
     """
-    raiz = carpeta_importada.parent
-    return sorted(
-        ruta
-        for ruta in _archivos_hasta(raiz, PROFUNDIDAD_DE_BUSQUEDA)
-        if ruta.suffix.lower() in VIDEO_EXTENSIONS and es_archivo_de_proxy(ruta)
-    )
+    try:
+        por_stem = {
+            p.stem: p for p in carpeta.iterdir()
+            if p.is_file() and p.suffix.lower() in VIDEO_EXTENSIONS
+        }
+    except OSError:
+        por_stem = {}   # la carpeta ya no esta, o no se puede leer
+
+    resultado: dict[Path, Path | None] = {}
+    for original in originales:
+        buscado = f"{prefijo}{original.stem}{sufijo}"
+        candidato = por_stem.get(buscado)
+        # el `extension` no filtra, ORDENA: si hay dos con el mismo nombre
+        # y distinta extension, gana la del proxy que se eligio
+        if candidato is not None and candidato.suffix.lower() != extension.lower():
+            mismo = carpeta / f"{buscado}{extension}"
+            if mismo.exists():
+                candidato = mismo
+        resultado[original] = candidato
+    return resultado
 
 
 def etiqueta_de_resolucion(ancho: int, alto: int) -> str:
@@ -59,21 +75,3 @@ def etiqueta_de_resolucion(ancho: int, alto: int) -> str:
     if ancho <= 0 or alto <= 0:
         return ""
     return f"{min(ancho, alto)}p"
-
-
-def _archivos_hasta(raiz: Path, profundidad: int) -> Iterator[Path]:
-    if profundidad <= 0:
-        return
-    try:
-        entradas = sorted(raiz.iterdir())
-    except OSError:
-        return  # sin permisos, o la carpeta ya no esta
-    for entrada in entradas:
-        try:
-            es_carpeta = entrada.is_dir()
-        except OSError:
-            continue
-        if es_carpeta:
-            yield from _archivos_hasta(entrada, profundidad - 1)
-        else:
-            yield entrada
