@@ -2393,3 +2393,89 @@ def test_la_seccion_de_sueltos_no_se_pinta_como_una_camara(qtbot):
         for i in range(9)
     )
     assert theme.BG_SURFACE_2 in sueltos.cam_mark.styleSheet()
+
+
+# --- la fila BIN, que salia con los chips cortados --------------------------
+
+
+def _cabe_su_texto(chip) -> bool:
+    """El chip mide al menos lo que su texto pide.
+
+    Se mide el ANCHO contra el `sizeHint`, no el `text()`: el bug era
+    justamente que `text()` estaba bien --«Sony FX30  2»-- y el widget
+    seguia con el ancho de cuando decia «Todos», asi que Qt dibujaba el
+    texto centrado en una caja angosta y se comia la primera letra por la
+    izquierda y el conteo por la derecha.
+    """
+    return chip.width() >= chip.sizeHint().width()
+
+
+def _hoja_con_dos_bins(qtbot, nombres=("Sony FX30", "Bin")):
+    hoja = ClipSheet()
+    qtbot.addWidget(hoja)
+    hoja.resize(1000, 700)
+    hoja.show()
+    qtbot.waitExposed(hoja)
+    hoja.set_bin_order(list(nombres))
+    hoja.set_clips([_thumb(0, bin_nombre=nombres[0]),
+                    _thumb(1, bin_nombre=nombres[0]),
+                    _thumb(2, bin_nombre=nombres[1])])
+    qtbot.wait(10)
+    return hoja
+
+
+def test_los_chips_de_bin_caben_su_nombre_y_su_conteo(qtbot):
+    """El bug que Bruno vio: la fila BIN decia «ony FX30» e «in», sin
+    conteo, mientras MOSTRAR y ESTADO salian enteras."""
+    hoja = _hoja_con_dos_bins(qtbot)
+
+    assert hoja.chips_de_bin() == ["Todos", "Sony FX30", "Bin"]
+    for chip in hoja._chips_de_bin:
+        assert _cabe_su_texto(chip), f"{chip.text()!r} no cabe en {chip.width()} px"
+
+
+def test_el_chip_de_bin_muestra_su_conteo(qtbot):
+    hoja = _hoja_con_dos_bins(qtbot)
+
+    assert hoja.chip_de_bin("Sony FX30").text() == "Sony FX30  2"
+    assert hoja.chip_de_bin("Bin").text() == "Bin  1"
+
+
+def test_renombrar_un_bin_reacomoda_su_chip(qtbot):
+    """Mismo mecanismo: cambia el texto sin que la fila cambie de tamaño,
+    asi que nada dispara el `resizeEvent` que la acomoda."""
+    hoja = _hoja_con_dos_bins(qtbot)
+
+    hoja.set_bin_order(["Sony FX30 de la casa grande", "Bin"])
+    hoja.update_clips([_thumb(0, bin_nombre="Sony FX30 de la casa grande"),
+                       _thumb(1, bin_nombre="Sony FX30 de la casa grande"),
+                       _thumb(2, bin_nombre="Bin")])
+
+    chip = hoja.chip_de_bin("Sony FX30 de la casa grande")
+    assert _cabe_su_texto(chip), f"{chip.text()!r} no cabe en {chip.width()} px"
+
+
+def test_un_bin_que_pasa_de_nombre_corto_a_largo_no_queda_cortado(qtbot):
+    """El caso de «+ Bin nuevo»: nace «Bin» y le pones un nombre largo."""
+    hoja = _hoja_con_dos_bins(qtbot, nombres=("Sony FX30", "Bin"))
+
+    hoja.set_bin_order(["Sony FX30", "Dron Mavic 3 Pro"])
+    hoja.update_clips([_thumb(0, bin_nombre="Sony FX30"),
+                       _thumb(1, bin_nombre="Sony FX30"),
+                       _thumb(2, bin_nombre="Dron Mavic 3 Pro")])
+
+    chip = hoja.chip_de_bin("Dron Mavic 3 Pro")
+    assert _cabe_su_texto(chip), f"{chip.text()!r} no cabe en {chip.width()} px"
+
+
+def test_las_otras_dos_filas_siguen_cabiendo(qtbot):
+    """La contracara: MOSTRAR y ESTADO salian bien y tienen que seguir."""
+    hoja = _hoja_con_dos_bins(qtbot)
+    hoja.set_counts({"todos": 3, "sin_clasificar": 3, "clasificados": 0,
+                     "solo_picks": 0, "solo_destacados": 0,
+                     "ocultar_rejects": 0, "sin_marcar": 3})
+
+    for clave in ("todos", "sin_clasificar", "clasificados", "solo_picks",
+                  "solo_destacados", "ocultar_rejects", "sin_marcar"):
+        chip = hoja.chips[clave]
+        assert _cabe_su_texto(chip), f"{chip.text()!r} no cabe en {chip.width()} px"

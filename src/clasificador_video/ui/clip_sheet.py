@@ -370,6 +370,31 @@ class _FilaDeChips(QWidget):
         self.setFixedHeight(self._acomodar(self.width()))
         self.updateGeometry()
 
+    def reacomodar(self) -> None:
+        """Vuelve a colocar los chips porque uno cambio de TEXTO.
+
+        Sin esto, la fila solo se acomodaba en `resizeEvent` y en
+        `set_chips` -- y cambiarle el texto a un chip no cambia el tamaño de
+        la fila, asi que no disparaba ninguno de los dos. El chip se quedaba
+        con el ancho de su texto anterior y Qt le dibujaba el nuevo
+        CENTRADO en esa caja angosta: se perdia la primera letra por la
+        izquierda y el conteo por la derecha. La fila BIN salia «ony FX30»
+        e «in».
+
+        Se veia solo en la fila BIN por casualidad: MOSTRAR y ESTADO tienen
+        el mismo defecto, pero su texto final llega antes de que la ventana
+        se acomode por primera vez, y ese acomodo las arreglaba. La fila BIN
+        aparece despues --se muestra recien con el segundo bin-- y ya no
+        venia ningun resize atras.
+        """
+        if all(chip.width() == chip.sizeHint().width() for chip in self.chips):
+            # el caso normal: los conteos se reescriben en cada tecla y casi
+            # siempre miden lo mismo. Sin esta guarda se llamaria a
+            # `setGeometry` sobre cada chip sesenta veces por segundo.
+            return
+        self.setFixedHeight(self._acomodar(self.width()))
+        self.updateGeometry()
+
     def resizeEvent(self, event) -> None:  # noqa: N802 -- override de Qt
         super().resizeEvent(event)
         alto = self._acomodar(self.width())
@@ -1306,6 +1331,22 @@ class _Chip(QPushButton):
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self.set_count(None)
+
+    def setText(self, texto: str) -> None:  # noqa: N802 -- override de Qt
+        """Le avisa a su fila, que lo acomoda a mano.
+
+        El aviso va aqui y no en `set_count` para que valga tambien para el
+        renombrado y para cualquier texto que se le ponga mañana: la fila no
+        tiene layout de Qt --el `FlowLayout` segfaultea en PySide, ver
+        `_FilaDeChips`--, asi que nadie se entera solo de que un hijo cambio
+        de tamaño.
+        """
+        if texto == self.text():
+            return
+        super().setText(texto)
+        fila = self.parent()
+        if isinstance(fila, _FilaDeChips):
+            fila.reacomodar()
 
     def set_count(self, cuantos: int | None) -> None:
         if cuantos is None:
