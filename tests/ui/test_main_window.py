@@ -2658,3 +2658,49 @@ def test_todas_las_teclas_de_la_barra_de_seleccion_existen(qtbot):
     # los digitos no son atajos (matarian el pincel): se comprueban por su
     # camino real
     assert window.clips[1].categoria_path == []
+
+
+# --- la orientacion del manifest sale del material (F9) -----------------
+
+
+def _exportar(window, monkeypatch, out):
+    from PySide6.QtWidgets import QMessageBox
+    monkeypatch.setattr("clasificador_video.ui.main_window.QFileDialog.getSaveFileName",
+                        lambda *a, **k: (str(out), ""))
+    monkeypatch.setattr("clasificador_video.ui.main_window.QMessageBox.warning",
+                        lambda *a, **k: QMessageBox.Ok)
+    window.title_bar.export_button.click()
+    import json
+    return json.loads(out.read_text())
+
+
+def test_el_manifest_declara_vertical_si_el_material_es_vertical(qtbot, monkeypatch, tmp_path):
+    """Era el ultimo renglon vivo de la lista de ejecucion: hasta la F9
+    esto decia `"horizontal"` escrito a mano, y el material de Bruno es
+    mayoria vertical -- Premiere armaba la secuencia con la forma
+    equivocada."""
+    window = _window_with_video(qtbot)
+    window.load_clips([
+        Clip(orden=1, ruta=Path("/a.MP4"), categoria_path=["Sala"], fps=59.94),
+        Clip(orden=2, ruta=Path("/b.MP4"), categoria_path=["Sala"], fps=59.94),
+    ])
+    window._clip_sizes = {0: (2160, 3840), 1: (2160, 3840)}
+
+    assert _exportar(window, monkeypatch, tmp_path / "m.json")["orientacion"] == "vertical"
+
+
+def test_el_manifest_declara_horizontal_si_el_material_es_horizontal(qtbot, monkeypatch, tmp_path):
+    window = _window_with_video(qtbot)
+    window.load_clips([Clip(orden=1, ruta=Path("/a.MP4"), categoria_path=["Sala"], fps=59.94)])
+    window._clip_sizes = {0: (3840, 2160)}
+
+    assert _exportar(window, monkeypatch, tmp_path / "m.json")["orientacion"] == "horizontal"
+
+
+def test_sin_tamanos_el_manifest_conserva_el_default_de_siempre(qtbot, monkeypatch, tmp_path):
+    """Sesion restaurada de disco: no se volvio a correr ffprobe."""
+    window = _window_with_video(qtbot)
+    window.load_clips([Clip(orden=1, ruta=Path("/a.MP4"), categoria_path=["Sala"], fps=59.94)])
+    window._clip_sizes = {}
+
+    assert _exportar(window, monkeypatch, tmp_path / "m.json")["orientacion"] == "horizontal"

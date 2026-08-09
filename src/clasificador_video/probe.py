@@ -1,7 +1,10 @@
 import json
 import subprocess
+from collections.abc import Iterable
 from pathlib import Path
 from typing import Callable
+
+ORIENTACION_SIN_DATOS = "horizontal"
 
 FFPROBE_ARGS = ["-v", "quiet", "-print_format", "json", "-show_format", "-show_streams"]
 
@@ -68,3 +71,37 @@ def probe_clip(path: Path, runner: Callable[[Path], str] = _run_ffprobe) -> dict
         "duration_frames": round(duration_seconds * fps),
         "rotation": rotation,
     }
+
+
+def orientacion_de(ancho: int, alto: int) -> str:
+    """`"vertical"` o `"horizontal"` para UN tamaño, ya corregido por
+    rotacion (ver `_rotation_degrees`).
+
+    Un clip cuadrado cuenta como horizontal: no es vertical, y hay que
+    elegir uno.
+    """
+    return "vertical" if alto > ancho else "horizontal"
+
+
+def orientacion_predominante(tamanos: Iterable[tuple[int, int]]) -> str:
+    """La orientacion que declara el manifest, sacada del material.
+
+    Hasta la F9 estaba escrita a mano como `"horizontal"` y el material de
+    Bruno es mayoria vertical, asi que Premiere armaba la secuencia con la
+    forma equivocada.
+
+    Dos reglas que valen la pena escribir:
+
+    - **El empate se va a vertical.** Una secuencia vertical con un clip
+      horizontal adentro se arregla en Premiere; al reves, el vertical se
+      recorta.
+    - **Sin ningun tamaño conocido se deja `"horizontal"`**, el default de
+      siempre. No es lo mismo «empataron» que «no sabemos»: una sesion
+      restaurada de disco no vuelve a correr ffprobe y no tiene un solo
+      tamaño. Ahi no se adivina.
+    """
+    conocidos = [(a, h) for a, h in tamanos if a > 0 and h > 0]
+    if not conocidos:
+        return ORIENTACION_SIN_DATOS
+    verticales = sum(1 for a, h in conocidos if orientacion_de(a, h) == "vertical")
+    return "vertical" if verticales * 2 >= len(conocidos) else "horizontal"

@@ -4,6 +4,7 @@ from __future__ import annotations
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import QHBoxLayout, QLabel, QPushButton, QWidget
 
+from clasificador_video.probe import orientacion_de
 from clasificador_video.ui import theme
 
 
@@ -67,7 +68,10 @@ class StatusBar(QWidget):
             partes.append(f"{fps:.2f} fps")
         if tamano:
             ancho, alto = tamano
-            orientacion = "vertical" if alto > ancho else "horizontal"
+            # la MISMA funcion que decide la orientacion del manifest: si
+            # la barra dice «vertical» y el manifest declara «horizontal»,
+            # una de las dos miente y nadie se entera hasta Premiere.
+            orientacion = orientacion_de(ancho, alto)
             partes.append(
                 f"{orientacion} (rot {rotacion}°)" if rotacion else orientacion
             )

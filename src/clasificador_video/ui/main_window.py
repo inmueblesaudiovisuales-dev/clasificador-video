@@ -24,7 +24,7 @@ from clasificador_video.ingest import IngestTree
 from clasificador_video.keyboard import KeyboardRouter
 from clasificador_video.manifest import Clip, Manifest
 from clasificador_video.player import SPEED_PROFILES
-from clasificador_video.probe import probe_clip
+from clasificador_video.probe import orientacion_predominante, probe_clip
 from clasificador_video.rooms import RoomSelection
 from clasificador_video.thumbnails import (
     cache_dir_for,
@@ -318,6 +318,16 @@ class MainWindow(QWidget):
         if width > 0 and height > 0:
             return width / height
         return 16 / 9
+
+    def orientacion_del_proyecto(self) -> str:
+        """La que declara el manifest, sacada del material -- ver
+        `probe.orientacion_predominante`. Solo cuentan los clips que
+        siguen en la lista: si Bruno importo y volvio a importar, los
+        tamaños de la importacion anterior ya no estan.
+        """
+        return orientacion_predominante(
+            self._clip_sizes.get(index, (0, 0)) for index in range(len(self.clips))
+        )
 
     # ------------------------------------------------------------------
     # teclado
@@ -1431,7 +1441,7 @@ class MainWindow(QWidget):
             return
         manifest = Manifest(
             proyecto=self.project_name,
-            orientacion="horizontal",  # TODO F9: derivar del material predominante
+            orientacion=self.orientacion_del_proyecto(),
             clips=self.clips,
         )
         manifest.write_json(Path(path))

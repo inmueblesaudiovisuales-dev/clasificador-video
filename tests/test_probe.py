@@ -3,7 +3,11 @@ from pathlib import Path
 
 import pytest
 
-from clasificador_video.probe import probe_clip
+from clasificador_video.probe import (
+    orientacion_de,
+    orientacion_predominante,
+    probe_clip,
+)
 
 FFPROBE_JSON_CON_AUDIO = json.dumps({
     "streams": [
@@ -96,3 +100,44 @@ def test_probe_clip_horizontal_sin_rotacion_no_intercambia():
     assert result["width"] == 1920
     assert result["height"] == 1080
     assert result["rotation"] == 0
+
+
+# --- orientacion (F9) ---------------------------------------------------
+#
+# Hasta la F9 el manifest declaraba `orientacion="horizontal"` escrito a
+# mano, y el material de Bruno es mayoria VERTICAL: la secuencia salia con
+# la forma equivocada en Premiere. El dato ya estaba en la app -- probe.py
+# lo devuelve corregido por rotacion desde la F1 -- solo no lo usaba nadie.
+
+
+def test_orientacion_de_un_tamano():
+    assert orientacion_de(2160, 3840) == "vertical"
+    assert orientacion_de(3840, 2160) == "horizontal"
+
+
+def test_un_clip_cuadrado_no_es_vertical():
+    assert orientacion_de(1080, 1080) == "horizontal"
+
+
+def test_la_predominante_es_la_mayoria():
+    assert orientacion_predominante([(2160, 3840), (2160, 3840), (3840, 2160)]) == "vertical"
+    assert orientacion_predominante([(3840, 2160), (3840, 2160), (2160, 3840)]) == "horizontal"
+
+
+def test_el_empate_se_va_a_vertical():
+    """No es capricho: el material de Bruno es mayoria vertical, y una
+    secuencia vertical con un clip horizontal adentro se arregla en
+    Premiere; al reves, el clip vertical se recorta."""
+    assert orientacion_predominante([(2160, 3840), (3840, 2160)]) == "vertical"
+
+
+def test_sin_ningun_tamano_conocido_queda_el_default_de_siempre():
+    """Pasa de verdad: una sesion restaurada de disco no vuelve a correr
+    ffprobe, asi que no hay un solo tamaño. Ahi no se adivina -- se deja
+    lo que la app declaraba antes de la F9."""
+    assert orientacion_predominante([]) == "horizontal"
+
+
+def test_los_tamanos_en_cero_no_cuentan():
+    assert orientacion_predominante([(0, 0), (2160, 3840)]) == "vertical"
+    assert orientacion_predominante([(0, 0)]) == "horizontal"
