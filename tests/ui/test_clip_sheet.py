@@ -1234,3 +1234,37 @@ def test_la_seleccion_gana_al_estado_pero_no_al_actual(qtbot):
     card.set_visual_state(is_current=True, is_selected=True)
     qtbot.wait(10)
     assert _color_del_borde_arriba(card) == theme.CURRENT_COLOR
+
+
+def test_agregar_clips_no_recrea_las_tarjetas_de_antes(qtbot):
+    """La miniatura ya cargada vive en el widget. Si la tarjeta se recrea,
+    la portada se pierde -- que es exactamente lo que Bruno vio al importar
+    una segunda carpeta.
+    """
+    hoja = ClipSheet()
+    qtbot.addWidget(hoja)
+    hoja.set_clips([_thumb(0), _thumb(1)])
+    antes = list(hoja.item_widgets)
+
+    hoja.append_clips([_thumb(0), _thumb(1), _thumb(2)])
+
+    assert hoja.item_widgets[0] is antes[0]
+    assert hoja.item_widgets[1] is antes[1]
+    assert hoja.count() == 3
+
+
+def test_agregar_clips_conecta_cada_tarjeta_nueva_a_SU_indice(qtbot):
+    """El `lambda i=index` de `set_clips` existe por esto: sin capturar el
+    indice por valor, todas las tarjetas nuevas terminan avisando del
+    ultimo clip."""
+    hoja = ClipSheet()
+    qtbot.addWidget(hoja)
+    hoja.set_clips([_thumb(0)])
+    hoja.append_clips([_thumb(0), _thumb(1), _thumb(2)])
+    avisados = []
+    hoja.clip_clicked.connect(avisados.append)
+
+    hoja.item_widgets[1].clicked.emit(Qt.KeyboardModifier.NoModifier)
+    hoja.item_widgets[2].clicked.emit(Qt.KeyboardModifier.NoModifier)
+
+    assert avisados == [1, 2]

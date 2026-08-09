@@ -984,6 +984,41 @@ class ClipSheet(QWidget):
         self.title_label.setText(f"CLIPS · {len(clips)}")
         self.set_selected(set())
 
+    def append_clips(self, clips: list[ClipThumbnail]) -> None:
+        """Como `update_clips`, pero cuando la lista CRECIO.
+
+        `update_clips` cae en `set_clips` si cambia el largo, y `set_clips`
+        destruye todas las tarjetas -- con sus miniaturas adentro. Agregar
+        material no puede costar las portadas de lo que ya estaba: eso es
+        justo lo que Bruno vio al importar una segunda carpeta.
+
+        Las tarjetas nuevas se agregan al FINAL de `item_widgets`, que es
+        donde caen sus indices de clip. La Regla 1 de la clase sigue en pie:
+        esta lista va por indice de clip, no por posicion visual.
+        """
+        viejas = len(self.item_widgets)
+        if len(clips) < viejas:
+            self.set_clips(clips)
+            return
+        for card, clip in zip(self.item_widgets, clips):
+            card.update_content(clip)
+        for index in range(viejas, len(clips)):
+            card = ClipCard(clips[index])
+            # `i=index` captura el indice POR VALOR. Sin eso, todas las
+            # tarjetas nuevas comparten la misma variable y avisan del
+            # ultimo clip -- mismo cuidado que en `set_clips`.
+            card.clicked.connect(lambda mods, i=index: self._on_card_clicked(i, mods))
+            card.doble_click.connect(lambda i=index: self.clip_activated.emit(i))
+            self.item_widgets.append(card)
+        # el filtro guarda INDICES y los nuevos no estaban cuando se calculo:
+        # quien filtre vuelve a llamar a set_visible_indices.
+        self._visible = None
+        # hay tarjetas que antes no existian: la firma anterior no las cuenta
+        self._firma = None
+        self._regroup()
+        self.title_label.setText(f"CLIPS · {len(clips)}")
+        self._redraw()
+
     def update_clips(self, clips: list[ClipThumbnail]) -> None:
         """Actualiza en el lugar. Si un clip cambió de cuarto, su tarjeta se
         MUEVE de grupo reusando el mismo objeto -- nunca se recrea."""
