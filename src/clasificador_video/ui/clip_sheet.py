@@ -1526,7 +1526,18 @@ class ClipSheet(QWidget):
     def set_bin_order(self, nombres: list[str]) -> None:
         """El orden de los bins es el de importacion, no el alfabetico: es el
         orden en que Bruno metio el material y por el que se mueven las
-        flechas."""
+        flechas.
+
+        Sale temprano si el orden no cambio, y eso NO es una micro-optimizacion:
+        `MainWindow._refresh_sheet` llama aqui siempre, y se refresca en cada
+        flecha, cada cuarto y cada pick. Poner `_firma = None` a ciegas anula
+        la guarda que documenta `_relayout` --«una tecla de cuarto disparaba
+        CUATRO re-colocados… y esta app existe para ser rapida»-- y encima
+        arrastra un `_regroup` y una reconstruccion de chips que casi siempre
+        dan lo mismo.
+        """
+        if list(nombres) == self._bin_order:
+            return
         self._bin_order = list(nombres)
         self._reconstruir_chips_de_bin()
         self._firma = None

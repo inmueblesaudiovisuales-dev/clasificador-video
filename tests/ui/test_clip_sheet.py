@@ -2076,3 +2076,22 @@ def test_el_menu_del_bin_que_se_va_tampoco_se_destruye_en_el_acto(qtbot):
     hoja.set_clips([_thumb(0, bin_nombre="Sony")])
 
     assert destruido == []
+
+
+def test_pedir_el_mismo_orden_de_bins_no_reacomoda_nada(qtbot):
+    """`_refresh_sheet` llama a `set_bin_order` SIEMPRE, y corre en cada
+    flecha, cada cuarto y cada pick. Poner `_firma = None` a ciegas anulaba
+    justo la guarda que evita re-colocar cuando nada cambio -- son ~12 ms
+    por tecla con 132 clips, en la app que existe para ser rapida.
+    """
+    hoja = ClipSheet()
+    qtbot.addWidget(hoja)
+    hoja.resize(815, 900)
+    hoja.set_bin_order(["Sony", "Dron"])
+    hoja.set_clips([_thumb(0, bin_nombre="Sony"), _thumb(1, bin_nombre="Dron")])
+    firma = hoja._firma
+    assert firma is not None      # ya se acomodo una vez
+
+    hoja.set_bin_order(["Sony", "Dron"])
+
+    assert hoja._firma is firma
