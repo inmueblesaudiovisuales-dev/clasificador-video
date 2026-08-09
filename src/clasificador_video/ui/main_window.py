@@ -1140,9 +1140,13 @@ class MainWindow(QWidget):
         return self._pincel
 
     def empezar_pincelada(self, tecla: str) -> None:
-        """Se mantuvo apretada una tecla de cuarto. El pincel solo existe
-        mientras la tecla esta abajo, asi que no se puede disparar por
-        accidente: sin tecla, arrastrar sigue siendo marquesina.
+        """Se mantuvo apretada una tecla de cuarto.
+
+        El pincel solo existe mientras la tecla esta abajo, asi que no se
+        puede disparar por accidente. **Sin tecla, arrastrar hoy no hace
+        nada**: la marquesina de seleccion todavia no esta construida (ver el
+        punto de control post-F8). Cuando exista, este es el lugar que decide
+        cual de los dos gestos corre.
         """
         cuarto = self._router.resolve_room_key(tecla)
         if cuarto is None:
