@@ -39,6 +39,7 @@ PICKS = 41
 REJECTS = 9
 CLIP_ACTUAL = 86  # el mockup muestra el clip 087, que es el indice 86
 
+HORIZONTALES = 54  # de 128, como dice el mockup en modo hoja
 VERTICAL = (2160, 3840)
 HORIZONTAL = (3840, 2160)
 VOLUMEN = "/Volumes/FX30/CasaLomas"  # la misma ruta que muestra el mockup
@@ -181,11 +182,16 @@ def _clips() -> tuple[
         if indice % 3 == 0 or indice == CLIP_ACTUAL:
             clip.in_frame, clip.out_frame = 132, 344
         clips.append(clip)
-        # mayoria verticales, como el material real de la FX30, e
-        # intercalando horizontales para ver los dos casos conviviendo.
-        # El clip actual TIENE que ser vertical: es el caso que el
-        # rediseño existe para resolver y el que muestra el mockup.
-        tamanos[indice] = HORIZONTAL if indice % 5 == 4 else VERTICAL
+        # 74 verticales y 54 horizontales, los numeros que el mockup pone
+        # en la barra de estado del modo hoja. Repartidos parejo en vez de
+        # agrupados al final, para ver los dos casos conviviendo en la
+        # hoja. El clip actual queda vertical --es el caso que el rediseño
+        # existe para resolver y el que muestra el mockup--: con este
+        # reparto el 86 no cae en el corte, comprobado.
+        es_horizontal = (indice * HORIZONTALES) // TOTAL != (
+            (indice + 1) * HORIZONTALES
+        ) // TOTAL
+        tamanos[indice] = HORIZONTAL if es_horizontal else VERTICAL
         duraciones[indice] = 18.37
         # Casi todos con proxy, como una tarjeta real de la FX30 -- y el
         # clip ACTUAL con proxy, o el badge del mockup se compara contra un

@@ -856,6 +856,20 @@ class MainWindow(QWidget):
     def _refresh_overlays(self) -> None:
         clip = self.current_clip
         stage = self.video_stage
+        if self._modo_hoja:
+            # sin visor no hay «clip actual» que describir, pero la forma
+            # del shooting entero si importa: es la que decide la
+            # orientacion de la secuencia en Premiere.
+            verticales = sum(
+                1 for i in range(len(self.clips))
+                if i in self._clip_sizes
+                and orientacion_de(*self._clip_sizes[i]) == "vertical"
+            )
+            conocidos = sum(1 for i in range(len(self.clips)) if i in self._clip_sizes)
+            self.status_bar.set_resumen(
+                len(self.clips), verticales, conocidos - verticales
+            )
+            return
         if clip is None:
             stage.file_label.setText("")
             stage.badges.set_room(None, None)
@@ -1443,6 +1457,7 @@ class MainWindow(QWidget):
         # una segunda copia: se le avisa desde aca, que es el unico lugar
         # donde el modo cambia.
         self.title_bar.set_modo_hoja(self._modo_hoja)
+        self._refresh_overlays()   # la barra de estado cambia de contenido
         self._resize_video_stage()
 
     def _pasar_cuadro(self, delta: int) -> None:

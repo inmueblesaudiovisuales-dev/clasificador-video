@@ -85,6 +85,27 @@ class StatusBar(QWidget):
             )
         self.clip_label.setText(" · ".join(partes))
 
+    def set_resumen(self, clips: int, verticales: int, horizontales: int) -> None:
+        """Lo que va en el lugar del clip actual cuando estas en la hoja:
+        `128 clips · 74 verticales · 54 horizontales`, como el mockup.
+
+        Sin un clip en pantalla, «resolucion, fps y orientacion del clip
+        actual» no viene al caso -- pero la forma del shooting entero si,
+        porque es lo que decide la orientacion de la secuencia en Premiere.
+
+        Sin tamaños conocidos (sesion restaurada, sin volver a correr
+        ffprobe) va solo `128 clips`: un `0 verticales · 0 horizontales`
+        seria una respuesta falsa a una pregunta que no se puede contestar.
+        """
+        if not clips:
+            self.clip_label.setText("")
+            return
+        partes = [f"{clips} clips"]
+        if verticales or horizontales:
+            partes.append(f"{verticales} verticales")
+            partes.append(f"{horizontales} horizontales")
+        self.clip_label.setText(" · ".join(partes))
+
     def set_unclassified(self, cuantos: int) -> None:
         self.unclassified_label.setText(
             f"⚠ {cuantos} sin clasificar — click para filtrarlos" if cuantos else ""

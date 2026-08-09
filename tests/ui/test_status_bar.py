@@ -124,3 +124,29 @@ def test_sin_saber_el_tamano_va_solo_la_ruta(qtbot):
     bar = _bar(qtbot)
     bar.set_volume("/Volumes/FX30/CasaLomas")
     assert bar.volume_label.text() == "/Volumes/FX30/CasaLomas"
+
+
+# --- resumen del shooting en modo hoja (F10) ---------------------------
+
+
+def test_en_modo_hoja_la_barra_resume_el_shooting(qtbot):
+    """El mockup cambia el texto al entrar a la hoja: sin un clip en
+    pantalla, los datos de «el clip actual» no vienen al caso."""
+    bar = _bar(qtbot)
+    bar.set_resumen(128, verticales=74, horizontales=54)
+    assert bar.clip_label.text() == "128 clips · 74 verticales · 54 horizontales"
+
+
+def test_el_resumen_sin_tamanos_conocidos_dice_solo_cuantos_clips(qtbot):
+    """Sesion restaurada de disco: no se volvio a correr ffprobe, asi que
+    no se sabe la orientacion de ninguno. `0 verticales · 0 horizontales`
+    seria una respuesta falsa a una pregunta que no se puede contestar."""
+    bar = _bar(qtbot)
+    bar.set_resumen(128, verticales=0, horizontales=0)
+    assert bar.clip_label.text() == "128 clips"
+
+
+def test_sin_clips_el_resumen_queda_vacio(qtbot):
+    bar = _bar(qtbot)
+    bar.set_resumen(0, verticales=0, horizontales=0)
+    assert bar.clip_label.text() == ""

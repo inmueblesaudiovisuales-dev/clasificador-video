@@ -2984,3 +2984,15 @@ def test_el_switch_no_le_quita_ancho_al_video(qtbot):
     window.resize(1150, 800)
     window.show()
     assert window.title_bar.minimumSizeHint().width() <= 1150
+
+
+def test_al_entrar_a_la_hoja_la_barra_resume_el_shooting(qtbot):
+    window = _window(qtbot)
+    window.load_clips([_clip(1), _clip(2), _clip(3)])
+    window._clip_sizes = {0: (2160, 3840), 1: (2160, 3840), 2: (3840, 2160)}
+
+    window.alternar_modo_hoja()
+    assert window.status_bar.clip_label.text() == "3 clips · 2 verticales · 1 horizontales"
+
+    window.alternar_modo_hoja()
+    assert "C0001.MP4" in window.status_bar.clip_label.text()
