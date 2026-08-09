@@ -6,6 +6,7 @@ import pytest
 
 from clasificador_video.manifest import Clip
 from clasificador_video.rooms import RoomSelection
+from clasificador_video.ui.clip_sheet import SIN_BIN
 from clasificador_video.ui.main_window import MainWindow
 
 
@@ -1390,3 +1391,58 @@ def test_el_boton_de_la_hoja_llega_hasta_la_ventana(qtbot, ventana):
     ventana.clip_sheet.boton_bin_nuevo.click()
 
     assert ventana.bins.nombres() == ["Bin"]
+
+
+# --- soltar material sobre la seccion «Sin bin» -----------------------------
+
+
+def test_soltar_en_sin_bin_no_crea_ningun_bin(qtbot, ventana, tmp_path,
+                                              monkeypatch):
+    """El bug: el nombre de la SECCION viajaba como nombre de bin, y nacia
+    un bin de verdad llamado «Sin bin» -- con su chip de filtro, su lugar en
+    el autosave y un «Quitar del proyecto» que ya si borraba clips."""
+    monkeypatch.setattr(
+        "clasificador_video.ui.main_window.extract_thumbnail_strip",
+        lambda *a, **k: [],
+    )
+    archivo = tmp_path / "A.MP4"
+    archivo.touch()
+
+    ventana.clip_sheet.soltado_sin_bin.emit([archivo])
+
+    assert ventana.bins.nombres() == []
+    assert len(ventana.clips) == 1
+    assert ventana.bins.bin_de(0) is None
+
+
+def test_importar_suelto_deja_los_clips_en_la_seccion_de_sueltos(qtbot, ventana,
+                                                                 tmp_path,
+                                                                 monkeypatch):
+    monkeypatch.setattr(
+        "clasificador_video.ui.main_window.extract_thumbnail_strip",
+        lambda *a, **k: [],
+    )
+    carpeta = _carpeta_con(tmp_path, "FX30", "C0001.MP4")
+
+    ventana.importar_rutas([carpeta], sueltos=True)
+
+    assert ventana.bins.nombres() == []
+    assert ventana.clip_sheet.bin_headers() == [SIN_BIN]
+
+
+def test_importar_suelto_sobre_material_que_ya_tiene_bins_no_toca_esos_bins(
+        qtbot, ventana, tmp_path, monkeypatch):
+    monkeypatch.setattr(
+        "clasificador_video.ui.main_window.extract_thumbnail_strip",
+        lambda *a, **k: [],
+    )
+    sony = _carpeta_con(tmp_path, "FX30", "C0001.MP4")
+    ventana.importar_rutas([sony])
+    suelto = tmp_path / "S.MP4"
+    suelto.touch()
+
+    ventana.importar_rutas([suelto], sueltos=True)
+
+    assert ventana.bins.nombres() == ["FX30"]
+    assert ventana.bins.clips_de("FX30") == [0]
+    assert ventana.bins.bin_de(1) is None

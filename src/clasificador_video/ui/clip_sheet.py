@@ -1241,6 +1241,11 @@ class ClipSheet(QWidget):
     # decide que es material es la ventana, no ella.
     soltado_en_bin = Signal(str, list)      # nombre del bin, rutas
     soltado_en_nuevo_bin = Signal(list)     # rutas
+    # soltar sobre la seccion «Sin bin»: el material entra SUELTO. Es una
+    # señal aparte y no un `soltado_en_bin("Sin bin", …)` porque «Sin bin» no
+    # es un bin -- mandarlo como nombre terminaba en `bins.agregar("Sin bin")`
+    # y nacia un bin de verdad llamado asi.
+    soltado_sin_bin = Signal(list)          # rutas
     # el boton «+ Bin nuevo» de la barra (F8). La hoja no crea el bin: el dato
     # vive en `BinTree`, que es de la ventana.
     bin_nuevo_pedido = Signal()
@@ -2103,8 +2108,14 @@ class ClipSheet(QWidget):
         if not rutas:
             return
         destino = self._bin_bajo(event.position().toPoint())
+        # TRES destinos, no dos. El del medio es el que faltaba: soltar sobre
+        # la seccion de sueltos importa SUELTO, que es lo que la seccion
+        # significa. Mandarlo por `soltado_en_bin` con el nombre de la seccion
+        # creaba un bin de verdad llamado «Sin bin».
         if destino is None:
             self.soltado_en_nuevo_bin.emit(rutas)
+        elif destino == SIN_BIN:
+            self.soltado_sin_bin.emit(rutas)
         else:
             self.soltado_en_bin.emit(destino, rutas)
         event.acceptProposedAction()

@@ -11,7 +11,12 @@ from PySide6.QtCore import QMimeData, QPoint, QPointF, QUrl, Qt
 from PySide6.QtGui import QDragEnterEvent, QDragMoveEvent, QDropEvent
 
 from clasificador_video.ui import theme
-from clasificador_video.ui.clip_sheet import SIN_CLASIFICAR, ClipSheet, ClipThumbnail
+from clasificador_video.ui.clip_sheet import (
+    SIN_BIN,
+    SIN_CLASIFICAR,
+    ClipSheet,
+    ClipThumbnail,
+)
 
 
 def _thumb(n: int, bin_nombre: str = "", room_label: str | None = None) -> ClipThumbnail:
@@ -304,3 +309,60 @@ def test_la_zona_de_bin_nuevo_tampoco_promete_un_bin_vacio(qtbot, tmp_path):
 
     assert "ningún video" in hoja.zona_de_bin_nuevo().title_label.text()
     assert not hoja.zona_de_bin_nuevo().property("activa")
+
+
+# --- soltar sobre la seccion de sueltos ------------------------------------
+#
+# «Sin bin» no es un bin: es la VISTA de los clips que no pertenecen a
+# ninguno. Soltar material encima tiene que importarlo suelto, que es lo que
+# la seccion significa. Antes de esto el nombre de la seccion viajaba como
+# nombre de bin y terminaba en `bins.agregar("Sin bin", ...)`: nacia un bin
+# de verdad llamado asi, se mezclaba con los sueltos en la misma seccion, se
+# guardaba, y «Quitar del proyecto» sobre ese encabezado empezaba a borrar
+# clips.
+
+
+def test_soltar_sobre_sin_bin_importa_suelto_y_no_a_un_bin(qtbot, tmp_path):
+    hoja = _hoja(qtbot, [_thumb(0)], bins=[])
+    archivo = tmp_path / "nuevo.MP4"
+    archivo.touch()
+    sueltos, en_bin = [], []
+    hoja.soltado_sin_bin.connect(sueltos.append)
+    hoja.soltado_en_bin.connect(lambda n, r: en_bin.append((n, r)))
+
+    _soltar(hoja, [archivo], _centro_del_encabezado(hoja, SIN_BIN))
+
+    assert sueltos == [[archivo]]
+    assert en_bin == []
+
+
+def test_soltar_sobre_las_tarjetas_sueltas_tambien_va_sin_bin(qtbot, tmp_path):
+    """La franja de la seccion llega hasta abajo de su ultima tarjeta, igual
+    que la de un bin: apuntarle al encabezado exacto seria una mira de 30 px
+    sobre una columna de 700."""
+    hoja = _hoja(qtbot, [_thumb(0), _thumb(1, bin_nombre="Dron")], bins=["Dron"])
+    archivo = tmp_path / "nuevo.MP4"
+    archivo.touch()
+    sueltos, en_bin = [], []
+    hoja.soltado_sin_bin.connect(sueltos.append)
+    hoja.soltado_en_bin.connect(lambda n, r: en_bin.append((n, r)))
+
+    tarjeta = hoja.item_widgets[0]
+    _soltar(hoja, [archivo], tarjeta.mapTo(hoja, tarjeta.rect().center()))
+
+    assert sueltos == [[archivo]]
+    assert en_bin == []
+
+
+def test_soltar_sobre_sin_bin_no_promete_un_bin_nuevo(qtbot, tmp_path):
+    """Las dos zonas nunca prometen a la vez: si la de «bin nuevo» se
+    encendiera encima de la seccion de sueltos, el cartel diria que va a
+    nacer un bin que no nace."""
+    hoja = _hoja(qtbot, [_thumb(0)], bins=[])
+    archivo = tmp_path / "nuevo.MP4"
+    archivo.touch()
+
+    _arrastrar_encima(hoja, [archivo], _centro_del_encabezado(hoja, SIN_BIN))
+
+    assert hoja.bin_header_widget(SIN_BIN).property("soltando") is True
+    assert hoja.zona_de_bin_nuevo().property("activa") is not True

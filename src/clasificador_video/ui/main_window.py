@@ -407,6 +407,11 @@ class MainWindow(QWidget):
         self.clip_sheet.soltado_en_nuevo_bin.connect(
             lambda rutas: self.importar_rutas(rutas)
         )
+        # soltar sobre la seccion de sueltos: entra sin bin. `sueltos=True` y
+        # no un nombre, porque «Sin bin» no es un bin (ver `agregar_clips`).
+        self.clip_sheet.soltado_sin_bin.connect(
+            lambda rutas: self.importar_rutas(rutas, sueltos=True)
+        )
         self.clip_sheet.bin_nuevo_pedido.connect(self._on_bin_nuevo_pedido)
 
         self.status_bar = StatusBar()
@@ -1239,9 +1244,14 @@ class MainWindow(QWidget):
         self._resize_video_stage()
         self._autosave()
 
-    def agregar_clips(self, nuevos: list[Clip], nombre_de_bin: str,
+    def agregar_clips(self, nuevos: list[Clip], nombre_de_bin: str | None,
                       origen: Path) -> None:
         """Suma material SIN reiniciar el proyecto.
+
+        `nombre_de_bin=None` mete los clips SIN bin: quedan sueltos y la hoja
+        los muestra en la seccion «Sin bin». Es un estado valido del dato --un
+        clip suelto se representa por AUSENCIA de bin-- y el unico que no
+        inventa un bin por el que nadie pidio.
 
         `load_clips` es para material nuevo y por eso limpia todo: historial,
         proxies, bins, tarjetas. Usarla para agregar es lo que hacia que al
@@ -1268,10 +1278,14 @@ class MainWindow(QWidget):
             clip.orden = primero + offset + 1
             self.clips.append(clip)
         indices = list(range(primero, len(self.clips)))
-        if nombre_de_bin in self.bins.nombres():
-            self.bins.sumar(nombre_de_bin, indices)
-        else:
-            self.bins.agregar(nombre_de_bin, origen, indices)
+        # sin bin: no se toca `self.bins`. La ausencia ES el dato -- no hay
+        # que anotar los sueltos en ningun lado para que la hoja los junte en
+        # su seccion.
+        if nombre_de_bin is not None:
+            if nombre_de_bin in self.bins.nombres():
+                self.bins.sumar(nombre_de_bin, indices)
+            else:
+                self.bins.agregar(nombre_de_bin, origen, indices)
         self._refresh_sheet()
         # solo las portadas de los nuevos: las que ya estan no se rehacen
         self._schedule_thumbnails(indices)
@@ -1384,12 +1398,17 @@ class MainWindow(QWidget):
         )
 
     def importar_rutas(self, rutas: list[Path], nombre_de_bin: str | None = None,
-                       origen: Path | None = None) -> None:
+                       origen: Path | None = None, sueltos: bool = False) -> None:
         """El unico camino de entrada de material nuevo.
 
-        Sirve al boton de importar y, mas adelante, al arrastre. Si no se
-        dice a que bin van, se crea uno con el nombre de la carpeta de donde
-        vienen.
+        Sirve al boton de importar y al arrastre. Si no se dice a que bin
+        van, se crea uno con el nombre de la carpeta de donde vienen.
+
+        `sueltos=True` es el tercer destino, y es distinto de no decir nada:
+        el material entra SIN bin y cae en la seccion «Sin bin». Lo usa el
+        arrastre soltado sobre esa seccion. Va como bandera y no como un
+        nombre reservado a proposito -- un nombre se puede escribir a mano en
+        el campo de renombrar, y ahi volveria el bug que esto arregla.
 
         Lo que ya esta en el proyecto se descarta: importar dos veces la
         misma tarjeta no puede dejar cada plano duplicado.
@@ -1426,7 +1445,9 @@ class MainWindow(QWidget):
         self._clip_durations.update(medidas["duraciones"])
         self._clip_sizes.update(medidas["tamanos"])
         self._clip_rotations.update(medidas["rotaciones"])
-        self.agregar_clips(nuevos, nombre_de_bin or carpeta.name, carpeta)
+        self.agregar_clips(
+            nuevos, None if sueltos else (nombre_de_bin or carpeta.name), carpeta
+        )
 
     def adjuntar_proxies(self) -> None:
         """El boton «Proxies» de la barra: aplica al bin del clip actual.
