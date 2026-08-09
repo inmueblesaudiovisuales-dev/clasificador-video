@@ -905,6 +905,45 @@ def build_stylesheet() -> str:
         background-color: {BG_SURFACE_1};
         color: {TEXT};
     }}
+    /* --- arrastrar material a la hoja (F5), pantalla 4 del mockup ---
+       Dos zonas y dos colores, a proposito: VERDE es «se suma a este bin»
+       --el mismo verde del pick, o sea «esto ya tiene lugar»-- y AMBAR es
+       «nace un bin nuevo», el color con el que la app marca lo que todavia
+       no esta resuelto. Con un solo color habria que leer el texto para
+       saber que va a pasar al soltar. */
+    QWidget#binHeader[soltando="true"] {{
+        background-color: {con_alfa_qss(PICK_COLOR, 18)};
+        border: 1px dashed {con_alfa_qss(PICK_COLOR, 153)};
+    }}
+    QLabel#binDropHint {{
+        background-color: transparent;
+        color: {aclarar(PICK_COLOR, 0.35)};
+        font-size: {FONT_SMALL}px;
+        font-weight: 650;
+    }}
+    QWidget#dropNew {{
+        background-color: {con_alfa_qss(CURRENT_COLOR, 18)};
+        border: 1px dashed {con_alfa_qss(CURRENT_COLOR, 90)};
+        border-radius: {RADIUS_LG}px;
+    }}
+    /* encendida = el cursor esta sobre ella. Sin este segundo estado, la
+       zona se veria igual estando el cursor sobre un bin, y prometeria un
+       bin nuevo que no se va a crear. */
+    QWidget#dropNew[activa="true"] {{
+        background-color: {con_alfa_qss(CURRENT_COLOR, 36)};
+        border: 1px dashed {con_alfa_qss(CURRENT_COLOR, 165)};
+    }}
+    QLabel#dropNewTitle {{
+        background-color: transparent;
+        color: {aclarar(CURRENT_COLOR, 0.35)};
+        font-size: {FONT_BODY}px;
+        font-weight: 650;
+    }}
+    QLabel#dropNewHint {{
+        background-color: transparent;
+        color: {TEXT_3};
+        font-size: {FONT_SMALL}px;
+    }}
     QLabel#sheetFade {{
         background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
             stop:0 {OVERLAY_SCRIM_FROM}, stop:1 {BG_SURFACE_0});

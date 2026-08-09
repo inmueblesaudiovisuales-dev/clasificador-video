@@ -353,6 +353,16 @@ class MainWindow(QWidget):
         # suyo al encabezado de verdad del mismo bin. Conectarlo tambien
         # haria que cada renglon de su menu se ejecutara dos veces.
         self.clip_sheet.bin_header_created.connect(self._conectar_bin)
+        # arrastrar material (F5). Los dos caminos terminan en el MISMO
+        # `importar_rutas` que usa el boton de importar: es el que descarta
+        # lo que ya esta, avisa cuando no hay video y mide con ffprobe. Dos
+        # puertas de entrada con dos reglas distintas seria un bug esperando.
+        self.clip_sheet.soltado_en_bin.connect(
+            lambda nombre, rutas: self.importar_rutas(rutas, nombre_de_bin=nombre)
+        )
+        self.clip_sheet.soltado_en_nuevo_bin.connect(
+            lambda rutas: self.importar_rutas(rutas)
+        )
 
         self.status_bar = StatusBar()
         self.status_bar.unclassified_clicked.connect(self._filtrar_sin_clasificar)

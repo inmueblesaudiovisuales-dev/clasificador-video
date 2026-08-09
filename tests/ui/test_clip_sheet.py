@@ -1371,9 +1371,12 @@ def test_el_encabezado_va_antes_que_los_bloques_de_su_bin(qtbot):
         _thumb(1, bin_nombre="Dron", room_label="Exteriores"),
     ])
 
+    # la zona de «bin nuevo» del arrastre (F5) tambien vive en la columna,
+    # al final y escondida: aqui se habla del orden de bins y grupos.
     orden = [
-        w.nombre if hasattr(w, "nombre") else w.titulo
+        getattr(w, "nombre", None) or getattr(w, "titulo", None)
         for w in hoja._widgets_del_contenido()
+        if hasattr(w, "nombre") or hasattr(w, "titulo")
     ]
     assert orden == ["Sony", ("Sony", "Cocina"), "Dron", ("Dron", "Exteriores")]
 

@@ -669,6 +669,13 @@ class _BinHeader(QWidget):
             self._marcas[flag] = (punto, numero)
 
         fila.addStretch(1)
+        # el cartel de arrastre vive DENTRO del encabezado y no en una banda
+        # aparte: la banda del mockup empujaba las tarjetas hacia abajo justo
+        # cuando estas apuntando con el mouse, y el destino se te movia solo.
+        self.drop_label = QLabel("")
+        self.drop_label.setObjectName("binDropHint")
+        self.drop_label.hide()
+        fila.addWidget(self.drop_label)
         self.proxy_badge = QLabel("sin proxies")
         self.proxy_badge.setObjectName("binProxyBadge")
         self.proxy_badge.setProperty("estado", "ninguno")
@@ -771,6 +778,27 @@ class _BinHeader(QWidget):
             self.proxy_badge.setProperty("estado", estado)
             self.proxy_badge.style().unpolish(self.proxy_badge)
             self.proxy_badge.style().polish(self.proxy_badge)
+
+    def set_soltando(self, activo: bool, cuantos: int = 0) -> None:
+        """El resaltado de «suelta aquí y va a este bin» (pantalla 4).
+
+        Es una propiedad y no un `setStyleSheet` por bin: el arrastre manda
+        un evento por cada movimiento del mouse, y repolir un widget entero
+        en cada uno seria repintar la hoja sesenta veces por segundo.
+        """
+        activo = bool(activo)
+        self.drop_label.setVisible(activo)
+        if activo:
+            # cuantos archivos traes es lo que el mockup pone en la zona: sin
+            # el numero no sabes si soltaste la carpeta o un archivo suelto
+            self.drop_label.setText(
+                f"＋ soltar aquí · {cuantos} archivos" if cuantos != 1
+                else "＋ soltar aquí · 1 archivo"
+            )
+        if self.property("soltando") != activo:
+            self.setProperty("soltando", activo)
+            self.style().unpolish(self)
+            self.style().polish(self)
 
     def set_collapsed(self, colapsado: bool) -> None:
         self._colapsado = bool(colapsado)
@@ -876,6 +904,53 @@ class _BinHeader(QWidget):
         # exactamente lo que colgaba la suite bajo `offscreen`.
         self._menu = self.construir_menu()
         self._menu.popup(punto)
+
+
+class _ZonaDeBinNuevo(QWidget):
+    """El `.dropnew` del mockup: soltar aquí crea un bin.
+
+    Solo existe mientras hay un arrastre encima de la hoja. Un recuadro
+    punteado permanente al pie seria un cartel que no hace nada el 99% del
+    tiempo, y ademas le comeria alto a las tarjetas.
+    """
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setObjectName("dropNew")
+        self.setAttribute(Qt.WA_StyledBackground, True)
+        columna = QVBoxLayout(self)
+        columna.setContentsMargins(11, 16, 11, 16)
+        columna.setSpacing(4)
+        columna.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.title_label = QLabel("＋ Bin nuevo")
+        self.title_label.setObjectName("dropNewTitle")
+        self.title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.hint_label = QLabel(
+            "suelta aquí y se crea un bin con el nombre de la carpeta · "
+            "lo renombras con doble clic"
+        )
+        self.hint_label.setObjectName("dropNewHint")
+        self.hint_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        columna.addWidget(self.title_label)
+        columna.addWidget(self.hint_label)
+        self.hide()
+
+    def set_carpeta(self, nombre: str) -> None:
+        """El nombre que va a tener el bin, que es el de la carpeta que
+        traes. Con varias carpetas o archivos sueltos se queda generico:
+        adivinar cual manda seria decir un nombre que no va a salir."""
+        self.title_label.setText(
+            f"＋ Bin nuevo: «{nombre}»" if nombre else "＋ Bin nuevo"
+        )
+
+    def set_activa(self, activa: bool) -> None:
+        """Encendida = el cursor esta sobre ella, no sobre un bin. Las dos
+        zonas nunca pueden prometer a la vez."""
+        activa = bool(activa)
+        if self.property("activa") != activa:
+            self.setProperty("activa", activa)
+            self.style().unpolish(self)
+            self.style().polish(self)
 
 
 class _GroupBlock(QWidget):
@@ -1035,6 +1110,10 @@ class ClipSheet(QWidget):
     # señales: los bins aparecen y desaparecen con las importaciones, asi
     # que no alcanza con conectarlos una vez al arrancar.
     bin_header_created = Signal(object)
+    # arrastre (F5). La hoja avisa QUE se solto y DONDE; quien lee disco y
+    # decide que es material es la ventana, no ella.
+    soltado_en_bin = Signal(str, list)      # nombre del bin, rutas
+    soltado_en_nuevo_bin = Signal(list)     # rutas
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -1203,6 +1282,13 @@ class ClipSheet(QWidget):
         self._scroll.verticalScrollBar().valueChanged.connect(
             lambda _: self._actualizar_encabezado_pegado()
         )
+
+        # --- arrastrar material a la hoja (F5) ---
+        # La hoja entera acepta: el area de scroll y sus hijos no aceptan
+        # drops, asi que Qt propaga el evento hasta aqui y con un solo lugar
+        # alcanza para las dos zonas.
+        self.setAcceptDrops(True)
+        self._zona_nueva = _ZonaDeBinNuevo()
 
         # QSS no tiene `mask-image`: el desvanecido al pie se hace con un
         # widget de degradado encima, transparente al mouse.
@@ -1572,6 +1658,10 @@ class ClipSheet(QWidget):
                 self._content_layout.addWidget(self._bin_headers[bin_nombre])
                 ultimo_bin = bin_nombre
             self._content_layout.addWidget(self._blocks[titulo])
+        # al final de todo y escondida: solo se muestra mientras hay un
+        # arrastre encima (ver `_marcar_zona`). Se re-agrega aqui porque este
+        # bucle vacia el layout entero en cada reagrupada.
+        self._content_layout.addWidget(self._zona_nueva)
         self._refrescar_encabezados()
 
     def _sincronizar_encabezados(self, presentes: list[str]) -> None:
@@ -1658,6 +1748,114 @@ class ClipSheet(QWidget):
         )
         self._pegado.show()
         self._pegado.raise_()
+
+    # --- arrastrar material a la hoja (F5) --------------------------------
+
+    def zona_de_bin_nuevo(self) -> "_ZonaDeBinNuevo":
+        return self._zona_nueva
+
+    @staticmethod
+    def _rutas_de(mime) -> list[Path]:
+        """Solo archivos locales. Un arrastre desde el navegador trae URLs
+        http, y esas no son material que la app pueda abrir."""
+        return [Path(u.toLocalFile()) for u in mime.urls() if u.isLocalFile()]
+
+    def dragEnterEvent(self, event) -> None:  # noqa: N802 -- override de Qt
+        """Solo archivos. Aceptar texto o cualquier otro mime haria que el
+        cursor prometa algo que al soltar no pasa."""
+        if not event.mimeData().hasUrls():
+            event.ignore()
+            return
+        event.acceptProposedAction()
+        self._marcar_zona(event.position().toPoint(), event.mimeData())
+
+    def dragMoveEvent(self, event) -> None:  # noqa: N802 -- override de Qt
+        if not event.mimeData().hasUrls():
+            event.ignore()
+            return
+        event.acceptProposedAction()
+        self._marcar_zona(event.position().toPoint(), event.mimeData())
+
+    def dragLeaveEvent(self, event) -> None:  # noqa: N802 -- override de Qt
+        self._marcar_zona(None, None)
+
+    def dropEvent(self, event) -> None:  # noqa: N802 -- override de Qt
+        self._marcar_zona(None, None)
+        if not event.mimeData().hasUrls():
+            return
+        rutas = self._rutas_de(event.mimeData())
+        if not rutas:
+            return
+        destino = self._bin_bajo(event.position().toPoint())
+        if destino is None:
+            self.soltado_en_nuevo_bin.emit(rutas)
+        else:
+            self.soltado_en_bin.emit(destino, rutas)
+        event.acceptProposedAction()
+
+    def _marcar_zona(self, punto, mime) -> None:
+        """Enciende UNA de las dos zonas: la del bin de destino o la de bin
+        nuevo. Nunca las dos, que seria prometer dos cosas distintas."""
+        destino = None if punto is None else self._bin_bajo(punto)
+        rutas = self._rutas_de(mime) if mime is not None else []
+        for nombre, cabecera in self._bin_headers.items():
+            cabecera.set_soltando(nombre == destino, len(rutas))
+        # el flotante tapa al encabezado de verdad: si no se marcara tambien,
+        # el unico encabezado que estas viendo se quedaria apagado
+        if not self._pegado.isHidden():
+            self._pegado.set_soltando(self._pegado.nombre == destino, len(rutas))
+        if punto is None:
+            self._zona_nueva.hide()
+            return
+        self._zona_nueva.set_carpeta(self._nombre_probable(rutas))
+        self._zona_nueva.set_activa(destino is None)
+        self._zona_nueva.show()
+
+    @staticmethod
+    def _nombre_probable(rutas: list[Path]) -> str:
+        """El nombre que va a tener el bin si sueltas aquí.
+
+        Es la misma regla que usa `MainWindow.importar_rutas` --la carpeta
+        de donde sale el material--, escrita aparte porque la hoja no lee
+        disco. Con carpetas mezcladas se queda vacio: adivinar cual manda
+        seria prometer un nombre que no va a salir.
+        """
+        if not rutas:
+            return ""
+        if len(rutas) == 1:
+            ruta = rutas[0]
+            return ruta.name if ruta.is_dir() else ruta.parent.name
+        padres = {r.parent for r in rutas}
+        return rutas[0].parent.name if len(padres) == 1 else ""
+
+    def _regiones_de_bin(self) -> list[list]:
+        """La franja vertical que ocupa cada bin, en coordenadas de la hoja.
+
+        Va del tope de su encabezado al pie de su ultimo grupo: apuntarle al
+        encabezado exacto seria una mira de 30 px de alto sobre una columna
+        de 700.
+        """
+        regiones: list[list] = []
+        for widget in self._widgets_del_contenido():
+            if isinstance(widget, _BinHeader):
+                y = widget.mapTo(self, QPoint(0, 0)).y()
+                regiones.append([widget.nombre, y, y + widget.height()])
+            elif regiones and isinstance(widget, _GroupBlock):
+                y = widget.mapTo(self, QPoint(0, 0)).y()
+                regiones[-1][2] = max(regiones[-1][2], y + widget.height())
+        return regiones
+
+    def _bin_bajo(self, punto) -> str | None:
+        """Sobre que bin se esta soltando, o `None` si es el vacio."""
+        # el encabezado de la hoja --busqueda y chips-- no es material: sin
+        # esta guarda, lo que cayera ahi arriba se lo comia el primer bin,
+        # porque su franja arranca justo debajo.
+        if not self._scroll.geometry().contains(punto):
+            return None
+        for nombre, arriba, abajo in self._regiones_de_bin():
+            if arriba <= punto.y() <= abajo:
+                return nombre
+        return None
 
     @property
     def _paso(self) -> int:

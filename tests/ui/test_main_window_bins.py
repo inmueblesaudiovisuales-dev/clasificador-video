@@ -1129,3 +1129,73 @@ def test_vaciar_el_proyecto_no_enciende_un_reproductor_que_no_existia(qtbot):
     ventana.load_clips([])
 
     assert ventana.video_widget._player is None
+
+
+# --- arrastrar material a la hoja (F5) -------------------------------------
+
+
+def test_soltar_sobre_un_bin_importa_a_ese_bin(qtbot, ventana, monkeypatch):
+    """La hoja solo dice DONDE se solto. Leer disco, descartar lo que ya
+    esta y avisar cuando no hay video es de `importar_rutas`, que ya existe
+    -- duplicar esa logica aqui seria tener dos reglas de importacion."""
+    ventana.load_clips([_clip(0, "/dron/D.MP4")])
+    ventana.bins.agregar("Dron", Path("/dron"), [0])
+    vistos = []
+    monkeypatch.setattr(
+        ventana, "importar_rutas",
+        lambda rutas, nombre_de_bin=None, origen=None: vistos.append(
+            (rutas, nombre_de_bin)
+        ),
+    )
+
+    ventana.clip_sheet.soltado_en_bin.emit("Dron", [Path("/dron/E.MP4")])
+
+    assert vistos == [([Path("/dron/E.MP4")], "Dron")]
+
+
+def test_soltar_en_el_vacio_importa_sin_bin_y_nace_uno_nuevo(qtbot, ventana,
+                                                             monkeypatch):
+    vistos = []
+    monkeypatch.setattr(
+        ventana, "importar_rutas",
+        lambda rutas, nombre_de_bin=None, origen=None: vistos.append(
+            (rutas, nombre_de_bin)
+        ),
+    )
+
+    ventana.clip_sheet.soltado_en_nuevo_bin.emit([Path("/dron/E.MP4")])
+
+    assert vistos == [([Path("/dron/E.MP4")], None)]
+
+
+def test_soltar_algo_que_ya_esta_importado_no_agrega_nada(qtbot, ventana,
+                                                          tmp_path, monkeypatch):
+    """Lo filtra `importar_rutas`: soltar dos veces la misma tarjeta no
+    puede dejar cada plano duplicado."""
+    from PySide6.QtWidgets import QMessageBox
+
+    archivo = tmp_path / "A.MP4"
+    archivo.touch()
+    ventana.importar_rutas([archivo])
+    assert len(ventana.clips) == 1
+    # el aviso de «ya están en el proyecto» es modal y colgaria la suite
+    monkeypatch.setattr(QMessageBox, "information", lambda *a, **k: None)
+
+    ventana.clip_sheet.soltado_en_nuevo_bin.emit([archivo])
+
+    assert len(ventana.clips) == 1
+    assert ventana.bins.nombres() == [tmp_path.name]
+
+
+def test_soltar_algo_que_no_es_video_no_deja_un_bin_vacio(qtbot, ventana,
+                                                          tmp_path, monkeypatch):
+    from PySide6.QtWidgets import QMessageBox
+
+    notas = tmp_path / "notas.txt"
+    notas.touch()
+    monkeypatch.setattr(QMessageBox, "information", lambda *a, **k: None)
+
+    ventana.clip_sheet.soltado_en_nuevo_bin.emit([notas])
+
+    assert ventana.bins.nombres() == []
+    assert ventana.clips == []
