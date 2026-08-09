@@ -29,8 +29,9 @@ Se le preguntó antes de escribir este plan, porque las dos respuestas cambian
 el trabajo:
 
 1. **Los proxies viven en una carpeta aparte**, al lado de la de originales —
-   no revueltos con ellos. Es lo que se ve en `sample-media/`: el original está
-   en `clips/` y el proxy `20260804_PIB0587S03.MP4` está afuera. Así que
+   no revueltos con ellos. Es lo que Bruno armó en `sample-media/` el mismo
+   día que respondió: `clips/20260804_PIB0587.MP4` y
+   `proxy/20260804_PIB0587S03.MP4`, **dos carpetas hermanas**. Así que
    emparejar **no puede** mirar solo la carpeta importada.
 2. **La app reproduce el proxy**, no solo lo anuncia. Es la meta escrita en
    `CONTEXTO-Y-METAS.md` («poder trabajar con archivos proxy más livianos… para
@@ -53,7 +54,7 @@ el trabajo:
    que marques cae en el lugar equivocado — y peor, Premiere lo engancha igual.
    Un proxy que no valida se descarta **en los tres lados**: no se reproduce, no
    entra al manifest y no cuenta en el contador. Por eso la Task 0 es un spike
-   contra el par real que hay en el repo.
+   contra el par real de Bruno — ya corrido: **valida exacto**, ver más abajo.
 
 3. **El tamaño del clip lo sigue mandando el ORIGINAL.** `_clip_sizes` decide
    el ancho del video, la forma de la miniatura y el texto de la barra de
@@ -63,15 +64,15 @@ el trabajo:
 
 4. **Dos vistas del mismo dato se contradicen solas.** Van cinco veces en este
    proyecto. Aquí hay dos pares en riesgo: el badge del clip actual y el
-   contador de la barra de estado (los dos dicen «1080p»), y la orientación del
-   manifest contra la que ya muestra la barra de estado
+   contador de la barra de estado (los dos dicen la resolución), y la
+   orientación del manifest contra la que ya muestra la barra de estado
    (`status_bar.py::set_clip_info` ya calcula `vertical`/`horizontal`). **Una
    sola función, y las dos vistas la llaman.**
 
 5. **Importar ya es lento y bloquea.** Hoy corre un `ffprobe` por clip, en
-   serie, dentro de `_load_clips_from_ingest`. Sondear además cada proxy puede
-   duplicar esa espera. La Task 0 lo mide y la Task 2 elige entre dos caminos
-   con un número, no con una corazonada.
+   serie, dentro de `_load_clips_from_ingest`. Sondear además cada proxy suma
+   **3.42 s** en 128 clips (medido en la Task 0), así que ese sondeo **no** va
+   en el mismo ciclo: va al thread pool.
 
 6. **Estas dos cosas ya existen y no hay que rehacerlas:**
 
@@ -92,35 +93,77 @@ el trabajo:
 
 ---
 
-## Task 0: Spike — ¿el proxy calza con el original? — **antes de todo**
+## Task 0: Spike — ¿el proxy calza con el original? — ✅ HECHO (2026-08-08)
 
 **Files:** al scratchpad de la sesión, **no al repo**.
 
-Hay un par real en el repo para medirlo, sin pedirle material a Bruno:
+Se midió contra el par real que Bruno tiene en `sample-media/` (que **no se
+versiona**: está en `.gitignore`, así que estos números no se pueden reproducir
+sin su material):
 
-- original: `sample-media/clips/20260804_PIB0587.MP4`
-- proxy: `sample-media/20260804_PIB0587S03.MP4`
+- original: `sample-media/clips/20260804_PIB0587.MP4` — 3840×2160 HEVC 10-bit,
+  268 Mbps, rot 90°, 120 cuadros
+- proxy: `sample-media/proxy/20260804_PIB0587S03.MP4` — **1280×720**, mismos
+  120 cuadros
 
-**Qué hay que demostrar, con números escritos de vuelta en este documento:**
+### A) El proxy valida ✅
 
-- [ ] `probe_clip()` de los dos, lado a lado. **Criterio de aceptación del
-      proxy**: mismo `fps` (diferencia < 0.01), misma `duration_frames` (±1
-      cuadro) y misma orientación. Anotar qué dio.
-- [ ] Cuánto tarda **un** `ffprobe` sobre el proxy. **De aquí sale la decisión
-      de la Task 2**: si sondear 128 proxies suma **menos de 2 s** al import,
-      va en el mismo ciclo, en serie; si suma más, va al `QThreadPool` con
-      guarda de generación, como las miniaturas.
-- [ ] Abrir el proxy en mpv y medir **cuánto tarda en dar el primer cuadro** y
-      cuánto cuesta un `seek` exacto, contra los mismos dos números del
-      original. Es la razón de ser de la decisión 2 de Bruno: si no gana nada
-      medible, se le dice y se reconsidera antes de construirlo.
-- [ ] Sondear el proxy **rotado**: comprobar que `probe_clip()` le aplica la
-      misma corrección de rotación que al original. Si el proxy viniera sin la
-      matriz de rotación, el video se vería acostado — y eso lo decide este
-      spike, no un test con doble.
+| | original | proxy |
+|---|---|---|
+| fps | 59.94005994 | 59.94005994 |
+| cuadros | 120 | 120 |
+| rotación | 90° | 90° |
+| orientación (ya corregida) | vertical | vertical |
 
-**Si el proxy no valida contra el original**, se para y se le pregunta a Bruno
-antes de seguir: sin eso, la mitad de esta fase no tiene sentido.
+Delta de fps **0.000000**, delta de cuadros **0**. Calza cuadro a cuadro y el
+proxy trae su propia matriz de rotación, así que `probe_clip()` lo endereza
+igual que al original — no se va a ver acostado.
+
+**Pero el proxy es 720p, no 1080p.** La cámara escribe `S03` a 1280×720. El
+badge del mockup dice `Proxy 1080p` porque era un dibujo; la app va a decir
+**`PROXY 720P`**, que es la verdad. La Task 4 ya deriva la etiqueta del lado
+corto, así que no hay nada que cambiar — pero el texto del mockup **no** es el
+que se copia.
+
+### B) El sondeo extra va al thread pool ❌ el criterio de «en serie»
+
+`ffprobe` del proxy: **26.7 ms** de promedio (el del original, 22.1 ms). Con
+128 clips eso suma **3.42 s** al import, por arriba del tope de 2 s que fijaba
+este plan. **Decisión: el sondeo de proxies va al `QThreadPool`**, con la misma
+guarda de generación que las miniaturas.
+
+### C) Reproducir el proxy es lo mejor que va a pasarle a esta app
+
+Con `hwdec=videotoolbox`, destinos dentro de la duración real del clip:
+
+| | original | proxy | gana |
+|---|---|---|---|
+| primer cuadro al abrir | 204.5 ms | **8.9 ms** | 23× |
+| seek exacto (promedio) | 367.6 ms | **19.0 ms** | 19× |
+| un cuadro atrás (`,`) | 529.9 ms | **22.3 ms** | 24× |
+
+**Medio segundo por cada `,`** es exactamente la queja de
+`CONTEXTO-Y-METAS.md` («la navegación cuadro a cuadro tiene que sentirse
+instantánea, no la siente así hoy»). No era un problema de la app: era el
+material. La decisión 2 de Bruno queda justificada con número.
+
+Dos advertencias sobre estos números:
+
+- **`frame-step` (`.`) no se pudo medir acá**: el harness espera a que cambie
+  `estimated-frame-number` y se topa con el final del clip, así que los
+  promedios salen contaminados por el timeout. Lo que sí se ve es que el paso
+  hacia adelante es barato en los dos (8.4 ms y 0.5 ms en el mejor caso): el
+  caro es el de atrás, que es un seek.
+- **El clip de prueba dura 2 s.** En un clip de 30 s un seek largo sobre el
+  original va a costar más, no menos. O sea que la ganancia medida es un
+  **piso**.
+
+### Lo que este spike cambió del resto del plan
+
+1. La Task 2 va con thread pool, no en serie.
+2. El badge dirá `PROXY 720P` con el material de Bruno.
+3. El criterio de validación queda como estaba: mismo fps (< 0.01), mismos
+   cuadros (±1), misma orientación. El par real lo cumple exacto.
 
 ---
 
@@ -142,10 +185,10 @@ La regla, que sale de la decisión 1 de Bruno:
   `ingest.py`) **cuyo stem termine en `S03`**.
 
 **Tests (antes):**
-- [ ] El proxy está en la carpeta padre de la importada → lo encuentra (el caso
-      real de `sample-media/`).
-- [ ] El proxy está en una carpeta hermana (`Clip/` y `Sub/`, el caso Sony) →
-      lo encuentra.
+- [ ] El proxy está en una **carpeta hermana** de la importada → lo encuentra.
+      Es el caso real de `sample-media/` (`clips/` y `proxy/`) y también el de
+      la tarjeta Sony (`Clip/` y `Sub/`).
+- [ ] El proxy está suelto en la carpeta **padre** → lo encuentra.
 - [ ] El proxy está revuelto con los originales → lo encuentra igual (que la
       decisión 1 no se convierta en una limitación).
 - [ ] Un archivo tres niveles abajo **no** se busca: el tope de profundidad
@@ -171,11 +214,15 @@ La regla, que sale de la decisión 1 de Bruno:
 `match_proxies()`, y el resultado que **valide** (criterio de la Task 0) se
 guarda en `Clip.ruta_proxy`.
 
-**El camino de sondeo lo decide el número de la Task 0.** Si va al thread pool,
-va con la misma guarda de generación que las miniaturas
-(`self._thumb_generation`), o una importación nueva recibe resultados de la
-anterior — ese bug ya está resuelto una vez en este archivo, se copia el
-patrón, no se reinventa.
+**El sondeo va al `QThreadPool`**, no en serie: la Task 0 midió 26.7 ms por
+`ffprobe`, o sea 3.42 s de más en una importación de 128 clips. Va con la misma
+guarda de generación que las miniaturas (`self._thumb_generation`), o una
+importación nueva recibe resultados de la anterior — ese bug ya está resuelto
+una vez en este archivo, se copia el patrón, no se reinventa.
+
+Consecuencia de que sea asíncrono: **el badge y el contador aparecen unos
+segundos después de importar**, y hay que probar explícitamente que un clip
+abierto ANTES de que su proxy valide se abre con el original y no se rompe.
 
 **Tests (antes):**
 - [ ] Con un proxy que valida, `clips[i].ruta_proxy` queda apuntando al `S03`.
@@ -231,7 +278,7 @@ no `1920p`.
 
 ---
 
-## Task 5: El badge `Proxy 1080p` sobre el video
+## Task 5: El badge de proxy sobre el video
 
 **Files:**
 - Modificar: `src/clasificador_video/ui/video_stage.py` (`_BadgeRow`, que ya
@@ -246,7 +293,8 @@ badge — y si hace falta uno, **va en `theme.py`**, que el candado 1 ya saltó 
 vez por esto.
 
 **Tests (antes):**
-- [ ] Clip con proxy validado → el badge se ve y dice `PROXY 1080P` (mayúsculas
+- [ ] Clip con proxy validado de 1280×720 → el badge se ve y dice `PROXY 720P`
+      (la resolución sale del archivo, no del texto del mockup; mayúsculas
       escritas a mano: `text-transform` no existe en QSS, ya pasó con `▶ AUTO`).
 - [ ] Clip sin proxy → el badge está escondido, no vacío.
 - [ ] El badge declara `background-color: transparent` — la regla global
@@ -296,12 +344,14 @@ viendo.
       y este test lo fija.
 - [ ] El manifest exporta **`ruta` del original y `ruta_proxy` del proxy**, en
       ese orden y sin cruzarse. Es el test que protege a Premiere: si se cruzan,
-      el proyecto se arma con material de 1080p y nadie lo nota hasta exportar.
+      el proyecto se arma con el material de 720p y nadie lo nota hasta exportar.
 
-**Y una comprobación con material real, no con doble:** abrir el par de
-`sample-media/` en la app y ver que el video se ve derecho, que el badge dice
-`PROXY 1080P` y que `,`/`.` avanza un cuadro. Un doble de pruebas puede tapar el
-bug que existe — ya pasó con `frame-step`.
+**Y una comprobación con material real, no con doble:** importar
+`sample-media/clips/` en la app y ver que el video se ve **derecho** (el proxy
+trae rot 90°, igual que el original), que el badge dice **`PROXY 720P`**, y que
+`,` se siente instantáneo — es el gesto donde la Task 0 midió 530 ms contra
+22 ms. Un doble de pruebas puede tapar el bug que existe: ya pasó con
+`frame-step`.
 
 **Fuera de alcance, a propósito:** las miniaturas se siguen generando del
 original. Generarlas del proxy sería más rápido, pero es otra decisión y no
