@@ -125,11 +125,16 @@ def test_desde_sesion_descarta_indices_fuera_de_rango():
     assert arbol.clips_de("Sony") == [0, 1]
 
 
-def test_desde_sesion_mete_los_huerfanos_en_un_bin_aparte():
-    """Si despues de descartar los indices invalidos quedan clips que no
-    estan en NINGUN bin, no se dejan huerfanos: `bin_de` les devolveria
-    `None`, y la F4 trata ese caso como una excepcion, no como un estado
-    normal de una sesion restaurada."""
+def test_desde_sesion_deja_sueltos_a_los_huerfanos():
+    """Un clip suelto se representa por AUSENCIA, no por un bin llamado
+    «Sin bin».
+
+    Antes se les inventaba un bin real con ese nombre. Dos problemas: la
+    hoja usa esa misma cadena como titulo de la seccion de sueltos, asi
+    que el encabezado saldria dos veces reusando el mismo widget en dos
+    posiciones del layout; y convertia el estado «clip suelto» --que la
+    §6.b del spec declara valido-- en un bin normal al reabrir.
+    """
     datos = [{"nombre": "Sony", "origen": "/cam", "clips": [0]}]
 
     arbol = BinTree.desde_sesion(
@@ -137,8 +142,8 @@ def test_desde_sesion_mete_los_huerfanos_en_un_bin_aparte():
     )
 
     assert arbol.clips_de("Sony") == [0]
-    huerfanos = [i for i in (1, 2) if arbol.bin_de(i) is not None]
-    assert huerfanos == [1, 2]
+    assert arbol.nombres() == ["Sony"]
+    assert [arbol.bin_de(i) for i in (1, 2)] == [None, None]
 
 
 def test_bins_vacios_a_proposito_no_inventan_uno_con_las_rutas():

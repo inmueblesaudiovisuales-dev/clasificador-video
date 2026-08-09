@@ -205,10 +205,10 @@ class BinTree:
         resucitaria justo lo que acaba de borrar.
 
         Despues de leer `datos`, los indices que ya no caben en `rutas`
-        --sesion corrupta, o de un proyecto con menos clips que antes--
-        se descartan, y lo que quede sin bin se junta en uno aparte: un
-        clip sin bin es un caso que la F4 no contempla, no un estado
-        normal de una sesion restaurada.
+        --sesion corrupta, o de un proyecto con menos clips que antes-- se
+        descartan, y lo que quede sin bin se QUEDA sin bin: la hoja lo
+        dibuja en su seccion de sueltos, que es solo una vista. Ver
+        `_acotar_a`.
         """
         if datos is not None:
             arbol = cls.from_list(datos)
@@ -221,10 +221,16 @@ class BinTree:
         return arbol
 
     def _acotar_a(self, total_clips: int) -> None:
-        asignados: set[int] = set()
+        """Descarta los indices que ya no caben --sesion corrupta, o de un
+        proyecto con menos clips que antes.
+
+        Lo que queda sin bin se queda sin bin. Antes se le inventaba aqui
+        un bin real llamado «Sin bin»; no se hace mas, por dos razones. La
+        hoja usa esa misma cadena como titulo de su seccion de sueltos, asi
+        que un bin con ese nombre haria salir el encabezado dos veces. Y
+        «clip suelto» es un estado valido (§6.b del spec), no una anomalia
+        que haya que normalizar al reabrir: se representa por AUSENCIA de
+        bin, que es lo que `bin_de` ya devuelve como `None`.
+        """
         for b in self._bins:
             b.clips = [i for i in b.clips if 0 <= i < total_clips]
-            asignados.update(b.clips)
-        huerfanos = [i for i in range(total_clips) if i not in asignados]
-        if huerfanos:
-            self.agregar("Sin bin", Path(), huerfanos)
