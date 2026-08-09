@@ -24,7 +24,12 @@ from clasificador_video.ingest import IngestTree
 from clasificador_video.keyboard import KeyboardRouter
 from clasificador_video.manifest import Clip, Manifest
 from clasificador_video.player import SPEED_PROFILES
-from clasificador_video.probe import orientacion_predominante, probe_clip
+from clasificador_video.probe import (
+    orientacion_de,
+    orientacion_predominante,
+    probe_clip,
+)
+from clasificador_video.proxy_match import buscar_proxies, match_proxies
 from clasificador_video.rooms import RoomSelection
 from clasificador_video.thumbnails import (
     cache_dir_for,
@@ -128,6 +133,41 @@ class _ThumbnailJob(QRunnable):
             pass
 
 
+class _ProxyProbeJob(QRunnable):
+    """Sondea UN proxy fuera del hilo de la UI.
+
+    Va al thread pool y no en el mismo ciclo del import por una medicion:
+    `ffprobe` sobre el proxy cuesta 26.7 ms, o sea **3.42 s** de mas en una
+    importacion de 128 clips (task 0 del plan de la F9). Importar ya
+    bloquea; no se le suman tres segundos y medio mas.
+
+    Solo LEE el archivo. Quien decide si el proxy sirve es la ventana, en
+    el hilo de la UI, que es donde estan los datos del original.
+    """
+
+    class Signals(QWidget):
+        done = Signal(int, int, object)  # generation, indice, info | None
+
+    def __init__(self, generation: int, index: int, proxy: Path, probe):
+        super().__init__()
+        self._generation = generation
+        self.index = index
+        self.proxy = proxy
+        self._probe = probe
+        self.signals = _ProxyProbeJob.Signals()
+
+    def run(self) -> None:
+        try:
+            info = self._probe(self.proxy)
+        except Exception:
+            info = None
+        try:
+            self.signals.done.emit(self._generation, self.index, info)
+        except RuntimeError:
+            # la ventana dueña ya se destruyo mientras este job corria
+            pass
+
+
 class MainWindow(QWidget):
     """Ventana del clasificador, con la estructura del mockup.
 
@@ -187,6 +227,12 @@ class MainWindow(QWidget):
         # to_dict() y con eso el contrato del manifest con el plugin de Premiere.
         self._clip_sizes: dict[int, tuple[int, int]] = {}
         self._clip_rotations: dict[int, int] = {}
+        # indice -> tamaño del PROXY, solo de los que ya validaron. El que
+        # manda el layout sigue siendo `_clip_sizes`, que es del original:
+        # esto es nada mas para escribir «720p» sin inventarlo.
+        self._proxy_sizes: dict[int, tuple[int, int]] = {}
+        self._proxy_candidatos: dict[int, Path] = {}
+        self._proxy_generation = 0
 
         # autosave con debounce: coalesca ediciones rapidas seguidas en un
         # solo guardado en vez de escribir a disco en cada tecla.
@@ -1033,6 +1079,81 @@ class MainWindow(QWidget):
         self._clip_rotations = rotations
         self.load_clips(clips)
         self._schedule_thumbnails()
+        self._programar_sondeo_de_proxies()
+
+    def _programar_sondeo_de_proxies(self) -> None:
+        """Busca el proxy de cada clip y manda a sondearlo en segundo plano.
+
+        Emparejar es barato (mirar nombres); validar cuesta un `ffprobe`
+        por archivo, y eso va al thread pool. Consecuencia visible: el
+        badge y el contador aparecen unos segundos DESPUES de importar, y
+        mientras tanto todo funciona con los originales.
+        """
+        self._proxy_sizes = {}
+        self._proxy_generation += 1
+        generation = self._proxy_generation
+        # se busca UNA vez por carpeta, no una vez por clip: recorrer el
+        # disco 128 veces para el mismo resultado seria trabajo tirado.
+        por_original: dict[Path, Path | None] = {}
+        for folder in self.ingest_tree.top_level_folders():
+            por_original.update(
+                match_proxies(folder.files, buscar_proxies(folder.source_path))
+            )
+        # el indice va por `self.clips`, no por `folder.files`: los archivos
+        # que el probe rechazo nunca llegaron a ser clips, y contarlos
+        # aterrizaria cada proxy en el clip de al lado.
+        self._proxy_candidatos = {
+            index: por_original[clip.ruta]
+            for index, clip in enumerate(self.clips)
+            if por_original.get(clip.ruta) is not None
+        }
+        for index, proxy in self._proxy_candidatos.items():
+            job = _ProxyProbeJob(generation, index, proxy, self._probe_clip)
+            job.signals.done.connect(self._on_proxy_sondeado)
+            self._thread_pool.start(job)
+
+    def _on_proxy_sondeado(self, generation: int, index: int, info: dict | None) -> None:
+        if generation != self._proxy_generation:
+            return  # resultado de una importacion ya descartada
+        if not info or index >= len(self.clips):
+            return
+        proxy = self._proxy_candidatos.get(index)
+        if proxy is None or not self._el_proxy_calza(index, info):
+            return
+        self.clips[index].ruta_proxy = proxy
+        ancho, alto = int(info.get("width") or 0), int(info.get("height") or 0)
+        if ancho and alto:
+            self._proxy_sizes[index] = (ancho, alto)
+        self._refrescar_indicadores_de_proxy(index)
+        self._autosave()
+
+    def _el_proxy_calza(self, index: int, info: dict) -> bool:
+        """Un proxy que no calza cuadro a cuadro NO es un proxy.
+
+        Si tiene otro fps u otra cantidad de cuadros, el in/out que marques
+        cae corrido -- y el plugin lo engancharia igual, sin avisar. Por eso
+        el que no valida se descarta en los tres lados: no se reproduce, no
+        entra al manifest y no cuenta en el contador.
+        """
+        clip = self.clips[index]
+        if abs(float(info.get("fps") or 0) - clip.fps) >= 0.01:
+            return False
+        if index not in self._clip_durations or index not in self._clip_sizes:
+            return False  # sin original con que comparar, no se valida nada
+        cuadros_original = round(self._clip_durations[index] * clip.fps)
+        if abs(int(info.get("duration_frames") or 0) - cuadros_original) > 1:
+            return False
+        ancho, alto = int(info.get("width") or 0), int(info.get("height") or 0)
+        if not (ancho and alto):
+            return False
+        # un proxy sin su matriz de rotacion se veria acostado
+        return orientacion_de(ancho, alto) == orientacion_de(*self._clip_sizes[index])
+
+    def _refrescar_indicadores_de_proxy(self, index: int) -> None:
+        """Los resultados llegan de a uno, cada uno en su momento: solo se
+        repinta lo que ese resultado puede haber cambiado."""
+        if index == self.current_index:
+            self._refresh_overlays()
 
     def _schedule_thumbnails(self) -> None:
         if not self.clips:

@@ -2704,3 +2704,149 @@ def test_sin_tamanos_el_manifest_conserva_el_default_de_siempre(qtbot, monkeypat
     window._clip_sizes = {}
 
     assert _exportar(window, monkeypatch, tmp_path / "m.json")["orientacion"] == "horizontal"
+
+
+# --- proxies: emparejar, validar y usar (F9) ---------------------------
+#
+# El proxy real de Bruno mide 1280x720 y calza cuadro a cuadro con el
+# original (medido en la task 0 del plan de la F9). Estos dobles imitan
+# eso: el original vertical de _ProbeVertical (2160x3840, 29.97, 540
+# cuadros) y un proxy con LOS MISMOS cuadros y fps.
+
+
+class _ProbeConProxy:
+    """Devuelve datos de original o de proxy segun el nombre del archivo,
+    para poder importar los dos con un solo doble."""
+
+    def __init__(self, fps_proxy=29.97, cuadros_proxy=540, proxy_vertical=True):
+        self.fps_proxy = fps_proxy
+        self.cuadros_proxy = cuadros_proxy
+        self.proxy_vertical = proxy_vertical
+
+    def __call__(self, path):
+        if path.stem.endswith("S03"):
+            ancho, alto = (720, 1280) if self.proxy_vertical else (1280, 720)
+            return {"width": ancho, "height": alto, "fps": self.fps_proxy,
+                    "has_audio": True, "duration_frames": self.cuadros_proxy,
+                    "rotation": 90}
+        return {"width": 2160, "height": 3840, "fps": 29.97,
+                "has_audio": True, "duration_frames": 540, "rotation": 90}
+
+
+def _importar_con_proxy(window, monkeypatch, tmp_path, con_proxy=True):
+    monkeypatch.setattr(
+        "clasificador_video.ui.main_window.extract_thumbnail_strip", lambda *a, **k: []
+    )
+    carpeta = tmp_path / "tarjeta" / "clips"
+    carpeta.mkdir(parents=True)
+    (carpeta / "C0001.MP4").touch()
+    if con_proxy:
+        proxies = tmp_path / "tarjeta" / "proxy"
+        proxies.mkdir()
+        (proxies / "C0001S03.MP4").touch()
+    window.ingest_tree.import_folder(carpeta)
+    window._load_clips_from_ingest()
+    return carpeta
+
+
+def _esperar_a_los_proxies(window):
+    from PySide6.QtWidgets import QApplication
+    window._thread_pool.waitForDone(5000)
+    QApplication.processEvents()
+
+
+def test_importar_engancha_el_proxy_de_la_carpeta_hermana(qtbot, monkeypatch, tmp_path):
+    """De punta a punta: buscar, emparejar, sondear y validar. Hasta la F9
+    `ruta_proxy` salia SIEMPRE en null y Premiere nunca recibia un proxy,
+    aunque el plugin ya sabia engancharlo."""
+    window = _window_with_video(qtbot, cache_root=tmp_path / "cache")
+    monkeypatch.setattr(window, "_probe_clip", _ProbeConProxy())
+    _importar_con_proxy(window, monkeypatch, tmp_path)
+    _esperar_a_los_proxies(window)
+
+    assert window.clips[0].ruta_proxy is not None
+    assert window.clips[0].ruta_proxy.name == "C0001S03.MP4"
+    assert window._proxy_sizes[0] == (720, 1280)
+
+
+def test_un_clip_sin_proxy_queda_en_none(qtbot, monkeypatch, tmp_path):
+    """El caso normal del dron -- no es un error."""
+    window = _window_with_video(qtbot, cache_root=tmp_path / "cache")
+    monkeypatch.setattr(window, "_probe_clip", _ProbeConProxy())
+    _importar_con_proxy(window, monkeypatch, tmp_path, con_proxy=False)
+    _esperar_a_los_proxies(window)
+
+    assert window.clips[0].ruta_proxy is None
+
+
+def test_un_proxy_con_otro_fps_se_descarta(qtbot, monkeypatch, tmp_path):
+    """Si no calza cuadro a cuadro, el in/out cae corrido -- y Premiere lo
+    engancharia igual, sin avisar."""
+    window = _window_with_video(qtbot, cache_root=tmp_path / "cache")
+    monkeypatch.setattr(window, "_probe_clip", _ProbeConProxy(fps_proxy=25.0))
+    _importar_con_proxy(window, monkeypatch, tmp_path)
+    _esperar_a_los_proxies(window)
+
+    assert window.clips[0].ruta_proxy is None
+
+
+def test_un_proxy_con_otra_cantidad_de_cuadros_se_descarta(qtbot, monkeypatch, tmp_path):
+    window = _window_with_video(qtbot, cache_root=tmp_path / "cache")
+    monkeypatch.setattr(window, "_probe_clip", _ProbeConProxy(cuadros_proxy=530))
+    _importar_con_proxy(window, monkeypatch, tmp_path)
+    _esperar_a_los_proxies(window)
+
+    assert window.clips[0].ruta_proxy is None
+
+
+def test_un_proxy_acostado_se_descarta(qtbot, monkeypatch, tmp_path):
+    """Un proxy sin su matriz de rotacion se veria acostado contra un
+    original vertical."""
+    window = _window_with_video(qtbot, cache_root=tmp_path / "cache")
+    monkeypatch.setattr(window, "_probe_clip", _ProbeConProxy(proxy_vertical=False))
+    _importar_con_proxy(window, monkeypatch, tmp_path)
+    _esperar_a_los_proxies(window)
+
+    assert window.clips[0].ruta_proxy is None
+
+
+def test_el_tamano_del_clip_lo_sigue_mandando_el_original(qtbot, monkeypatch, tmp_path):
+    """Si el layout empezara a salir del proxy, la pantalla cambiaria de
+    forma sola y la barra de estado mentiria sobre la resolucion."""
+    window = _window_with_video(qtbot, cache_root=tmp_path / "cache")
+    monkeypatch.setattr(window, "_probe_clip", _ProbeConProxy())
+    _importar_con_proxy(window, monkeypatch, tmp_path)
+    _esperar_a_los_proxies(window)
+
+    assert window._clip_sizes[0] == (2160, 3840)
+    assert window.aspect_ratio_for(0) == 2160 / 3840
+
+
+def test_un_resultado_de_una_importacion_vieja_se_ignora(qtbot, monkeypatch, tmp_path):
+    """Misma guarda que las miniaturas: importar de nuevo invalida lo que
+    quedo corriendo de la importacion anterior."""
+    window = _window_with_video(qtbot, cache_root=tmp_path / "cache")
+    monkeypatch.setattr(window, "_probe_clip", _ProbeConProxy())
+    _importar_con_proxy(window, monkeypatch, tmp_path)
+    _esperar_a_los_proxies(window)
+    window.clips[0].ruta_proxy = None
+
+    window._on_proxy_sondeado(
+        window._proxy_generation - 1, 0,
+        {"width": 720, "height": 1280, "fps": 29.97, "duration_frames": 540},
+    )
+
+    assert window.clips[0].ruta_proxy is None
+
+
+def test_abrir_un_clip_antes_de_que_su_proxy_valide_usa_el_original(qtbot, monkeypatch, tmp_path):
+    """El sondeo es asincrono (26.7 ms por archivo, 3.42 s en 128 clips):
+    Bruno empieza a trabajar antes de que terminen."""
+    window = _window_with_video(qtbot, cache_root=tmp_path / "cache")
+    abiertos = []
+    monkeypatch.setattr(window.video_widget, "open_clip", lambda p: abiertos.append(p))
+    monkeypatch.setattr(window, "_probe_clip", _ProbeConProxy())
+    _importar_con_proxy(window, monkeypatch, tmp_path)
+    window.select_clip(0)
+
+    assert abiertos and abiertos[-1].name == "C0001.MP4"
