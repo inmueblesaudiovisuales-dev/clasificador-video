@@ -1618,8 +1618,10 @@ class MainWindow(QWidget):
         respuesta = QMessageBox.question(
             self, "Quitar del proyecto",
             f"¿Quitar «{nombre}» del proyecto?\n\n"
-            f"Se van sus {cuantos} clips con su clasificación y sus marcas, "
-            "y esto no se puede deshacer con ⌘Z.\n\n"
+            + ("Se va su clip con su clasificación y sus marcas, "
+               if cuantos == 1
+               else f"Se van sus {cuantos} clips con su clasificación y sus marcas, ")
+            + "y esto no se puede deshacer con ⌘Z.\n\n"
             "No se borra nada del disco.",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             QMessageBox.StandardButton.No,

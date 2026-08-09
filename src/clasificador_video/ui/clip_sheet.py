@@ -43,7 +43,7 @@ from PySide6.QtWidgets import (
 from clasificador_video.filters import FilterState
 from clasificador_video.ingest import archivos_de_video
 from clasificador_video.ui import theme
-from clasificador_video.ui.text import ElidedLabel
+from clasificador_video.ui.text import ElidedLabel, plural_clips
 
 SIN_CLASIFICAR = "Sin clasificar"
 # La seccion de los clips que no pertenecen a ningun bin. NO es un bin: es una
@@ -812,7 +812,7 @@ class _BinHeader(QWidget):
         self.name_edit.editingFinished.connect(self._confirmar_nombre)
         self.source_label = QLabel("")
         self.source_label.setObjectName("binSource")
-        self.count_label = QLabel("0 clips")
+        self.count_label = QLabel(plural_clips(0))
         self.count_label.setObjectName("binCount")
         for w in (self.chevron, self.cam_mark, self.name_label, self.name_edit,
                   self.source_label, self.count_label):
@@ -893,7 +893,7 @@ class _BinHeader(QWidget):
 
     def set_counts(self, cuantos: int, por_flag: dict[str, int]) -> None:
         self._cuantos = cuantos
-        self.count_label.setText(f"{cuantos} clips")
+        self.count_label.setText(plural_clips(cuantos))
         for flag, _ in self.MARCAS:
             punto, numero = self._marcas[flag]
             tiene = por_flag.get(flag, 0)
@@ -991,8 +991,15 @@ class _BinHeader(QWidget):
                 # «se suman a los 23 que ya tiene», como el mockup: es lo que
                 # responde «¿estoy por importar esto dos veces?»
                 plural = "videos" if cuantos != 1 else "video"
-                texto = (f"＋ soltar aquí · {cuantos} {plural} · "
-                         f"se suman a los {self._cuantos} que ya tiene")
+                if not self._cuantos:
+                    # los bins vacios existen desde la F8, asi que «se suman a
+                    # los 0 que ya tiene» es alcanzable -- y no dice nada
+                    ya = "el bin está vacío"
+                elif self._cuantos == 1:
+                    ya = "se suman al que ya tiene"
+                else:
+                    ya = f"se suman a los {self._cuantos} que ya tiene"
+                texto = f"＋ soltar aquí · {cuantos} {plural} · {ya}"
             self.drop_label.setText(texto)
         if self.property("soltando") != activo:
             self.setProperty("soltando", activo)
@@ -1053,6 +1060,13 @@ class _BinHeader(QWidget):
         if nuevo and nuevo != self.nombre:
             self.rename_requested.emit(self.nombre, nuevo)
 
+    def _texto_de_seleccionar(self) -> str:
+        """«Seleccionar el clip» con uno solo: «Seleccionar los 1 clips» es
+        de lo que mas se nota, porque el numero lo pone el renglon."""
+        if self._cuantos == 1:
+            return "Seleccionar el clip"
+        return f"Seleccionar los {self._cuantos} clips"
+
     def construir_menu(self) -> QMenu:
         """El menu del spec §4.2, tal cual la pantalla 3 del mockup.
 
@@ -1085,7 +1099,7 @@ class _BinHeader(QWidget):
         menu.addAction(quitar_proxies)
         menu.addSeparator()
 
-        seleccionar = QAction(f"Seleccionar los {self._cuantos} clips", menu)
+        seleccionar = QAction(self._texto_de_seleccionar(), menu)
         seleccionar.setShortcut("Ctrl+A")
         seleccionar.triggered.connect(
             lambda: self.select_all_requested.emit(self.nombre)
@@ -1111,7 +1125,7 @@ class _BinHeader(QWidget):
         porque `BinTree` no encuentra el nombre -- inofensivas por accidente,
         que es peor que no estar.
         """
-        seleccionar = QAction(f"Seleccionar los {self._cuantos} clips", menu)
+        seleccionar = QAction(self._texto_de_seleccionar(), menu)
         seleccionar.setShortcut("Ctrl+A")
         seleccionar.triggered.connect(
             lambda: self.select_all_requested.emit(self.nombre)

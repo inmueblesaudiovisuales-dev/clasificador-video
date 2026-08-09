@@ -1587,3 +1587,21 @@ def test_la_hoja_no_se_reconstruye_al_mover(qtbot, ventana):
     ventana._on_clips_movidos([0], "Dron")
 
     assert llamadas == [False]
+
+
+def test_el_aviso_de_quitar_un_bin_de_un_clip_no_dice_1_clips(qtbot, ventana,
+                                                              monkeypatch):
+    ventana.load_clips([_clip(0, "/cam/A.MP4")])
+    ventana.bins.agregar("Sony", Path("/cam"), [0])
+    textos = []
+
+    from PySide6.QtWidgets import QMessageBox
+    monkeypatch.setattr(
+        QMessageBox, "question",
+        lambda *a, **k: (textos.append(a[2]), QMessageBox.StandardButton.No)[1],
+    )
+
+    ventana._on_bin_quitado("Sony")
+
+    assert "Se va su clip" in textos[0]
+    assert "1 clips" not in textos[0]

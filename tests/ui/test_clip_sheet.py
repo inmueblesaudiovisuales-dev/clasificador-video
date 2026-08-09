@@ -1579,7 +1579,7 @@ def test_el_menu_del_bin_trae_lo_que_dibujo_el_mockup(qtbot):
 @pytest.mark.parametrize("titulo, senal", [
     ("Enlazar proxies…", "proxies_requested"),
     ("Quitar proxies de este bin", "proxies_cleared"),
-    ("Seleccionar los 1 clips", "select_all_requested"),
+    ("Seleccionar el clip", "select_all_requested"),
     ("Quitar del proyecto", "remove_requested"),
 ])
 def test_cada_renglon_del_menu_avisa_con_el_nombre_del_bin(qtbot, titulo, senal):
@@ -2367,7 +2367,7 @@ def test_el_encabezado_pegado_copia_si_es_un_bin_de_verdad(qtbot):
     # `QMenu` temporal muere antes de que termine de leerse la lista
     menu = hoja._pegado.construir_menu()
     textos = [a.text() for a in menu.actions() if not a.isSeparator()]
-    assert textos == ["Seleccionar los 1 clips", "Colapsar"]
+    assert textos == ["Seleccionar el clip", "Colapsar"]
 
 
 def test_la_seccion_de_sueltos_no_se_pinta_como_una_camara(qtbot):
@@ -2479,3 +2479,66 @@ def test_las_otras_dos_filas_siguen_cabiendo(qtbot):
                   "solo_destacados", "ocultar_rejects", "sin_marcar"):
         chip = hoja.chips[clave]
         assert _cabe_su_texto(chip), f"{chip.text()!r} no cabe en {chip.width()} px"
+
+
+# --- plurales: Bruno lee estos textos ---------------------------------------
+
+
+def test_el_encabezado_de_un_bin_con_un_clip_no_dice_1_clips(qtbot):
+    hoja = ClipSheet()
+    qtbot.addWidget(hoja)
+    hoja.set_bin_order(["Sony"])
+    hoja.set_clips([_thumb(0, bin_nombre="Sony")])
+
+    assert hoja.bin_header_widget("Sony").count_label.text() == "1 clip"
+
+
+def test_el_menu_de_un_bin_con_un_clip_no_dice_los_1_clips(qtbot):
+    hoja = ClipSheet()
+    qtbot.addWidget(hoja)
+    hoja.set_bin_order(["Sony"])
+    hoja.set_clips([_thumb(0, bin_nombre="Sony")])
+
+    menu = hoja.bin_header_widget("Sony").construir_menu()
+
+    assert "Seleccionar el clip" in [a.text() for a in menu.actions()]
+
+
+def test_el_menu_de_sin_bin_con_un_clip_tambien(qtbot):
+    hoja = ClipSheet()
+    qtbot.addWidget(hoja)
+    hoja.set_clips([_thumb(0)])
+
+    menu = hoja.bin_header_widget(SIN_BIN).construir_menu()
+
+    textos = [a.text() for a in menu.actions() if not a.isSeparator()]
+    assert textos == ["Seleccionar el clip", "Colapsar"]
+
+
+def test_el_cartel_de_arrastre_no_dice_a_los_1_que_ya_tiene(qtbot):
+    """El bin de destino ya tiene UN clip: «se suman a los 1 que ya tiene»."""
+    hoja = ClipSheet()
+    qtbot.addWidget(hoja)
+    hoja.set_bin_order(["Sony"])
+    hoja.set_clips([_thumb(0, bin_nombre="Sony")])
+    cabecera = hoja.bin_header_widget("Sony")
+
+    cabecera.set_soltando(True, cuantos=2)
+
+    assert cabecera.drop_label.text() == (
+        "＋ soltar aquí · 2 videos · se suman al que ya tiene"
+    )
+
+
+def test_el_cartel_de_arrastre_sobre_un_bin_vacio_dice_que_esta_vacio(qtbot):
+    """Los bins vacios existen desde la F8, asi que «se suman a los 0 que ya
+    tiene» es un texto alcanzable -- y no dice nada."""
+    hoja = ClipSheet()
+    qtbot.addWidget(hoja)
+    hoja.set_bin_order(["Dron"])
+    hoja.set_clips([])
+    cabecera = hoja.bin_header_widget("Dron")
+
+    cabecera.set_soltando(True, cuantos=1)
+
+    assert cabecera.drop_label.text() == "＋ soltar aquí · 1 video · el bin está vacío"

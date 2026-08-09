@@ -35,3 +35,14 @@ class ElidedLabel(QLabel):
         if ancho <= 0:
             return text
         return QFontMetrics(self.font()).elidedText(text, Qt.TextElideMode.ElideRight, ancho)
+
+
+def plural_clips(cuantos: int) -> str:
+    """«1 clip», «3 clips», «0 clips».
+
+    Escrito una sola vez porque el mismo texto aparece en tres lugares --el
+    encabezado del bin, su menu y el aviso de quitar del proyecto-- y tres
+    copias de la misma regla se desincronizan solas. Bruno lee estos textos:
+    «1 clips» se nota.
+    """
+    return "1 clip" if cuantos == 1 else f"{cuantos} clips"
