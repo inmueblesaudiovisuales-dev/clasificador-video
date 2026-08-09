@@ -3053,3 +3053,81 @@ def test_entrar_a_la_hoja_lleva_al_clip_actual(qtbot):
     viewport = window.clip_sheet._scroll.viewport()
     arriba = tarjeta.mapTo(viewport, tarjeta.rect().topLeft())
     assert viewport.rect().intersects(QRect(arriba, tarjeta.size()))
+
+
+# --- solo video y modo hoja no pueden convivir (auditoria F10) ---------
+#
+# Los dos esconden paneles, y nadie impedia combinarlos: `⇥` y luego `F`
+# --dos teclas que la app anuncia-- dejaban la ventana COMPLETAMENTE
+# VACIA. La hoja esconde el video; solo video esconde la hoja; juntos no
+# queda nada que ver.
+
+
+def _paneles_visibles(window):
+    return [
+        nombre for nombre in
+        ("title_bar", "room_rail", "tool_column", "clip_sheet", "status_bar", "video_stage")
+        if not getattr(window, nombre).isHidden()
+    ]
+
+
+def test_solo_video_desde_la_hoja_no_deja_la_ventana_vacia(qtbot):
+    window = _window(qtbot)
+    window.resize(1600, 1000)
+    window.show()
+    window.load_clips([_clip(1), _clip(2)])
+    window.alternar_modo_hoja()
+
+    window.alternar_solo_video()
+
+    assert _paneles_visibles(window), "la ventana quedo sin un solo panel visible"
+    assert "video_stage" in _paneles_visibles(window)
+    assert not window._modo_hoja, "solo video sale de la hoja: sin video no hay nada que dejar solo"
+
+
+def test_la_hoja_desde_solo_video_no_deja_la_ventana_vacia(qtbot):
+    window = _window(qtbot)
+    window.resize(1600, 1000)
+    window.show()
+    window.load_clips([_clip(1), _clip(2)])
+    window.alternar_solo_video()
+
+    window.alternar_modo_hoja()
+
+    assert "clip_sheet" in _paneles_visibles(window)
+    assert not window._solo_video, "entrar a la hoja devuelve los paneles"
+
+
+def test_los_dos_modos_siguen_funcionando_por_separado(qtbot):
+    """El arreglo no puede romper cada modo por su cuenta."""
+    window = _window(qtbot)
+    window.resize(1600, 1000)
+    window.show()
+    window.load_clips([_clip(1), _clip(2)])
+
+    window.alternar_solo_video()
+    assert _paneles_visibles(window) == ["video_stage"]
+    window.alternar_solo_video()
+    assert "clip_sheet" in _paneles_visibles(window)
+
+    window.alternar_modo_hoja()
+    assert "video_stage" not in _paneles_visibles(window)
+    window.alternar_modo_hoja()
+    assert "video_stage" in _paneles_visibles(window)
+
+
+def test_cargar_material_nuevo_no_arrastra_los_proxies_del_anterior(qtbot, monkeypatch, tmp_path):
+    """Mismo motivo por el que `load_clips` limpia el historial: los
+    tamaños de proxy van por INDICE de clip, y con material nuevo el
+    indice 0 es otro clip. Arrastrarlos haria que el badge anuncie una
+    resolucion que no es la de ese archivo."""
+    window = _window_with_video(qtbot, cache_root=tmp_path / "cache")
+    monkeypatch.setattr(window, "_probe_clip", _ProbeConProxy())
+    _importar_con_proxy(window, monkeypatch, tmp_path)
+    _esperar_a_los_proxies(window)
+    assert window._proxy_sizes
+
+    window.load_clips([_clip(1), _clip(2)])
+
+    assert window._proxy_sizes == {}
+    assert window.etiqueta_de_proxy(0) is None

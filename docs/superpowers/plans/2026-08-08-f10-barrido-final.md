@@ -307,3 +307,45 @@ Es de Bruno, no del código:
 - [ ] Los atajos con modificador (`⌘Z`, `⌘A`, `⌘E`, `⌘R`) contra el teclado
       físico.
 - [ ] El pincel y la marquesina con el mouse de verdad.
+
+
+---
+
+## Auditoría posterior al cierre — 2026-08-08
+
+Corrida a pedido de Bruno, **ejecutando** y no leyendo. **787 tests en verde.**
+
+### Dos bugs reales, los dos con teclas que la app anuncia
+
+1. **`⇥` y luego `F` dejaban la ventana COMPLETAMENTE VACÍA.** Los dos modos
+   esconden paneles: la hoja esconde el video, y solo video esconde la hoja.
+   Combinados no quedaba un solo panel visible — pantalla en negro, sin más
+   salida que adivinar que `F` otra vez la trae de vuelta. Pasaba en los dos
+   órdenes (`⇥`+`F` y `F`+`⇥`).
+
+   Ahora son excluyentes: entrar a uno sale del otro. Se recorrieron las nueve
+   combinaciones posibles y ninguna deja menos de un panel.
+
+2. **Cargar material nuevo arrastraba los tamaños de proxy del anterior.** Van
+   por índice de clip, igual que el historial —que `load_clips` sí limpiaba, con
+   su comentario explicando por qué— así que el badge podía anunciar una
+   resolución que no era la de ese archivo. Es el mismo bug que el comentario
+   del historial describe, en el estado de al lado.
+
+### Lo que se revisó y está bien
+
+| Qué | Resultado |
+|---|---|
+| Las nueve combinaciones de `⇥` / `F` / `esc` | ninguna deja la ventana vacía |
+| La selección múltiple al cruzar de modo | sobrevive, como promete `DECISIONES.md` |
+| El centrado de la tarjeta actual al entrar a la hoja | queda **entera** dentro del viewport, no asomada |
+| Doble click desde la hoja | abre el clip y anima |
+| 11 estados degenerados (sin clips, fps 0, proxy que no existe, tamaños en cero, ventana de 400×300, todo eso dentro y fuera de la hoja) | ninguno revienta |
+| Tecla de cuarto | 3.78 ms |
+| Cruce de modo, ida y vuelta | 36.4 ms — una vez por tecla, no por cuadro |
+
+### Una nota sobre `esc`
+
+En modo hoja `esc` no hace nada, y **está bien así**: deshace una capa por vez
+—solo video → clip → hoja— y la hoja es la capa de más afuera. No hay nada
+debajo que devolver.

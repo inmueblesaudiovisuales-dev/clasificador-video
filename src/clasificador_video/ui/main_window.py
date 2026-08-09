@@ -1093,6 +1093,12 @@ class MainWindow(QWidget):
         # el historial guarda INDICES de clip: con material nuevo apuntarian
         # a otros clips, asi que lo de antes ya no aplica a nada
         self.history.clear()
+        # y por lo mismo, los proxies: van por INDICE de clip. La ruta la
+        # trae cada Clip --sobrevive a una sesion restaurada-- pero el
+        # tamaño medido es de ESTE material. La importacion los vuelve a
+        # llenar despues de llamar aca.
+        self._proxy_sizes = {}
+        self._proxy_candidatos = {}
         self._refresh_history()
         self._refresh_sheet(force_rebuild=True)
         self._abrir_clip_actual()
@@ -1334,7 +1340,15 @@ class MainWindow(QWidget):
         porque esconder los paneles sin recalcular dejaria el mismo video con
         franjas negras al costado -- justo lo que este rediseño evita.
         """
+        # Los dos modos que esconden paneles son EXCLUYENTES. La hoja
+        # esconde el video y solo video esconde la hoja: combinados no
+        # queda un solo panel visible, y las dos teclas estan anunciadas,
+        # asi que `⇥` + `F` dejaba la ventana en negro.
+        if not self._solo_video and self._modo_hoja:
+            self.alternar_modo_hoja()   # sin video no hay nada que dejar solo
         self._solo_video = not self._solo_video
+        if self._solo_video:
+            self.transicion.cancelar()  # una tarjeta volando sobre nada
         for panel in (self.title_bar, self.room_rail, self.tool_column,
                       self.clip_sheet, self.status_bar):
             panel.setVisible(not self._solo_video)
@@ -1454,6 +1468,10 @@ class MainWindow(QWidget):
         # La tarjeta del clip actual, ANTES de que la hoja cambie de modo:
         # despues del cruce las tarjetas ya se re-acomodaron y su posicion
         # de origen se perdio.
+        # ver la nota de `alternar_solo_video`: son excluyentes
+        if not self._modo_hoja and self._solo_video:
+            self.alternar_solo_video()  # entrar a la hoja devuelve los paneles
+
         tarjeta = self._tarjeta_actual() if self._modo_hoja else None
 
         self._modo_hoja = not self._modo_hoja
