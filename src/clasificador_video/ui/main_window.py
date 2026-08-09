@@ -1130,6 +1130,12 @@ class MainWindow(QWidget):
         # llenar despues de llamar aca.
         self._proxy_sizes = {}
         self._proxy_candidatos = {}
+        # y los bins: van por INDICE de clip, igual que el historial y los
+        # proxies de arriba. Dejarlos vivos aca era el bug real -- una
+        # sesion restaurada de 109 clips mas una carpeta importada quedaba
+        # con bins apuntando a clips que ya no eran esos, y ese estado
+        # corrupto se autosavea y sobrevive a cerrar la app.
+        self.bins = BinTree()
         self._refresh_history()
         self._refresh_sheet(force_rebuild=True)
         self._abrir_clip_actual()

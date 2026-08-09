@@ -35,3 +35,18 @@ def test_el_autosave_escribe_los_bins(qtbot, tmp_path, ventana):
     assert data["bins"] == [
         {"nombre": "Dron", "origen": "/dron", "clips": [0, 1]}
     ]
+
+
+def test_cargar_clips_de_nuevo_reinicia_los_bins(qtbot, ventana):
+    """`load_clips` ya limpia el historial y los proxies porque van por
+    INDICE de clip y una lista nueva vuelve invalidos esos indices. Los
+    bins son exactamente el mismo caso y se habian quedado afuera: sin
+    esto, restaurar una sesion de 109 clips e importar otra carpeta deja
+    bins apuntando a clips que ya no son esos.
+    """
+    ventana.load_clips([_clip(0, "/cam/A.MP4"), _clip(1, "/cam/B.MP4")])
+    ventana.bins.agregar("Sony", Path("/cam"), [0, 1])
+
+    ventana.load_clips([_clip(0, "/dron/D.MP4")])
+
+    assert ventana.bins.nombres() == []
