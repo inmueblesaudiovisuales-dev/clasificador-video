@@ -966,3 +966,47 @@ def test_pasar_sin_boton_sigue_su_camino_como_siempre(qtbot):
     tarjeta.mouseMoveEvent(evento)
 
     assert not evento.isAccepted()
+
+
+# --- la miniatura no puede quedarse clavada -------------------------------
+
+
+def test_al_arrastrar_la_miniatura_vuelve_a_la_portada(qtbot):
+    """Para llegar a arrastrar una tarjeta tuviste que pasarle el mouse por
+    encima, o sea escrubearla. Y el reset vive en `leaveEvent`, que durante el
+    arrastre no llega --el mouse esta tomado-- y al soltar tampoco, porque el
+    cursor termina sobre el encabezado de destino y no sobre la tarjeta. El
+    clip que acabas de mover se quedaba mostrando el cuadro por el que ibas
+    pasando, con su barrita de escrubeo y su timecode encima.
+
+    Que la rama del arrastre no escrubee impide ENSUCIAR mas; no limpia lo que
+    el hover ya habia dejado.
+    """
+    hoja = _hoja(qtbot, [_thumb(0, bin_nombre="Sony")], bins=["Sony"])
+    tarjeta = hoja.item_widgets[0]
+    tarjeta.set_frames([_pixmap() for _ in range(8)])
+    tarjeta.escrubear_a(0.9)
+    assert tarjeta._hover is not None
+    assert tarjeta._shown_index != tarjeta._poster_index
+
+    _arrastrar_de_verdad(hoja, tarjeta)
+
+    assert tarjeta._hover is None
+    assert tarjeta._shown_index == tarjeta._poster_index
+
+
+def test_reponer_la_portada_es_lo_mismo_que_salir_de_la_tarjeta(qtbot):
+    """Un solo camino para volver a la portada: si fueran dos, uno de los dos
+    se iba a olvidar de apagar la barrita del escrubeo."""
+    hoja = _hoja(qtbot, [_thumb(0)])
+    tarjeta = hoja.item_widgets[0]
+    tarjeta.set_frames([_pixmap() for _ in range(8)])
+
+    tarjeta.escrubear_a(0.9)
+    tarjeta.leaveEvent(QEvent(QEvent.Type.Leave))
+    por_salir = (tarjeta._hover, tarjeta._shown_index)
+
+    tarjeta.escrubear_a(0.9)
+    tarjeta.reponer_portada()
+
+    assert (tarjeta._hover, tarjeta._shown_index) == por_salir

@@ -660,13 +660,23 @@ class ClipCard(QWidget):
         distancia = (punto - self._origen_arrastre).manhattanLength()
         return distancia >= QApplication.startDragDistance()
 
-    def leaveEvent(self, event) -> None:  # noqa: N802 -- override de Qt
-        # vuelve a la portada: si cada tarjeta se quedara en el frame por el
-        # que pasaste, la hoja terminaria siendo un mosaico de frames al azar
+    def reponer_portada(self) -> None:
+        """Deshace el escrubeo: vuelve al frame de portada y apaga la barrita.
+
+        Lo normal es que lo dispare `leaveEvent`, pero el arrastre necesita
+        pedirlo a mano --ahi el mouse esta tomado y el `leaveEvent` no llega--
+        y tiene que ser EL MISMO camino: con dos, uno de los dos se iba a
+        olvidar de apagar la barrita.
+        """
         self._hover = None
         if self._frames:
             self._show_frame(self._poster_index)
         self._overlay.update()
+
+    def leaveEvent(self, event) -> None:  # noqa: N802 -- override de Qt
+        # si cada tarjeta se quedara en el frame por el que pasaste, la hoja
+        # terminaria siendo un mosaico de frames al azar
+        self.reponer_portada()
         super().leaveEvent(event)
 
     # --- estado visual ---------------------------------------------------
@@ -2288,6 +2298,16 @@ class ClipSheet(QWidget):
         # estas apuntando
         drag.setHotSpot(QPoint(12, 12))
         self._ejecutar_arrastre(drag)
+        # Para llegar a arrastrar la tarjeta le pasaste el mouse por encima, o
+        # sea que la escrubeaste. `leaveEvent` --que es quien repone la
+        # portada-- no llega ni durante el arrastre (el mouse esta tomado) ni
+        # al soltar (el cursor queda sobre el encabezado de destino, no sobre
+        # la tarjeta), asi que el clip que acabas de mover se quedaba
+        # mostrando un cuadro al azar con su barrita y su timecode encima.
+        #
+        # Solo la de origen: durante el arrastre Qt manda eventos de drag, no
+        # de movimiento de mouse, asi que ninguna otra tarjeta escrubea.
+        self.item_widgets[indice].reponer_portada()
 
     @staticmethod
     def _ejecutar_arrastre(drag: QDrag) -> None:
