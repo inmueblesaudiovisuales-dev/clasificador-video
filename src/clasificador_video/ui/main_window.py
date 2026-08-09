@@ -1477,19 +1477,43 @@ class MainWindow(QWidget):
         self._clip_rotations = _corrido(self._clip_rotations, fuera)
         self._proxy_sizes = _corrido(self._proxy_sizes, fuera)
         self._proxy_candidatos = _corrido(self._proxy_candidatos, fuera)
-        # este es el mas traicionero de los seis: una generacion que
-        # sobrevive apuntando a otro clip hace que un resultado viejo se
-        # acepte como valido y enganche un proxy ajeno.
-        self._proxy_generacion_de = _corrido(self._proxy_generacion_de, fuera)
+        # Los sondeos en vuelo NO se corren: se tiran enteros.
+        #
+        # Correr `_proxy_generacion_de` conserva el VALOR, y todos los clips
+        # de una tanda comparten generacion -- asi que un resultado que
+        # venia para el indice viejo cae sobre un indice nuevo que tiene esa
+        # MISMA generacion y pasa la guarda de `_on_proxy_sondeado`. De ahi
+        # en adelante `_el_proxy_calza` compara el candidato de un clip
+        # contra la info del archivo de otro, y entre dos tomas de la misma
+        # camara y duracion eso calza: se engancha un proxy ajeno y
+        # `_proxy_sizes` guarda las medidas del archivo equivocado. La
+        # validacion cuadro a cuadro, que es la razon de ser del sondeo, se
+        # salta entera.
+        self._proxy_generation += 1
+        self._proxy_generacion_de = {}
         self.bins.reindexar_tras_quitar(quitados)
         # el historial guarda INDICES de clip: despues de correrlos ya no
         # apunta a lo mismo, y deshacer moveria el clip equivocado.
         self.history.clear()
         self._refresh_history()
-        self.current_index = min(self.current_index, max(0, len(self.clips) - 1))
+        # el clip actual se CORRE, no se recorta: si lo que se fue estaba
+        # antes que el, su indice baja tantos lugares como quitados haya por
+        # debajo. Con un `min` te quedabas mirando otro clip sin aviso.
+        self.current_index = min(
+            self.current_index - sum(1 for q in fuera if q < self.current_index),
+            max(0, len(self.clips) - 1),
+        )
         # `force_rebuild` SI: hay menos tarjetas que antes, y `update_clips`
         # solo sabe actualizar en el lugar cuando el largo no cambio.
         self._refresh_sheet(force_rebuild=True)
+        # y las portadas: los trabajos lanzados antes de quitar entregan con
+        # su indice VIEJO sobre `item_widgets[index]`, que ahora es otro clip
+        # -- exactamente el fallo que la Regla 1 de `ClipSheet` existe para
+        # evitar. Esta llamada sube `_thumb_generation`, con lo que esas
+        # señales quedan invalidadas, y vuelve a pedir lo que falte con los
+        # indices nuevos. Va DESPUES del refresco: los aciertos de cache se
+        # entregan en el acto y necesitan la hoja ya reconstruida.
+        self._schedule_thumbnails()
         self._abrir_clip_actual()
         self._autosave()
 
@@ -2130,6 +2154,12 @@ class MainWindow(QWidget):
         """
         clip = self.current_clip
         if clip is None:
+            # el proyecto se quedo sin clips. Salir de aqui sin mas dejaba
+            # al visor reproduciendo el ultimo que hubo, que ya no esta en
+            # el proyecto: el video seguia sonando con la hoja vacia.
+            self.video_widget.cerrar_clip()
+            self._auto_reproduciendo = False
+            self.video_stage.badges.set_auto(False)
             return
         player = self.video_widget.player
         player.set_start_percent(START_PERCENT)

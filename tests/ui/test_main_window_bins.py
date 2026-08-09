@@ -9,6 +9,27 @@ from clasificador_video.rooms import RoomSelection
 from clasificador_video.ui.main_window import MainWindow
 
 
+class FakeMpv:
+    """Sustituto de `mpv.MPV`. Mismo doble que usa `test_main_window.py`.
+
+    Sin el, cada ventana de este archivo abre un mpv de verdad --con sus
+    hilos-- solo para que `_abrir_clip_actual` tenga a quien hablarle.
+    """
+
+    def __init__(self, **kwargs):
+        self.init_kwargs = kwargs
+        self.loaded_path = None
+        self.pause = True
+        self.time_pos = 0.0
+        self.commands = []
+
+    def play(self, path):
+        self.loaded_path = path
+
+    def command(self, *args):
+        self.commands.append(args)
+
+
 def _clip(i, ruta):
     return Clip(orden=i + 1, ruta=Path(ruta), categoria_path=[], fps=30.0)
 
@@ -34,7 +55,8 @@ def ventana(qtbot):
     """Misma forma que `_window` en test_main_window.py -- no hay una
     fixture equivalente ya declarada en tests/ui/, asi que se copia el
     patron en vez de duplicar la logica en cada archivo nuevo."""
-    window = MainWindow(project_name="Casa Jardin", room_selection=RoomSelection())
+    window = MainWindow(project_name="Casa Jardin", room_selection=RoomSelection(),
+                        video_factory=FakeMpv)
     window._probe_clip = _probe_falso
     qtbot.addWidget(window)
     return window
@@ -654,12 +676,14 @@ def test_el_encabezado_dice_cuantos_proxies_engancharon(qtbot, ventana):
 def test_quitar_un_bin_corre_todo_lo_que_va_por_indice(qtbot, ventana):
     """El segundo lugar donde esto rompe en silencio.
 
-    `_clip_durations`, `_clip_sizes`, `_clip_rotations`, `_proxy_sizes`,
-    `_proxy_candidatos` y `_proxy_generacion_de` van TODOS por indice de
-    clip. Al quitar los clips 0 y 1, el que era 2 pasa a ser 0 -- y
-    cualquiera de esos diccionarios que no se corra queda describiendo a
-    otro clip, sin dar ningun sintoma hasta que un video se dibuja acostado
-    o un rango cae corrido.
+    `_clip_durations`, `_clip_sizes`, `_clip_rotations`, `_proxy_sizes` y
+    `_proxy_candidatos` van TODOS por indice de clip. Al quitar los clips 0
+    y 1, el que era 2 pasa a ser 0 -- y cualquiera de esos diccionarios que
+    no se corra queda describiendo a otro clip, sin dar ningun sintoma hasta
+    que un video se dibuja acostado o un rango cae corrido.
+
+    `_proxy_generacion_de` es el unico que NO se corre: se tira entero, por
+    lo que explica `test_quitar_un_bin_invalida_los_sondeos_de_proxy_en_vuelo`.
     """
     ventana.load_clips([_clip(0, "/cam/A.MP4"), _clip(1, "/cam/B.MP4"),
                         _clip(2, "/dron/D.MP4")])
@@ -681,7 +705,6 @@ def test_quitar_un_bin_corre_todo_lo_que_va_por_indice(qtbot, ventana):
     assert ventana._clip_rotations == {0: 90}
     assert ventana._proxy_sizes == {0: (640, 360)}
     assert ventana._proxy_candidatos == {0: Path("/dron/D_px.MP4")}
-    assert ventana._proxy_generacion_de == {0: 7}
 
 
 def test_quitar_un_bin_renumera_los_clips_que_quedan(qtbot, ventana):
@@ -788,3 +811,112 @@ def test_renombrar_desde_el_menu_llega_a_la_ventana(qtbot, ventana):
         "Dron", "Dron DJI")
 
     assert ventana.bins.nombres() == ["Dron DJI"]
+
+
+# --- lo que queda en vuelo cuando quitas un bin ------------------------------
+
+
+def _png(tmp_path: Path, nombre: str) -> Path:
+    """Un PNG de verdad: `QPixmap` de un archivo inventado sale nulo, y una
+    miniatura nula no prueba nada."""
+    from PySide6.QtGui import QPixmap
+    from PySide6.QtCore import Qt
+
+    pm = QPixmap(32, 18)
+    pm.fill(Qt.GlobalColor.red)
+    ruta = tmp_path / nombre
+    pm.save(str(ruta))
+    return ruta
+
+
+def test_quitar_un_bin_invalida_las_portadas_en_vuelo(qtbot, ventana, tmp_path):
+    """El fallo que la Regla 1 de `ClipSheet` existe para evitar.
+
+    Sacar 12 cuadros de un clip tarda; quitar un bin es un clic. Un trabajo
+    lanzado ANTES de quitar entrega con su indice VIEJO, y despues de quitar
+    un bin de adelante ese indice es otro clip -- la miniatura del clip
+    borrado aterriza sobre la tarjeta de otro.
+    """
+    ventana.load_clips([_clip(0, "/cam/A.MP4"), _clip(1, "/cam/B.MP4"),
+                        _clip(2, "/dron/D.MP4")])
+    ventana.bins.agregar("Sony", Path("/cam"), [0, 1])
+    ventana.bins.agregar("Dron", Path("/dron"), [2])
+    en_vuelo = ventana._thumb_generation
+
+    ventana._on_bin_quitado("Sony")
+    ventana._on_thumbnail_ready(en_vuelo, 0, [_png(tmp_path, "a.png")])
+
+    assert not ventana.clip_sheet.item_widgets[0].has_pixmap()
+
+
+def test_quitar_un_bin_invalida_los_sondeos_de_proxy_en_vuelo(qtbot, ventana):
+    """Correr `_proxy_generacion_de` conserva el VALOR, y todos los clips de
+    una tanda comparten generacion: un resultado en vuelo con indice viejo
+    cae sobre un indice nuevo que tiene esa misma generacion y pasa la
+    guarda. Ahi `_el_proxy_calza` valida el candidato de un clip con la info
+    del archivo de otro -- y entre dos tomas de la misma camara y duracion
+    calza, asi que se engancha un proxy ajeno sin haber validado nada.
+    """
+    ventana.load_clips([_clip(0, "/cam/A.MP4"), _clip(1, "/cam/B.MP4"),
+                        _clip(2, "/dron/D.MP4")])
+    ventana.bins.agregar("Sony", Path("/cam"), [0, 1])
+    ventana.bins.agregar("Dron", Path("/dron"), [2])
+    ventana._clip_durations = {0: 10.0, 1: 10.0, 2: 10.0}
+    ventana._clip_sizes = {i: (1920, 1080) for i in range(3)}
+    ventana._clip_rotations = {i: 0 for i in range(3)}
+    ventana._proxy_candidatos = {2: Path("/dron/D_px.MP4")}
+    ventana._proxy_generation = 5
+    ventana._proxy_generacion_de = {2: 5}
+
+    ventana._on_bin_quitado("Sony")
+    # el resultado del clip 2 llega tarde, con su indice viejo
+    ventana._on_proxy_sondeado(5, 2, {"fps": 30.0, "duration_frames": 300,
+                                      "width": 960, "height": 540, "rotation": 0})
+
+    assert ventana._proxy_generacion_de == {}
+    assert ventana._proxy_generation > 5
+    assert ventana.clips[0].ruta_proxy is None
+    assert ventana._proxy_sizes == {}
+
+
+def test_quitar_un_bin_de_adelante_corre_el_clip_actual(qtbot, ventana):
+    """Recortar con `min` no alcanza: si lo que se fue estaba ANTES del clip
+    actual, el indice tiene que bajar tantos lugares como quitados haya por
+    debajo. Con `min` te quedas mirando OTRO clip sin que nadie te avise."""
+    ventana.load_clips([_clip(0, "/cam/A.MP4"), _clip(1, "/cam/B.MP4"),
+                        _clip(2, "/dron/D.MP4"), _clip(3, "/dron/E.MP4")])
+    ventana.bins.agregar("Sony", Path("/cam"), [0, 1])
+    ventana.bins.agregar("Dron", Path("/dron"), [2, 3])
+    ventana.select_clip(2)
+
+    ventana._on_bin_quitado("Sony")
+
+    assert ventana.current_index == 0
+    assert ventana.current_clip.ruta == Path("/dron/D.MP4")
+
+
+def test_si_quitas_el_bin_del_clip_actual_el_indice_no_se_pasa_del_final(qtbot, ventana):
+    ventana.load_clips([_clip(0, "/cam/A.MP4"), _clip(1, "/dron/D.MP4"),
+                        _clip(2, "/dron/E.MP4")])
+    ventana.bins.agregar("Sony", Path("/cam"), [0])
+    ventana.bins.agregar("Dron", Path("/dron"), [1, 2])
+    ventana.select_clip(2)
+
+    ventana._on_bin_quitado("Dron")
+
+    assert ventana.current_index == 0
+    assert ventana.current_clip.ruta == Path("/cam/A.MP4")
+
+
+def test_vaciar_el_proyecto_apaga_el_video(qtbot, ventana):
+    """Sin esto, quitas el unico bin, la hoja queda vacia y el visor sigue
+    mostrando --y reproduciendo-- un clip que ya no esta en el proyecto."""
+    ventana.load_clips([_clip(0, "/cam/A.MP4")])
+    ventana.bins.agregar("Sony", Path("/cam"), [0])
+    assert not ventana.video_widget.player.is_paused
+
+    ventana._on_bin_quitado("Sony")
+
+    assert ventana.video_widget.player.is_paused
+    assert ("stop",) in ventana.video_widget.player._mpv.commands
+    assert not ventana._auto_reproduciendo

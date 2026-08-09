@@ -148,6 +148,12 @@ class VideoWidget(QOpenGLWidget):
     def open_clip(self, path: Path) -> None:
         self.player.open(path)
 
+    def cerrar_clip(self) -> None:
+        """Deja el visor sin nada. Se usa cuando el proyecto se queda sin
+        clips: no hay a que volver, y seguir mostrando el ultimo seria
+        mostrar material que ya no esta en el proyecto."""
+        self.player.cerrar()
+
     def toggle_play(self) -> None:
         self.player.toggle()
 

@@ -49,6 +49,19 @@ class MpvPlayer:
     def pause(self) -> None:
         self._mpv.pause = True
 
+    def cerrar(self) -> None:
+        """Descarga el archivo y deja el reproductor callado.
+
+        `pause` sola no alcanza: mpv conserva el ultimo cuadro decodificado
+        --`keep_open=always`, que es lo que evita el widget negro tras cada
+        EOF-- asi que sin el `stop` el visor se queda mostrando un clip que
+        ya no esta en el proyecto.
+        """
+        self._mpv.pause = True
+        self._mpv.command("stop")
+        self.in_frame = None
+        self.out_frame = None
+
     def toggle(self) -> None:
         if self._mpv.pause:
             self.play()
