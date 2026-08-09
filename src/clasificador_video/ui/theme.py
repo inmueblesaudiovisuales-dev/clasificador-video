@@ -107,6 +107,9 @@ SAME_ROW_BG_ALPHA = 23      # rgba(232,163,61,.09)
 SAME_ROW_BORDER_ALPHA = 71  # rgba(232,163,61,.28)
 SAME_ROW_KEY_ALPHA = 46     # rgba(232,163,61,.18)
 SAME_ROW_TAG_ALPHA = 204    # rgba(232,163,61,.8)
+# La paleta `⏎` tapa video a proposito: se esta leyendo una lista.
+PALETTE_BG = "rgba(20, 23, 28, 247)"     # rgba(20,23,28,.97) del mockup
+PALETTE_BORDER = "#333c4a"
 # Las marcas de tiempo tienen DOS juegos de color, por el mismo motivo que el
 # riel: TICK_*_COLOR son grises oscuros pensados para fondo oscuro, y sobre el
 # video --donde la banda es translucida y la imagen puede ser una pared
@@ -543,6 +546,57 @@ def build_stylesheet() -> str:
         font-size: {FONT_MICRO}px;
         font-weight: 650;
         padding: 3px 6px 4px;
+    }}
+    /* La paleta `⏎`. Flota sobre el video, asi que su fondo es casi opaco:
+       aqui SI hay que tapar imagen, porque estas leyendo una lista. */
+    QWidget#roomPalette {{
+        background-color: {PALETTE_BG};
+        border: 1px solid {PALETTE_BORDER};
+        border-radius: {RADIUS_LG}px;
+    }}
+    QWidget#palInput {{
+        border-bottom: 1px solid {LINE_SOFT};
+        background-color: transparent;
+    }}
+    QLineEdit#palQuery {{
+        background-color: transparent;
+        border: none;
+        color: {TEXT};
+        font-family: {MONO_FONT};
+        font-size: {FONT_TITLE}px;
+    }}
+    QLabel#palScope {{
+        background-color: transparent;
+        color: {TEXT_3};
+        font-size: {FONT_MICRO}px;
+    }}
+    QWidget#palOption {{
+        background-color: transparent;
+    }}
+    QWidget#palOption[activa="true"] {{
+        background-color: {BG_SURFACE_2};
+    }}
+    QWidget#palOption QLabel {{
+        background-color: transparent;
+    }}
+    QLabel#palName {{
+        color: {TEXT};
+        font-size: {FONT_BODY}px;
+    }}
+    /* crear va en verde --el color de pick-- porque es la accion que SUMA */
+    QLabel#palCreate {{
+        background-color: transparent;
+        border-top: 1px solid {LINE_SOFT};
+        color: {PICK_COLOR};
+        font-size: {FONT_BODY}px;
+        padding: 8px 12px;
+    }}
+    QLabel#palFoot {{
+        background-color: transparent;
+        border-top: 1px solid {LINE_SOFT};
+        color: {TEXT_3};
+        font-size: {FONT_MICRO}px;
+        padding: 7px 12px;
     }}
     QLabel#toolHint {{
         color: {TEXT_3};

@@ -33,6 +33,7 @@ from clasificador_video.thumbnails import (
 )
 from clasificador_video.ui import theme
 from clasificador_video.ui.clip_sheet import ClipSheet, ClipThumbnail
+from clasificador_video.ui.room_palette import RoomPalette
 from clasificador_video.ui.room_rail import RoomRail
 from clasificador_video.ui.status_bar import StatusBar
 from clasificador_video.ui.title_bar import TitleBar
@@ -246,6 +247,13 @@ class MainWindow(QWidget):
         self._saved_timer.timeout.connect(self._tick_saved_indicator)
         self._saved_timer.start()
 
+        # La paleta flota sobre el video: hija de la ventana y NO un QDialog
+        # modal, porque un modal roba el teclado y hay que cerrarlo para
+        # seguir clasificando.
+        self.room_palette = RoomPalette(self)
+        self.room_palette.room_chosen.connect(self._on_room_elegido_en_paleta)
+        self.room_palette.room_created.connect(self._on_room_creado_en_paleta)
+
         self._install_shortcuts()
         self._refresh_rail()
 
@@ -302,6 +310,10 @@ class MainWindow(QWidget):
             ("U", lambda: self.handle_key_press("u")),
             # `S`: el mismo cuarto que el clip anterior
             ("S", lambda: self.handle_key_press("s")),
+            # `⏎`: la paleta de cuartos. Comparte tecla con renombrar en el
+            # rail, y por eso el handler mira quien tiene el foco.
+            ("Return", self._on_enter),
+            ("Enter", self._on_enter),
             # `J K L`: la convencion de Premiere, Avid y Resolve
             ("L", lambda: self.handle_key_press("l")),
             ("K", lambda: self.handle_key_press("k")),
@@ -473,6 +485,59 @@ class MainWindow(QWidget):
         define la cola.
         """
         self.clip_sheet.chips["sin_clasificar"].click()
+
+    # ------------------------------------------------------------------
+    # la paleta de cuartos (`⏎`)
+    # ------------------------------------------------------------------
+
+    def _on_enter(self) -> None:
+        """`⏎` abre la paleta, salvo cuando la tecla ya significa otra cosa.
+
+        Con una fila del rail enfocada, `⏎` renombra ese cuarto; dentro de un
+        campo de texto, confirma lo que escribiste. Un `QShortcut` normal se
+        dispara sin importar quien tiene el foco, asi que sin esta comprobacion
+        la paleta se robaria las dos cosas y nadie sabria por que dejaron de
+        funcionar.
+        """
+        if self.escribiendo_texto() or self._foco_en_el_rail():
+            return
+        self.room_palette.abrir(
+            self.room_selection.active_rooms(),
+            self._conteos_por_cuarto(),
+            len(self._bulk_target_indices()),
+        )
+        self._colocar_paleta()
+
+    def _foco_en_el_rail(self) -> bool:
+        foco = QApplication.focusWidget()
+        return foco is not None and self.room_rail.isAncestorOf(foco)
+
+    def _conteos_por_cuarto(self) -> dict[str, int]:
+        from collections import Counter
+
+        cuenta: Counter[str] = Counter()
+        for clip in self.clips:
+            if clip.categoria_path:
+                cuenta[clip.categoria_path[0]] += 1
+        return dict(cuenta)
+
+    def _colocar_paleta(self) -> None:
+        """Centrada sobre el video, no sobre la ventana: es donde estas
+        mirando, y sobre la hoja taparia justo los clips que quieres juzgar."""
+        etapa = self.video_stage
+        origen = etapa.mapTo(self, etapa.rect().topLeft())
+        x = origen.x() + (etapa.width() - self.room_palette.width()) // 2
+        self.room_palette.move(max(0, x), origen.y() + 90)
+
+    def _on_room_elegido_en_paleta(self, nombre: str) -> None:
+        self._asignar_cuarto([nombre])
+
+    def _on_room_creado_en_paleta(self, nombre: str) -> None:
+        """Crear y asignar de una: crear y volver a apuntar serian dos pasos
+        para una sola intencion."""
+        self.room_selection.add(nombre)
+        self._sync_rooms()
+        self._asignar_cuarto([nombre])
 
     def _asignar_cuarto(self, room_path: list[str]) -> None:
         """Un solo camino para asignar cuarto, lo pida un digito o la `S`.

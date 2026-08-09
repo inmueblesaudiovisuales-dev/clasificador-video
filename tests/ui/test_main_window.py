@@ -2128,3 +2128,139 @@ def test_destacado_se_ve_en_todos_lados(qtbot):
 def test_el_atajo_de_destacado_esta_registrado(qtbot):
     window = _window_with_video(qtbot)
     assert "Shift+P" in {s.key().toString() for s in window._shortcuts}
+
+
+# --- F7 Task 10: `P` y `X` vuelven a neutral ---------------------------------
+
+
+def test_P_sobre_un_pick_lo_devuelve_a_neutral(qtbot):
+    """Repetir la tecla vuelve a neutral (DECISIONES.md): eso evita tener una
+    tecla de neutral aparte, y menos atajos se aprenden mas rapido."""
+    window = _window(qtbot, rooms=("Cocina",))
+    window.load_clips([_clip(1)])
+    window.handle_key_press("p")
+    window.handle_key_press("p")
+    assert window.clips[0].flag == "none"
+
+
+def test_X_sobre_un_reject_lo_devuelve_a_neutral(qtbot):
+    window = _window(qtbot, rooms=("Cocina",))
+    window.load_clips([_clip(1)])
+    window.handle_key_press("x")
+    window.handle_key_press("x")
+    assert window.clips[0].flag == "none"
+
+
+def test_P_sobre_un_reject_lo_convierte_en_pick(qtbot):
+    """Solo alterna consigo misma: `P` sobre un reject es «ahora es pick»."""
+    window = _window(qtbot, rooms=("Cocina",))
+    window.load_clips([_clip(1)])
+    window.handle_key_press("x")
+    window.handle_key_press("p")
+    assert window.clips[0].flag == "pick"
+
+
+def test_deshacer_el_regreso_a_neutral(qtbot):
+    window = _window(qtbot, rooms=("Cocina",))
+    window.load_clips([_clip(1)])
+    window.handle_key_press("p")
+    window.handle_key_press("p")
+    window.undo()
+    assert window.clips[0].flag == "pick"
+
+
+def test_el_historial_nombra_el_regreso_a_neutral(qtbot):
+    """`Pick → Pick` en el historial no diria nada: la fila tiene que decir a
+    donde fue el clip, no que tecla apretaste."""
+    window = _window(qtbot, rooms=("Cocina",))
+    window.load_clips([_clip(1)])
+    window.handle_key_press("p")
+    window.handle_key_press("p")
+    assert window.history.entries()[0].etiqueta == "Sin marcar"
+
+
+# --- F7 Task 11: la paleta `⏎` -----------------------------------------------
+
+
+def test_enter_abre_la_paleta(qtbot):
+    window = _window(qtbot, rooms=("Cocina",))
+    window.load_clips([_clip(1)])
+    window._on_enter()
+    assert not window.room_palette.isHidden()
+
+
+def test_enter_NO_abre_la_paleta_si_el_foco_esta_en_el_rail(qtbot):
+    """Con una fila enfocada, `⏎` renombra ese cuarto. Un QShortcut normal se
+    dispara sin importar quien tiene el foco y se lo robaria: renombrar
+    dejaria de funcionar y nadie sabria por que."""
+    window = _window(qtbot, rooms=("Cocina",))
+    window.load_clips([_clip(1)])
+    window.show()
+    qtbot.waitExposed(window)
+    window.room_rail.focus_rooms()
+    qtbot.wait(20)
+    window._on_enter()
+    assert window.room_palette.isHidden()
+
+
+def test_enter_NO_abre_la_paleta_mientras_escribes_en_el_buscador(qtbot):
+    """En un campo de texto `⏎` es confirmar lo que escribiste."""
+    window = _window(qtbot, rooms=("Cocina",))
+    window.load_clips([_clip(1)])
+    window.show()
+    qtbot.waitExposed(window)
+    window.clip_sheet.search_input.setFocus()
+    qtbot.wait(20)
+    window._on_enter()
+    assert window.room_palette.isHidden()
+
+
+def test_la_paleta_asigna_el_cuarto_elegido(qtbot):
+    window = _window(qtbot, rooms=("Cocina", "Sala"))
+    window.load_clips([_clip(1), _clip(2)])
+    window.select_clip(0)
+    window.room_palette.room_chosen.emit("Sala")
+    assert window.clips[0].categoria_path == ["Sala"]
+
+
+def test_la_paleta_crea_el_cuarto_y_lo_asigna_de_una(qtbot):
+    """Crear y volver a apuntar es dos pasos para una sola intencion."""
+    window = _window(qtbot, rooms=("Cocina",))
+    window.load_clips([_clip(1)])
+    window.select_clip(0)
+    window.room_palette.room_created.emit("Alberca")
+    assert window.room_selection.active_rooms() == ["Cocina", "Alberca"]
+    assert window.clips[0].categoria_path == ["Alberca"]
+
+
+def test_lo_que_asigna_la_paleta_tambien_avanza_y_se_deshace(qtbot):
+    """Es una asignacion de cuarto como cualquier otra: mismo camino que los
+    digitos y que `S`."""
+    window = _window(qtbot, rooms=("Cocina", "Sala"))
+    window.load_clips([_clip(1), _clip(2), _clip(3)])
+    window.select_clip(0)
+    window.room_palette.room_chosen.emit("Sala")
+    assert window.current_index == 1
+    window.undo()
+    assert window.clips[0].categoria_path == []
+
+
+def test_la_paleta_sabe_a_cuantos_clips_va(qtbot):
+    window = _window(qtbot, rooms=("Cocina",))
+    window.load_clips([_clip(i) for i in range(1, 8)])
+    window._on_selection_changed([0, 1, 2, 3])
+    window._on_enter()
+    assert "4 clips" in window.room_palette.alcance_label.text()
+
+
+def test_la_paleta_muestra_los_cuartos_con_sus_conteos(qtbot):
+    window = _window(qtbot, rooms=("Cocina", "Sala"))
+    window.load_clips([_clip(1, "Cocina"), _clip(2, "Cocina")])
+    window._on_enter()
+    assert window.room_palette.opciones_visibles() == ["Cocina", "Sala"]
+    assert window.room_palette.filas_visibles()[0].count_label.text() == "2"
+
+
+def test_el_enter_esta_registrado(qtbot):
+    window = _window_with_video(qtbot)
+    assert "Return" in {s.key().toString() for s in window._shortcuts}
