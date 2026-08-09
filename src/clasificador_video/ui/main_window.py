@@ -1336,52 +1336,81 @@ class MainWindow(QWidget):
         self.agregar_clips(nuevos, nombre_de_bin or carpeta.name, carpeta)
 
     def adjuntar_proxies(self) -> None:
-        """El boton «Proxies»: eliges el proxy de UN clip y se enganchan
-        todos, como el «Attach Proxies» de Premiere.
+        """El boton «Proxies» de la barra: aplica al bin del clip actual.
 
-        Es a mano y solo a mano, por pedido de Bruno. Del par que eliges
-        sale el patron de nombre --`C0001.MP4` + `C0001S03.MP4` da el
-        sufijo `S03`-- y con eso se buscan los demas en esa carpeta.
+        Ya no tiene sentido como accion global. El patron de nombre es de
+        una CAMARA --la Sony escribe `C0001S03.MP4`, el dron se genera con
+        otro nombre-- y aplicarlo a todo el proyecto dejaba siempre a una
+        de las dos camaras sin proxy.
+        """
+        nombre = self.bins.bin_de(self.current_index)
+        if nombre is None:
+            QMessageBox.warning(self, "Sin material",
+                                "Primero importa los clips y luego engancha sus proxies.")
+            return
+        self.adjuntar_proxies_de_bin(nombre)
+
+    def adjuntar_proxies_de_bin(self, nombre_de_bin: str,
+                                elegido: Path | None = None) -> None:
+        """El «Enlazar proxies…» del menu del bin.
+
+        Eliges el proxy de UN clip de ESE bin y del par sale el patron de
+        nombre para los demas del MISMO bin --`C0001.MP4` + `C0001S03.MP4`
+        da el sufijo `S03`--, y con eso se buscan los otros en esa carpeta.
+        Es a mano y solo a mano, por pedido de Bruno.
 
         Cada uno se valida igual que siempre (mismos cuadros, mismo fps,
         misma orientacion): el que no calce no se engancha, porque un proxy
         corrido pone el in/out en el cuadro equivocado.
         """
-        clip = self.current_clip
-        if clip is None:
-            QMessageBox.warning(self, "Sin material",
-                                "Primero importa los clips y luego engancha sus proxies.")
+        indices = self.bins.clips_de(nombre_de_bin)
+        if not indices:
             return
-        ruta, _ = QFileDialog.getOpenFileName(
-            self,
-            f"Elige el proxy de {clip.ruta.name}",
-            str(clip.ruta.parent),
-            "Video (*.mp4 *.MP4 *.mov *.MOV *.mxf *.MXF)",
-        )
-        if not ruta:
-            return
-        elegido = Path(ruta)
-        patron = patron_de_proxy(clip.ruta, elegido)
+        # el clip abierto si es de este bin, y si no el primero del bin: el
+        # patron sale del par que elijas, asi que la referencia tiene que
+        # ser el clip que estabas mirando cuando lo elegiste.
+        referencia = self.clips[
+            self.current_index if self.current_index in indices else indices[0]
+        ]
+        if elegido is None:
+            ruta, _ = QFileDialog.getOpenFileName(
+                self,
+                f"Elige el proxy de {referencia.ruta.name}",
+                str(referencia.ruta.parent),
+                "Video (*.mp4 *.MP4 *.mov *.MOV *.mxf *.MXF)",
+            )
+            if not ruta:
+                return
+            elegido = Path(ruta)
+        patron = patron_de_proxy(referencia.ruta, elegido)
         if patron is None:
             QMessageBox.warning(
                 self, "Ese archivo no corresponde",
-                f"«{elegido.name}» no lleva el nombre de «{clip.ruta.name}» adentro, "
-                "así que no se puede deducir cómo se llaman los demás proxies.\n\n"
-                "Elige el proxy que corresponde a ESTE clip.",
+                f"«{elegido.name}» no lleva el nombre de «{referencia.ruta.name}» "
+                "adentro, así que no se puede deducir cómo se llaman los demás "
+                "proxies.\n\nElige el proxy que corresponde a ESE clip.",
             )
             return
         prefijo, sufijo = patron
         emparejados = emparejar_con_patron(
-            [c.ruta for c in self.clips], elegido.parent, prefijo, sufijo, elegido.suffix
+            [self.clips[i].ruta for i in indices],
+            elegido.parent, prefijo, sufijo, elegido.suffix,
         )
         encontrados = sum(1 for v in emparejados.values() if v is not None)
         QMessageBox.information(
             self, "Proxies",
-            f"Se encontraron {encontrados} de {len(self.clips)}.\n\n"
+            # contra los clips del BIN, no contra el proyecto entero: «0 de
+            # 109» cuando el bin tiene 1 clip seria mentira.
+            f"Se encontraron {encontrados} de {len(indices)}.\n\n"
             "Se están comprobando uno por uno: solo se enganchan los que "
             "coinciden cuadro a cuadro con su original.",
         )
-        self._sondear_proxies(emparejados)
+        self._sondear_proxies(emparejados, indices=indices)
+
+    def quitar_proxies_de_bin(self, nombre_de_bin: str) -> None:
+        """Desengancha los de ESE bin. Las portadas se vuelven a pedir del
+        original, que es lo que hace `_sondear_proxies` al final."""
+        self._sondear_proxies({}, indices=self.bins.clips_de(nombre_de_bin))
 
     def _sondear_proxies(self, emparejados: dict[Path, Path | None],
                          indices: list[int] | None = None) -> None:

@@ -367,6 +367,119 @@ def test_un_sondeo_viejo_del_MISMO_bin_se_sigue_descartando(qtbot, monkeypatch,
     assert ventana.clips[0].ruta_proxy is None
 
 
+def _dos_bins(ventana):
+    ventana.load_clips([_clip(0, "/cam/C0001.MP4"), _clip(1, "/dron/DJI_0001.MP4")])
+    ventana.bins.agregar("Sony", Path("/cam"), [0])
+    ventana.bins.agregar("Dron", Path("/dron"), [1])
+
+
+def test_el_patron_se_busca_solo_entre_los_clips_del_bin(qtbot, ventana, monkeypatch,
+                                                         avisos):
+    """La Sony nombra sus proxies con S03 y el dron con otra cosa. Con un
+    solo patron para todo el proyecto, una de las dos se queda sin proxy.
+    """
+    _dos_bins(ventana)
+    vistos = {}
+    monkeypatch.setattr(ventana, "_sondear_proxies",
+                        lambda emp, indices=None: vistos.update(emp=emp, idx=indices))
+
+    ventana.adjuntar_proxies_de_bin(
+        "Dron", elegido=Path("/dron/proxies/DJI_0001_proxy.MP4")
+    )
+
+    assert vistos["idx"] == [1]
+    assert Path("/cam/C0001.MP4") not in vistos["emp"]
+
+
+def test_el_contador_cuenta_contra_el_bin_y_no_contra_el_proyecto(
+        qtbot, ventana, monkeypatch, avisos):
+    """«Se encontraron 0 de 109» cuando el bin tiene 1 clip seria mentira."""
+    _dos_bins(ventana)
+    monkeypatch.setattr(ventana, "_sondear_proxies", lambda emp, indices=None: None)
+
+    ventana.adjuntar_proxies_de_bin(
+        "Dron", elegido=Path("/dron/proxies/DJI_0001_proxy.MP4")
+    )
+
+    assert "0 de 1" in avisos[0][1]
+
+
+def test_la_referencia_es_el_clip_actual_si_es_de_ese_bin(qtbot, ventana,
+                                                          monkeypatch, avisos):
+    """Spec §5.1. Si eliges el proxy mirando el clip que tienes abierto, el
+    patron tiene que salir de ESE par -- deducirlo contra el primero del bin
+    daria un patron que no corresponde a nada."""
+    ventana.load_clips([_clip(0, "/dron/DJI_0001.MP4"), _clip(1, "/dron/DJI_0002.MP4")])
+    ventana.bins.agregar("Dron", Path("/dron"), [0, 1])
+    ventana.current_index = 1
+    vistos = {}
+    monkeypatch.setattr(ventana, "_sondear_proxies",
+                        lambda emp, indices=None: vistos.update(emp=emp))
+
+    ventana.adjuntar_proxies_de_bin(
+        "Dron", elegido=Path("/dron/proxies/DJI_0002_proxy.MP4")
+    )
+
+    # el patron salio de DJI_0002 (sufijo `_proxy`), asi que el otro clip se
+    # busca como DJI_0001_proxy y no queda fuera del emparejado
+    assert set(vistos["emp"]) == {Path("/dron/DJI_0001.MP4"),
+                                  Path("/dron/DJI_0002.MP4")}
+
+
+def test_un_archivo_que_no_corresponde_avisa_y_no_sondea(qtbot, ventana,
+                                                          monkeypatch):
+    _dos_bins(ventana)
+    quejas = []
+    monkeypatch.setattr(
+        "clasificador_video.ui.main_window.QMessageBox.warning",
+        lambda parent, titulo, texto, *a, **k: quejas.append(titulo),
+    )
+    monkeypatch.setattr(ventana, "_sondear_proxies",
+                        lambda *a, **k: pytest.fail("no debio sondear nada"))
+
+    ventana.adjuntar_proxies_de_bin("Dron", elegido=Path("/dron/otra_cosa.MP4"))
+
+    assert quejas == ["Ese archivo no corresponde"]
+
+
+def test_quitar_los_proxies_de_un_bin_no_toca_al_otro(qtbot, ventana):
+    _dos_bins(ventana)
+    ventana.clips[0].ruta_proxy = Path("/cam/C0001S03.MP4")
+    ventana.clips[1].ruta_proxy = Path("/dron/DJI_0001_proxy.MP4")
+
+    ventana.quitar_proxies_de_bin("Dron")
+
+    assert ventana.clips[0].ruta_proxy == Path("/cam/C0001S03.MP4")
+    assert ventana.clips[1].ruta_proxy is None
+
+
+def test_el_boton_de_la_barra_aplica_al_bin_del_clip_actual(qtbot, ventana,
+                                                             monkeypatch):
+    """Ya no tiene sentido como accion global: el patron es de una camara."""
+    _dos_bins(ventana)
+    ventana.current_index = 1
+    pedidos = []
+    monkeypatch.setattr(ventana, "adjuntar_proxies_de_bin",
+                        lambda nombre, elegido=None: pedidos.append(nombre))
+
+    ventana.adjuntar_proxies()
+
+    assert pedidos == ["Dron"]
+
+
+def test_el_boton_sin_bin_avisa_en_vez_de_no_hacer_nada(qtbot, ventana,
+                                                         monkeypatch):
+    quejas = []
+    monkeypatch.setattr(
+        "clasificador_video.ui.main_window.QMessageBox.warning",
+        lambda parent, titulo, texto, *a, **k: quejas.append(titulo),
+    )
+
+    ventana.adjuntar_proxies()
+
+    assert quejas == ["Sin material"]
+
+
 @pytest.fixture
 def avisos(monkeypatch):
     """Cachar los QMessageBox: son modales y bajo offscreen cuelgan la suite."""
