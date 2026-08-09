@@ -1113,3 +1113,19 @@ def test_renombrar_desde_el_encabezado_pegado_llega_una_sola_vez(qtbot, ventana)
     pegado.rename_requested.emit("Dron", "Dron DJI")
 
     assert avisos == [("Dron", "Dron DJI")]
+
+
+def test_vaciar_el_proyecto_no_enciende_un_reproductor_que_no_existia(qtbot):
+    """`VideoWidget.player` se construye perezosamente porque crear un mpv
+    abre hilos de verdad. Cerrar el clip cuando no hay ninguno abierto no
+    puede ser justamente lo que lo encienda: una ventana sin material
+    terminaba con un mpv vivo por el solo hecho de quedarse vacia.
+    """
+    from clasificador_video.rooms import RoomSelection
+
+    ventana = MainWindow(project_name="Casa Jardin", room_selection=RoomSelection())
+    qtbot.addWidget(ventana)
+
+    ventana.load_clips([])
+
+    assert ventana.video_widget._player is None

@@ -151,8 +151,16 @@ class VideoWidget(QOpenGLWidget):
     def cerrar_clip(self) -> None:
         """Deja el visor sin nada. Se usa cuando el proyecto se queda sin
         clips: no hay a que volver, y seguir mostrando el ultimo seria
-        mostrar material que ya no esta en el proyecto."""
-        self.player.cerrar()
+        mostrar material que ya no esta en el proyecto.
+
+        `_player` en crudo y no la propiedad: la propiedad CONSTRUYE el
+        reproductor, y construirlo abre hilos de mpv de verdad. Si no hay
+        reproductor tampoco hay nada que cerrar, y pedirlo aqui hacia que
+        una ventana que nunca toco video terminara con un mpv vivo por el
+        solo hecho de quedarse sin clips.
+        """
+        if self._player is not None:
+            self._player.cerrar()
 
     def toggle_play(self) -> None:
         self.player.toggle()
