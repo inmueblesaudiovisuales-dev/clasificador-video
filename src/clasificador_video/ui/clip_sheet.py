@@ -738,18 +738,30 @@ class _BinHeader(QWidget):
 
     # --- datos -----------------------------------------------------------
 
-    def set_posicion(self, posicion: int) -> None:
+    def set_posicion(self, posicion: int | None) -> None:
         """Tiñe la marca segun el lugar del bin en el orden de importacion.
 
         Por posicion y no por nombre, igual que los cuartos: renombrar un
         bin no lo mueve de lugar, asi que tampoco puede cambiarle el color
         con el que ya lo reconoces.
+
+        `None` la deja NEUTRA, y es lo que usa «Sin bin»: `BIN_PALETTE` es
+        identidad de camara y esa seccion no es una. Con la posicion que le
+        tocaba --`len(_bin_order)`, o sea el final-- se pintaba ademas con el
+        mismo color que le va a tocar al proximo bin que crees.
         """
         # `setStyleSheet` obliga a repolir el widget y es de lo mas caro que
         # hay en Qt: sin la guarda, cada reagrupada lo llamaria por bin.
         if getattr(self, "_posicion", None) == posicion:
             return
         self._posicion = posicion
+        if posicion is None:
+            self.cam_mark.setStyleSheet(
+                f"background-color: {theme.BG_SURFACE_2};"
+                f" color: {theme.TEXT_3};"
+                f" border-radius: 3px; font-size: {theme.FONT_MICRO}px;"
+            )
+            return
         color = theme.bin_color(posicion)
         # 18% de tinte detras de un glifo aclarado, como el mockup. A plena
         # tinta la marca competiria con la franja de cuarto de la miniatura,
@@ -1897,7 +1909,11 @@ class ClipSheet(QWidget):
             w for w in self._widgets_del_contenido() if isinstance(w, _GroupBlock)
         ]
 
-    def _posicion_de_bin(self, nombre: str) -> int:
+    def _posicion_de_bin(self, nombre: str) -> int | None:
+        """`None` para la seccion de sueltos: no es una camara, asi que no
+        lleva color de identidad de camara."""
+        if nombre == SIN_BIN:
+            return None
         return (self._bin_order.index(nombre)
                 if nombre in self._bin_order else len(self._bin_order))
 

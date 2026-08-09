@@ -1461,3 +1461,27 @@ def test_seleccionar_los_clips_de_sin_bin_selecciona_los_sueltos(qtbot, ventana)
     ventana._on_bin_seleccionado(SIN_BIN)
 
     assert ventana.clip_sheet.selected_indices() == [0, 2]
+
+
+def test_la_seccion_de_sueltos_muestra_los_proxies_de_sus_clips(qtbot, ventana):
+    """El proxy es del CLIP, no del bin (spec §6.b): un clip suelto puede
+    tenerlo enganchado. `_refrescar_meta_de_bins` solo recorria
+    `bins.nombres()`, asi que «Sin bin» decia siempre «sin proxies» aunque
+    sus clips tuvieran uno."""
+    ventana.load_clips([_clip(0, "/cam/A.MP4"), _clip(1, "/cam/B.MP4")])
+    ventana.clips[0].ruta_proxy = Path("/cam/AS03.MP4")
+    ventana._proxy_sizes[0] = (1920, 1080)
+
+    ventana._refresh_sheet()
+
+    insignia = ventana.clip_sheet.bin_header_widget(SIN_BIN).proxy_badge
+    assert insignia.text() == "proxy 1080p · 1/2"
+
+
+def test_la_seccion_de_sueltos_no_dice_de_que_carpeta_salio(qtbot, ventana):
+    """No salio de ninguna: son los clips que no pertenecen a nadie."""
+    ventana.load_clips([_clip(0, "/cam/A.MP4")])
+
+    ventana._refresh_sheet()
+
+    assert ventana.clip_sheet.bin_header_widget(SIN_BIN).source_label.text() == ""

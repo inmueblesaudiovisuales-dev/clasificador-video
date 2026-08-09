@@ -1577,11 +1577,8 @@ class MainWindow(QWidget):
         lista vacia y el renglon terminaba DESELECCIONANDO todo lo que
         tuvieras marcado: prometia N y hacia lo contrario.
         """
-        if nombre == SIN_BIN:
-            indices = {i for i in range(len(self.clips))
-                       if self.bins.bin_de(i) is None}
-        else:
-            indices = set(self.bins.clips_de(nombre))
+        indices = (self._clips_sueltos() if nombre == SIN_BIN
+                   else set(self.bins.clips_de(nombre)))
         self.clip_sheet.set_selected(indices)
 
     def _on_bin_quitado(self, nombre: str) -> None:
@@ -2478,23 +2475,55 @@ class MainWindow(QWidget):
         insignia existe para mostrar.
         """
         for nombre in self.bins.nombres():
-            indices = self.bins.clips_de(nombre)
-            con_proxy = [
-                i for i in indices
-                if i < len(self.clips) and self.clips[i].ruta_proxy is not None
-            ]
-            # una sola resolucion o ninguna, el mismo criterio que
-            # `_resumen_de_proxies`: con dos mezcladas en el mismo bin,
-            # escribir una seria mentir sobre la otra mitad.
-            etiquetas = {
-                etiqueta_de_resolucion(*self._proxy_sizes[i])
-                for i in con_proxy if i in self._proxy_sizes
-            }
-            etiquetas.discard("")
             origen = self.bins.origen_de(nombre)
-            self.clip_sheet.set_bin_meta(
-                nombre,
-                origen=origen.name if origen is not None else "",
-                proxies=(len(con_proxy), len(indices)),
-                resolucion=etiquetas.pop() if len(etiquetas) == 1 else "",
+            self._aplicar_meta_de(
+                nombre, self.bins.clips_de(nombre),
+                origen.name if origen is not None else "",
             )
+        # y la seccion de sueltos. El proxy es del CLIP y no del bin
+        # (spec §6.b), asi que un clip sin bin puede tenerlo enganchado --
+        # recorriendo solo `bins.nombres()`, «Sin bin» decia siempre «sin
+        # proxies» aunque los tuviera. Sin carpeta de origen: no salio de
+        # ninguna, son los clips que no pertenecen a nadie.
+        sueltos = self._clips_sueltos()
+        if sueltos:
+            self._aplicar_meta_de(SIN_BIN, sorted(sueltos), "")
+
+    def _clips_sueltos(self) -> set[int]:
+        """Los clips que no estan en ningun bin.
+
+        Por `mapa_por_clip` y no preguntando `bin_de` clip por clip: eso
+        recorreria todos los bins una vez por clip, y esto corre en cada
+        refresco de la hoja, o sea en cada tecla.
+        """
+        con_bin = self.bins.mapa_por_clip()
+        return {i for i in range(len(self.clips)) if i not in con_bin}
+
+    def _aplicar_meta_de(self, nombre: str, indices: list[int],
+                         origen: str) -> None:
+        """Lo que el encabezado escribe debajo del nombre: de donde salio el
+        material y cuantos proxies engancharon.
+
+        Los proxies se cuentan de `ruta_proxy`, que es el que YA valido
+        cuadro a cuadro. Contar los candidatos daria un «23/23» optimista
+        justo cuando dos no calzaron -- y ese «21/23» es el dato que la
+        insignia existe para mostrar.
+        """
+        con_proxy = [
+            i for i in indices
+            if i < len(self.clips) and self.clips[i].ruta_proxy is not None
+        ]
+        # una sola resolucion o ninguna, el mismo criterio que
+        # `_resumen_de_proxies`: con dos mezcladas en el mismo bin,
+        # escribir una seria mentir sobre la otra mitad.
+        etiquetas = {
+            etiqueta_de_resolucion(*self._proxy_sizes[i])
+            for i in con_proxy if i in self._proxy_sizes
+        }
+        etiquetas.discard("")
+        self.clip_sheet.set_bin_meta(
+            nombre,
+            origen=origen,
+            proxies=(len(con_proxy), len(indices)),
+            resolucion=etiquetas.pop() if len(etiquetas) == 1 else "",
+        )

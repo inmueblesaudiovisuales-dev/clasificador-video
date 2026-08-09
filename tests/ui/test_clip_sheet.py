@@ -2362,3 +2362,28 @@ def test_el_encabezado_pegado_copia_si_es_un_bin_de_verdad(qtbot):
     menu = hoja._pegado.construir_menu()
     textos = [a.text() for a in menu.actions() if not a.isSeparator()]
     assert textos == ["Seleccionar los 1 clips", "Colapsar"]
+
+
+def test_la_seccion_de_sueltos_no_se_pinta_como_una_camara(qtbot):
+    """`ROOM_PALETTE`/`BIN_PALETTE` son identidad de CAMARA, y «Sin bin» no
+    es una. Peor: le tocaba `len(_bin_order)`, o sea el mismo color que le
+    va a tocar al proximo bin que crees -- dos cosas distintas del mismo
+    color, que es justo lo que la separacion por canal semantico evita.
+    """
+    hoja = ClipSheet()
+    qtbot.addWidget(hoja)
+    hoja.set_bin_order(["Sony"])
+    hoja.set_clips([_thumb(0, bin_nombre="Sony"), _thumb(1, bin_nombre="")])
+
+    sueltos = hoja.bin_header_widget(SIN_BIN)
+    sony = hoja.bin_header_widget("Sony")
+    assert sueltos._posicion is None
+    # el tinte del bin sale como `rgba(...)`, asi que se compara por ahi
+    assert theme.con_alfa_qss(theme.bin_color(0), theme.BIN_TINT_ALPHA) in \
+        sony.cam_mark.styleSheet()
+    assert not any(
+        theme.con_alfa_qss(theme.bin_color(i), theme.BIN_TINT_ALPHA)
+        in sueltos.cam_mark.styleSheet()
+        for i in range(9)
+    )
+    assert theme.BG_SURFACE_2 in sueltos.cam_mark.styleSheet()
