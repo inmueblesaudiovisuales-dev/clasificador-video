@@ -825,7 +825,13 @@ class _BinHeader(QWidget):
         sin abrir nada: un menu abierto en un test es un ciclo de eventos
         esperando un clic que nunca llega.
         """
-        menu = QMenu(self)
+        # SIN padre a proposito. Colgandolo del encabezado, cada apertura
+        # dejaba un QMenu mas como hijo en C++ con su objeto de Python ya
+        # muerto, y al repolir el encabezado `ensurePolished` recorre a los
+        # hijos y busca el override de Python de cada uno: sobre un
+        # envoltorio muerto eso es un segfault. Aqui el dueño es Python --
+        # `_menu` lo sostiene mientras esta abierto y lo suelta despues.
+        menu = QMenu()
         renombrar = QAction("Renombrar bin…", menu)
         renombrar.setShortcut("F2")
         renombrar.triggered.connect(self.empezar_a_renombrar)

@@ -1890,3 +1890,26 @@ def test_el_encabezado_pegado_se_distingue_del_que_va_en_el_flujo(qtbot):
 
     assert hoja._pegado.property("pegado") is True
     assert hoja.bin_header_widget("Sony") is None
+
+
+def test_construir_el_menu_no_deja_menus_colgados_del_encabezado(qtbot):
+    """El menu NO se cuelga del encabezado.
+
+    Colgandolo, cada apertura dejaba un `QMenu` mas como hijo en C++ con su
+    objeto de Python ya muerto -- 51 menus vivos despues de 50 aperturas.
+    Y cuando Qt repole al encabezado, `ensurePolished` recorre a los hijos
+    y busca el override de Python de cada uno: sobre un envoltorio muerto
+    eso es una caida, y asi cayo la suite.
+    """
+    from PySide6.QtWidgets import QMenu
+
+    hoja = ClipSheet()
+    qtbot.addWidget(hoja)
+    hoja.set_bin_order(["Sony"])
+    hoja.set_clips([_thumb(0, bin_nombre="Sony")])
+    cabecera = hoja.bin_header_widget("Sony")
+
+    for _ in range(5):
+        cabecera.construir_menu()
+
+    assert cabecera.findChildren(QMenu) == []
