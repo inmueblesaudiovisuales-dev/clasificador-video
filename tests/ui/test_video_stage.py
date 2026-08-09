@@ -482,3 +482,58 @@ def test_al_borrar_el_rango_vuelve_la_fila_de_teclas(qtbot):
     stage.set_range_pill(None, None, 18.37)
     qtbot.wait(20)
     assert not stage.keys_hint.isHidden()
+
+
+# --- badge de proxy (F9) -----------------------------------------------
+
+
+def test_el_badge_de_proxy_dice_la_resolucion_real(qtbot):
+    """El mockup dibuja `Proxy 1080p`, pero el S03 de la FX30 mide
+    1280x720: el texto sale del archivo, no del dibujo."""
+    stage = _stage(qtbot)
+    stage.badges.set_proxy("720p")
+    assert stage.badges.proxy_badge.text() == "PROXY 720P"
+    assert not stage.badges.proxy_badge.isHidden()
+
+
+def test_sin_proxy_el_badge_se_esconde(qtbot):
+    stage = _stage(qtbot)
+    stage.badges.set_proxy("720p")
+    stage.badges.set_proxy(None)
+    assert stage.badges.proxy_badge.isHidden()
+
+
+def test_el_badge_de_proxy_sin_resolucion_conocida_dice_solo_proxy(qtbot):
+    """Sesion restaurada de disco: el clip trae su proxy guardado pero
+    nadie volvio a correr ffprobe, asi que no se sabe cuanto mide.
+    Inventar «1080p» seria mentir; callar la resolucion, no."""
+    stage = _stage(qtbot)
+    stage.badges.set_proxy("")
+    assert stage.badges.proxy_badge.text() == "PROXY"
+    assert not stage.badges.proxy_badge.isHidden()
+
+
+def test_el_badge_de_proxy_va_al_final_de_la_fila(qtbot):
+    """Como en el mockup: cuarto, estado, auto y al final el proxy."""
+    stage = _stage(qtbot)
+    fila = stage.badges.layout()
+    orden = [fila.itemAt(i).widget() for i in range(fila.count())]
+    assert orden[-1] is stage.badges.proxy_badge
+
+
+def test_los_cuatro_badges_juntos_caben_en_un_video_angosto(qtbot):
+    """El badge de proxy le sumo 88 px a la fila (253 -> 341). En una
+    laptop de 1150x800 el video baja a 416 px de ancho, y ahi es donde una
+    fila de badges que no cabe se sale de la imagen.
+
+    Un solo ancho de ventana no alcanza: ya paso con el pie del video, que
+    se encimaba consigo mismo a 1150 px y se veia bien a 1600.
+    """
+    stage = _stage(qtbot)
+    stage.badges.set_room("Recámara 1", theme.room_color(2))
+    stage.badges.set_flag("destacado")
+    stage.badges.set_auto(True)
+    stage.badges.set_proxy("1080p")
+
+    ancho_de_video_en_laptop = 416
+    assert stage.badges.sizeHint().width() + 2 * theme.OVERLAY_MARGIN <= ancho_de_video_en_laptop

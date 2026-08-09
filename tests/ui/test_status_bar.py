@@ -77,3 +77,35 @@ def test_sin_pendientes_el_aviso_desaparece(qtbot):
     barra.set_unclassified(0)
     assert barra.unclassified_label.text() == ""
     assert barra.unclassified_label.isHidden()
+
+
+# --- contador de proxies (F9) ------------------------------------------
+
+
+def test_el_contador_dice_cuantos_clips_tienen_proxy(qtbot):
+    bar = _bar(qtbot)
+    bar.set_proxies(118, 128, "720p")
+    assert bar.proxy_label.text() == "proxies 720p · 118/128"
+    assert not bar.proxy_label.isHidden()
+
+
+def test_sin_ningun_proxy_el_contador_no_se_ve(qtbot):
+    """Un `· 0/128` seria ruido en cada sesion de dron, que es la mitad
+    de los shootings."""
+    bar = _bar(qtbot)
+    bar.set_proxies(0, 128, "720p")
+    assert bar.proxy_label.isHidden()
+
+
+def test_con_resoluciones_distintas_se_cae_la_palabra(qtbot):
+    """Dos camaras con perfiles de proxy distintos: mejor callar la
+    resolucion que decir una que no es la de todos."""
+    bar = _bar(qtbot)
+    bar.set_proxies(118, 128, "")
+    assert bar.proxy_label.text() == "proxies · 118/128"
+
+
+def test_sin_clips_el_contador_no_se_ve(qtbot):
+    bar = _bar(qtbot)
+    bar.set_proxies(0, 0, "")
+    assert bar.proxy_label.isHidden()

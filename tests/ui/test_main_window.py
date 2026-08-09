@@ -2911,3 +2911,44 @@ def test_el_manifest_no_cruza_el_original_con_el_proxy(qtbot, monkeypatch, tmp_p
 
     assert saved["clips"][0]["ruta"].endswith("C0001.MP4")
     assert saved["clips"][0]["ruta_proxy"].endswith("C0001S03.MP4")
+
+
+def test_el_badge_de_proxy_aparece_cuando_se_esta_viendo_el_proxy(qtbot, monkeypatch, tmp_path):
+    window = _window_with_video(qtbot, cache_root=tmp_path / "cache")
+    monkeypatch.setattr(window, "_probe_clip", _ProbeConProxy())
+    _importar_con_proxy(window, monkeypatch, tmp_path)
+    _esperar_a_los_proxies(window)
+    window.select_clip(0)
+
+    assert window.video_stage.badges.proxy_badge.text() == "PROXY 720P"
+
+
+def test_el_badge_no_aparece_si_se_esta_viendo_el_original(qtbot, monkeypatch, tmp_path):
+    """El badge dice QUE ESTAS VIENDO. Si el proxy ya no esta en disco se
+    reproduce el original, y entonces el badge no puede seguir prendido."""
+    window = _window_with_video(qtbot, cache_root=tmp_path / "cache")
+    monkeypatch.setattr(window, "_probe_clip", _ProbeConProxy())
+    _importar_con_proxy(window, monkeypatch, tmp_path)
+    _esperar_a_los_proxies(window)
+    window.clips[0].ruta_proxy.unlink()
+    window.select_clip(0)
+
+    assert window.video_stage.badges.proxy_badge.isHidden()
+
+
+def test_el_contador_de_proxies_se_llena_al_importar(qtbot, monkeypatch, tmp_path):
+    window = _window_with_video(qtbot, cache_root=tmp_path / "cache")
+    monkeypatch.setattr(window, "_probe_clip", _ProbeConProxy())
+    _importar_con_proxy(window, monkeypatch, tmp_path)
+    _esperar_a_los_proxies(window)
+
+    assert window.status_bar.proxy_label.text() == "proxies 720p · 1/1"
+
+
+def test_sin_proxies_el_contador_queda_escondido(qtbot, monkeypatch, tmp_path):
+    window = _window_with_video(qtbot, cache_root=tmp_path / "cache")
+    monkeypatch.setattr(window, "_probe_clip", _ProbeConProxy())
+    _importar_con_proxy(window, monkeypatch, tmp_path, con_proxy=False)
+    _esperar_a_los_proxies(window)
+
+    assert window.status_bar.proxy_label.isHidden()

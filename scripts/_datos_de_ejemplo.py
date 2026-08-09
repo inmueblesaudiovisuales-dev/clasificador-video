@@ -130,10 +130,20 @@ def _historial_de_ejemplo(ventana: MainWindow) -> None:
     ventana._refresh_history()
 
 
-def _clips() -> tuple[list[Clip], dict[int, tuple[int, int]], dict[int, float]]:
+# proxies de mentira, en el temporal de la sesion -- nunca en el repo
+_PROXIES_FALSOS = Path(tempfile.mkdtemp())
+
+
+def _clips() -> tuple[
+    list[Clip],
+    dict[int, tuple[int, int]],
+    dict[int, float],
+    dict[int, tuple[int, int]],
+]:
     clips: list[Clip] = []
     tamanos: dict[int, tuple[int, int]] = {}
     duraciones: dict[int, float] = {}
+    proxies: dict[int, tuple[int, int]] = {}
 
     # Los clasificados se reparten por cuarto respetando los conteos del
     # mockup; los ultimos SIN_CLASIFICAR quedan sin cuarto.
@@ -176,7 +186,23 @@ def _clips() -> tuple[list[Clip], dict[int, tuple[int, int]], dict[int, float]]:
         # rediseño existe para resolver y el que muestra el mockup.
         tamanos[indice] = HORIZONTAL if indice % 5 == 4 else VERTICAL
         duraciones[indice] = 18.37
-    return clips, tamanos, duraciones
+        # Casi todos con proxy, como una tarjeta real de la FX30 -- y el
+        # clip ACTUAL con proxy, o el badge del mockup se compara contra un
+        # hueco y no dice nada. Tres veces paso que el arnes comparaba una
+        # funcion nueva contra un panel vacio.
+        #
+        # Son archivos vacios de verdad, no rutas inventadas: la app decide
+        # si muestra el badge preguntando si el proxy sigue en disco, asi
+        # que una ruta que no existe apagaria justo lo que se quiere ver.
+        # 1080p y TODOS con proxy, porque asi lo dice el mockup
+        # (`proxies 1080p · 128/128`). El S03 real de la FX30 mide 720p,
+        # pero el arnes existe para que cualquier diferencia contra el
+        # mockup sea una diferencia de verdad y no de datos.
+        proxy = _PROXIES_FALSOS / f"C{indice:04d}S03.MP4"
+        proxy.touch()
+        clip.ruta_proxy = proxy
+        proxies[indice] = (1080, 1920)
+    return clips, tamanos, duraciones, proxies
 
 
 def construir_ventana_de_ejemplo() -> MainWindow:
@@ -192,8 +218,9 @@ def construir_ventana_de_ejemplo() -> MainWindow:
         thumbnail_cache_root=Path(tempfile.mkdtemp()),
     )
 
-    clips, tamanos, duraciones = _clips()
+    clips, tamanos, duraciones, proxies = _clips()
     ventana._clip_durations = duraciones
+    ventana._proxy_sizes = proxies
     ventana._clip_sizes = tamanos
     ventana.load_clips(clips)
     ventana.current_index = CLIP_ACTUAL

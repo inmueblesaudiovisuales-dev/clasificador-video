@@ -29,7 +29,11 @@ from clasificador_video.probe import (
     orientacion_predominante,
     probe_clip,
 )
-from clasificador_video.proxy_match import buscar_proxies, match_proxies
+from clasificador_video.proxy_match import (
+    buscar_proxies,
+    etiqueta_de_resolucion,
+    match_proxies,
+)
 from clasificador_video.rooms import RoomSelection
 from clasificador_video.thumbnails import (
     cache_dir_for,
@@ -831,6 +835,7 @@ class MainWindow(QWidget):
         )
         self.title_bar.set_project(self.project_name, total)
         self.status_bar.set_unclassified(sin_clasificar)
+        self.status_bar.set_proxies(*self._resumen_de_proxies())
 
     def _refresh_overlays(self) -> None:
         clip = self.current_clip
@@ -839,6 +844,7 @@ class MainWindow(QWidget):
             stage.file_label.setText("")
             stage.badges.set_room(None, None)
             stage.badges.set_flag("none")
+            stage.badges.set_proxy(None)
             stage.timecode_label.setText("")
             self.status_bar.set_clip_info(None, None, None, None)
             self.tool_column.set_range(None, None)
@@ -883,6 +889,20 @@ class MainWindow(QWidget):
         )
         self.tool_column.set_range(clip.in_frame, clip.out_frame)
         self.tool_column.set_flag(clip.flag)
+        stage.badges.set_proxy(self.etiqueta_de_proxy(self.current_index))
+
+    def etiqueta_de_proxy(self, index: int) -> str | None:
+        """Que dice el badge: `"720p"`, `""` o nada.
+
+        Se cuelga de `ruta_de_reproduccion()` a proposito. El badge no dice
+        «este clip TIENE proxy», dice «esto es lo que estas viendo»: si el
+        archivo ya no esta en disco se reproduce el original, y el badge se
+        apaga solo. Dos vistas del mismo dato no pueden calcularlo aparte.
+        """
+        clip = self.clips[index]
+        if self.ruta_de_reproduccion(index) == clip.ruta:
+            return None
+        return etiqueta_de_resolucion(*self._proxy_sizes.get(index, (0, 0)))
 
     # ------------------------------------------------------------------
     # el rail edita los cuartos en el lugar
@@ -1185,6 +1205,26 @@ class MainWindow(QWidget):
         repinta lo que ese resultado puede haber cambiado."""
         if index == self.current_index:
             self._refresh_overlays()
+        self.status_bar.set_proxies(*self._resumen_de_proxies())
+
+    def _resumen_de_proxies(self) -> tuple[int, int, str]:
+        """Lo que dice el contador: cuantos, de cuantos, y de que tamaño.
+
+        Cuenta los clips que TIENEN proxy emparejado, sin ir al disco a
+        confirmar que cada archivo sigue ahi: es un inventario del
+        material, no un reporte de lo que se esta reproduciendo ahora
+        --eso lo dice el badge-- y hacer 128 consultas al disco en cada
+        refresco de la barra seria caro para responder otra pregunta.
+        """
+        con_proxy = [i for i, c in enumerate(self.clips) if c.ruta_proxy is not None]
+        etiquetas = {
+            etiqueta_de_resolucion(*self._proxy_sizes[i])
+            for i in con_proxy
+            if i in self._proxy_sizes
+        }
+        etiquetas.discard("")
+        resolucion = etiquetas.pop() if len(etiquetas) == 1 else ""
+        return len(con_proxy), len(self.clips), resolucion
 
     def _schedule_thumbnails(self) -> None:
         if not self.clips:

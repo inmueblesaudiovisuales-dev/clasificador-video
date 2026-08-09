@@ -81,9 +81,17 @@ class _BadgeRow(QWidget):
             )
         )
         self.auto_badge.hide()
+        # el unico badge SIN color: los otros tres dicen algo del clip, y
+        # este dice que archivo se esta reproduciendo. Sin estilo propio se
+        # queda con el gris neutro de `#overlayBadges`, que es justo lo que
+        # el mockup dibuja.
+        self.proxy_badge = QLabel("")
+        self.proxy_badge.setObjectName("overlayBadges")
+        self.proxy_badge.hide()
         layout.addWidget(self.room_badge)
         layout.addWidget(self.flag_badge)
         layout.addWidget(self.auto_badge)
+        layout.addWidget(self.proxy_badge)
 
     def set_room(self, nombre: str | None, color: str | None) -> None:
         if not nombre or not color:
@@ -112,6 +120,23 @@ class _BadgeRow(QWidget):
         self.flag_badge.setText(texto)
         self.flag_badge.setStyleSheet(self._estilo(color, color))
         self.flag_badge.show()
+
+    def set_proxy(self, resolucion: str | None) -> None:
+        """`"720p"` → `PROXY 720P`. `None` esconde el badge.
+
+        Con cadena vacia se muestra `PROXY` a secas: pasa en una sesion
+        restaurada de disco, donde el clip trae su proxy guardado pero
+        nadie volvio a correr ffprobe. Inventarle «1080p» seria mentir;
+        callar la resolucion, no.
+
+        En mayusculas escritas a mano: el mockup las aplica con
+        `text-transform`, que en QSS no existe (ya paso con `▶ AUTO`).
+        """
+        if resolucion is None:
+            self.proxy_badge.hide()
+            return
+        self.proxy_badge.setText(f"PROXY {resolucion.upper()}".strip())
+        self.proxy_badge.show()
 
     def set_auto(self, encendido: bool) -> None:
         """Se llama seguido (una vez por tick del playhead), asi que sale

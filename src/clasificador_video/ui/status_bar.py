@@ -39,12 +39,20 @@ class StatusBar(QWidget):
         self.unclassified_label.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self.unclassified_label.hide()
         self.unclassified_label.clicked.connect(self.unclassified_clicked.emit)
+        # va del lado derecho, PEGADO a la ruta del volumen y antes que
+        # ella, como en el mockup (`proxies 1080p · 128/128` y luego
+        # `/Volumes/FX30/CasaLomas · 214 GB`): es informacion de
+        # referencia sobre el material, la misma familia que la ruta.
+        self.proxy_label = QLabel("")
+        self.proxy_label.setObjectName("statusMono")
+        self.proxy_label.hide()
         self.volume_label = QLabel("")
         self.volume_label.setObjectName("statusMono")
 
         layout.addWidget(self.clip_label)
         layout.addWidget(self.unclassified_label)
         layout.addStretch(1)
+        layout.addWidget(self.proxy_label)
         layout.addWidget(self.volume_label)
 
     def set_clip_info(
@@ -82,6 +90,22 @@ class StatusBar(QWidget):
             f"⚠ {cuantos} sin clasificar — click para filtrarlos" if cuantos else ""
         )
         self.unclassified_label.setVisible(bool(cuantos))
+
+    def set_proxies(self, cuantos: int, total: int, resolucion: str) -> None:
+        """`proxies 720p · 118/128`, o nada si no hay ni uno.
+
+        Sin proxies el contador se esconde en vez de mostrar `· 0/128`:
+        seria ruido fijo en cada sesion de dron. Y si los proxies conocidos
+        no miden todos lo mismo --dos camaras con perfiles distintos-- se
+        cae la palabra de resolucion y queda `proxies · 118/128`. Mejor
+        callar que decir una resolucion que no es la de todos.
+        """
+        if not cuantos or not total:
+            self.proxy_label.hide()
+            return
+        etiqueta = f"proxies {resolucion} · " if resolucion else "proxies · "
+        self.proxy_label.setText(f"{etiqueta}{cuantos}/{total}")
+        self.proxy_label.show()
 
     def set_volume(self, ruta: str) -> None:
         self.volume_label.setText(ruta)
