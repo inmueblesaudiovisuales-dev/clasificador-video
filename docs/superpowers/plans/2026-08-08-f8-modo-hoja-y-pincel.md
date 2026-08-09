@@ -85,12 +85,33 @@ QT_QPA_PLATFORM=offscreen .venv/bin/pytest tests/ -q
 | ¿Cuánto cuesta teñir una tarjeta al tocarla? | Debe quedar bajo 16.7 ms por movimiento de mouse, o el rastro se siente pegajoso |
 | ¿El cursor puede llevar su carga visible? | `QCursor` con pixmap propio, o un widget que sigue al mouse. El segundo es más flexible y no depende del sistema |
 
-- [ ] **Step 1: Construirlo en el scratchpad** con `_datos_de_ejemplo.py`.
-- [ ] **Step 2: Medir las cuatro respuestas y escribirlas.**
-- [ ] **Step 3: Decidir.** Si arrastrar sobre las tarjetas no es estable, el
-      pincel se reemplaza por el camino ya probado --marquesina y después
-      asignar-- y se anota en `DECISIONES.md` con la medición, como se hizo
-      con la precarga en la F6.
+- [x] **Step 1: Construirlo en el scratchpad** con `_datos_de_ejemplo.py`.
+- [x] **Step 2: Medir las cuatro respuestas y escribirlas.**
+- [x] **Step 3: Decidir.**
+
+### Resultado del spike — 2026-08-08: **el pincel se construye**
+
+Medido sobre la hoja real de 128 tarjetas, con eventos de mouse de verdad
+(`QTest.mousePress` + `mouseMove`), no con posiciones inventadas.
+
+| Pregunta | Respuesta medida |
+|---|---|
+| ¿Qué tarjeta está bajo el cursor, con el scroll movido? | **Todas bien, en las tres posiciones de scroll probadas** (0, 300, 900 px). La clave: `childAt` va sobre el **contenido**, no sobre el viewport, sumándole el scroll — el contenido es lo que se desplaza. Y hay que subir por `parentWidget()` hasta dar con la tarjeta, porque el hijo directo es la etiqueta de la imagen |
+| ¿Aguanta pintar 20 seguidas? | Sí. 687 widgets antes y **687 después**, sin crash. Pintar es cambiar el dato del clip y `update()` de esa tarjeta: no toca la estructura |
+| ¿Cuánto cuesta teñir al tocar? | **0.00 ms** por movimiento (200 medidos). El presupuesto era 16.7 ms |
+| ¿El cursor puede llevar su carga? | Sí, con un widget que sigue al mouse: **0.01 ms** por movimiento. Se prefiere a un `QCursor` con pixmap porque no depende del sistema y admite el chip con color y nombre |
+
+**Y lo que se probó a propósito porque es lo que dio el SIGSEGV histórico:**
+reagrupar la hoja **durante** el arrastre. Hoy ya no truena --`_refresh_sheet`
+re-coloca en vez de reconstruir, que es la regla que dejó la F2.1-- pero **la
+tarjeta bajo el cursor cambia**, que es exactamente el problema que predice
+el detalle 5 de `DECISIONES.md`. Reagrupando **al soltar**, el orden se
+mantiene estable durante todo el gesto y el reacomodo cuesta **19.9 ms una
+sola vez**, al final: un tirón imperceptible contra seguir pintando sobre
+otra cosa.
+
+O sea que el detalle 5 no es una preferencia de diseño: es la diferencia
+entre un gesto que hace lo que ves y uno que no.
 
 ---
 
