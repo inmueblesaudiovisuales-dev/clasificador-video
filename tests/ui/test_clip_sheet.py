@@ -177,11 +177,17 @@ def test_shift_click_selecciona_el_rango(qtbot):
 
 
 def test_ctrl_click_alterna(qtbot):
+    """El click que QUITA una tarjeta de la seleccion se resuelve al SOLTAR,
+    no al apretar: mientras el boton sigue abajo, el gesto todavia puede
+    resultar ser un arrastre de la seleccion entera (F9). Por eso aqui va
+    tambien el `soltada`, que es la otra mitad del click de verdad.
+    """
     sheet = _sheet(qtbot, [_clip(i, "Sala") for i in range(3)])
     sheet.item_widgets[0].clicked.emit(Qt.KeyboardModifier.NoModifier)
     sheet.item_widgets[2].clicked.emit(Qt.KeyboardModifier.ControlModifier)
     assert sheet.selected_indices() == [0, 2]
     sheet.item_widgets[2].clicked.emit(Qt.KeyboardModifier.ControlModifier)
+    sheet.item_widgets[2].soltada.emit()
     assert sheet.selected_indices() == [0]
 
 

@@ -393,7 +393,7 @@ def _pixmap() -> QPixmap:
     return pm
 
 
-def _press(punto: QPoint) -> QMouseEvent:
+def _press(punto: QPoint, cmd: bool = False) -> QMouseEvent:
     # con la posicion global explicita: la sobrecarga sin ella esta marcada
     # como deprecada y llena la corrida de avisos
     return QMouseEvent(
@@ -402,6 +402,18 @@ def _press(punto: QPoint) -> QMouseEvent:
         QPointF(punto),
         Qt.MouseButton.LeftButton,
         Qt.MouseButton.LeftButton,
+        (Qt.KeyboardModifier.MetaModifier if cmd
+         else Qt.KeyboardModifier.NoModifier),
+    )
+
+
+def _release(punto: QPoint) -> QMouseEvent:
+    return QMouseEvent(
+        QEvent.Type.MouseButtonRelease,
+        QPointF(punto),
+        QPointF(punto),
+        Qt.MouseButton.LeftButton,
+        Qt.MouseButton.NoButton,
         Qt.KeyboardModifier.NoModifier,
     )
 
@@ -761,3 +773,109 @@ def test_con_varios_clips_la_imagen_dice_cuantos(qtbot):
 
     # la insignia con la cuenta se dibuja ENCIMA y la hace mas alta
     assert tres.height() > una.height()
+
+
+# --- que el PRESS no te deshaga la seleccion antes de arrastrarla ----------
+#
+# `clicked` sale en el press, y sin modificadores eso colapsaba la seleccion a
+# la tarjeta apretada. Para cuando el mouse se movia, los otros dos ya no
+# estaban seleccionados: agarrabas tres clips y se movia uno. Los tests que
+# preguntan `indices_a_arrastrar` directo pasaban en verde con el gesto roto,
+# asi que estos van POR EL PRESS, que es donde vivia el bug.
+
+
+def _arrastrar_de_verdad(hoja, tarjeta, desde=QPoint(5, 5), hasta=QPoint(60, 60)):
+    """El gesto completo, cortado justo antes de `QDrag.exec()`.
+
+    Devuelve los indices que iban en el mime. No se entra al `exec()` de Qt:
+    es un bucle de eventos anidado dentro de la suite, que es justo lo que
+    colgaba `test_app.py` antes de la F3.
+    """
+    llevados = []
+    hoja._ejecutar_arrastre = lambda drag: llevados.append(
+        hoja._indices_de(drag.mimeData())
+    )
+    tarjeta.mousePressEvent(_press(desde))
+    tarjeta.mouseMoveEvent(_move(hasta, boton=True))
+    return llevados
+
+
+def test_arrastrar_uno_de_varios_seleccionados_se_los_lleva_todos(qtbot):
+    """§6.b, punto 4: «uno o varios a la vez, lo que este seleccionado se va
+    junto». El gesto entero, no `indices_a_arrastrar` a solas."""
+    hoja = _hoja(qtbot, [_thumb(i, bin_nombre="Sony") for i in range(3)],
+                 bins=["Sony"])
+    hoja.set_selected({0, 1, 2})
+
+    assert _arrastrar_de_verdad(hoja, hoja.item_widgets[1]) == [[0, 1, 2]]
+
+
+def test_apretar_una_tarjeta_ya_seleccionada_no_colapsa_la_seleccion(qtbot):
+    hoja = _hoja(qtbot, [_thumb(i) for i in range(3)])
+    hoja.set_selected({0, 1, 2})
+
+    hoja.item_widgets[1].mousePressEvent(_press(QPoint(5, 5)))
+
+    assert hoja.selected_indices() == [0, 1, 2]
+
+
+def test_si_no_arrastraste_el_click_si_colapsa_al_soltar(qtbot):
+    """Lo que se difiere es el COLAPSO, no se cancela: un click normal sobre
+    una tarjeta ya seleccionada sigue dejando solo esa."""
+    hoja = _hoja(qtbot, [_thumb(i) for i in range(3)])
+    hoja.set_selected({0, 1, 2})
+    tarjeta = hoja.item_widgets[1]
+
+    tarjeta.mousePressEvent(_press(QPoint(5, 5)))
+    tarjeta.mouseReleaseEvent(_release(QPoint(5, 5)))
+
+    assert hoja.selected_indices() == [1]
+
+
+def test_apretar_una_tarjeta_NO_seleccionada_colapsa_en_el_acto(qtbot):
+    """Aqui no hay nada que proteger: la seleccion vieja no es lo que estas
+    agarrando, y esperar al release haria que el borde azul llegara tarde."""
+    hoja = _hoja(qtbot, [_thumb(i) for i in range(3)])
+    hoja.set_selected({0, 1})
+
+    hoja.item_widgets[2].mousePressEvent(_press(QPoint(5, 5)))
+
+    assert hoja.selected_indices() == [2]
+
+
+def test_con_cmd_apretar_una_seleccionada_no_la_saca_antes_de_arrastrar(qtbot):
+    """Peor que el caso sin modificadores: ⌘ sobre una tarjeta seleccionada la
+    QUITA de la seleccion en el press, asi que arrastrabas justo la que
+    acababas de sacar, sola."""
+    hoja = _hoja(qtbot, [_thumb(i, bin_nombre="Sony") for i in range(3)],
+                 bins=["Sony"])
+    hoja.set_selected({0, 1, 2})
+
+    assert _arrastrar_de_verdad(hoja, hoja.item_widgets[1]) == [[0, 1, 2]]
+    assert hoja.selected_indices() == [0, 1, 2]
+
+
+def test_con_cmd_un_click_sin_arrastre_si_quita_la_tarjeta(qtbot):
+    hoja = _hoja(qtbot, [_thumb(i) for i in range(3)])
+    hoja.set_selected({0, 1, 2})
+    tarjeta = hoja.item_widgets[1]
+
+    tarjeta.mousePressEvent(_press(QPoint(5, 5), cmd=True))
+    tarjeta.mouseReleaseEvent(_release(QPoint(5, 5)))
+
+    assert hoja.selected_indices() == [0, 2]
+
+
+def test_arrastrar_cancela_el_colapso_diferido(qtbot):
+    """Si el colapso siguiera pendiente despues del arrastre, el release --que
+    `QDrag.exec()` se traga-- lo aplicaria en cualquier momento posterior y te
+    dejaria seleccionado un solo clip de los tres que moviste."""
+    hoja = _hoja(qtbot, [_thumb(i, bin_nombre="Sony") for i in range(3)],
+                 bins=["Sony"])
+    hoja.set_selected({0, 1, 2})
+    tarjeta = hoja.item_widgets[1]
+
+    _arrastrar_de_verdad(hoja, tarjeta)
+    tarjeta.mouseReleaseEvent(_release(QPoint(60, 60)))
+
+    assert hoja.selected_indices() == [0, 1, 2]

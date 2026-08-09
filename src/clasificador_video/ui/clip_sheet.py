@@ -396,6 +396,7 @@ class ClipCard(QWidget):
     clicked = Signal(object)  # Qt.KeyboardModifier vigente al hacer click
     doble_click = Signal()    # abrir este clip en modo clip (Grid → Loupe)
     arrastre_pedido = Signal(int)  # indice de clip: agarraron esta tarjeta
+    soltada = Signal()             # solto el boton encima de esta tarjeta
 
     def __init__(self, clip: ClipThumbnail, parent=None):
         super().__init__(parent)
@@ -596,6 +597,10 @@ class ClipCard(QWidget):
         # el boton apretado en OTRO lado y volver a pasar por aqui arrancaria
         # un arrastre que nadie pidio.
         self._origen_arrastre = None
+        if event.button() == Qt.MouseButton.LeftButton:
+            # aqui se resuelve el click que el press dejo a medias: hasta
+            # soltar no se sabia si era un click o el principio de un arrastre
+            self.soltada.emit()
         super().mouseReleaseEvent(event)
 
     def mouseDoubleClickEvent(self, event) -> None:  # noqa: N802 -- override de Qt
@@ -1411,6 +1416,9 @@ class ClipSheet(QWidget):
         # (ver `centrar_en`)
         self._ultimo_centrado = -1
         self._selected: set[int] = set()
+        # el cambio de seleccion que el press dejo esperando al release, por si
+        # el gesto resulta ser un arrastre. Ver `_on_card_clicked`.
+        self._seleccion_diferida: tuple[set[int], int | None] | None = None
         self._anchor: int | None = None
         # None = no hay filtro. Un `set` vacio es distinto: filtro que no deja
         # pasar nada, y la hoja tiene que verse vacia de verdad.
@@ -1872,6 +1880,7 @@ class ClipSheet(QWidget):
         card.clicked.connect(lambda mods, i=index: self._on_card_clicked(i, mods))
         card.doble_click.connect(lambda i=index: self.clip_activated.emit(i))
         card.arrastre_pedido.connect(self._on_arrastre_pedido)
+        card.soltada.connect(self._on_card_released)
         return card
 
     def set_clips(self, clips: list[ClipThumbnail]) -> None:
@@ -2242,6 +2251,11 @@ class ClipSheet(QWidget):
             return
         if not (0 <= indice < len(self.item_widgets)):
             return
+        # gano el arrastre: el colapso de seleccion que el press dejo pendiente
+        # NO se aplica. Si quedara pendiente, el release --que `QDrag.exec()`
+        # se traga-- lo dispararia mas tarde y te dejaria uno solo de los tres
+        # clips que acabas de mover.
+        self._seleccion_diferida = None
         indices = self.indices_a_arrastrar(indice)
         mime = QMimeData()
         mime.setData(MIME_CLIPS, ",".join(str(i) for i in indices).encode())
@@ -2253,6 +2267,16 @@ class ClipSheet(QWidget):
         # un poco adentro: centrarla taparia justo el encabezado al que le
         # estas apuntando
         drag.setHotSpot(QPoint(12, 12))
+        self._ejecutar_arrastre(drag)
+
+    @staticmethod
+    def _ejecutar_arrastre(drag: QDrag) -> None:
+        """El bucle de arrastre de Qt, aparte para poder cortarlo en los tests.
+
+        `QDrag.exec()` es un bucle de eventos ANIDADO: entrar ahi desde la
+        suite es justo lo que colgaba `test_app.py` antes de la F3, y lo que
+        el spec §8 prohibe en piezas nuevas. Los tests reemplazan esto.
+        """
         drag.exec(Qt.DropAction.MoveAction)
 
     def imagen_de_arrastre(self, indices: list[int]) -> QPixmap:
@@ -2794,19 +2818,49 @@ class ClipSheet(QWidget):
     # --- seleccion -------------------------------------------------------
 
     def _on_card_clicked(self, index: int, modifiers) -> None:
+        """El click llega en el PRESS, y ahi todavia no se sabe si es un click
+        o el principio de un arrastre.
+
+        Por eso, cuando la tarjeta apretada YA estaba seleccionada, el cambio
+        de seleccion se difiere al release. Sin esto, agarrar uno de tres
+        clips seleccionados los colapsaba a ese antes de que el mouse se
+        moviera, y el arrastre se llevaba uno solo; con ⌘ era peor, porque el
+        press sacaba esa tarjeta de la seleccion y terminabas arrastrando
+        justo la que acababas de sacar. Es lo que hacen Finder y `QListView`.
+
+        Con `shift` no se difiere: ahi el press EXTIENDE la seleccion, nunca
+        la encoge, asi que no hay nada que proteger y esperar al release solo
+        haria que el rango azul llegara tarde.
+        """
         self.clip_clicked.emit(index)
         shift = bool(modifiers & Qt.KeyboardModifier.ShiftModifier)
         ctrl = bool(modifiers & (Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.MetaModifier))
+        ancla = self._anchor
         if shift and self._anchor is not None:
             lo, hi = sorted((self._anchor, index))
             nueva = set(range(lo, hi + 1))
         elif ctrl:
             nueva = set(self._selected)
             nueva.discard(index) if index in nueva else nueva.add(index)
-            self._anchor = index
+            ancla = index
         else:
             nueva = {index}
-            self._anchor = index
+            ancla = index
+        if not shift and index in self._selected:
+            self._seleccion_diferida = (nueva, ancla)
+            return
+        self._seleccion_diferida = None
+        self._anchor = ancla
+        self.set_selected(nueva)
+
+    def _on_card_released(self) -> None:
+        """No hubo arrastre: el click era un click, y se aplica lo que el
+        press habia dejado pendiente."""
+        pendiente, self._seleccion_diferida = self._seleccion_diferida, None
+        if pendiente is None:
+            return
+        nueva, ancla = pendiente
+        self._anchor = ancla
         self.set_selected(nueva)
 
     def select_current_group(self) -> None:
