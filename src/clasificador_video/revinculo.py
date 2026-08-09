@@ -17,6 +17,23 @@ from pathlib import Path
 TOLERANCIA_DE_CUADROS = 1
 
 
+def buscar_bajo(carpeta: Path, relativa: str) -> Path | None:
+    """Primero donde decia; si no, por nombre en todo el arbol.
+
+    Devuelve `None` cuando hay mas de un candidato con ese nombre: ahi
+    elegir seria adivinar, y adivinar es justo el modo de falla que este
+    modulo existe para evitar.
+    """
+    if not carpeta.is_dir():
+        return None
+    en_su_sitio = carpeta / relativa
+    if en_su_sitio.is_file():
+        return en_su_sitio
+    nombre = Path(relativa).name
+    candidatos = [p for p in carpeta.rglob(nombre) if p.is_file()]
+    return candidatos[0] if len(candidatos) == 1 else None
+
+
 def calza(archivo: Path, tamano_esperado: int | None,
           cuadros_esperados: int | None, medir) -> bool:
     """¿Este archivo es el que el proyecto tenia?

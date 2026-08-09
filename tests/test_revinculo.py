@@ -1,4 +1,4 @@
-from clasificador_video.revinculo import calza
+from clasificador_video.revinculo import buscar_bajo, calza
 
 
 def test_NO_calza_un_tocayo_de_otro_tamano(tmp_path):
@@ -61,3 +61,46 @@ def test_si_no_se_puede_medir_no_calza(tmp_path):
 
     assert calza(archivo, tamano_esperado=500, cuadros_esperados=300,
                  medir=revienta) is False
+
+
+def test_encuentra_por_la_ruta_relativa_exacta(tmp_path):
+    (tmp_path / "sub").mkdir()
+    esperado = tmp_path / "sub" / "C0001.MP4"
+    esperado.write_bytes(b"x")
+
+    assert buscar_bajo(tmp_path, "sub/C0001.MP4") == esperado
+
+
+def test_si_no_esta_en_su_sitio_lo_busca_por_nombre(tmp_path):
+    """La carpeta pudo reorganizarse. Buscar por nombre es el plan B, y por
+    eso lo que se encuentre asi tiene que CONFIRMARSE (ver `calza`)."""
+    (tmp_path / "otra").mkdir()
+    esta = tmp_path / "otra" / "C0001.MP4"
+    esta.write_bytes(b"x")
+
+    assert buscar_bajo(tmp_path, "sub/C0001.MP4") == esta
+
+
+def test_con_dos_tocayos_no_elige_ninguno(tmp_path):
+    """Las camaras renumeran desde cero en cada tarjeta: dos `C0001.MP4`
+    bajo la misma carpeta es un caso REAL, no rebuscado. Elegir uno al azar
+    seria enganchar material equivocado sin que nadie se entere."""
+    for sub in ("tarjeta1", "tarjeta2"):
+        (tmp_path / sub).mkdir()
+        (tmp_path / sub / "C0001.MP4").write_bytes(b"x")
+
+    assert buscar_bajo(tmp_path, "no-esta/C0001.MP4") is None
+
+
+def test_si_esta_en_su_sitio_los_tocayos_no_estorban(tmp_path):
+    """La ruta relativa desempata: si el archivo esta donde decia, se toma
+    ese y los tocayos de otras carpetas dan igual."""
+    for sub in ("sub", "tarjeta2"):
+        (tmp_path / sub).mkdir()
+        (tmp_path / sub / "C0001.MP4").write_bytes(b"x")
+
+    assert buscar_bajo(tmp_path, "sub/C0001.MP4") == tmp_path / "sub" / "C0001.MP4"
+
+
+def test_una_carpeta_que_no_existe_no_revienta(tmp_path):
+    assert buscar_bajo(tmp_path / "no-esta", "C0001.MP4") is None
