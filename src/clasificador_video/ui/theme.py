@@ -142,6 +142,12 @@ PALETTE_BORDER = "#333c4a"
 TICK_MAJOR_OVER_VIDEO_RGBA = (255, 255, 255, 36)   # rgba(255,255,255,.14)
 TICK_MINOR_OVER_VIDEO_RGBA = (255, 255, 255, 20)
 
+# La marca de camara del bin. Vive aqui y no en la hoja porque la usan las
+# DOS vistas --el encabezado del bin y la etiqueta del visor-- y es el mismo
+# dato: si en una fuera un cuadro y en la otra un triangulo, no se
+# reconoceria como lo mismo.
+MARCA_DE_BIN = "■"
+
 # --- radios ---
 RADIUS_SM = 4
 RADIUS_MD = 6
@@ -1011,6 +1017,18 @@ def build_stylesheet() -> str:
         font-family: {MONO_FONT};
         font-size: {FONT_BODY}px;
         font-weight: 600;
+    }}
+    /* De que camara salio el clip, junto al nombre del archivo. Apagada a
+       proposito: es contexto, no estado -- si compitiera con los badges de
+       cuarto y marca, le quitaria peso a lo que si estas decidiendo. */
+    QLabel#overlayBin {{
+        background-color: {OVERLAY_BG};
+        border: 1px solid {OVERLAY_BORDER};
+        border-radius: {RADIUS_SM}px;
+        padding: 3px 7px;
+        color: {TEXT_2};
+        font-family: {MONO_FONT};
+        font-size: {FONT_MICRO}px;
     }}
     QLabel#overlayBadges {{
         background-color: {OVERLAY_BG};

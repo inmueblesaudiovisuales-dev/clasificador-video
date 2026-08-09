@@ -953,6 +953,9 @@ class MainWindow(QWidget):
             return
 
         nombre = Path(clip.ruta).name
+        # de que camara salio, junto al nombre: la respuesta a «¿de donde
+        # salio este clip?» sin cambiar de vista
+        del_bin = self.bins.bin_de(self.current_index) or ""
         # Con filtro, tu posicion en el shooting entero no te sirve de nada:
         # lo que quieres saber es cuanto falta para terminar lo que estas
         # haciendo (DECISIONES.md). Sin filtro, el total si sirve.
@@ -961,15 +964,18 @@ class MainWindow(QWidget):
             if self.current_index in indices:
                 posicion = indices.index(self.current_index) + 1
                 stage.set_file_label(
-                    f"{nombre}    {posicion} de {len(indices)} en la cola"
+                    f"{nombre}    {posicion} de {len(indices)} en la cola",
+                    bin_nombre=del_bin,
                 )
             else:
                 # el clip actual quedo fuera del filtro -- pasa apenas lo
                 # resuelves. Inventarle una posicion ("0 de 12") seria mentir
-                stage.set_file_label(f"{nombre}    {len(indices)} en la cola")
+                stage.set_file_label(f"{nombre}    {len(indices)} en la cola",
+                                     bin_nombre=del_bin)
         else:
             stage.set_file_label(
-                f"{nombre}    {self.current_index + 1} / {len(self.clips)}"
+                f"{nombre}    {self.current_index + 1} / {len(self.clips)}",
+                bin_nombre=del_bin,
             )
 
         cuarto = " › ".join(clip.categoria_path) if clip.categoria_path else None

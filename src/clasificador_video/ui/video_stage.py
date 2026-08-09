@@ -196,6 +196,13 @@ class VideoStage(QWidget):
         self._nombre_completo = ""
         self.file_label = QLabel("", self.video)
         self.file_label.setObjectName("overlayFile")
+        # De que camara salio este clip, junto al nombre del archivo. La
+        # misma marca que el encabezado del bin en la hoja: es el mismo dato
+        # y tiene que reconocerse igual en las dos vistas.
+        self._bin_nombre = ""
+        self.bin_label = QLabel("", self.video)
+        self.bin_label.setObjectName("overlayBin")
+        self.bin_label.hide()
         self.badges = _BadgeRow(self.video)
         self.timecode_label = QLabel("", self.video)
         self.timecode_label.setObjectName("overlayTimecode")
@@ -229,7 +236,8 @@ class VideoStage(QWidget):
         self.keys_hint = QLabel(KEYS_HINT_TEXT, self.video)
         self.keys_hint.setObjectName("overlayKeys")
 
-        for pasivo in (self.file_label, self.badges, self.scrim, self.timecode_label,
+        for pasivo in (self.file_label, self.bin_label, self.badges, self.scrim,
+                       self.timecode_label,
                        self.top_scrim, self.frame_label, self.range_pill,
                        self.keys_hint, self.io_label):
             # el click y el arrastre tienen que llegar a la scrub bar y al
@@ -394,7 +402,7 @@ class VideoStage(QWidget):
                 return
         self.keys_hint.hide()
 
-    def set_file_label(self, texto: str) -> None:
+    def set_file_label(self, texto: str, bin_nombre: str = "") -> None:
         """El nombre del clip (y su posicion en la cola) sobre el video.
 
         Pasa por aca y no por `file_label.setText` porque el texto DECIDE
@@ -403,9 +411,11 @@ class VideoStage(QWidget):
         del ultimo resize, asi que colocar solo al redimensionar deja los
         controles donde estaban -- el mismo bug que tuvo el pie en la F7.
         """
-        if texto == self._nombre_completo:
+        if texto == self._nombre_completo and bin_nombre == self._bin_nombre:
             return
         self._nombre_completo = texto
+        self._bin_nombre = bin_nombre
+        self.bin_label.setText(f"{theme.MARCA_DE_BIN}  {bin_nombre}" if bin_nombre else "")
         self._place_overlays()
 
     def _place_overlays(self) -> None:
@@ -432,11 +442,15 @@ class VideoStage(QWidget):
         # fuera de la imagen y encimado con el nombre.
         metricas = QFontMetrics(self.file_label.font())
         entero = metricas.horizontalAdvance(self._nombre_completo)
-        # cabe si el nombre ENTERO sigue entrando a su lado. Cuando no,
-        # antes de cortar el nombre se va la velocidad: lo eligio Bruno,
-        # porque `J K L` la siguen cambiando y el nombre es lo que te dice
-        # que clip estas viendo.
-        cabe = x_velocidad - M - 8 >= entero
+        # El orden de sacrificio de la fila de arriba, elegido por Bruno:
+        # VELOCIDAD → BIN → elidir el nombre. La velocidad se sigue cambiando
+        # con `J K L` sin mirarla; el bin es contexto y en la hoja se lee
+        # igual; el nombre del archivo es lo unico que te sirve para
+        # encontrarlo en Finder, y por eso se corta al final.
+        self.bin_label.adjustSize()
+        ancho_bin = (self.bin_label.width() + 8) if self._bin_nombre else 0
+        # cabe si el nombre ENTERO --con su bin al lado-- sigue entrando
+        cabe = x_velocidad - M - 8 >= entero + ancho_bin
         self.speed.setVisible(cabe)
         if cabe:
             self.speed.move(x_velocidad, M)
@@ -446,6 +460,13 @@ class VideoStage(QWidget):
         # de largo POR DEBAJO del selector de calidad y se leia partido a
         # la mitad por una caja translucida encima.
         limite = (x_velocidad if cabe else self.quality.x()) - M - 8
+        # con la velocidad ya fuera, el bin solo se queda si el nombre entero
+        # sigue entrando a su lado
+        cabe_bin = bool(self._bin_nombre) and limite >= entero + ancho_bin
+        self.bin_label.setVisible(cabe_bin)
+        if not cabe_bin:
+            ancho_bin = 0
+        limite -= ancho_bin
         # `elidedText` mide TEXTO y la etiqueta ademas trae relleno del QSS:
         # cortar a `limite` a secas dejaba la caja ~20 px mas ancha que el
         # hueco, y volvia a meterse debajo del selector.
@@ -457,6 +478,13 @@ class VideoStage(QWidget):
             max(0, limite - relleno)))
         self.file_label.adjustSize()
         self.file_label.move(M, M)
+        if cabe_bin:
+            # centrado contra el nombre: la etiqueta del bin es una pastilla
+            # con borde y mide mas alto que el texto suelto
+            self.bin_label.move(
+                M + self.file_label.width() + 8,
+                M + max(0, (self.file_label.height() - self.bin_label.height()) // 2),
+            )
 
         # Los badges van debajo de TODA la fila de arriba, no debajo del
         # nombre. El nombre mide 15 px y los controles 25, asi que
@@ -487,7 +515,8 @@ class VideoStage(QWidget):
 
         self.scrim.lower()
         self.top_scrim.lower()
-        for encima in (self.file_label, self.badges, self.quality, self.speed,
+        for encima in (self.file_label, self.bin_label, self.badges,
+                       self.quality, self.speed,
                        self.timecode_label, self.frame_label, self.io_label,
                        self.range_pill, self.keys_hint, self.scrub_bar):
             encima.raise_()

@@ -27,8 +27,9 @@ from clasificador_video.ui.text import ElidedLabel
 
 SIN_CLASIFICAR = "Sin clasificar"
 # La marca de camara del encabezado de bin. Un solo glifo para todos: ver
-# el comentario en `_BinHeader.__init__`.
-MARCA_DE_BIN = "■"
+# el comentario en `_BinHeader.__init__`. Vive en el tema porque el visor
+# usa la misma.
+MARCA_DE_BIN = theme.MARCA_DE_BIN
 # 140 y no 150: el mockup arma CINCO columnas en la hoja del modo clip, y con
 # 150 el ancho util (815 menos margenes y barra de scroll) solo daba para
 # cuatro tarjetas de 186 px -- mas gordas y menos densas que las del mockup.

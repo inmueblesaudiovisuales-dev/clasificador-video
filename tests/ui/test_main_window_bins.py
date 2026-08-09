@@ -1228,3 +1228,13 @@ def test_el_chip_de_bin_de_la_hoja_llega_hasta_la_cola(qtbot, ventana):
     ventana.clip_sheet.chip_de_bin("Dron").click()
 
     assert ventana.queue() == [1]
+
+
+def test_el_visor_dice_de_que_bin_es_el_clip_actual(qtbot, ventana):
+    ventana.load_clips([_clip(0, "/cam/A.MP4"), _clip(1, "/dron/D.MP4")])
+    ventana.bins.agregar("Sony", Path("/cam"), [0])
+    ventana.bins.agregar("Dron", Path("/dron"), [1])
+
+    ventana.select_clip(1)
+
+    assert "Dron" in ventana.video_stage.bin_label.text()

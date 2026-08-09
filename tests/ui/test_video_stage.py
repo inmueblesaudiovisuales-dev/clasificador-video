@@ -713,3 +713,62 @@ def test_lo_ultimo_que_sobrevive_son_las_teclas_menos_obvias(qtbot):
 
     assert "↑↓" in stage.keys_hint.text()
     assert "R inicio" in stage.keys_hint.text()
+
+
+# --- el bin en modo clip (F6) ----------------------------------------------
+
+
+def test_el_bin_aparece_junto_al_nombre_del_archivo(qtbot):
+    stage = _stage_visible(qtbot)
+
+    stage.set_file_label("DJI_20260808_0009.MP4", bin_nombre="Dron")
+
+    assert "Dron" in stage.bin_label.text()
+    assert not stage.bin_label.isHidden()
+    # a la derecha del nombre, no encima
+    assert stage.bin_label.x() >= stage.file_label.x() + stage.file_label.width()
+
+
+def test_sin_bin_no_hay_etiqueta_de_bin(qtbot):
+    stage = _stage_visible(qtbot)
+
+    stage.set_file_label("C0001.MP4")
+
+    assert stage.bin_label.isHidden()
+
+
+def test_con_poco_ancho_se_esconde_el_bin_antes_que_el_nombre(qtbot):
+    """El nombre del archivo es lo que Bruno necesita para encontrarlo en
+    Finder; el bin es contexto. Cuando no caben los dos, se va el contexto.
+    """
+    stage = _stage_visible(qtbot)
+    stage.resize(240, 700)
+    qtbot.wait(10)
+
+    stage.set_file_label("UN_NOMBRE_DE_ARCHIVO_MUY_LARGO_0009.MP4",
+                         bin_nombre="Dron")
+
+    assert stage.bin_label.isHidden()
+
+
+def test_la_velocidad_se_va_antes_que_el_bin(qtbot):
+    """El orden de sacrificio: velocidad → bin → elidir el nombre. La
+    velocidad se sigue cambiando con `J K L` sin mirarla; el bin no tiene
+    otro lugar donde leerse en modo clip."""
+    stage = _stage_visible(qtbot)
+    stage.resize(460, 700)
+    qtbot.wait(10)
+
+    stage.set_file_label("DJI_20260808_0009.MP4", bin_nombre="Dron")
+
+    assert stage.bin_label.isHidden() is False
+    assert stage.speed.isHidden()
+
+
+def test_el_bin_no_se_encima_con_el_selector_de_calidad(qtbot):
+    stage = _stage_visible(qtbot)
+
+    stage.set_file_label("C0001.MP4", bin_nombre="Sony FX30")
+
+    assert (stage.bin_label.x() + stage.bin_label.width()
+            <= stage.quality.x())
