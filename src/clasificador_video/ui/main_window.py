@@ -365,6 +365,37 @@ class MainWindow(QWidget):
             return width / height
         return 16 / 9
 
+    def ruta_de_reproduccion(self, index: int) -> Path:
+        """Que archivo abre el reproductor: el proxy si validó, el original
+        si no.
+
+        Es lo que le da sentido a toda esta fase. Medido contra el material
+        real de la FX30 (4K HEVC 10-bit a 268 Mbps), con
+        `hwdec=videotoolbox`:
+
+        | | original | proxy |
+        |---|---|---|
+        | primer cuadro al abrir | 204.5 ms | 8.9 ms |
+        | seek exacto | 367.6 ms | 19.0 ms |
+        | un cuadro atras (`,`) | 529.9 ms | 22.3 ms |
+
+        Medio segundo por cada `,` era la queja de CONTEXTO-Y-METAS.md
+        sobre la navegacion cuadro a cuadro. No era la app: era el
+        material.
+
+        No hay interruptor para apagarlo: DECISIONES.md no lo pide y el
+        badge sobre el video ya dice que estas viendo el proxy. Y como el
+        proxy calza cuadro a cuadro (se valida al importar), el in/out cae
+        en el mismo numero de cuadro que sobre el original.
+        """
+        clip = self.clips[index]
+        proxy = clip.ruta_proxy
+        # una sesion restaurada trae el proxy que valido en su momento,
+        # pero la tarjeta puede estar desmontada: mpv abriria la nada.
+        if proxy is not None and proxy.exists():
+            return proxy
+        return clip.ruta
+
     def orientacion_del_proyecto(self) -> str:
         """La que declara el manifest, sacada del material -- ver
         `probe.orientacion_predominante`. Solo cuentan los clips que
@@ -1524,7 +1555,7 @@ class MainWindow(QWidget):
             return
         player = self.video_widget.player
         player.set_start_percent(START_PERCENT)
-        self.video_widget.open_clip(clip.ruta)
+        self.video_widget.open_clip(self.ruta_de_reproduccion(self.current_index))
         player.play()
         self._auto_reproduciendo = True
         self.video_stage.badges.set_auto(True)

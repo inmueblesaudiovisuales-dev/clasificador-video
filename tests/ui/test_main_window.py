@@ -2850,3 +2850,64 @@ def test_abrir_un_clip_antes_de_que_su_proxy_valide_usa_el_original(qtbot, monke
     window.select_clip(0)
 
     assert abiertos and abiertos[-1].name == "C0001.MP4"
+
+
+# --- reproducir el proxy (F9) ------------------------------------------
+#
+# Medido en la task 0 del plan contra el material real: un cuadro atras
+# cuesta 530 ms sobre el original (4K HEVC 10-bit a 268 Mbps) y 22 ms
+# sobre el proxy. No era la app: era el material.
+
+
+def test_se_reproduce_el_proxy_cuando_valido(qtbot, monkeypatch, tmp_path):
+    window = _window_with_video(qtbot, cache_root=tmp_path / "cache")
+    abiertos = []
+    monkeypatch.setattr(window.video_widget, "open_clip", lambda p: abiertos.append(p))
+    monkeypatch.setattr(window, "_probe_clip", _ProbeConProxy())
+    _importar_con_proxy(window, monkeypatch, tmp_path)
+    _esperar_a_los_proxies(window)
+    window.select_clip(0)
+
+    assert abiertos[-1].name == "C0001S03.MP4"
+
+
+def test_sin_proxy_se_reproduce_el_original(qtbot, monkeypatch, tmp_path):
+    window = _window_with_video(qtbot, cache_root=tmp_path / "cache")
+    abiertos = []
+    monkeypatch.setattr(window.video_widget, "open_clip", lambda p: abiertos.append(p))
+    monkeypatch.setattr(window, "_probe_clip", _ProbeConProxy())
+    _importar_con_proxy(window, monkeypatch, tmp_path, con_proxy=False)
+    _esperar_a_los_proxies(window)
+    window.select_clip(0)
+
+    assert abiertos[-1].name == "C0001.MP4"
+
+
+def test_si_el_proxy_ya_no_esta_se_cae_al_original(qtbot, monkeypatch, tmp_path):
+    """Sesion restaurada de disco con la tarjeta desmontada, o el proxy
+    borrado despues de importar: mpv abriria la nada."""
+    window = _window_with_video(qtbot, cache_root=tmp_path / "cache")
+    abiertos = []
+    monkeypatch.setattr(window.video_widget, "open_clip", lambda p: abiertos.append(p))
+    monkeypatch.setattr(window, "_probe_clip", _ProbeConProxy())
+    _importar_con_proxy(window, monkeypatch, tmp_path)
+    _esperar_a_los_proxies(window)
+    window.clips[0].ruta_proxy.unlink()
+    window.select_clip(0)
+
+    assert abiertos[-1].name == "C0001.MP4"
+
+
+def test_el_manifest_no_cruza_el_original_con_el_proxy(qtbot, monkeypatch, tmp_path):
+    """Si se cruzan, Premiere arma el proyecto con el material de 720p y
+    nadie lo nota hasta exportar."""
+    window = _window_with_video(qtbot, cache_root=tmp_path / "cache")
+    monkeypatch.setattr(window, "_probe_clip", _ProbeConProxy())
+    _importar_con_proxy(window, monkeypatch, tmp_path)
+    _esperar_a_los_proxies(window)
+    window._asignar_cuarto(["Sala"])
+
+    saved = _exportar(window, monkeypatch, tmp_path / "m.json")
+
+    assert saved["clips"][0]["ruta"].endswith("C0001.MP4")
+    assert saved["clips"][0]["ruta_proxy"].endswith("C0001S03.MP4")
