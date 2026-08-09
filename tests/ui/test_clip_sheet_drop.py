@@ -19,6 +19,8 @@ from PySide6.QtGui import (
     QMouseEvent,
     QPixmap,
 )
+from PySide6.QtWidgets import QApplication
+
 from clasificador_video.ui import theme
 from clasificador_video.ui.clip_sheet import (
     MIME_CLIPS,
@@ -534,16 +536,17 @@ def test_con_el_pincel_activo_no_hay_arrastre(qtbot):
     hoja = ClipSheet()
     qtbot.addWidget(hoja)
     hoja.set_clips([_thumb(0)])
-    pedidas = []
-    hoja.imagen_de_arrastre = lambda indices: (pedidas.append(indices)
-                                               or QPixmap(4, 4))
+    # cortado antes del `exec()`: es un bucle de eventos anidado, y entrar ahi
+    # desde la suite es lo que colgaba `test_app.py` antes de la F3
+    arrancados = []
+    hoja._ejecutar_arrastre = arrancados.append
 
     hoja._on_arrastre_pedido(0)
-    assert pedidas == [[0]]        # sin pincel, el arrastre arranca
+    assert len(arrancados) == 1    # sin pincel, el arrastre arranca
 
     hoja.set_pincel_activo(True)
     hoja._on_arrastre_pedido(0)
-    assert pedidas == [[0]]        # con pincel, no arranco otro
+    assert len(arrancados) == 1    # con pincel, no arranco otro
 
 
 # --- que se lleva el arrastre ---------------------------------------------
@@ -581,10 +584,18 @@ def _mime_clips(indices):
 
 
 def _soltar_clips(hoja, indices, punto):
+    """Suelta clips y deja correr el ciclo de eventos.
+
+    El aviso de «se movieron» sale DIFERIDO a proposito: el drop corre dentro
+    del bucle anidado de `QDrag.exec()`, y refrescar la hoja ahi desecha
+    widgets con la pila del arrastre todavia arriba. Sin el `processEvents` de
+    abajo, ningun test de esta seccion veria nunca la señal.
+    """
     evento = QDropEvent(QPointF(punto), Qt.DropAction.MoveAction,
                         _mime_clips(indices), Qt.MouseButton.LeftButton,
                         Qt.KeyboardModifier.NoModifier)
     hoja.dropEvent(evento)
+    QApplication.processEvents()
     return evento
 
 
@@ -1049,3 +1060,71 @@ def test_sin_filtro_se_van_todos_los_seleccionados(qtbot):
     hoja.set_selected({0, 1, 2, 3})
 
     assert hoja.indices_a_arrastrar(0) == [0, 1, 2, 3]
+
+
+# --- bordes del terreno donde ya nos costo cuatro segfaults ---------------
+
+
+def test_el_aviso_de_movidos_sale_FUERA_del_evento_de_drop(qtbot):
+    """`dropEvent` corre dentro del `QDrag.exec()` que arranco en el
+    `mouseMoveEvent` de la tarjeta: un bucle de eventos anidado, con el frame
+    C++ de esa tarjeta todavia en la pila. Quien atiende la señal refresca la
+    hoja, y refrescar desecha bloques y encabezados con `deleteLater`.
+
+    Hoy no alcanza a matar la tarjeta viva, pero depende de que nadie meta un
+    `force_rebuild` ahi. Este test fija que el aviso salga con la pila limpia.
+    """
+    hoja = _hoja(qtbot, [_thumb(0, bin_nombre="Sony")], bins=["Sony", "Dron"])
+    recibido = []
+    hoja.clips_movidos.connect(lambda idx, d: recibido.append((idx, d)))
+
+    evento = QDropEvent(QPointF(_centro_del_encabezado(hoja, "Dron")),
+                        Qt.DropAction.MoveAction, _mime_clips([0]),
+                        Qt.MouseButton.LeftButton,
+                        Qt.KeyboardModifier.NoModifier)
+    hoja.dropEvent(evento)
+
+    assert recibido == []          # todavia no: seguimos dentro del drop
+    QApplication.processEvents()
+    assert recibido == [([0], "Dron")]
+
+
+def test_un_indice_fuera_de_rango_no_mueve_nada(qtbot):
+    """El mime es una entrada EXTERNA: lo puede armar cualquier app. Un `999`
+    sin validar llegaba hasta `bins.mover` y quedaba guardado en el autosave,
+    apuntando a un clip que no existe."""
+    hoja = _hoja(qtbot, [_thumb(0, bin_nombre="Sony")], bins=["Sony", "Dron"])
+    recibido = []
+    hoja.clips_movidos.connect(lambda idx, d: recibido.append((idx, d)))
+
+    _soltar_clips(hoja, [999, -3], _centro_del_encabezado(hoja, "Dron"))
+
+    assert recibido == []
+
+
+def test_de_una_lista_mezclada_solo_pasan_los_indices_reales(qtbot):
+    hoja = _hoja(qtbot, [_thumb(i, bin_nombre="Sony") for i in range(2)],
+                 bins=["Sony", "Dron"])
+    recibido = []
+    hoja.clips_movidos.connect(lambda idx, d: recibido.append((idx, d)))
+
+    _soltar_clips(hoja, [0, 999, 1], _centro_del_encabezado(hoja, "Dron"))
+
+    assert recibido == [([0, 1], "Dron")]
+
+
+def test_basura_en_el_mime_no_tumba_la_hoja(qtbot):
+    hoja = _hoja(qtbot, [_thumb(0, bin_nombre="Sony")], bins=["Sony", "Dron"])
+    recibido = []
+    hoja.clips_movidos.connect(lambda idx, d: recibido.append((idx, d)))
+    m = QMimeData()
+    m.setData(MIME_CLIPS, b"hola,,3.5,")
+    _MIMES.append(m)
+
+    evento = QDropEvent(QPointF(_centro_del_encabezado(hoja, "Dron")),
+                        Qt.DropAction.MoveAction, m, Qt.MouseButton.LeftButton,
+                        Qt.KeyboardModifier.NoModifier)
+    hoja.dropEvent(evento)
+    QApplication.processEvents()
+
+    assert recibido == []

@@ -12,6 +12,7 @@ from PySide6.QtCore import (
     QRectF,
     QSize,
     Qt,
+    QTimer,
     Signal,
 )
 from PySide6.QtGui import (
@@ -2367,10 +2368,17 @@ class ClipSheet(QWidget):
         pintor.end()
         return lienzo
 
-    @staticmethod
-    def _indices_de(mime) -> list[int]:
+    def _indices_de(self, mime) -> list[int]:
+        """Los indices que vienen en el mime, validados contra la hoja.
+
+        El rango se comprueba porque esto es una entrada EXTERNA: el mime lo
+        puede armar cualquier app. Un `999` sin validar se colaba hasta
+        `bins.mover` y quedaba guardado en el autosave, apuntando a un clip
+        que no existe.
+        """
         crudo = bytes(mime.data(MIME_CLIPS)).decode(errors="ignore")
-        return [int(t) for t in crudo.split(",") if t.strip().isdigit()]
+        return [i for t in crudo.split(",") if t.strip().lstrip("-").isdigit()
+                if 0 <= (i := int(t)) < len(self.item_widgets)]
 
     def _bin_de_la_tarjeta(self, indice: int) -> str | None:
         """El bin en el que ESTA hoy ese clip. `None` = suelto, el mismo
@@ -2455,7 +2463,19 @@ class ClipSheet(QWidget):
                 event.position().toPoint(), event.mimeData()
             )
             if indices:
-                self.clips_movidos.emit(indices, destino)
+                # FUERA del evento, a proposito. Este `dropEvent` corre dentro
+                # del `QDrag.exec()` que arranco en el `mouseMoveEvent` de la
+                # tarjeta: un bucle de eventos ANIDADO, con el frame C++ de esa
+                # tarjeta todavia en la pila. Quien atiende esta señal refresca
+                # la hoja, y refrescar desecha bloques y encabezados con
+                # `deleteLater`. Hoy no alcanza a matar la tarjeta viva, pero
+                # depende de que nadie meta un `force_rebuild` ahi -- y en este
+                # terreno ya nos costo cuatro segfaults. Con el `singleShot`,
+                # el refresco corre cuando el arrastre termino y la pila esta
+                # limpia.
+                QTimer.singleShot(
+                    0, lambda i=indices, d=destino: self.clips_movidos.emit(i, d)
+                )
                 event.acceptProposedAction()
             return
         if not event.mimeData().hasUrls():
