@@ -924,6 +924,9 @@ def test_si_quitas_el_bin_del_clip_actual_el_indice_no_se_pasa_del_final(qtbot, 
 def test_vaciar_el_proyecto_apaga_el_video(qtbot, ventana):
     """Sin esto, quitas el unico bin, la hoja queda vacia y el visor sigue
     mostrando --y reproduciendo-- un clip que ya no esta en el proyecto."""
+    # a modo clip: en la hoja el clip se abre pausado a proposito, y este
+    # test necesita que ESTE sonando para probar que se calla
+    ventana.alternar_modo_hoja()
     ventana.load_clips([_clip(0, "/cam/A.MP4")])
     ventana.bins.agregar("Sony", Path("/cam"), [0])
     assert not ventana.video_widget.player.is_paused

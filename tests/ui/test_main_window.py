@@ -1580,14 +1580,18 @@ def test_el_clip_vertical_sigue_midiendo_529(qtbot):
 
 def test_cambiar_de_clip_lo_deja_reproduciendo(qtbot):
     """Apretar espacio 128 veces es puro peaje."""
-    window = _window_with_video(qtbot)
+    # a modo clip: el autoplay es del VISOR -- en la hoja el clip se abre
+    # pausado a proposito, porque ahi no hay imagen que acompañe al sonido
+    window = _a_modo_clip(_window_with_video(qtbot))
     window.load_clips([_clip(1), _clip(2)])
     window.handle_arrow("next")
     assert not window.video_widget.player.is_paused
 
 
 def test_seleccionar_un_clip_de_la_hoja_tambien_lo_reproduce(qtbot):
-    window = _window_with_video(qtbot)
+    # a modo clip: el autoplay es del VISOR -- en la hoja el clip se abre
+    # pausado a proposito, porque ahi no hay imagen que acompañe al sonido
+    window = _a_modo_clip(_window_with_video(qtbot))
     window.load_clips([_clip(1), _clip(2)])
     window.video_widget.player.pause()
     window.select_clip(1)
@@ -1598,7 +1602,9 @@ def test_el_primer_clip_del_shooting_tambien_arranca_solo(qtbot):
     """Si `load_clips` fuera la excepcion, el primer clip de cada shooting
     seria el unico donde hay que apretar espacio -- justo el peaje que esta
     fase existe para quitar."""
-    window = _window_with_video(qtbot)
+    # a modo clip: el autoplay es del VISOR -- en la hoja el clip se abre
+    # pausado a proposito, porque ahi no hay imagen que acompañe al sonido
+    window = _a_modo_clip(_window_with_video(qtbot))
     window.load_clips([_clip(1)])
     assert not window.video_widget.player.is_paused
 
@@ -1620,7 +1626,8 @@ def test_los_tres_caminos_que_abren_un_clip_hacen_lo_mismo(qtbot):
         "handle_arrow": lambda w: w.handle_arrow("next"),
     }
     for nombre, abrir in caminos.items():
-        window = _window_with_video(qtbot)
+        # a modo clip: el autoplay es del visor, no de la hoja
+        window = _a_modo_clip(_window_with_video(qtbot))
         window.load_clips([_clip(1), _clip(2)])
         # se deja el reproductor en el estado contrario al esperado, para que
         # el test no pueda pasar por lo que hizo la carga inicial
@@ -1636,7 +1643,9 @@ def test_los_tres_caminos_que_abren_un_clip_hacen_lo_mismo(qtbot):
 
 
 def test_el_badge_auto_avisa_que_arranco_solo(qtbot):
-    window = _window_with_video(qtbot)
+    # a modo clip: el autoplay es del VISOR -- en la hoja el clip se abre
+    # pausado a proposito, porque ahi no hay imagen que acompañe al sonido
+    window = _a_modo_clip(_window_with_video(qtbot))
     window.load_clips([_clip(1)])
     window.select_clip(0)
     assert not window.video_stage.badges.auto_badge.isHidden()
@@ -1644,7 +1653,9 @@ def test_el_badge_auto_avisa_que_arranco_solo(qtbot):
 
 def test_el_badge_auto_se_apaga_al_pausar_a_mano(qtbot):
     """Si sigue prendido con el video pausado, miente."""
-    window = _window_with_video(qtbot)
+    # a modo clip: el autoplay es del VISOR -- en la hoja el clip se abre
+    # pausado a proposito, porque ahi no hay imagen que acompañe al sonido
+    window = _a_modo_clip(_window_with_video(qtbot))
     window.load_clips([_clip(1)])
     window.select_clip(0)
     window.video_widget.toggle_play()
@@ -1655,7 +1666,9 @@ def test_el_badge_auto_se_apaga_al_pausar_a_mano(qtbot):
 def test_el_badge_auto_no_vuelve_al_reanudar_a_mano(qtbot):
     """Una vez que tocaste el espacio, la reproduccion ya no es automatica.
     Si el badge volviera, diria 'arranco solo' de algo que arrancaste tu."""
-    window = _window_with_video(qtbot)
+    # a modo clip: el autoplay es del VISOR -- en la hoja el clip se abre
+    # pausado a proposito, porque ahi no hay imagen que acompañe al sonido
+    window = _a_modo_clip(_window_with_video(qtbot))
     window.load_clips([_clip(1)])
     window.select_clip(0)
     window.video_widget.toggle_play()   # pausa
@@ -1666,7 +1679,9 @@ def test_el_badge_auto_no_vuelve_al_reanudar_a_mano(qtbot):
 
 
 def test_el_badge_auto_vuelve_al_cambiar_de_clip(qtbot):
-    window = _window_with_video(qtbot)
+    # a modo clip: el autoplay es del VISOR -- en la hoja el clip se abre
+    # pausado a proposito, porque ahi no hay imagen que acompañe al sonido
+    window = _a_modo_clip(_window_with_video(qtbot))
     window.load_clips([_clip(1), _clip(2)])
     window.video_widget.toggle_play()
     window._tick_playhead()
@@ -1810,7 +1825,9 @@ def test_el_timecode_se_actualiza_al_avanzar_un_cuadro(qtbot):
 def test_avanzar_un_cuadro_apaga_el_badge_auto(qtbot):
     """`.` pausa el video (lo hace mpv solo). Si el badge siguiera prendido
     diria que esta corriendo solo algo que esta detenido."""
-    window = _window_with_video(qtbot)
+    # a modo clip: el autoplay es del VISOR -- en la hoja el clip se abre
+    # pausado a proposito, porque ahi no hay imagen que acompañe al sonido
+    window = _a_modo_clip(_window_with_video(qtbot))
     window.load_clips([_clip(1)])
     window.handle_key_press(".")
     assert window.video_stage.badges.auto_badge.isHidden()
@@ -3823,3 +3840,57 @@ def test_la_app_arranca_en_la_hoja(qtbot):
 
     assert window._modo_hoja is True
     assert window.clip_sheet.isVisible() or not window.video_stage.isVisible()
+
+
+# --- el audio no suena sin imagen (revision F7) -------------------------
+
+
+def test_arrancar_en_la_hoja_no_reproduce_el_clip(qtbot):
+    """El bug que Bruno oiria en el primer minuto: la app abre en la hoja,
+    restaura su sesion, y empieza a sonar el audio de un clip que no ve --
+    sin visor ni indicador a la vista para entender de donde sale.
+    """
+    window = _window(qtbot)
+    window.load_clips([_clip(1)])
+
+    assert window.video_widget.player.is_paused
+    assert not window._auto_reproduciendo
+    # el clip SI se abrio: cruzar al visor tiene que ser instantaneo
+    assert window.video_widget.player._mpv.loaded_path is not None
+
+
+def test_cruzar_al_visor_reanuda_lo_que_la_hoja_dejo_pausado(qtbot):
+    """El autoplay no se pierde, se aplaza: en cuanto hay imagen, corre."""
+    window = _window(qtbot)
+    window.load_clips([_clip(1)])
+
+    window.alternar_modo_hoja()          # a modo clip
+
+    assert not window.video_widget.player.is_paused
+    assert window._auto_reproduciendo
+
+
+def test_volver_a_la_hoja_calla_el_video(qtbot):
+    """El mismo bug, alcanzable con una tecla: `⇥` desde el visor con el
+    clip corriendo dejaba el audio sonando sobre la hoja."""
+    window = _a_modo_clip(_window(qtbot))
+    window.load_clips([_clip(1)])
+    assert not window.video_widget.player.is_paused
+
+    window.alternar_modo_hoja()          # de vuelta a la hoja
+
+    assert window.video_widget.player.is_paused
+
+
+def test_si_pausaste_a_mano_cruzar_a_la_hoja_y_volver_no_lo_reanuda(qtbot):
+    """Lo que se aplaza es el AUTOPLAY, no una orden tuya: si pausaste,
+    sigue pausado al volver."""
+    window = _a_modo_clip(_window(qtbot))
+    window.load_clips([_clip(1)])
+    window.video_widget.player.pause()
+    window._tick_playhead()              # apaga el badge `▶ auto`
+
+    window.alternar_modo_hoja()
+    window.alternar_modo_hoja()
+
+    assert window.video_widget.player.is_paused

@@ -290,6 +290,11 @@ class MainWindow(QWidget):
         # el clip actual arranco solo (y el badge `▶ auto` esta prendido).
         # Se apaga en cuanto pausas y no vuelve hasta el siguiente clip.
         self._auto_reproduciendo = False
+        # el autoplay que la hoja dejo esperando: en la hoja no hay imagen
+        # que acompañe al sonido, asi que se aplaza hasta cruzar al visor.
+        # Es un tercer estado y no `_auto_reproduciendo` puesto a la fuerza,
+        # porque el tick del playhead apaga ese en cuanto ve el clip pausado.
+        self._auto_pendiente = False
         # solo video: los paneles escondidos y el video con todo el ancho
         self._solo_video = False
         # modo hoja: la hoja a pantalla completa, sin video ni columna
@@ -1992,6 +1997,20 @@ class MainWindow(QWidget):
         for panel in (self.video_stage, self.tool_column):
             panel.setVisible(not self._modo_hoja)
         self.clip_sheet.set_modo_hoja(self._modo_hoja)
+        # El sonido sigue a la imagen. Entrar a la hoja calla lo que estaba
+        # corriendo solo --si no, el audio se queda sonando sobre una hoja
+        # sin visor-- y salir lo reanuda. Lo que pausaste TU no se reanuda:
+        # `_auto_pendiente` solo se prende cuando el clip arranco solo.
+        if self._modo_hoja and self._auto_reproduciendo:
+            self.video_widget.player.pause()
+            self._auto_pendiente = True
+            self._auto_reproduciendo = False
+            self.video_stage.badges.set_auto(False)
+        elif not self._modo_hoja and self._auto_pendiente:
+            self.video_widget.player.play()
+            self._auto_pendiente = False
+            self._auto_reproduciendo = True
+            self.video_stage.badges.set_auto(True)
         if self._modo_hoja:
             # entrar a la hoja lleva SIEMPRE al clip actual (DECISIONES.md):
             # los dos modos comparten el clip, asi que abrir la hoja mirando
@@ -2253,7 +2272,19 @@ class MainWindow(QWidget):
         player = self.video_widget.player
         player.set_start_percent(START_PERCENT)
         self.video_widget.open_clip(self.ruta_de_reproduccion(self.current_index))
+        if self._modo_hoja:
+            # En la hoja el visor esta escondido: reproducir seria audio sin
+            # imagen, y sin visor a la vista no hay de donde deducir que esta
+            # sonando. El clip SI se abre --por eso el cruce al visor es
+            # instantaneo-- pero pausado, y el autoplay queda aplazado, no
+            # perdido: `alternar_modo_hoja` lo reanuda al cruzar.
+            player.pause()
+            self._auto_pendiente = True
+            self._auto_reproduciendo = False
+            self.video_stage.badges.set_auto(False)
+            return
         player.play()
+        self._auto_pendiente = False
         self._auto_reproduciendo = True
         self.video_stage.badges.set_auto(True)
 
