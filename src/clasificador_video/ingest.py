@@ -27,10 +27,15 @@ def archivos_de_video(rutas: list[Path]) -> list[Path]:
     """
     encontrados: list[Path] = []
     for ruta in rutas:
-        candidatos = (
-            sorted(p for p in ruta.iterdir() if p.is_file())
-            if ruta.is_dir() else [ruta]
-        )
+        if ruta.is_dir():
+            candidatos = sorted(p for p in ruta.iterdir() if p.is_file())
+        elif ruta.is_file():
+            candidatos = [ruta]
+        else:
+            # ni carpeta ni archivo: no existe. Dejarla pasar por el sufijo
+            # terminaba en el aviso de «falta ffprobe», que es el
+            # diagnostico equivocado.
+            continue
         for p in candidatos:
             if (p.suffix.lower() in VIDEO_EXTENSIONS
                     and not es_archivo_de_proxy(p)

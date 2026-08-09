@@ -175,7 +175,8 @@ def test_importar_una_segunda_carpeta_no_recrea_las_tarjetas(qtbot, tmp_path,
 
 
 def test_importar_la_misma_carpeta_dos_veces_no_duplica(qtbot, tmp_path,
-                                                        monkeypatch, ventana):
+                                                        monkeypatch, ventana,
+                                                        avisos):
     monkeypatch.setattr(
         "clasificador_video.ui.main_window.extract_thumbnail_strip", lambda *a, **k: []
     )
@@ -261,3 +262,44 @@ def test_agregar_material_solo_pide_las_portadas_de_los_clips_nuevos(
     # y la generacion NO sube: subirla tira las señales de los trabajos del
     # primer lote que todavia no llegaron.
     assert ventana._thumb_generation == generacion
+
+
+@pytest.fixture
+def avisos(monkeypatch):
+    """Cachar los QMessageBox: son modales y bajo offscreen cuelgan la suite."""
+    vistos = []
+    monkeypatch.setattr(
+        "clasificador_video.ui.main_window.QMessageBox.information",
+        lambda parent, titulo, texto, *a, **k: vistos.append((titulo, texto)),
+    )
+    return vistos
+
+
+def test_importar_algo_sin_videos_lo_dice(qtbot, tmp_path, ventana, avisos):
+    """Spec §4.3: si nada de lo que soltaste es video, se dice por que en
+    vez de no pasar nada."""
+    carpeta = _carpeta_con(tmp_path, "DOCS", "notas.txt", "hoja.pdf")
+
+    ventana.importar_rutas([carpeta])
+
+    assert len(avisos) == 1
+    assert avisos[0][0] == "Nada que importar"
+    assert not ventana.clips
+
+
+def test_importar_lo_que_ya_esta_lo_dice_con_otras_palabras(
+        qtbot, tmp_path, monkeypatch, ventana, avisos):
+    """Los dos casos se ven igual --no pasa nada-- y son distintos: en uno
+    elegiste la carpeta equivocada y en el otro ya la habias importado."""
+    monkeypatch.setattr(
+        "clasificador_video.ui.main_window.extract_thumbnail_strip", lambda *a, **k: []
+    )
+    sony = _carpeta_con(tmp_path, "FX30", "C0001.MP4")
+    ventana.importar_rutas([sony])
+    avisos.clear()
+
+    ventana.importar_rutas([sony])
+
+    assert len(avisos) == 1
+    assert avisos[0][0] == "Ya están en el proyecto"
+    assert len(ventana.clips) == 1

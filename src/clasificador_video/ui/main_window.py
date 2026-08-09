@@ -1319,10 +1319,29 @@ class MainWindow(QWidget):
         misma tarjeta no puede dejar cada plano duplicado.
         """
         archivos = archivos_de_video(rutas)
-        ya_estan = {c.ruta for c in self.clips}
-        archivos = [a for a in archivos if a not in ya_estan]
         if not archivos:
+            # spec §4.3: los dos casos de «no paso nada» se ven igual y son
+            # distintos -- en este elegiste la carpeta equivocada.
+            QMessageBox.information(
+                self, "Nada que importar",
+                "En lo que elegiste no hay archivos de video que la app "
+                "reconozca.\n\nSe aceptan .mp4, .mov, .mxf y .lrf. Los proxies "
+                "de cámara (los que terminan en S03) se descartan a propósito.",
+            )
             return
+        ya_estan = {c.ruta for c in self.clips}
+        nuevos_archivos = [a for a in archivos if a not in ya_estan]
+        if not nuevos_archivos:
+            # y en este ya lo habias importado. Un duplicado suelto dentro de
+            # una tanda con material nuevo si se ignora en silencio: el aviso
+            # es para el gesto que no hizo nada entero.
+            QMessageBox.information(
+                self, "Ya están en el proyecto",
+                f"Los {len(archivos)} clips que elegiste ya están importados, "
+                "así que no se agregó nada.",
+            )
+            return
+        archivos = nuevos_archivos
         carpeta = origen or archivos[0].parent
         nuevos, medidas = self._medir(archivos, desde=len(self.clips))
         if not nuevos:

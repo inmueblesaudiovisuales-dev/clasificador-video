@@ -97,3 +97,10 @@ def test_archivos_de_video_no_baja_a_las_subcarpetas(tmp_path):
     (adentro / "B.MP4").touch()
 
     assert archivos_de_video([tmp_path]) == [tmp_path / "A.MP4"]
+
+
+def test_archivos_de_video_descarta_lo_que_no_existe(tmp_path):
+    """`is_dir()` da False para algo que no existe, asi que una ruta muerta
+    con sufijo de video se colaba como archivo -- y el aviso que salia
+    despues era «falta ffprobe», el diagnostico equivocado."""
+    assert archivos_de_video([tmp_path / "fantasma.MP4"]) == []
