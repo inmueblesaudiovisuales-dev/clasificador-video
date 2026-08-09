@@ -848,7 +848,7 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 - Modificar: `src/clasificador_video/ui/main_window.py` (~1279-1305)
 - Test: `tests/ui/test_main_window_bins.py`
 
-- [ ] **Paso 1: escribir el test que falla — ESTE es el test que importa**
+- [x] **Paso 1: escribir el test que falla — ESTE es el test que importa**
 
 ```python
 def test_enganchar_los_proxies_de_un_bin_no_borra_los_del_otro(qtbot, ventana):
@@ -882,11 +882,11 @@ def test_volver_a_enganchar_el_mismo_bin_si_limpia_lo_suyo(qtbot, ventana):
     assert 0 not in ventana._proxy_sizes
 ```
 
-- [ ] **Paso 2: correr y ver que fallan**
+- [x] **Paso 2: correr y ver que fallan**
 
 Esperado: `TypeError: _sondear_proxies() got an unexpected keyword argument 'indices'`
 
-- [ ] **Paso 3: implementar**
+- [x] **Paso 3: implementar**
 
 ```python
     def _sondear_proxies(self, emparejados: dict[Path, Path | None],
@@ -925,7 +925,7 @@ Esperado: `TypeError: _sondear_proxies() got an unexpected keyword argument 'ind
         self._schedule_thumbnails()
 ```
 
-- [ ] **Paso 4: arreglar la invalidación por generación**
+- [x] **Paso 4: arreglar la invalidación por generación**
 
 `_proxy_generation` es global: subirla descarta los trabajos en vuelo **del
 otro bin**, y esos resultados se perderían. Cambiar la guarda de
@@ -948,11 +948,11 @@ el mismo:
 > **Comprobar esto con un test**, no de vista: un trabajo del bin A que llega
 > después de haber lanzado el bin B tiene que seguir contando.
 
-- [ ] **Paso 5: correr y ver que pasan**
+- [x] **Paso 5: correr y ver que pasan**
 
 Esperado: PASS
 
-- [ ] **Paso 6: commit**
+- [x] **Paso 6: commit**
 
 ```bash
 git add -A
@@ -969,7 +969,7 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 - Modificar: `src/clasificador_video/ui/main_window.py` (~1231-1277)
 - Test: `tests/ui/test_main_window_bins.py`
 
-- [ ] **Paso 1: escribir el test que falla**
+- [x] **Paso 1: escribir el test que falla**
 
 ```python
 def test_el_patron_se_busca_solo_entre_los_clips_del_bin(qtbot, ventana, monkeypatch):
@@ -991,11 +991,11 @@ def test_el_patron_se_busca_solo_entre_los_clips_del_bin(qtbot, ventana, monkeyp
     assert Path("/cam/C0001.MP4") not in vistos["emp"]
 ```
 
-- [ ] **Paso 2: correr y ver que falla**
+- [x] **Paso 2: correr y ver que falla**
 
 Esperado: `AttributeError: … has no attribute 'adjuntar_proxies_de_bin'`
 
-- [ ] **Paso 3: implementar**
+- [x] **Paso 3: implementar**
 
 Partir `adjuntar_proxies` en dos: la parte que pide el archivo (con
 `QFileDialog`, no testeable) y la que hace el trabajo (testeable, recibe
@@ -1050,7 +1050,7 @@ Partir `adjuntar_proxies` en dos: la parte que pide el archivo (con
 > de sondear se conserva, contando contra `len(indices)` y no contra
 > `len(self.clips)`.
 
-- [ ] **Paso 4: `quitar_proxies_de_bin`**
+- [x] **Paso 4: `quitar_proxies_de_bin`**
 
 ```python
     def quitar_proxies_de_bin(self, nombre_de_bin: str) -> None:
@@ -1060,7 +1060,7 @@ Partir `adjuntar_proxies` en dos: la parte que pide el archivo (con
 
 Con su test: los del bin quedan sin proxy, los del otro bin no se tocan.
 
-- [ ] **Paso 5: el botón «Proxies» de la barra de título**
+- [x] **Paso 5: el botón «Proxies» de la barra de título**
 
 Ya no tiene sentido como acción global. Pasa a operar sobre **el bin del clip
 actual**:
@@ -1076,13 +1076,13 @@ actual**:
         self.adjuntar_proxies_de_bin(nombre)
 ```
 
-- [ ] **Paso 6: correr la suite completa**
+- [x] **Paso 6: correr la suite completa**
 
 Esperado: todo verde. **Los tests viejos de `adjuntar_proxies` van a fallar**
 porque cambió el alcance — ajustarlos para que creen un bin primero, y dejar
 en cada uno un comentario de por qué se tocó.
 
-- [ ] **Paso 7: commit**
+- [x] **Paso 7: commit**
 
 ```bash
 git add -A
