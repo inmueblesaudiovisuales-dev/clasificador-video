@@ -80,6 +80,19 @@ def _restore_session(window: MainWindow, session_path: Path) -> None:
     # subcuartos murieron en la F3 y los paths se aplanan al cuarto padre.
     window._router = KeyboardRouter(active_rooms=window.room_selection.active_rooms())
     window.load_clips([_clip_from_dict(d) for d in data.get("clips", [])])
+    # ANTES de las miniaturas: la duracion decide si se extrae la tira de
+    # 12 cuadros o un solo frame, y el tamaño decide la forma de la tarjeta.
+    window._clip_sizes = {
+        int(i): (int(t[0]), int(t[1])) for i, t in (data.get("tamanos") or {}).items()
+    }
+    window._clip_durations = {
+        int(i): float(s) for i, s in (data.get("duraciones") or {}).items()
+    }
+    window._clip_rotations = {
+        int(i): int(r) for i, r in (data.get("rotaciones") or {}).items()
+    }
+    window._refresh_sheet(force_rebuild=True)
+    window._resize_video_stage()
     window._schedule_thumbnails()
 
 

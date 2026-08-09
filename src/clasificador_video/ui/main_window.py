@@ -271,6 +271,8 @@ class MainWindow(QWidget):
         # esto es nada mas para escribir «720p» sin inventarlo.
         self._proxy_sizes: dict[int, tuple[int, int]] = {}
         self._proxy_candidatos: dict[int, Path] = {}
+        self._miniaturas_pendientes = 0
+        self._miniaturas_totales = 0
         self._proxy_generation = 0
         self.transicion = TransicionDeTarjeta(self)
 
@@ -1137,6 +1139,18 @@ class MainWindow(QWidget):
             "proyecto": self.project_name,
             "rooms": self.room_selection.active_rooms(),
             "clips": [c.to_dict() for c in self.clips],
+            # Tamaño, duracion y rotacion van APARTE de los clips, no dentro
+            # de `to_dict()`: esa forma es el contrato con el plugin de
+            # Premiere y no se toca.
+            #
+            # Y van, aunque cuesten unas lineas: sin ellos, recuperar una
+            # sesion dejaba a la app sin saber la forma de nada --no se
+            # vuelve a correr ffprobe-- y TODAS las tarjetas caian en 16:9.
+            # Bruno lo vio con material vertical dibujado en cajas
+            # horizontales.
+            "tamanos": {str(i): [a, h] for i, (a, h) in self._clip_sizes.items()},
+            "duraciones": {str(i): s for i, s in self._clip_durations.items()},
+            "rotaciones": {str(i): r for i, r in self._clip_rotations.items()},
         }
         self._autosave_pool.start(_AutosaveWriteJob(self.session_path, data))
         self._last_saved_at = time.monotonic()
@@ -1183,8 +1197,10 @@ class MainWindow(QWidget):
         self._clip_sizes = sizes
         self._clip_rotations = rotations
         self.load_clips(clips)
-        self._schedule_thumbnails()
+        # el sondeo VA PRIMERO: deja emparejados los proxies --que es solo
+        # mirar nombres, sin abrir nada-- y las miniaturas se sacan de ellos.
         self._programar_sondeo_de_proxies()
+        self._schedule_thumbnails()
 
     def _programar_sondeo_de_proxies(self) -> None:
         """Busca el proxy de cada clip y manda a sondearlo en segundo plano.
@@ -1280,12 +1296,20 @@ class MainWindow(QWidget):
         resolucion = etiquetas.pop() if len(etiquetas) == 1 else ""
         return len(con_proxy), len(self.clips), resolucion
 
+    def _refrescar_progreso(self) -> None:
+        self.status_bar.set_progreso_de_miniaturas(
+            self._miniaturas_totales - self._miniaturas_pendientes,
+            self._miniaturas_totales,
+        )
+
     def _schedule_thumbnails(self) -> None:
         if not self.clips:
             return
         # una importacion nueva invalida las señales stale de la anterior
         self._thumb_generation += 1
         generation = self._thumb_generation
+        self._miniaturas_pendientes = 0
+        self._miniaturas_totales = len(self.clips)
         cache_root = self._thumbnail_cache_root
         for index, clip in enumerate(self.clips):
             cache_dir = cache_dir_for(clip.ruta, cache_root)
@@ -1299,13 +1323,25 @@ class MainWindow(QWidget):
                 self._on_thumbnail_ready(generation, index, cached_frames)
                 continue
             duration_seconds = self._clip_durations.get(index)
-            job = _ThumbnailJob(generation, index, clip.ruta, cache_dir, duration_seconds)
+            # del PROXY si lo hay: sacar 12 cuadros de HEVC 10-bit a 268 Mbps
+            # es lo que ponia los ventiladores a trabajar con 109 clips. El
+            # proxy da la misma imagen ~20 veces mas barato.
+            #
+            # Se usa el candidato aunque todavia no haya validado: para una
+            # miniatura alcanza, y esperar a la validacion --3.4 s de ffprobe
+            # en 128 clips-- retrasaria justo lo que se quiere acelerar.
+            fuente = self._proxy_candidatos.get(index, clip.ruta)
+            job = _ThumbnailJob(generation, index, fuente, cache_dir, duration_seconds)
             job.signals.done.connect(self._on_thumbnail_ready)
+            self._miniaturas_pendientes += 1
             self._thread_pool.start(job)
+        self._refrescar_progreso()
 
     def _on_thumbnail_ready(self, generation: int, index: int, frames: list[Path] | None) -> None:
         if generation != self._thumb_generation:
             return  # senal de una importacion ya descartada
+        self._miniaturas_pendientes = max(0, self._miniaturas_pendientes - 1)
+        self._refrescar_progreso()
         if not frames or index >= self.clip_sheet.count():
             return
         pixmaps = [QPixmap(str(f)) for f in frames]
@@ -1630,22 +1666,37 @@ class MainWindow(QWidget):
             # no habria forma de volver a neutral con el teclado. `⇧P` sobre un
             # destacado tambien apaga; `P` sobre un destacado lo BAJA a pick,
             # que es el escalon de abajo de la misma escalera.
-            actual = self.current_clip.flag
-            if actual == action:
+            # A TODA la seleccion, igual que los cuartos. Antes solo tocaba
+            # el clip actual: seleccionabas seis con la marquesina, apretabas
+            # `P`, y se marcaba uno.
+            indices = self._bulk_target_indices()
+            if not indices:
+                return
+            estados = [self.clips[i].flag for i in indices]
+            # repetir la tecla apaga SOLO si todos lo tienen ya: con la
+            # seleccion mezclada, empareja hacia arriba, que es lo que uno
+            # espera al pintar un lote. Sin esto no habria forma de volver a
+            # neutral con el teclado.
+            if all(e == action for e in estados):
                 nuevo = "none"
-            elif action == "pick" and actual == "destacado":
+            elif action == "pick" and all(e == "destacado" for e in estados):
+                # `P` sobre un destacado lo BAJA a pick, el escalon de abajo
+                # de la misma escalera
                 nuevo = "pick"
             else:
                 nuevo = action
             self._registrar(
                 etiqueta=ETIQUETAS_DE_ESTADO.get(nuevo, nuevo.title()),
-                detalle=self._detalle([self.current_index]),
+                detalle=self._detalle(indices),
                 color=COLORES_DE_ESTADO.get(nuevo, theme.TEXT_3),
-                clips=[self.current_index],
+                clips=indices,
                 campos=("flag",),
             )
-            self.current_clip.flag = nuevo
+            for i in indices:
+                self.clips[i].flag = nuevo
             self._refresh_sheet()
+            self._refresh_rail()
+            self._refresh_overlays()
             self._autosave()
 
     def handle_arrow(self, direction: str) -> None:
@@ -1668,6 +1719,10 @@ class MainWindow(QWidget):
             self.current_index = anteriores[-1] if anteriores else indices[0]
         self._abrir_clip_actual()
         self._refresh_sheet()
+        # y la hoja SIGUE al clip actual. El borde ambar ya se pintaba, pero
+        # con 128 clips la tarjeta quedaba fuera de la parte visible: mirabas
+        # una hoja donde nada estaba marcado.
+        self.clip_sheet.centrar_en(self.current_index)
         self._resize_video_stage()
         self._autosave()
 
@@ -1704,6 +1759,7 @@ class MainWindow(QWidget):
         # propio mousePressEvent-- y en el run loop nativo de cocoa eso
         # termina en SIGSEGV. Ademas borraria los pixmaps ya cargados.
         self.clip_sheet.set_current(self.current_index)
+        self.clip_sheet.centrar_en(self.current_index)
         self._refresh_rail()
         self._refresh_overlays()
         self._update_scrub_bar()
@@ -1778,6 +1834,7 @@ class MainWindow(QWidget):
         self.clip_sheet.set_counts(contar(self.clips))
         self.clip_sheet.set_queue_size(len(indices), filtrando)
         self.clip_sheet.set_current(self.current_index)
+        self.clip_sheet.centrar_en(self.current_index)
         self._refresh_rail()
         self._refresh_overlays()
         self._update_scrub_bar()

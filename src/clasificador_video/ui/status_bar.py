@@ -39,6 +39,12 @@ class StatusBar(QWidget):
         self.unclassified_label.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self.unclassified_label.hide()
         self.unclassified_label.clicked.connect(self.unclassified_clicked.emit)
+        # aviso transitorio de trabajo en curso (miniaturas). Va del lado
+        # izquierdo, junto a los datos del clip, porque es lo que estas
+        # mirando mientras esperas a que aparezcan.
+        self.progress_label = QLabel("")
+        self.progress_label.setObjectName("statusMono")
+        self.progress_label.hide()
         # va del lado derecho, PEGADO a la ruta del volumen y antes que
         # ella, como en el mockup (`proxies 1080p · 128/128` y luego
         # `/Volumes/FX30/CasaLomas · 214 GB`): es informacion de
@@ -50,6 +56,7 @@ class StatusBar(QWidget):
         self.volume_label.setObjectName("statusMono")
 
         layout.addWidget(self.clip_label)
+        layout.addWidget(self.progress_label)
         layout.addWidget(self.unclassified_label)
         layout.addStretch(1)
         layout.addWidget(self.proxy_label)
@@ -111,6 +118,19 @@ class StatusBar(QWidget):
             f"⚠ {cuantos} sin clasificar — click para filtrarlos" if cuantos else ""
         )
         self.unclassified_label.setVisible(bool(cuantos))
+
+    def set_progreso_de_miniaturas(self, listas: int, total: int) -> None:
+        """`generando miniaturas · 37/109`, y se va sola al terminar.
+
+        Existe porque sin ella la app se veia rota: con 109 clips las
+        miniaturas tardan casi un minuto y las tarjetas se quedan vacias
+        todo ese rato. Bruno creyo que no se habian importado.
+        """
+        if total <= 0 or listas >= total:
+            self.progress_label.hide()
+            return
+        self.progress_label.setText(f"generando miniaturas · {listas}/{total}")
+        self.progress_label.show()
 
     def set_proxies(self, cuantos: int, total: int, resolucion: str) -> None:
         """`proxies 720p · 118/128`, o nada si no hay ni uno.

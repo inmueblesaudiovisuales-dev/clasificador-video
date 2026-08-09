@@ -144,3 +144,39 @@ def test_main_aplica_el_stylesheet_global(qtbot, monkeypatch):
     # hexadecimal aqui, la asercion queda obsoleta en silencio (paso: este
     # test afirmaba #08080a, un color que ya no existia en theme.py).
     assert f"background-color: {theme.BG_APP}" in app.styleSheet()
+
+
+def test_restaurar_una_sesion_devuelve_los_tamanos(qtbot, tmp_path):
+    """Sin esto, al recuperar la sesion el material vertical se dibujaba
+    en tarjetas horizontales: no habia con que calcular el aspecto."""
+    from clasificador_video.app import _restore_session
+    from PySide6.QtWidgets import QMessageBox
+    import json
+
+    sesion = tmp_path / "s.json"
+    sesion.write_text(json.dumps({
+        "proyecto": "P",
+        "rooms": ["Sala"],
+        "clips": [{"orden": 1, "ruta": "/a.MP4", "categoria_path": ["Sala"],
+                   "fps": 59.94, "in_frame": None, "out_frame": None,
+                   "flag": "none", "ruta_proxy": None}],
+        "tamanos": {"0": [2160, 3840]},
+        "duraciones": {"0": 18.4},
+        "rotaciones": {"0": 90},
+    }))
+    from clasificador_video.ui.main_window import MainWindow
+    from clasificador_video.rooms import RoomSelection
+    ventana = MainWindow(project_name="P", room_selection=RoomSelection(),
+                         thumbnail_cache_root=tmp_path / "cache")
+    qtbot.addWidget(ventana)
+    import clasificador_video.app as app_mod
+    original = app_mod.QMessageBox.question
+    app_mod.QMessageBox.question = staticmethod(lambda *a, **k: QMessageBox.Yes)
+    try:
+        _restore_session(ventana, sesion)
+    finally:
+        app_mod.QMessageBox.question = original
+
+    assert ventana._clip_sizes == {0: (2160, 3840)}
+    assert ventana._clip_durations == {0: 18.4}
+    assert ventana.aspect_ratio_for(0) == 2160 / 3840

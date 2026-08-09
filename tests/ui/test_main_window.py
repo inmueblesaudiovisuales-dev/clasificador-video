@@ -2734,10 +2734,12 @@ class _ProbeConProxy:
                 "has_audio": True, "duration_frames": 540, "rotation": 90}
 
 
-def _importar_con_proxy(window, monkeypatch, tmp_path, con_proxy=True):
-    monkeypatch.setattr(
-        "clasificador_video.ui.main_window.extract_thumbnail_strip", lambda *a, **k: []
-    )
+def _importar_con_proxy(window, monkeypatch, tmp_path, con_proxy=True,
+                        parchear_miniaturas=True):
+    if parchear_miniaturas:
+        monkeypatch.setattr(
+            "clasificador_video.ui.main_window.extract_thumbnail_strip", lambda *a, **k: []
+        )
     carpeta = tmp_path / "tarjeta" / "clips"
     carpeta.mkdir(parents=True)
     (carpeta / "C0001.MP4").touch()
@@ -3164,3 +3166,195 @@ def test_exportar_no_toca_lo_que_esta_en_pantalla(qtbot, monkeypatch, tmp_path):
 
     assert window.clips[0].in_frame == 90
     assert window.clips[0].out_frame == 10
+
+
+# --- pick/reject sobre la seleccion (reporte de Bruno) -----------------
+#
+# Los cuartos (1-9) ya se aplicaban a todos los clips seleccionados, pero
+# `P`, `X` y `⇧P` solo tocaban el clip actual: seleccionabas seis con la
+# marquesina, apretabas P, y se marcaba uno.
+
+
+def test_pick_se_aplica_a_toda_la_seleccion(qtbot):
+    window = _window(qtbot)
+    window.load_clips([_clip(i) for i in range(1, 7)])
+    window.clip_sheet.set_selected({1, 2, 3})
+
+    window.handle_key_press("p")
+
+    assert [c.flag for c in window.clips] == ["none", "pick", "pick", "pick", "none", "none"]
+
+
+def test_reject_y_destacado_tambien(qtbot):
+    window = _window(qtbot)
+    window.load_clips([_clip(i) for i in range(1, 5)])
+    window.clip_sheet.set_selected({0, 1})
+    window.handle_key_press("x")
+    assert [c.flag for c in window.clips] == ["reject", "reject", "none", "none"]
+
+    window.handle_key_press("shift+p")
+    assert [c.flag for c in window.clips] == ["destacado", "destacado", "none", "none"]
+
+
+def test_repetir_la_tecla_apaga_solo_si_TODOS_lo_tienen(qtbot):
+    """Con la seleccion mezclada, `P` empareja hacia arriba en vez de
+    apagar: es lo que uno espera al pintar un lote."""
+    window = _window(qtbot)
+    window.load_clips([_clip(i) for i in range(1, 4)])
+    window.clips[0].flag = "pick"
+    window.clip_sheet.set_selected({0, 1})
+
+    window.handle_key_press("p")
+    assert [c.flag for c in window.clips] == ["pick", "pick", "none"]
+
+    window.handle_key_press("p")   # ahora si, los dos lo tienen
+    assert [c.flag for c in window.clips] == ["none", "none", "none"]
+
+
+def test_deshacer_devuelve_todo_el_lote(qtbot):
+    window = _window(qtbot)
+    window.load_clips([_clip(i) for i in range(1, 5)])
+    window.clip_sheet.set_selected({0, 1, 2})
+    window.handle_key_press("p")
+
+    window.undo()
+
+    assert [c.flag for c in window.clips] == ["none"] * 4
+
+
+def test_el_historial_dice_cuantos_clips_se_marcaron(qtbot):
+    window = _window(qtbot)
+    window.load_clips([_clip(i) for i in range(1, 5)])
+    window.clip_sheet.set_selected({0, 1, 2})
+    window.handle_key_press("p")
+
+    assert "3 clips" in window.history.entries()[0].detalle
+
+
+# --- la hoja sigue al clip actual (reporte de Bruno) -------------------
+
+
+def _tarjeta_a_la_vista(window, indice):
+    from PySide6.QtCore import QRect
+    tarjeta = window.clip_sheet.item_widgets[indice]
+    viewport = window.clip_sheet._scroll.viewport()
+    arriba = tarjeta.mapTo(viewport, tarjeta.rect().topLeft())
+    return viewport.rect().intersects(QRect(arriba, tarjeta.size()))
+
+
+def test_navegar_con_flechas_trae_la_tarjeta_a_la_vista(qtbot):
+    """«En el modo clip no se marca en cual clip estoy cuando voy
+    navegando con la flecha»: el borde ambar SI se pintaba, pero la
+    tarjeta quedaba fuera de la parte visible de la hoja."""
+    window = _window(qtbot)
+    window.resize(1600, 1000)
+    window.show()
+    window.load_clips([_clip(i) for i in range(1, 129)])
+    qtbot.wait(10)
+
+    for _ in range(40):
+        window.handle_arrow("next")
+    qtbot.wait(10)
+
+    assert _tarjeta_a_la_vista(window, window.current_index)
+
+
+def test_volver_con_la_flecha_izquierda_tambien(qtbot):
+    window = _window(qtbot)
+    window.resize(1600, 1000)
+    window.show()
+    window.load_clips([_clip(i) for i in range(1, 129)])
+    window.select_clip(100)
+    qtbot.wait(10)
+
+    for _ in range(30):
+        window.handle_arrow("prev")
+    qtbot.wait(10)
+
+    assert _tarjeta_a_la_vista(window, window.current_index)
+
+
+def test_elegir_un_clip_de_lejos_tambien_lo_trae_a_la_vista(qtbot):
+    window = _window(qtbot)
+    window.resize(1600, 1000)
+    window.show()
+    window.load_clips([_clip(i) for i in range(1, 129)])
+    qtbot.wait(10)
+
+    window.select_clip(120)
+    qtbot.wait(10)
+
+    assert _tarjeta_a_la_vista(window, 120)
+
+
+def test_la_sesion_guarda_el_tamano_de_cada_clip(qtbot, tmp_path):
+    """«Los videos estan en cuadriculas horizontales pero son
+    verticales»: al recuperar una sesion no se volvia a correr ffprobe,
+    asi que no se sabia el tamaño de nada y TODAS las tarjetas caian en
+    16:9 -- material vertical dibujado en cajas horizontales."""
+    window = _window(qtbot)
+    window.session_path = tmp_path / "s.json"
+    window.load_clips([_clip(1), _clip(2)])
+    window._clip_sizes = {0: (2160, 3840), 1: (3840, 2160)}
+    window._clip_durations = {0: 18.4, 1: 7.2}
+    window._clip_rotations = {0: 90, 1: 0}
+
+    window._write_autosave_now()
+    window._autosave_pool.waitForDone(4000)
+
+    import json
+    guardado = json.loads(window.session_path.read_text())
+    assert guardado["tamanos"] == {"0": [2160, 3840], "1": [3840, 2160]}
+    assert guardado["duraciones"] == {"0": 18.4, "1": 7.2}
+    assert guardado["rotaciones"] == {"0": 90, "1": 0}
+
+
+# --- miniaturas: del proxy, y avisando (reporte de Bruno) --------------
+
+
+def test_las_miniaturas_salen_del_proxy_cuando_hay(qtbot, monkeypatch, tmp_path):
+    """«Mi computadora empezo a usar los abanicos y no habia hecho nada»:
+    eran 109 procesos de mpv sacando 12 cuadros cada uno de HEVC 10-bit a
+    268 Mbps. Del proxy, el mismo trabajo cuesta ~20 veces menos
+    (medido en la task 0 de la F9: 204 ms contra 9 ms por apertura).
+    """
+    window = _window_with_video(qtbot, cache_root=tmp_path / "cache")
+    pedidos = []
+    monkeypatch.setattr("clasificador_video.ui.main_window.extract_thumbnail_strip",
+                        lambda video, *a, **k: pedidos.append(video) or [])
+    monkeypatch.setattr(window, "_probe_clip", _ProbeConProxy())
+    _importar_con_proxy(window, monkeypatch, tmp_path, parchear_miniaturas=False)
+    window._thread_pool.waitForDone(5000)
+
+    assert pedidos, "no se pidio ninguna miniatura"
+    assert pedidos[0].name == "C0001S03.MP4"
+
+
+def test_sin_proxy_las_miniaturas_salen_del_original(qtbot, monkeypatch, tmp_path):
+    window = _window_with_video(qtbot, cache_root=tmp_path / "cache")
+    pedidos = []
+    monkeypatch.setattr("clasificador_video.ui.main_window.extract_thumbnail_strip",
+                        lambda video, *a, **k: pedidos.append(video) or [])
+    monkeypatch.setattr(window, "_probe_clip", _ProbeConProxy())
+    _importar_con_proxy(window, monkeypatch, tmp_path, con_proxy=False,
+                        parchear_miniaturas=False)
+    window._thread_pool.waitForDone(5000)
+
+    assert pedidos and pedidos[0].name == "C0001.MP4"
+
+
+def test_la_barra_avisa_mientras_se_generan_las_miniaturas(qtbot, monkeypatch, tmp_path):
+    """«Los videos no se veian la primera vez que los importe»: si se
+    veian, tardaban un minuto y la app no decia nada."""
+    window = _window_with_video(qtbot, cache_root=tmp_path / "cache")
+    monkeypatch.setattr("clasificador_video.ui.main_window.extract_thumbnail_strip",
+                        lambda *a, **k: [])
+    monkeypatch.setattr(window, "_probe_clip", _ProbeConProxy())
+    _importar_con_proxy(window, monkeypatch, tmp_path)
+
+    assert "miniatura" in window.status_bar.progress_label.text().lower()
+
+    window._thread_pool.waitForDone(5000)
+    from PySide6.QtWidgets import QApplication
+    QApplication.processEvents()
+    assert window.status_bar.progress_label.isHidden()
