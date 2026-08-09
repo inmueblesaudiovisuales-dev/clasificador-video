@@ -20,6 +20,7 @@ from PySide6.QtWidgets import (
 )
 
 from clasificador_video.autosave import save_session
+from clasificador_video.bins import BinTree
 from clasificador_video.filters import FilterState, cola, contar
 from clasificador_video.history import History, HistoryEntry
 from clasificador_video.ingest import IngestTree
@@ -290,6 +291,7 @@ class MainWindow(QWidget):
         self._autosave_pool.setMaxThreadCount(1)
 
         self.ingest_tree = IngestTree()
+        self.bins = BinTree()
 
         # ---------------- las tres filas ----------------
         self.title_bar = TitleBar()
@@ -1162,6 +1164,10 @@ class MainWindow(QWidget):
             "tamanos": {str(i): [a, h] for i, (a, h) in self._clip_sizes.items()},
             "duraciones": {str(i): s for i, s in self._clip_durations.items()},
             "rotaciones": {str(i): r for i, r in self._clip_rotations.items()},
+            # los bins van aparte de los clips por la misma razon que los
+            # tamaños: `Clip.to_dict()` es el contrato con el plugin de
+            # Premiere y no se toca.
+            "bins": self.bins.to_list(),
         }
         self._autosave_pool.start(_AutosaveWriteJob(self.session_path, data))
         self._last_saved_at = time.monotonic()

@@ -84,3 +84,31 @@ def test_reindexar_despues_de_quitar_clips():
     arbol.reindexar_tras_quitar([0, 1])
 
     assert arbol.clips_de("Sony") == [0, 1]
+
+
+def test_ida_y_vuelta_a_json():
+    arbol = BinTree()
+    arbol.agregar("Dron", Path("/dron"), [0, 1])
+    arbol.agregar("Sony", Path("/cam"), [2])
+
+    otro = BinTree.from_list(arbol.to_list())
+
+    assert otro.nombres() == ["Dron", "Sony"]
+    assert otro.clips_de("Dron") == [0, 1]
+    assert otro.clips_de("Sony") == [2]
+
+
+def test_una_sesion_vieja_sin_bins_cae_en_uno_solo():
+    """Nadie pierde una sesion por actualizar la app. Sin la llave `bins`,
+    todo el material queda en un bin unico con la carpeta del primer clip.
+    """
+    arbol = BinTree.desde_sesion(
+        None, rutas=[Path("/material/A.MP4"), Path("/material/B.MP4")]
+    )
+
+    assert arbol.nombres() == ["material"]
+    assert arbol.clips_de("material") == [0, 1]
+
+
+def test_una_sesion_vieja_sin_clips_no_inventa_un_bin():
+    assert BinTree.desde_sesion(None, rutas=[]).nombres() == []

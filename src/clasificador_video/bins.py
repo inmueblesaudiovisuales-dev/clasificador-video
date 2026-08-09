@@ -91,3 +91,35 @@ class BinTree:
                 for i in b.clips
                 if i not in fuera
             ]
+
+    def to_list(self) -> list[dict]:
+        return [
+            {"nombre": b.nombre, "origen": str(b.origen), "clips": list(b.clips)}
+            for b in self._bins
+        ]
+
+    @classmethod
+    def from_list(cls, datos: list[dict]) -> "BinTree":
+        arbol = cls()
+        for d in datos or []:
+            arbol._bins.append(
+                Bin(
+                    nombre=str(d.get("nombre") or ""),
+                    origen=Path(str(d.get("origen") or "")),
+                    clips=[int(i) for i in d.get("clips") or []],
+                )
+            )
+        return arbol
+
+    @classmethod
+    def desde_sesion(cls, datos: list[dict] | None, rutas: list[Path]) -> "BinTree":
+        """Lo que se usa al restaurar: si la sesion no traia bins --porque es
+        de antes de que existieran-- todo el material entra en uno solo,
+        nombrado con la carpeta del primer clip."""
+        if datos:
+            return cls.from_list(datos)
+        arbol = cls()
+        if rutas:
+            arbol.agregar(rutas[0].parent.name, rutas[0].parent,
+                          list(range(len(rutas))))
+        return arbol

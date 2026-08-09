@@ -9,6 +9,7 @@ from PySide6.QtGui import QSurfaceFormat
 from PySide6.QtWidgets import QApplication, QMessageBox
 
 from clasificador_video.autosave import load_session
+from clasificador_video.bins import BinTree
 from clasificador_video.keyboard import KeyboardRouter
 from clasificador_video.manifest import Clip
 from clasificador_video.rooms import RoomSelection
@@ -80,6 +81,11 @@ def _restore_session(window: MainWindow, session_path: Path) -> None:
     # subcuartos murieron en la F3 y los paths se aplanan al cuarto padre.
     window._router = KeyboardRouter(active_rooms=window.room_selection.active_rooms())
     window.load_clips([_clip_from_dict(d) for d in data.get("clips", [])])
+    # una sesion vieja sin la llave "bins" -- porque es de antes de que
+    # existieran -- no se pierde: todo el material cae en un bin unico.
+    window.bins = BinTree.desde_sesion(
+        data.get("bins"), rutas=[c.ruta for c in window.clips]
+    )
     # ANTES de las miniaturas: la duracion decide si se extrae la tira de
     # 12 cuadros o un solo frame, y el tamaño decide la forma de la tarjeta.
     window._clip_sizes = {
