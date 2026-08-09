@@ -31,12 +31,22 @@ def rutas_relativas(clips: list, bins) -> dict[int, str]:
         if nombre is None:
             continue
         origen = bins.origen_de(nombre)
-        if origen is None:
+        # Un bin creado vacio tiene `Path("")`, que pathlib normaliza a «.»
+        # -- NO a `None`. Se descarta a proposito y no de casualidad (que es
+        # lo que pasaba: `relative_to(".")` truena con una ruta absoluta).
+        if origen is None or str(origen) in ("", "."):
             continue
         try:
-            relativas[indice] = str(Path(clip.ruta).relative_to(origen))
+            relativa = Path(clip.ruta).relative_to(origen)
         except ValueError:
             continue  # el archivo no cuelga de la carpeta de su bin
+        # `relative_to` es puramente lexico: si la ruta del clip trae un
+        # `..`, devuelve una relativa que se sale de la carpeta. Al
+        # reencontrar eso se usa como `carpeta / relativa`, o sea que
+        # apuntaria fuera de lo que Bruno señalo.
+        if ".." in relativa.parts:
+            continue
+        relativas[indice] = str(relativa)
     return relativas
 
 

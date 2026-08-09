@@ -40,6 +40,29 @@ def test_un_clip_fuera_de_la_carpeta_de_su_bin_tampoco():
     assert rutas_relativas(clips, bins) == {}
 
 
+def test_una_relativa_que_se_sale_de_la_carpeta_se_descarta():
+    """`relative_to` es puramente lexico: con un `..` en la ruta del clip
+    devuelve una relativa que EMPIEZA con `..`. Al reencontrar eso se usa
+    como `carpeta / relativa`, o sea que se saldria de la carpeta que Bruno
+    señalo -- justo lo que el docstring promete no hacer."""
+    bins = BinTree()
+    bins.agregar("Sony", Path("/cam"), [0])
+    clips = [_clip(0, "/cam/../otro/C0001.MP4")]
+
+    assert rutas_relativas(clips, bins) == {}
+
+
+def test_un_bin_sin_origen_no_da_relativas():
+    """`crear_vacio` deja `Path("")`, que pathlib normaliza a «.» -- no a
+    `None`. Hasta hoy esto se salvaba de casualidad, porque `relative_to(".")`
+    truena con una ruta absoluta. Se comprueba a proposito."""
+    bins = BinTree()
+    bins.crear_vacio("Dron")
+    bins.sumar("Dron", [0])
+
+    assert rutas_relativas([_clip(0, "/algun/lado/X.MP4")], bins) == {}
+
+
 def test_el_dict_del_proyecto_lleva_todo_lo_de_la_sesion_mas_las_relativas():
     bins = BinTree()
     bins.agregar("Sony", Path("/cam"), [0])
