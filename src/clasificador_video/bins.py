@@ -54,3 +54,40 @@ class BinTree:
             if indice in b.clips:
                 return b.nombre
         return None
+
+    def renombrar(self, nombre: str, nuevo: str) -> None:
+        """Cambia el nombre SIN cambiar la posicion.
+
+        Un nombre repetido se ignora en silencio, con el mismo criterio que
+        `RoomSelection.rename`: es una entrada invalida del usuario, no un
+        error del programa.
+        """
+        nuevo = nuevo.strip()
+        if not nuevo or nuevo in self.nombres():
+            return
+        for b in self._bins:
+            if b.nombre == nombre:
+                b.nombre = nuevo
+                return
+
+    def sumar(self, nombre: str, clips: list[int]) -> None:
+        for b in self._bins:
+            if b.nombre == nombre:
+                ya = set(b.clips)
+                b.clips.extend(i for i in clips if i not in ya)
+                return
+
+    def quitar(self, nombre: str) -> list[int]:
+        for i, b in enumerate(self._bins):
+            if b.nombre == nombre:
+                return self._bins.pop(i).clips
+        return []
+
+    def reindexar_tras_quitar(self, quitados: list[int]) -> None:
+        fuera = set(quitados)
+        for b in self._bins:
+            b.clips = [
+                i - sum(1 for q in fuera if q < i)
+                for i in b.clips
+                if i not in fuera
+            ]
