@@ -537,3 +537,81 @@ def test_los_cuatro_badges_juntos_caben_en_un_video_angosto(qtbot):
 
     ancho_de_video_en_laptop = 416
     assert stage.badges.sizeHint().width() + 2 * theme.OVERLAY_MARGIN <= ancho_de_video_en_laptop
+
+
+# --- la fila de arriba cuando el video es angosto (F10) ----------------
+
+
+def _fila_de_arriba(stage):
+    return (stage.file_label, stage.speed, stage.quality)
+
+
+def test_ningun_control_de_arriba_se_sale_del_video(qtbot):
+    """A 1150x800 --una laptop-- el video baja a 416 px de ancho y el
+    control de velocidad terminaba en x = -165, o sea fuera de la imagen y
+    encimado con el nombre del archivo.
+
+    Ojo con el diagnostico: no es la ventana ANGOSTA, es la ventana BAJA.
+    Con un clip vertical el ancho del video sale de la altura, asi que a
+    800 px de alto no caben nombre + velocidad + calidad. Por eso las
+    revisiones anteriores, hechas a 1000 px de alto, no lo veian.
+    """
+    # _stage_visible y no _stage: `qtbot.addWidget` NO muestra el widget, y
+    # sin mostrarlo el acomodo de overlays no corre nunca -- el test pasaria
+    # sin probar nada.
+    stage = _stage_visible(qtbot)
+    stage.file_label.setText("C0087.MP4    87 / 128")
+    stage.resize(416, 740)
+    qtbot.wait(1)
+
+    for control in _fila_de_arriba(stage):
+        if not control.isHidden():
+            assert control.x() >= 0, f"{control.objectName()} se sale por la izquierda"
+
+
+def test_lo_primero_que_se_esconde_es_la_velocidad(qtbot):
+    """Decision de Bruno: la velocidad se sigue cambiando con J K L, y el
+    nombre del archivo es lo que te dice que clip estas viendo."""
+    # _stage_visible y no _stage: `qtbot.addWidget` NO muestra el widget, y
+    # sin mostrarlo el acomodo de overlays no corre nunca -- el test pasaria
+    # sin probar nada.
+    stage = _stage_visible(qtbot)
+    stage.file_label.setText("C0087.MP4    87 / 128")
+    stage.resize(416, 740)
+    qtbot.wait(1)
+
+    assert stage.speed.isHidden()
+    assert not stage.file_label.isHidden()
+    assert not stage.quality.isHidden()
+
+
+def test_con_ancho_de_sobra_la_velocidad_vuelve(qtbot):
+    # _stage_visible y no _stage: `qtbot.addWidget` NO muestra el widget, y
+    # sin mostrarlo el acomodo de overlays no corre nunca -- el test pasaria
+    # sin probar nada.
+    stage = _stage_visible(qtbot)
+    stage.file_label.setText("C0087.MP4    87 / 128")
+    stage.resize(416, 740)
+    qtbot.wait(1)
+    stage.resize(529, 940)
+    qtbot.wait(1)
+
+    assert not stage.speed.isHidden()
+
+
+def test_los_badges_no_se_encaraman_con_la_fila_de_arriba(qtbot):
+    """El nombre del archivo mide 15 px y el selector de calidad 25, y los
+    badges se colocaban debajo del NOMBRE -- o sea 2 px por dentro de la
+    caja de la calidad, que es translucida y les comia el borde de arriba.
+
+    Pasaba en los dos anchos desde la F6 y no se veia en la comparacion
+    general: hay que ampliar para notarlo.
+    """
+    stage = _stage_visible(qtbot)
+    stage.file_label.setText("C0087.MP4    87 / 128")
+    stage.badges.set_room("Comedor", theme.room_color(0))
+    stage.badges.set_proxy("1080p")
+    qtbot.wait(1)
+
+    fila_de_arriba = stage.quality.geometry().united(stage.file_label.geometry())
+    assert not fila_de_arriba.intersects(stage.badges.geometry())

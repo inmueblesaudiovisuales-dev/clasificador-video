@@ -362,16 +362,34 @@ class VideoStage(QWidget):
         self.file_label.adjustSize()
         self.file_label.move(M, M)
 
-        self.badges.adjustSize()
-        self.badges.move(M, M + self.file_label.height() + 8)
-
         self.quality.adjustSize()
         self.quality.move(ancho - self.quality.width() - M, M)
 
         # a la izquierda del de calidad, en la misma fila -- es su lugar en
         # el mockup, y los dos son controles del reproductor
         self.speed.adjustSize()
-        self.speed.move(self.quality.x() - self.speed.width() - 8, M)
+        x_velocidad = self.quality.x() - self.speed.width() - 8
+        # Si no cabe, la velocidad se esconde: es lo que Bruno eligio que se
+        # fuera primero, porque `J K L` la siguen cambiando y el nombre del
+        # archivo es lo que te dice que clip estas viendo.
+        #
+        # El caso no es la ventana angosta sino la ventana BAJA: con un clip
+        # vertical el ancho del video sale de la altura, asi que a 800 px de
+        # alto el video mide 416 px y ahi el control terminaba en x = -165,
+        # fuera de la imagen y encimado con el nombre.
+        cabe = x_velocidad >= self.file_label.x() + self.file_label.width() + 8
+        self.speed.setVisible(cabe)
+        if cabe:
+            self.speed.move(x_velocidad, M)
+
+        # Los badges van debajo de TODA la fila de arriba, no debajo del
+        # nombre. El nombre mide 15 px y los controles 25, asi que
+        # colgarlos del nombre los metia 2 px por dentro de la caja de la
+        # calidad --que es translucida-- y les comia el borde de arriba.
+        # Pasaba en los dos anchos desde la F6.
+        self.badges.adjustSize()
+        alto_fila = max(self.file_label.height(), self.quality.height())
+        self.badges.move(M, M + alto_fila + 8)
 
         # El pie se arma de ABAJO hacia arriba: la fila de teclas y la
         # pastilla van pegadas al borde inferior, la barra encima, y el
