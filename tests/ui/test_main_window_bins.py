@@ -1446,3 +1446,18 @@ def test_importar_suelto_sobre_material_que_ya_tiene_bins_no_toca_esos_bins(
     assert ventana.bins.nombres() == ["FX30"]
     assert ventana.bins.clips_de("FX30") == [0]
     assert ventana.bins.bin_de(1) is None
+
+
+def test_seleccionar_los_clips_de_sin_bin_selecciona_los_sueltos(qtbot, ventana):
+    """El renglon promete «Seleccionar los N clips» con el numero real. Antes
+    `bins.clips_de("Sin bin")` devolvia [] y el menu terminaba
+    DESELECCIONANDO todo lo que tuvieras marcado: prometia N y hacia lo
+    contrario."""
+    ventana.load_clips([_clip(0, "/cam/A.MP4"), _clip(1, "/cam/B.MP4"),
+                        _clip(2, "/cam/C.MP4")])
+    ventana.bins.agregar("Sony", Path("/cam"), [1])
+    ventana._refresh_sheet()
+
+    ventana._on_bin_seleccionado(SIN_BIN)
+
+    assert ventana.clip_sheet.selected_indices() == [0, 2]

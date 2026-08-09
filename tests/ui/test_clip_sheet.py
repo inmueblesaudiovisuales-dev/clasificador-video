@@ -2300,3 +2300,65 @@ def test_el_boton_se_queda_en_el_glifo_cuando_no_cabe(qtbot):
     hoja.resize(900, 300)
     qtbot.wait(10)
     assert hoja.boton_bin_nuevo.text() == "＋ Bin nuevo"
+
+
+# --- el menu de «Sin bin»: solo lo que aplica a una vista --------------------
+
+
+def test_el_menu_de_sin_bin_no_ofrece_lo_que_es_de_un_bin(qtbot):
+    """«Sin bin» no es un bin: renombrarlo, enlazarle proxies o quitarlo del
+    proyecto no significan nada ahi. Hoy tres de esos renglones son
+    inofensivos por accidente --`BinTree` no encuentra el nombre y no hace
+    nada-- y eso no es una razon para dejarlos.
+    """
+    hoja = ClipSheet()
+    qtbot.addWidget(hoja)
+    hoja.set_clips([_thumb(0), _thumb(1)])
+
+    menu = hoja.bin_header_widget(SIN_BIN).construir_menu()
+
+    textos = [a.text() for a in menu.actions() if not a.isSeparator()]
+    assert textos == ["Seleccionar los 2 clips", "Colapsar"]
+
+
+def test_el_menu_de_un_bin_de_verdad_no_perdio_nada(qtbot):
+    """La contracara: recortar el de «Sin bin» no puede recortar el otro."""
+    hoja = ClipSheet()
+    qtbot.addWidget(hoja)
+    hoja.set_bin_order(["Dron"])
+    hoja.set_clips([_thumb(0, bin_nombre="Dron")])
+
+    menu = hoja.bin_header_widget("Dron").construir_menu()
+
+    assert "Quitar del proyecto" in [a.text() for a in menu.actions()]
+
+
+def test_el_doble_click_no_renombra_la_seccion_de_sueltos(qtbot):
+    """La otra puerta al mismo renombrado. Dejarla abierta movia la meta y el
+    colapso de «Sin bin» a un nombre inventado, y la seccion perdia en
+    silencio el estado de colapsado."""
+    hoja = ClipSheet()
+    qtbot.addWidget(hoja)
+    hoja.set_clips([_thumb(0)])
+    cabecera = hoja.bin_header_widget(SIN_BIN)
+
+    cabecera.empezar_a_renombrar()
+
+    assert cabecera.name_edit.isHidden()
+    assert not cabecera.name_label.isHidden()
+
+
+def test_el_encabezado_pegado_copia_si_es_un_bin_de_verdad(qtbot):
+    """El flotante es una COPIA y arma su propio menu: si no copiara este
+    dato, el menu recortado volveria completo apenas te desplazas."""
+    hoja = ClipSheet()
+    qtbot.addWidget(hoja)
+    hoja.set_clips([_thumb(0)])
+
+    hoja._pegado.copiar_de(hoja.bin_header_widget(SIN_BIN))
+
+    # el menu se guarda en una variable: sus `QAction` cuelgan de el, y un
+    # `QMenu` temporal muere antes de que termine de leerse la lista
+    menu = hoja._pegado.construir_menu()
+    textos = [a.text() for a in menu.actions() if not a.isSeparator()]
+    assert textos == ["Seleccionar los 1 clips", "Colapsar"]

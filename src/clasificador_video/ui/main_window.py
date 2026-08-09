@@ -45,7 +45,7 @@ from clasificador_video.thumbnails import (
     extract_thumbnail_strip,
 )
 from clasificador_video.ui import theme
-from clasificador_video.ui.clip_sheet import ClipSheet, ClipThumbnail
+from clasificador_video.ui.clip_sheet import SIN_BIN, ClipSheet, ClipThumbnail
 from clasificador_video.ui.room_palette import RoomPalette
 from clasificador_video.ui.room_rail import RoomRail
 from clasificador_video.ui.status_bar import StatusBar
@@ -1570,7 +1570,19 @@ class MainWindow(QWidget):
         self._autosave()
 
     def _on_bin_seleccionado(self, nombre: str) -> None:
-        self.clip_sheet.set_selected(set(self.bins.clips_de(nombre)))
+        """«Seleccionar los N clips» del menu del encabezado.
+
+        «Sin bin» no esta en `BinTree` --un clip suelto se representa por
+        AUSENCIA de bin-- asi que preguntarle por ese nombre devolvia una
+        lista vacia y el renglon terminaba DESELECCIONANDO todo lo que
+        tuvieras marcado: prometia N y hacia lo contrario.
+        """
+        if nombre == SIN_BIN:
+            indices = {i for i in range(len(self.clips))
+                       if self.bins.bin_de(i) is None}
+        else:
+            indices = set(self.bins.clips_de(nombre))
+        self.clip_sheet.set_selected(indices)
 
     def _on_bin_quitado(self, nombre: str) -> None:
         """Saca los clips del proyecto. NO borra nada del disco.

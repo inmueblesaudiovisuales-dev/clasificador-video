@@ -647,9 +647,14 @@ class _BinHeader(QWidget):
     MARCAS = (("pick", theme.PICK_COLOR), ("destacado", theme.STAR_COLOR),
               ("reject", theme.REJECT_COLOR))
 
-    def __init__(self, nombre: str, parent=None):
+    def __init__(self, nombre: str, parent=None, es_bin: bool = True):
         super().__init__(parent)
         self.nombre = nombre
+        # «Sin bin» usa este mismo widget pero NO es un bin: es la vista de
+        # los clips que no pertenecen a ninguno. De aqui cuelga que no ofrezca
+        # lo que solo tiene sentido sobre una camara -- renombrar, proxies,
+        # quitar del proyecto.
+        self.es_bin = es_bin
         self.setObjectName("binHeader")
         self.setAttribute(Qt.WA_StyledBackground, True)
         self._colapsado = False
@@ -771,6 +776,9 @@ class _BinHeader(QWidget):
         nombre, la insignia de proxies y los puntos de estado quedarian
         diciendo lo del bin anterior."""
         self.nombre = otro.nombre
+        # el flotante arma su PROPIO menu: sin copiar esto, el menu recortado
+        # de «Sin bin» volvia completo apenas te desplazabas un pixel.
+        self.es_bin = otro.es_bin
         self.name_label.setText(otro.nombre)
         self.source_label.setText(otro.source_label.text())
         self.count_label.setText(otro.count_label.text())
@@ -877,7 +885,15 @@ class _BinHeader(QWidget):
     def empezar_a_renombrar(self) -> None:
         """En el LUGAR, con un `QLineEdit`. Nada de `QInputDialog`: es modal,
         y la F3 mato el ultimo diálogo modal justo porque colgaba la suite
-        bajo `offscreen`."""
+        bajo `offscreen`.
+
+        La seccion de sueltos no se renombra: su nombre no es un dato, es una
+        etiqueta fija. La guarda va AQUI y no solo en el menu porque el doble
+        clic es la otra puerta a lo mismo, y por ella se movian la meta y el
+        colapso de «Sin bin» a un nombre inventado.
+        """
+        if not self.es_bin:
+            return
         self._renombrando = True
         self.name_edit.setText(self.nombre)
         self.name_label.hide()
@@ -911,6 +927,10 @@ class _BinHeader(QWidget):
         # envoltorio muerto eso es un segfault. Aqui el dueño es Python --
         # `_menu` lo sostiene mientras esta abierto y lo suelta despues.
         menu = QMenu()
+        if not self.es_bin:
+            # la vista de sueltos: solo lo que de verdad aplica sobre un
+            # monton de clips que no son de nadie.
+            return self._menu_de_seccion(menu)
         renombrar = QAction("Renombrar bin…", menu)
         renombrar.setShortcut("F2")
         renombrar.triggered.connect(self.empezar_a_renombrar)
@@ -940,6 +960,26 @@ class _BinHeader(QWidget):
         quitar = QAction("Quitar del proyecto", menu)
         quitar.triggered.connect(lambda: self.remove_requested.emit(self.nombre))
         menu.addAction(quitar)
+        return menu
+
+    def _menu_de_seccion(self, menu: QMenu) -> QMenu:
+        """El menu de «Sin bin». Dos renglones y ninguno miente.
+
+        No es una version recortada «por si acaso»: renombrar, enlazar
+        proxies, quitar proxies y quitar del proyecto son operaciones sobre
+        un bin, y aqui no hay bin. Hoy tres de ellas no hacen nada solo
+        porque `BinTree` no encuentra el nombre -- inofensivas por accidente,
+        que es peor que no estar.
+        """
+        seleccionar = QAction(f"Seleccionar los {self._cuantos} clips", menu)
+        seleccionar.setShortcut("Ctrl+A")
+        seleccionar.triggered.connect(
+            lambda: self.select_all_requested.emit(self.nombre)
+        )
+        menu.addAction(seleccionar)
+        colapsar = QAction("Expandir" if self._colapsado else "Colapsar", menu)
+        colapsar.triggered.connect(self.alternar_colapso)
+        menu.addAction(colapsar)
         return menu
 
     def contextMenuEvent(self, event) -> None:  # noqa: N802 -- override de Qt
@@ -1958,7 +1998,7 @@ class ClipSheet(QWidget):
         ya no lo estan."""
         for nombre in presentes:
             if nombre not in self._bin_headers:
-                cabecera = _BinHeader(nombre)
+                cabecera = _BinHeader(nombre, es_bin=nombre != SIN_BIN)
                 cabecera.collapse_toggled.connect(self._on_colapso_pedido)
                 self._bin_headers[nombre] = cabecera
                 cabecera.set_collapsed(nombre in self._colapsados)
