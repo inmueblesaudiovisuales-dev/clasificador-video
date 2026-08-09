@@ -1426,12 +1426,27 @@ class MainWindow(QWidget):
         y dejarlo asi haria que enganchar los proxies del dron borrara los
         de la Sony.
         """
-        alcance = list(range(len(self.clips))) if indices is None else list(indices)
+        crudo = range(len(self.clips)) if indices is None else indices
+        # se recortan contra los clips que de verdad hay: `app.py` restaura
+        # los bins del JSON sin compararlos con lo que se cargo, asi que una
+        # sesion desincronizada traeria indices que ya no existen.
+        alcance = [i for i in crudo if 0 <= i < len(self.clips)]
+        se_limpio_algo = False
         for i in alcance:
             self._proxy_sizes.pop(i, None)
             self._proxy_candidatos.pop(i, None)
             self._proxy_generacion_de.pop(i, None)
+            se_limpio_algo = se_limpio_algo or self.clips[i].ruta_proxy is not None
             self.clips[i].ruta_proxy = None
+        if se_limpio_algo:
+            # `ruta_proxy` viaja en `Clip.to_dict()`, o sea que se persiste:
+            # sin guardar aqui, los proxies que quitaste vuelven al reabrir
+            # la app. Y sin refrescar, la barra sigue contando unos que ya
+            # no estan. Hasta ahora las dos cosas solo pasaban dentro de
+            # `_on_proxy_sondeado`, o sea solo si algun proxy validaba --y
+            # quitarlos no lanza ningun sondeo.
+            self._refrescar_indicadores_de_proxy(self.current_index)
+            self._autosave()
         self._proxy_generation += 1
         generation = self._proxy_generation
         nuevos = {

@@ -413,6 +413,55 @@ def test_re_enlazar_un_bin_no_infla_el_total_de_portadas(qtbot, monkeypatch,
     assert ventana._miniaturas_totales == 3
 
 
+def test_quitar_los_proxies_de_un_bin_se_guarda(qtbot, tmp_path, ventana):
+    """`ruta_proxy` viaja en `Clip.to_dict()`, o sea que se persiste. Sin
+    guardar, los proxies que quitaste estan de vuelta al reabrir la app."""
+    ventana.session_path = tmp_path / "sesion.json"
+    _dos_bins(ventana)
+    ventana.clips[0].ruta_proxy = Path("/cam/C0001S03.MP4")
+    ventana.clips[1].ruta_proxy = Path("/dron/DJI_0001_proxy.MP4")
+    # `load_clips` ya dejo el debounce corriendo: sin apagarlo, la asercion
+    # de abajo pasaria sola aunque quitar no guardara nada.
+    ventana._autosave_timer.stop()
+
+    ventana.quitar_proxies_de_bin("Dron")
+
+    # el autosave con debounce quedo agendado, no se perdio
+    assert ventana._autosave_timer.isActive()
+    ventana._write_autosave_now()
+    assert ventana._autosave_pool.waitForDone(2000)
+    data = json.loads((tmp_path / "sesion.json").read_text())
+    assert [c["ruta_proxy"] for c in data["clips"]] == ["/cam/C0001S03.MP4", None]
+
+
+def test_quitar_los_proxies_de_un_bin_actualiza_la_barra(qtbot, monkeypatch,
+                                                          ventana):
+    """Si no se refresca, la barra sigue diciendo «2 proxies» de unos que
+    ya no estan enganchados."""
+    _dos_bins(ventana)
+    ventana.clips[0].ruta_proxy = Path("/cam/C0001S03.MP4")
+    ventana.clips[1].ruta_proxy = Path("/dron/DJI_0001_proxy.MP4")
+    dichos = []
+    monkeypatch.setattr(ventana.status_bar, "set_proxies",
+                        lambda *a, **k: dichos.append(a))
+
+    ventana.quitar_proxies_de_bin("Dron")
+
+    assert dichos and dichos[-1][0] == 1
+
+
+def test_un_bin_con_indices_de_mas_no_revienta(qtbot, ventana):
+    """`app.py` toma los bins del JSON sin recortarlos contra los clips que
+    de verdad se cargaron: una sesion desincronizada daba IndexError en el
+    clic, en vez de simplemente no encontrar esos clips."""
+    ventana.load_clips([_clip(0, "/cam/A.MP4")])
+    ventana.bins.agregar("Sony", Path("/cam"), [0, 1, 7])
+
+    ventana.quitar_proxies_de_bin("Sony")
+
+    assert ventana.clips[0].ruta_proxy is None
+
+
 def _dos_bins(ventana):
     ventana.load_clips([_clip(0, "/cam/C0001.MP4"), _clip(1, "/dron/DJI_0001.MP4")])
     ventana.bins.agregar("Sony", Path("/cam"), [0])
