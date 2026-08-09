@@ -39,7 +39,12 @@ class BinTree:
         clips -- si se podara, el bin desapareceria en el instante entre
         crearlo y soltarle el primer clip.
         """
-        return self.agregar(nombre or "Bin", Path(""), [])
+        # `.strip() or "Bin"` aqui y no confiando en `agregar`: alla el
+        # respaldo de un nombre en blanco es el nombre de la carpeta de
+        # origen, y un bin creado vacio no tiene carpeta -- se quedaria sin
+        # nombre. Es alcanzable en cuanto el boton «+ Bin nuevo» pase texto
+        # del usuario.
+        return self.agregar(nombre.strip() or "Bin", Path(""), [])
 
     def mover(self, indices: list[int], destino: str | None) -> None:
         """Cambia de bin a esos clips y NADA mas.
@@ -53,6 +58,15 @@ class BinTree:
         seccion «Sin bin».
         """
         moviendo = set(indices)
+        if not moviendo:
+            return
+        # Un destino que no existe NO puede tragarse los clips. Sin este
+        # corte, el bucle de abajo los sacaba de todos lados y el de mas
+        # abajo no encontraba a quien darselos: `mover([0], "Typo")`
+        # terminaba siendo `mover([0], None)`. Con el arrastre conectado,
+        # soltar sobre un encabezado recien renombrado te vaciaba el bin.
+        if destino is not None and destino not in self.nombres():
+            return
         for b in self._bins:
             if b.nombre != destino:
                 b.clips = [i for i in b.clips if i not in moviendo]
@@ -60,10 +74,13 @@ class BinTree:
             return
         for b in self._bins:
             if b.nombre == destino:
+                # Los que llegan se AGREGAN al final, ordenados entre si --el
+                # orden dentro del bin es el de rodaje, no el del arrastre--
+                # pero sin reordenar a los que ya estaban: ese orden es dato
+                # de quien lleno el bin, y de el vive la nocion de «el clip
+                # anterior». `mover` cambia de bin y nada mas.
                 ya = set(b.clips)
-                # ordenados: el orden dentro del bin es el de rodaje, no el
-                # del arrastre
-                b.clips = sorted(ya | moviendo)
+                b.clips = b.clips + sorted(i for i in moviendo if i not in ya)
                 return
 
     def _nombre_libre(self, nombre: str) -> str:
@@ -158,9 +175,18 @@ class BinTree:
 
     def to_list(self) -> list[dict]:
         return [
-            {"nombre": b.nombre, "origen": str(b.origen), "clips": list(b.clips)}
+            {"nombre": b.nombre, "origen": self._origen_serializado(b),
+             "clips": list(b.clips)}
             for b in self._bins
         ]
+
+    @staticmethod
+    def _origen_serializado(b: Bin) -> str:
+        """`str(Path(""))` es «.», o sea «la carpeta actual» -- un origen
+        que un bin creado vacio nunca tuvo. Se escribe cadena vacia, que
+        es lo que `from_list` vuelve a leer como «sin origen»."""
+        texto = str(b.origen)
+        return "" if texto == "." else texto
 
     @classmethod
     def from_list(cls, datos: list[dict]) -> "BinTree":

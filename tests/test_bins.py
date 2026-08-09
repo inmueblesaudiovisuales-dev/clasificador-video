@@ -234,3 +234,73 @@ def test_mover_conserva_el_orden_de_llegada():
     arbol.mover([3, 1], "Dron")
 
     assert arbol.clips_de("Dron") == [1, 3]
+
+
+def test_mover_a_un_bin_que_no_existe_no_hace_nada():
+    """Con el arrastre conectado, soltar sobre un encabezado recien
+    renombrado llegaria aqui con el nombre viejo. Si el destino
+    desconocido vaciara el bin de origen --que es lo que pasaba: el
+    primer bucle los sacaba de todos lados y el segundo no encontraba a
+    nadie-- el clip se perderia de vista sin que nada lo avise.
+    """
+    arbol = BinTree()
+    arbol.agregar("Sony", Path("/cam"), [0, 1])
+
+    arbol.mover([0], "Typo")
+
+    assert arbol.clips_de("Sony") == [0, 1]
+    assert arbol.bin_de(0) == "Sony"
+
+
+def test_mover_sin_indices_no_toca_nada():
+    """Se llega aqui con la lista vacia mas seguido de lo que parece: un
+    arrastre que sale de una seleccion ya vaciada."""
+    arbol = BinTree()
+    arbol.agregar("Sony", Path("/cam"), [3, 1, 2])
+
+    arbol.mover([], "Sony")
+
+    # y en particular NO se reordena: `mover` promete cambiar de bin y nada
+    # mas, y el orden de un bin es dato de quien lo lleno
+    assert arbol.clips_de("Sony") == [3, 1, 2]
+
+
+def test_mover_no_reordena_lo_que_ya_estaba_en_el_bin_destino():
+    """El docstring promete «y NADA mas». Ordenar el bin entero al recibir
+    un clip cambiaria el orden de los que ya estaban, que es de donde sale
+    la nocion de «el clip anterior»."""
+    arbol = BinTree()
+    arbol.agregar("Sony", Path("/cam"), [5, 2])
+    arbol.agregar("Dron", Path("/dron"), [3])
+
+    arbol.mover([3], "Sony")
+
+    assert arbol.clips_de("Sony") == [5, 2, 3]
+
+
+def test_mover_un_clip_que_ya_estaba_en_el_destino_no_lo_duplica():
+    arbol = BinTree()
+    arbol.agregar("Sony", Path("/cam"), [0, 1])
+
+    arbol.mover([0, 2], "Sony")
+
+    assert arbol.clips_de("Sony") == [0, 1, 2]
+
+
+def test_crear_vacio_sin_nombre_no_deja_un_bin_sin_nombre():
+    """Alcanzable en cuanto el boton «+ Bin nuevo» pase texto del usuario:
+    `agregar` cae al nombre de la carpeta de origen, y un bin creado vacio
+    no tiene carpeta."""
+    arbol = BinTree()
+
+    assert arbol.crear_vacio("   ") == "Bin"
+    assert arbol.nombres() == ["Bin"]
+
+
+def test_un_bin_vacio_se_guarda_sin_origen_inventado():
+    """`Path("")` se serializa como «.», que en el autosave se lee como
+    «la carpeta actual» -- un origen que ese bin nunca tuvo."""
+    arbol = BinTree()
+    arbol.crear_vacio("Dron")
+
+    assert arbol.to_list() == [{"nombre": "Dron", "origen": "", "clips": []}]
