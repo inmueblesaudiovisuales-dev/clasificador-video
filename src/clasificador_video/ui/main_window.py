@@ -10,6 +10,7 @@ from PySide6.QtGui import QKeySequence, QPixmap, QShortcut
 from PySide6.QtWidgets import (
     QApplication,
     QFileDialog,
+    QLabel,
     QHBoxLayout,
     QMessageBox,
     QVBoxLayout,
@@ -163,6 +164,12 @@ class MainWindow(QWidget):
         self._solo_video = False
         # modo hoja: la hoja a pantalla completa, sin video ni columna
         self._modo_hoja = False
+        # pincel: (tecla, cuarto) mientras la tecla esta abajo, y los indices
+        # ya pintados en ESTA pincelada
+        self._pincel: tuple[str, str] | None = None
+        # indice -> categoria_path que tenia ANTES de esta pincelada. Se
+        # guarda al tocarlo, no al soltar: al soltar ya esta pisado.
+        self._antes_de_pintar: dict[int, list[str]] = {}
         self._router = KeyboardRouter(active_rooms=room_selection.active_rooms())
         self._probe_clip = probe_clip          # inyectable para tests
         self._thumbnail_cache_root = thumbnail_cache_root or default_cache_root()
@@ -222,6 +229,7 @@ class MainWindow(QWidget):
         self.clip_sheet = ClipSheet()
         self.clip_sheet.clip_clicked.connect(self.select_clip)
         self.clip_sheet.clip_activated.connect(self._on_clip_activado)
+        self.clip_sheet.brocha_paso_por.connect(self.pintar)
         self.clip_sheet.selection_changed.connect(self._on_selection_changed)
         self.clip_sheet.filters_changed.connect(self.set_filters)
 
@@ -255,6 +263,10 @@ class MainWindow(QWidget):
         # La paleta flota sobre el video: hija de la ventana y NO un QDialog
         # modal, porque un modal roba el teclado y hay que cerrarlo para
         # seguir clasificando.
+        # el chip que sigue al cursor mientras pintas
+        self._chip_pincel = QLabel("", self)
+        self._chip_pincel.hide()
+
         self.room_palette = RoomPalette(self)
         self.room_palette.room_chosen.connect(self._on_room_elegido_en_paleta)
         self.room_palette.room_created.connect(self._on_room_creado_en_paleta)
@@ -353,8 +365,11 @@ class MainWindow(QWidget):
             ("Ctrl+E", self._on_export_manifest),
             ("Ctrl+R", self.room_rail.focus_rooms),
         ]
-        for digit in "123456789":
-            shortcuts.append((digit, lambda d=digit: self.handle_key_press(d)))
+        # Los digitos NO van aqui a proposito: ver `keyPressEvent`. Un
+        # QShortcut consume la tecla y nunca avisa de que se solto, asi que
+        # con ellos registrados el pincel no se armaria nunca -- y los tests
+        # no lo verian, porque un atajo solo se dispara con la ventana ACTIVA
+        # y en pruebas la tecla llega igual al widget.
 
         # Los de arriba son teclas SUELTAS --letras, digitos, espacio, flechas,
         # coma y punto-- y un `QShortcut` de contexto `WindowShortcut` se
@@ -420,6 +435,43 @@ class MainWindow(QWidget):
     def escribiendo_texto(cls) -> bool:
         """¿El foco esta en un campo donde se escribe?"""
         return cls._es_campo_de_texto(QApplication.focusWidget())
+
+    def keyPressEvent(self, event) -> None:  # noqa: N802 -- override de Qt
+        """Mantener `1`-`9` carga el pincel.
+
+        Va aqui y no en un `QShortcut` porque un atajo solo avisa de la
+        PULSACION: nunca dice que se solto la tecla, y el pincel existe
+        justamente mientras esta abajo.
+
+        `isAutoRepeat` se ignora: el sistema repite la tecla mientras la
+        sostienes, y empezar una pincelada nueva en cada repeticion dejaria
+        una entrada de historial por tarjeta -- que es exactamente lo que el
+        detalle 4 de DECISIONES.md existe para evitar.
+        """
+        texto = event.text()
+        if (texto.isdigit() and texto != "0" and not event.isAutoRepeat()
+                and self._pincel is None and not self.escribiendo_texto()):
+            self.empezar_pincelada(texto)
+            return
+        super().keyPressEvent(event)
+
+    def keyReleaseEvent(self, event) -> None:  # noqa: N802 -- override de Qt
+        """Soltar la tecla cierra el gesto.
+
+        Si no se pinto ninguna tarjeta, fue un TOQUE y no una pincelada: se
+        asigna el cuarto al clip actual y se avanza, que es lo que `1`-`9`
+        hacen desde la F3. Asi una sola tecla cubre los dos gestos sin que
+        haya que aprender nada nuevo.
+        """
+        if (self._pincel is not None and not event.isAutoRepeat()
+                and event.text() == self._pincel[0]):
+            tecla = self._pincel[0]
+            fue_pincelada = bool(self._antes_de_pintar)
+            self.terminar_pincelada()
+            if not fue_pincelada:
+                self.handle_key_press(tecla)
+            return
+        super().keyReleaseEvent(event)
 
     def closeEvent(self, event) -> None:  # noqa: N802 -- override de Qt
         self._flush_autosave()
@@ -1059,6 +1111,96 @@ class MainWindow(QWidget):
         self.select_clip(indice)
         if self._modo_hoja:
             self.alternar_modo_hoja()
+
+    # ------------------------------------------------------------------
+    # el pincel de cuarto: manten `1`-`9` y arrastra
+    # ------------------------------------------------------------------
+
+    def _mostrar_carga_del_pincel(self) -> None:
+        """El chip que sigue al cursor: nunca pintas sin saber que pintas.
+
+        Un widget y no un cursor con pixmap: admite el color del cuarto y su
+        nombre, y no depende de como el sistema dibuje cursores.
+        """
+        tecla, cuarto = self._pincel
+        self._chip_pincel.setText(f"{tecla}   {cuarto}")
+        self._chip_pincel.setStyleSheet(
+            f"background-color: {theme.con_alfa_qss(theme.BG_APP, 230)};"
+            f"border: 1px solid {self._color_de_cuarto(cuarto)};"
+            f"border-radius: {theme.RADIUS_SM}px; padding: 4px 8px;"
+            f"color: {theme.TEXT}; font-size: {theme.FONT_SMALL}px;"
+        )
+        self._chip_pincel.adjustSize()
+        self._chip_pincel.show()
+        self._chip_pincel.raise_()
+
+    def pincel_cargado(self) -> tuple[str, str] | None:
+        """`(tecla, cuarto)` mientras pintas, o None. El cursor lo muestra:
+        nunca pintas sin saber que estas pintando."""
+        return self._pincel
+
+    def empezar_pincelada(self, tecla: str) -> None:
+        """Se mantuvo apretada una tecla de cuarto. El pincel solo existe
+        mientras la tecla esta abajo, asi que no se puede disparar por
+        accidente: sin tecla, arrastrar sigue siendo marquesina.
+        """
+        cuarto = self._router.resolve_room_key(tecla)
+        if cuarto is None:
+            return          # una tecla sin cuarto no carga nada
+        self._pincel = (tecla, cuarto[0])
+        self._antes_de_pintar = {}
+        self.clip_sheet.set_pincel_activo(True)
+        self._mostrar_carga_del_pincel()
+        # mientras dure la pincelada la hoja NO se reagrupa: si los clips
+        # saltaran de grupo, la grilla se reacomodaria bajo el cursor y
+        # seguirias pintando sobre otra cosa (medido en el spike de la Task 14)
+        self.clip_sheet.congelar_acomodo(True)
+
+    def pintar(self, indice: int) -> None:
+        """Pasar por encima de una tarjeta con el pincel cargado."""
+        if self._pincel is None or not (0 <= indice < len(self.clips)):
+            return
+        if indice in self._antes_de_pintar:
+            return          # arrastrando se pasa varias veces por la misma
+        self._antes_de_pintar[indice] = list(self.clips[indice].categoria_path)
+        self.clips[indice].categoria_path = [self._pincel[1]]
+        # solo esta tarjeta se repinta: tocar la hoja entera aqui es lo que
+        # reacomodaria la grilla bajo el cursor
+        self.clip_sheet.repintar_uno(
+            indice, self._pincel[1], self.room_selection.active_rooms()
+        )
+
+    def terminar_pincelada(self) -> None:
+        """Se solto la tecla: entra UNA entrada al historial y recien ahora se
+        reagrupa.
+
+        Una sola entrada porque si `⌘Z` deshiciera clip por clip, el pincel
+        seria una trampa: un gesto de un segundo que cuesta seis acciones
+        revertir.
+        """
+        if self._pincel is None:
+            return
+        _, cuarto = self._pincel
+        antes = self._antes_de_pintar
+        self._pincel, self._antes_de_pintar = None, {}
+        pintados = list(antes)
+        self.clip_sheet.congelar_acomodo(False)
+        self.clip_sheet.set_pincel_activo(False)
+        self.clip_sheet.limpiar_tinte()
+        self._chip_pincel.hide()
+        if not pintados:
+            # apretar y soltar sin tocar nada no hizo nada: una fila de
+            # historial que no cambio nada es basura que estorba
+            self._refresh_sheet()
+            return
+        # el "antes" se reconstruye del estado que se guardo al empezar
+        self.history.push(HistoryEntry(
+            cuarto, self._detalle(pintados), self._color_de_cuarto(cuarto),
+            {i: {"categoria_path": valor} for i, valor in antes.items()},
+        ))
+        self._refresh_history()
+        self._refresh_sheet()
+        self._autosave()
 
     def alternar_modo_hoja(self) -> None:
         """`⇥`: la hoja a pantalla completa, y de vuelta.

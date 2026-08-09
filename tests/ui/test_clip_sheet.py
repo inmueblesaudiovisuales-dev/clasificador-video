@@ -935,3 +935,71 @@ def test_la_barrita_de_escrubeo_no_pasa_por_detras_de_la_pastilla(qtbot):
     columna = [imagen.pixelColor(x, y).name()
                for y in range(imagen.height() // 2, imagen.height())]
     assert theme.CURRENT_COLOR in columna, "la cabeza del escrubeo no se ve"
+
+
+# --- F8 Task 18: el gesto del pincel -----------------------------------------
+
+
+def test_la_hoja_avisa_por_que_tarjeta_pasa_el_arrastre(qtbot):
+    """La hoja no sabe de cuartos ni de historial: solo dice por donde paso el
+    cursor con el boton apretado. Quien pinta es la ventana."""
+    hoja = _sheet(qtbot, [_thumb(i) for i in range(1, 7)])
+    hoja.resize(815, 600)
+    hoja.show()
+    qtbot.waitExposed(hoja)
+    qtbot.wait(50)
+    tocadas = []
+    hoja.brocha_paso_por.connect(tocadas.append)
+    tarjeta = hoja.item_widgets[2]
+    centro = tarjeta.mapTo(hoja._scroll.viewport(), tarjeta.rect().center())
+    hoja.notificar_arrastre(centro)
+    assert tocadas == [2]
+
+
+def test_el_arrastre_encuentra_la_tarjeta_con_el_scroll_movido(qtbot):
+    """Lo que midio el spike: `childAt` va sobre el CONTENIDO --que es lo que
+    se desplaza-- sumandole el scroll. Sobre el viewport, con la hoja
+    desplazada, devuelve la tarjeta equivocada."""
+    hoja = _sheet(qtbot, [_thumb(i) for i in range(1, 41)])
+    hoja.resize(815, 400)
+    hoja.show()
+    qtbot.waitExposed(hoja)
+    qtbot.wait(50)
+    hoja._scroll.verticalScrollBar().setValue(200)
+    qtbot.wait(20)
+    tocadas = []
+    hoja.brocha_paso_por.connect(tocadas.append)
+    visibles = [(i, c) for i, c in enumerate(hoja.item_widgets)
+                if hoja._scroll.viewport().rect().contains(
+                    c.mapTo(hoja._scroll.viewport(), c.rect().center()))]
+    assert visibles, "ninguna tarjeta visible tras desplazar"
+    indice, tarjeta = visibles[len(visibles) // 2]
+    hoja.notificar_arrastre(
+        tarjeta.mapTo(hoja._scroll.viewport(), tarjeta.rect().center())
+    )
+    assert tocadas == [indice]
+
+
+def test_una_tarjeta_recien_pintada_queda_teñida(qtbot):
+    """El detalle 3 del pincel: el rastro de la pincelada se VE. Sin el tinte,
+    la unica señal es la franja de 3 px del borde y no se distingue lo que
+    acabas de pintar de lo que ya estaba."""
+    hoja = _sheet(qtbot, [_thumb(i) for i in range(1, 4)])
+    tarjeta = hoja.item_widgets[0]
+    tarjeta.resize(140, 250)
+    sin_pintar = tarjeta.grab().toImage()
+    hoja.repintar_uno(0, "Cocina", ["Cocina"])
+    pintada = tarjeta.grab().toImage()
+    assert sin_pintar != pintada
+    assert tarjeta.plan_de_pintado()["tinte"] is not None
+
+
+def test_el_tinte_se_va_al_terminar_la_pincelada(qtbot):
+    """Es el rastro del gesto, no un estado del clip: al soltar, la tarjeta
+    queda como cualquier otra de su cuarto."""
+    hoja = _sheet(qtbot, [_thumb(i) for i in range(1, 4)])
+    hoja.repintar_uno(0, "Cocina", ["Cocina"])
+    assert hoja.item_widgets[0].plan_de_pintado()["tinte"] is not None
+    hoja.congelar_acomodo(False)
+    hoja.limpiar_tinte()
+    assert hoja.item_widgets[0].plan_de_pintado()["tinte"] is None

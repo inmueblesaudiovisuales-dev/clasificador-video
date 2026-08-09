@@ -1854,8 +1854,13 @@ def test_una_tecla_suelta_no_actua_mientras_escribes(qtbot):
     qtbot.wait(20)
 
     por_atajo = {s.key().toString(): s for s in window._shortcuts}
-    for tecla in ("L", "K", "I", "O", "P", "X", "1", ",", "."):
+    for tecla in ("L", "K", "I", "O", "P", "X", ",", "."):
         por_atajo[tecla].activated.emit()
+    # los digitos ya no son atajos (matan el pincel): se prueban por su
+    # camino real, el evento de teclado
+    from PySide6.QtCore import Qt as _Qt
+    qtbot.keyPress(window, _Qt.Key.Key_1)
+    qtbot.keyRelease(window, _Qt.Key.Key_1)
     qtbot.wait(20)
 
     clip = window.clips[0]
@@ -2452,3 +2457,186 @@ def test_las_teclas_del_modo_hoja_estan_registradas(qtbot):
     registrados = {s.key().toString() for s in window._shortcuts}
     for tecla in ("Tab", "+", "-"):
         assert tecla in registrados, f"{tecla} se maneja pero no está registrada"
+
+
+# --- F8 Task 18: el pincel de cuarto -----------------------------------------
+#
+# Los cinco detalles de los que depende que sirva (DECISIONES.md). No son
+# adornos: la idea sin ellos no funciona.
+
+
+def test_1_sin_tecla_abajo_arrastrar_no_pinta(qtbot):
+    """El pincel solo existe mientras la tecla esta abajo, asi que no se puede
+    disparar por accidente: sin tecla, arrastrar es marquesina."""
+    window = _window_with_video(qtbot, rooms=("Cocina",))
+    window.load_clips([_clip(1), _clip(2)])
+    window.pintar(0)                    # sin empezar_pincelada
+    assert window.clips[0].categoria_path == []
+
+
+def test_2_el_pincel_sabe_que_cuarto_lleva_cargado(qtbot):
+    """El cursor lleva su carga visible: nunca pintas sin saber que pintas."""
+    window = _window_with_video(qtbot, rooms=("Cocina", "Sala"))
+    window.load_clips([_clip(1)])
+    window.empezar_pincelada("2")
+    assert window.pincel_cargado() == ("2", "Sala")
+    window.terminar_pincelada()
+    assert window.pincel_cargado() is None
+
+
+def test_3_la_tarjeta_se_tiñe_al_tocarla(qtbot):
+    """El rastro de la pincelada se ve en el momento, no al soltar."""
+    window = _window_with_video(qtbot, rooms=("Cocina",))
+    window.load_clips([_clip(1), _clip(2)])
+    window.empezar_pincelada("1")
+    window.pintar(0)
+    assert window.clips[0].categoria_path == ["Cocina"]
+    assert window.clip_sheet.item_widgets[0].clip.room_color is not None
+
+
+def test_4_la_pincelada_entera_se_deshace_de_una(qtbot):
+    """Si deshiciera clip por clip, el pincel seria una trampa: un gesto
+    rapido que cuesta seis acciones revertir."""
+    window = _window_with_video(qtbot, rooms=("Cocina",))
+    window.load_clips([_clip(i) for i in range(1, 7)])
+    window.empezar_pincelada("1")
+    for indice in range(6):
+        window.pintar(indice)
+    window.terminar_pincelada()
+    assert len(window.history.entries()) == 1
+    window.undo()
+    assert all(c.categoria_path == [] for c in window.clips)
+
+
+def test_4b_la_entrada_dice_cuantos_clips_pinto(qtbot):
+    window = _window_with_video(qtbot, rooms=("Cocina",))
+    window.load_clips([_clip(i) for i in range(1, 5)])
+    window.empezar_pincelada("1")
+    for indice in range(3):
+        window.pintar(indice)
+    window.terminar_pincelada()
+    entrada = window.history.entries()[0]
+    assert entrada.etiqueta == "Cocina"
+    assert "3 clips" in entrada.detalle
+
+
+def test_5_no_se_reagrupa_mientras_pintas(qtbot):
+    """Si saltaran de grupo mientras pintas, la grilla se reacomodaria bajo el
+    cursor y seguirias pintando sobre otra cosa. Medido en el spike: sin esto
+    la tarjeta bajo el cursor cambia."""
+    window = _window_with_video(qtbot, rooms=("Cocina",))
+    window.load_clips([_clip(i) for i in range(1, 5)])
+    window.show()
+    qtbot.waitExposed(window)
+    qtbot.wait(20)
+    orden = window.clip_sheet.orden_visual()
+    window.empezar_pincelada("1")
+    window.pintar(0)
+    window.pintar(1)
+    qtbot.wait(20)
+    assert window.clip_sheet.orden_visual() == orden, "se reagrupo mientras pintabas"
+    window.terminar_pincelada()
+    qtbot.wait(20)
+    assert window.clip_sheet.orden_visual() != orden, "no se reagrupo al soltar"
+
+
+def test_pintar_el_mismo_clip_dos_veces_no_lo_duplica(qtbot):
+    """Arrastrando se pasa varias veces por la misma tarjeta: la entrada de
+    historial tiene que contarlo una vez."""
+    window = _window_with_video(qtbot, rooms=("Cocina",))
+    window.load_clips([_clip(1), _clip(2)])
+    window.empezar_pincelada("1")
+    window.pintar(0)
+    window.pintar(0)
+    window.pintar(0)
+    window.terminar_pincelada()
+    # con un solo clip el historial usa el formato del mockup, `→ clip 001`
+    assert window.history.entries()[0].detalle == "→ clip 001"
+
+
+def test_una_pincelada_vacia_no_deja_entrada(qtbot):
+    """Apretar la tecla y soltarla sin tocar ninguna tarjeta no hizo nada:
+    una fila de historial que no cambio nada es basura que estorba."""
+    window = _window_with_video(qtbot, rooms=("Cocina",))
+    window.load_clips([_clip(1)])
+    window.empezar_pincelada("1")
+    window.terminar_pincelada()
+    assert window.history.entries() == []
+
+
+def test_el_pincel_con_una_tecla_sin_cuarto_no_hace_nada(qtbot):
+    """Con dos cuartos, mantener `7` no carga nada: pintar con un pincel vacio
+    borraria el cuarto de lo que toques."""
+    window = _window_with_video(qtbot, rooms=("Cocina", "Sala"))
+    window.load_clips([_clip(1)])
+    window.empezar_pincelada("7")
+    assert window.pincel_cargado() is None
+    window.pintar(0)
+    assert window.clips[0].categoria_path == []
+
+
+def test_mantener_una_tecla_de_cuarto_carga_el_pincel(qtbot):
+    """El gesto: `1`-`9` sostenida carga, y soltarla cierra la pincelada. Un
+    `QShortcut` solo avisa de la pulsacion, nunca de que se solto -- por eso
+    la ventana mira los eventos de teclado."""
+    from PySide6.QtCore import Qt as _Qt
+
+    window = _window_with_video(qtbot, rooms=("Cocina",))
+    window.load_clips([_clip(1), _clip(2)])
+    window.show()
+    qtbot.waitExposed(window)
+    qtbot.keyPress(window, _Qt.Key.Key_1)
+    assert window.pincel_cargado() == ("1", "Cocina")
+    qtbot.keyRelease(window, _Qt.Key.Key_1)
+    assert window.pincel_cargado() is None
+
+
+def test_una_tecla_repetida_por_el_sistema_no_reinicia_la_pincelada(qtbot):
+    """Mantener una tecla dispara auto-repeticion: si cada repeticion empezara
+    una pincelada nueva, cada tarjeta seria su propia entrada de historial y
+    `⌘Z` deshacería una sola."""
+    from PySide6.QtCore import Qt as _Qt
+    from PySide6.QtGui import QKeyEvent
+
+    window = _window_with_video(qtbot, rooms=("Cocina",))
+    window.load_clips([_clip(i) for i in range(1, 5)])
+    window.show()
+    qtbot.waitExposed(window)
+    qtbot.keyPress(window, _Qt.Key.Key_1)
+    window.pintar(0)
+    for _ in range(5):      # el sistema repite mientras la sostienes
+        window.keyPressEvent(QKeyEvent(
+            QKeyEvent.Type.KeyPress, _Qt.Key.Key_1, _Qt.NoModifier, "1", True
+        ))
+    window.pintar(1)
+    qtbot.keyRelease(window, _Qt.Key.Key_1)
+    assert len(window.history.entries()) == 1
+    assert window.history.entries()[0].detalle == "→ 2 clips"
+
+
+def test_un_toque_de_tecla_asigna_y_avanza_como_siempre(qtbot):
+    """Soltar sin haber pintado nada es un TOQUE: asigna al clip actual y
+    avanza, que es lo que `1`-`9` hacen desde la F3. Una sola tecla cubre los
+    dos gestos sin aprender nada nuevo."""
+    from PySide6.QtCore import Qt as _Qt
+
+    window = _window_with_video(qtbot, rooms=("Cocina",))
+    window.load_clips([_clip(1), _clip(2)])
+    window.show()
+    qtbot.waitExposed(window)
+    qtbot.keyPress(window, _Qt.Key.Key_1)
+    qtbot.keyRelease(window, _Qt.Key.Key_1)
+    assert window.clips[0].categoria_path == ["Cocina"]
+    assert window.current_index == 1
+
+
+def test_los_digitos_NO_pueden_ser_atajos(qtbot):
+    """Guarda contra reponerlos: un `QShortcut` consume la tecla y nunca avisa
+    de que se solto, asi que con los digitos registrados el pincel no se
+    armaria nunca. Y no se veria en los tests --un atajo solo se dispara con
+    la ventana ACTIVA, y en pruebas la tecla llega igual al widget--, que es
+    como este bug se colo la primera vez."""
+    window = _window_with_video(qtbot)
+    registrados = {s.key().toString() for s in window._shortcuts}
+    for digito in "123456789":
+        assert digito not in registrados, f"{digito} como atajo mata el pincel"

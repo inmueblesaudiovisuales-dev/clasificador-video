@@ -107,6 +107,10 @@ SAME_ROW_BG_ALPHA = 23      # rgba(232,163,61,.09)
 SAME_ROW_BORDER_ALPHA = 71  # rgba(232,163,61,.28)
 SAME_ROW_KEY_ALPHA = 46     # rgba(232,163,61,.18)
 SAME_ROW_TAG_ALPHA = 204    # rgba(232,163,61,.8)
+# El rastro del pincel: un lavado del color del cuarto sobre la miniatura
+# (`.card.painted` del mockup, rgba(126,158,94,.2)). Es del GESTO, no del
+# clip: se va al soltar la tecla.
+BRUSH_TINT_ALPHA = 51
 # La paleta `⏎` tapa video a proposito: se esta leyendo una lista.
 PALETTE_BG = "rgba(20, 23, 28, 247)"     # rgba(20,23,28,.97) del mockup
 PALETTE_BORDER = "#333c4a"

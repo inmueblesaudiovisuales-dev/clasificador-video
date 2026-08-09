@@ -4,7 +4,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-from PySide6.QtCore import QRect, Qt, Signal
+from PySide6.QtCore import QEvent, QPoint, QRect, Qt, Signal
 from PySide6.QtGui import QColor, QFont, QPainter
 from PySide6.QtWidgets import (
     QButtonGroup,
@@ -118,6 +118,9 @@ class _CardOverlay(QWidget):
             self._pintar_rango(pintor, *plan["rango"])
         if plan["hover"]:
             self._pintar_hover(pintor, plan["hover"])
+        if plan["tinte"]:
+            pintor.fillRect(self.rect(),
+                            QColor(*theme.con_alfa(plan["tinte"], theme.BRUSH_TINT_ALPHA)))
         pintor.end()
 
     # --- piezas ----------------------------------------------------------
@@ -303,6 +306,7 @@ class ClipCard(QWidget):
         self._clip = clip
         self._frames: list = []
         self._hover: float | None = None   # fraccion escrubeada, o None
+        self._tinte: str | None = None     # color del rastro del pincel
         self._scaled_cache: dict[int, object] = {}
         self._poster_index = 0
         self._shown_index: int | None = None
@@ -371,6 +375,9 @@ class ClipCard(QWidget):
             # timecode. Va en el mismo plan --y en el mismo paintEvent-- que
             # el resto: seis QLabel encima de la miniatura es lo que la F2
             # hizo mal.
+            # el rastro de la pincelada: un lavado del color del cuarto sobre
+            # la miniatura. Es del GESTO, no del clip -- se va al soltar.
+            "tinte": self._tinte,
             "hover": None if self._hover is None else {
                 "progreso": self._hover,
                 "timecode": self._timecode_de(self._hover),
@@ -622,6 +629,7 @@ class ClipSheet(QWidget):
 
     clip_clicked = Signal(int)
     clip_activated = Signal(int)       # doble click: abrir en modo clip
+    brocha_paso_por = Signal(int)      # el arrastre paso por esta tarjeta
     selection_changed = Signal(list)
     filters_changed = Signal(object)   # FilterState
 
@@ -638,6 +646,8 @@ class ClipSheet(QWidget):
         # cruce.
         self._modo_hoja = False
         self._pasos = {False: 0, True: PASO_HOJA}
+        self._congelado = False
+        self._pincel_activo = False
         self._blocks: dict[str, _GroupBlock] = {}
         self._current = -1
         self._selected: set[int] = set()
@@ -722,6 +732,7 @@ class ClipSheet(QWidget):
         self._scroll = QScrollArea()
         self._scroll.setWidgetResizable(True)
         self._scroll.setWidget(self._content)
+        self._scroll.viewport().installEventFilter(self)
         self._scroll.setFrameShape(QScrollArea.Shape.NoFrame)
         self._scroll.setHorizontalScrollBarPolicy(
             Qt.ScrollBarPolicy.ScrollBarAlwaysOff
@@ -1007,6 +1018,76 @@ class ClipSheet(QWidget):
             ),
         )
 
+    def set_pincel_activo(self, activo: bool) -> None:
+        """Con el pincel activo, el viewport sigue el mouse aunque no haya
+        boton apretado: mantener la tecla YA es el gesto, y pedir ademas
+        apretar el boton seria un dedo mas para lo mismo."""
+        self._pincel_activo = bool(activo)
+        self._scroll.viewport().setMouseTracking(activo)
+
+    def eventFilter(self, obj, event):  # noqa: N802 -- override de Qt
+        if (self._pincel_activo and obj is self._scroll.viewport()
+                and event.type() == QEvent.Type.MouseMove):
+            self.notificar_arrastre(event.position().toPoint())
+        return super().eventFilter(obj, event)
+
+    def notificar_arrastre(self, pos_en_viewport) -> None:
+        """Avisa por que tarjeta paso el cursor. No sabe de cuartos ni de
+        historial: eso es de la ventana, que es quien conoce los clips.
+
+        `childAt` va sobre el CONTENIDO --que es lo que se desplaza-- con el
+        scroll sumado. Sobre el viewport, con la hoja desplazada, devuelve la
+        tarjeta equivocada; medido en el spike de la Task 14.
+        """
+        punto = pos_en_viewport + QPoint(
+            self._scroll.horizontalScrollBar().value(),
+            self._scroll.verticalScrollBar().value(),
+        )
+        hijo = self._content.childAt(punto)
+        # el hijo directo suele ser la etiqueta de la imagen o el overlay: se
+        # sube hasta dar con la tarjeta
+        while hijo is not None and not isinstance(hijo, ClipCard):
+            hijo = hijo.parentWidget()
+        if hijo is not None and hijo in self.item_widgets:
+            self.brocha_paso_por.emit(self.item_widgets.index(hijo))
+
+    def limpiar_tinte(self) -> None:
+        """Borra el rastro de la pincelada. Se llama al soltar: el tinte es
+        del gesto, no del clip, y dejarlo haria que las pintadas se vieran
+        distintas de las demas de su mismo cuarto para siempre."""
+        for card in self.item_widgets:
+            if card._tinte is not None:
+                card._tinte = None
+                card._overlay.update()
+
+    def congelar_acomodo(self, congelado: bool) -> None:
+        """Mientras dura una pincelada, la grilla NO se re-acomoda.
+
+        Medido en el spike de la Task 14: reagrupando durante el arrastre, la
+        tarjeta bajo el cursor cambia y terminas pintando sobre otra cosa. Al
+        soltar se descongela y se re-acomoda una sola vez, que cuesta ~20 ms.
+        """
+        self._congelado = bool(congelado)
+
+    def repintar_uno(self, indice: int, cuarto: str, cuartos: list[str]) -> None:
+        """Refresca UNA tarjeta sin tocar la grilla.
+
+        Recibe el cuarto NUEVO: la tarjeta guarda su propia copia del dato
+        (`ClipThumbnail`), y leerla aqui devolveria el cuarto viejo -- que es
+        justo lo que se esta cambiando.
+
+        `_refresh_sheet` completo re-acomoda, que es lo que no puede pasar
+        mientras pintas.
+        """
+        if not (0 <= indice < len(self.item_widgets)):
+            return
+        card = self.item_widgets[indice]
+        card.clip.room_label = cuarto
+        color = theme.room_color(cuartos.index(cuarto)) if cuarto in cuartos else None
+        card.clip.room_color = color
+        card._tinte = color
+        card._overlay.update()
+
     def _relayout(self) -> None:
         """Punto de entrada barato: si nada cambio, no hace nada.
 
@@ -1014,6 +1095,8 @@ class ClipSheet(QWidget):
         CUATRO re-colocados —dos dentro del refresco de la hoja y dos mas por
         el avance automatico de la F5—, y esta app existe para ser rapida.
         """
+        if self._congelado:
+            return
         firma = self._firma_de_acomodo()
         if firma == self._firma:
             return
