@@ -13,12 +13,29 @@ def _clip(i, ruta):
     return Clip(orden=i + 1, ruta=Path(ruta), categoria_path=[], fps=30.0)
 
 
+def _probe_falso(path):
+    """Sondeo que no toca disco ni lanza ffprobe de verdad.
+
+    Las tareas 5, 6 y 7 del plan escriben tests con rutas inventadas
+    (`/cam/A.MP4`) que llaman a medir y sondear proxies. Sin este doble,
+    esos tests lanzarian ffprobe de verdad contra archivos que no existen.
+    """
+    return {
+        "fps": 30.0,
+        "duration_frames": 300,
+        "width": 1080,
+        "height": 1920,
+        "rotation": 0,
+    }
+
+
 @pytest.fixture
 def ventana(qtbot):
     """Misma forma que `_window` en test_main_window.py -- no hay una
     fixture equivalente ya declarada en tests/ui/, asi que se copia el
     patron en vez de duplicar la logica en cada archivo nuevo."""
     window = MainWindow(project_name="Casa Jardin", room_selection=RoomSelection())
+    window._probe_clip = _probe_falso
     qtbot.addWidget(window)
     return window
 
@@ -29,7 +46,10 @@ def test_el_autosave_escribe_los_bins(qtbot, tmp_path, ventana):
     ventana.bins.agregar("Dron", Path("/dron"), [0, 1])
 
     ventana._write_autosave_now()
-    ventana._autosave_pool.waitForDone(2000)
+    # si el trabajo de escritura no termino en el plazo, la aserción de
+    # abajo fallaria con FileNotFoundError -- que no dice nada del timeout
+    # real. Afirmar esto primero deja el error correcto si algun dia pasa.
+    assert ventana._autosave_pool.waitForDone(2000)
 
     data = json.loads((tmp_path / "sesion.json").read_text())
     assert data["bins"] == [
