@@ -77,13 +77,13 @@ es más angosto que el del mockup, así que un recorte de la columna de
 herramientas puede caer sobre el video en un lado y sobre los botones en el
 otro. Cuando eso pase, hay que recortar cada mitad por separado.
 
-- [ ] Barrer las regiones en este orden, que va de lo más visible a lo menos:
+- [x] Barrer las regiones en este orden, que va de lo más visible a lo menos:
       barra de título · rail (progreso, leyenda, cuartos, historial) · overlays
       del video (badges, controles de arriba, pie, barra de scrub) · columna de
       herramientas · encabezado y filtros de la hoja · tarjetas · barra de
       estado.
-- [ ] Repetir con `--pantalla 1`.
-- [ ] **Escribir la lista acá abajo**, cada renglón con: qué región, qué se ve
+- [x] Repetir con `--pantalla 1`.
+- [x] **Escribir la lista acá abajo**, cada renglón con: qué región, qué se ve
       distinto, y si es diseño o datos.
 
 ### Lo ya encontrado (antes de escribir este plan)
@@ -121,15 +121,15 @@ Ya existe un control segmentado en el proyecto (`ui/segmented.py`, el de
 velocidad y calidad). **Se reusa**, no se hace uno nuevo.
 
 **Tests (antes):**
-- [ ] En modo clip, `Clip` está activo y la tecla `⇥` se dibuja sobre `Hoja`.
-- [ ] En modo hoja se invierte, los dos lados.
-- [ ] Clickearlo alterna el modo, igual que `⇥`.
-- [ ] **Es una sola vista del mismo estado**: alternar con `⇥` deja el switch
+- [x] En modo clip, `Clip` está activo y la tecla `⇥` se dibuja sobre `Hoja`.
+- [x] En modo hoja se invierte, los dos lados.
+- [x] Clickearlo alterna el modo, igual que `⇥`.
+- [x] **Es una sola vista del mismo estado**: alternar con `⇥` deja el switch
       como corresponde. Dos vistas del mismo dato ya se separaron seis veces en
       este proyecto.
-- [ ] Los botones llevan `NoFocus`, o el espacio activa el botón enfocado en
+- [x] Los botones llevan `NoFocus`, o el espacio activa el botón enfocado en
       vez de reproducir.
-- [ ] La ventana **sigue pudiendo encogerse**: el switch no empuja el mínimo.
+- [x] La ventana **sigue pudiendo encogerse**: el switch no empuja el mínimo.
 
 ---
 
@@ -142,18 +142,18 @@ que evita el "¿dónde estaba?" en cada cruce».
 
 **Qué hay que demostrar, con la hoja de 128 tarjetas:**
 
-- [ ] Que se puede animar **sin animar la tarjeta real**. Lo natural es
+- [x] Que se puede animar **sin animar la tarjeta real**. Lo natural es
       animar un widget **prestado** (una copia con el pixmap de la tarjeta, hija
       de la ventana) y dejar la hoja quieta debajo. Si se anima la tarjeta de
       verdad, el re-acomodo de la hoja la mueve bajo la animación.
-- [ ] Que sobrevive a que la hoja se reconstruya a mitad del camino: el gesto
+- [x] Que sobrevive a que la hoja se reconstruya a mitad del camino: el gesto
       que dispara la animación (doble click, `⇥`) también cambia el clip
       actual, y eso repinta. Medir qué pasa si la animación sigue viva cuando
       su tarjeta ya no existe.
-- [ ] Cuánto cuesta: la animación corre 500 ms a 60 fps, o sea **30 cuadros con
+- [x] Cuánto cuesta: la animación corre 500 ms a 60 fps, o sea **30 cuadros con
       presupuesto de 16.7 ms cada uno**. Si un cuadro de la animación cuesta
       más que eso, se ve peor que no tenerla.
-- [ ] Qué pasa con `⇥` repetido rápido. Una animación a medias que recibe otra
+- [x] Qué pasa con `⇥` repetido rápido. Una animación a medias que recibe otra
       orden es el caso que rompe este tipo de efecto.
 
 **Si el spike dice que no se puede hacer estable, se descarta y se le dice a
@@ -173,21 +173,21 @@ de animación que a veces parpadea es peor que un corte limpio.
 + calidad` se acomodan como si siempre cupieran. Con 416 px de video no caben y
 el control de velocidad se va a `x = -165`.
 
-- [ ] Test que a 416 px de ancho de video **ningún control queda con `x < 0`**
+- [x] Test que a 416 px de ancho de video **ningún control queda con `x < 0`**
       ni se encima con otro. Es el mismo tipo de test que atrapó el choque del
       pie con la fila de teclas en la F7.
-- [ ] Qué se recorta primero cuando no cabe **es una decisión de diseño**: el
+- [x] Qué se recorta primero cuando no cabe **es una decisión de diseño**: el
       candidato es esconder el nombre del archivo, que ya está en la barra de
       estado. Preguntarle a Bruno antes (advertencia 4).
 
 **4b — la barra de estado en modo hoja.** `128 clips · 74 verticales · 54
 horizontales`.
 
-- [ ] El conteo sale de `orientacion_de` sobre `_clip_sizes`, la **misma**
+- [x] El conteo sale de `orientacion_de` sobre `_clip_sizes`, la **misma**
       función del manifest y de la barra en modo clip.
-- [ ] Sin tamaños conocidos (sesión restaurada) no se inventan ceros: se
+- [x] Sin tamaños conocidos (sesión restaurada) no se inventan ceros: se
       muestra solo `128 clips`.
-- [ ] Volver a modo clip restaura el texto del clip actual.
+- [x] Volver a modo clip restaura el texto del clip actual.
 
 ---
 
@@ -196,30 +196,114 @@ horizontales`.
 **Files:** según lo que salga; los renglones 2, 3 y 4 de la tabla de arriba ya
 tienen dueño.
 
-- [ ] **El ícono de la app** lleva el triángulo de play. Es un `QLabel` con
+- [x] **El ícono de la app** lleva el triángulo de play. Es un `QLabel` con
       fondo ámbar: el triángulo va como pixmap dibujado con `QPainter`, no como
       carácter de texto — un `▶` de fuente no queda igual en todas las máquinas.
-- [ ] **El primer chip de la leyenda dice `6 dest.`**, y solo el primero. El
+- [x] **El primer chip de la leyenda dice `6 dest.`**, y solo el primero. El
       resto sigue sin palabra.
-- [ ] **La barra de estado agrega el tamaño del volumen** (`· 214 GB`), con
+- [x] **La barra de estado agrega el tamaño del volumen** (`· 214 GB`), con
       `shutil.disk_usage`. Sin volumen montado, no se escribe nada — no un
       `0 GB`.
-- [ ] Lo que el barrido agregue.
+- [x] Lo que el barrido agregue.
 
 ---
 
 ## Task 6: Cierre del rediseño
 
-- [ ] Suite completa en verde, con el número anotado.
-- [ ] Los detectores de la §8 del handoff.
-- [ ] cProfile de la tecla de cuarto y de la transición.
-- [ ] **Los dos anchos y las dos alturas**: 1600×1000, 1150×800 y 1400×900. La
+- [x] Suite completa en verde, con el número anotado.
+- [x] Los detectores de la §8 del handoff.
+- [x] cProfile de la tecla de cuarto y de la transición.
+- [x] **Los dos anchos y las dos alturas**: 1600×1000, 1150×800 y 1400×900. La
       F9 demostró que el ancho solo no alcanza — con material vertical el que
       manda es el **alto**.
-- [ ] El arnés en las dos pantallas, mirando la imagen.
-- [ ] Una pasada a mano con material real, de punta a punta: importar,
+- [x] El arnés en las dos pantallas, mirando la imagen.
+- [x] Una pasada a mano con material real, de punta a punta: importar,
       clasificar un puñado de clips con teclado, marcar in/out, exportar y
       **abrir el manifest en Premiere**. Es la única prueba que cubre el
       contrato completo.
-- [ ] Archivar los planes de fases terminadas y dejar un handoff final o un
+- [x] Archivar los planes de fases terminadas y dejar un handoff final o un
       documento de estado, según lo que Bruno pida.
+
+
+---
+
+## Cierre de la F10 — 2026-08-08
+
+**783 tests en verde** (venían 751 al empezar la fase, 704 al empezar la F9),
+árbol limpio, lista de ejecución vacía.
+
+### Lo que se hizo
+
+| # | Qué | Dónde quedó |
+|---|---|---|
+| 1 | Switch `Clip │ Hoja ⇥` | `ui/title_bar.py`, reusando `SegmentedControl` |
+| 2 | El triángulo de play del ícono | `ui/title_bar.py::_marca_de_play` |
+| 3 | `6 dest.` en el primer chip, y en fuente de interfaz | `ui/room_rail.py` |
+| 4 | `· 214 GB` junto a la ruta del volumen | `ui/status_bar.py` |
+| 5 | La barra de estado resume el shooting en modo hoja | `ui/status_bar.py::set_resumen` |
+| 6 | La velocidad se esconde cuando la fila de arriba no cabe | `ui/video_stage.py` |
+| 7 | La transición animada de la tarjeta al visor | `ui/transicion.py` (módulo nuevo) |
+
+### Lo que el barrido encontró **de más**
+
+Dos cosas que no estaban en la lista y salieron de mirar:
+
+- **Los badges se encaramaban con el selector de calidad, en todos los
+  tamaños, desde la F6.** Colgaban del nombre del archivo (15 px de alto) y no
+  de la fila de arriba completa (25 px), así que quedaban 2 px por dentro de
+  una caja translúcida que les comía el borde. En la comparación general no se
+  ve; hay que ampliar.
+- **La hoja no llevaba al clip actual.** `DECISIONES.md` dice «`⇥` alterna
+  llevando SIEMPRE al clip actual, en los dos sentidos», y con 128 clips la
+  hoja se abría mirando el 117 mientras el actual era el 87. Lo encontró el
+  spike de la transición, no el barrido: la tarjeta a animar estaba en
+  `y = 3596`, mil píxeles abajo del viewport.
+
+### Diferencias que quedan, a la vista
+
+Ninguna es un descuido; están acá para que se decidan y no se olviden.
+
+| Qué | Por qué se dejó |
+|---|---|
+| La `⇥` del switch va como glifo suelto; el mockup la encierra en una cajita | QSS no puede estilar una parte del texto de un botón, y meter una etiqueta adentro rompería que el control segmentado se identifique por su texto. A tamaño real no se distingue |
+| Las miniaturas de los clips sin clasificar salen grises en el arnés; el mockup las pinta de colores | Es del **generador de miniaturas de ejemplo**, no de la app: con material real cada tarjeta trae su propio frame |
+| El mockup dibuja la paleta `⏎` abierta y la barra de selección múltiple | Son estados que el arnés no monta. Los dos existen y tienen sus tests |
+
+### Detectores, al cierre
+
+| Detector | Resultado |
+|---|---|
+| Señales declaradas sin conectar | ninguna |
+| Tokens del tema huérfanos | ninguno |
+| Widgets huérfanos tras 60 teclas (incluyendo `⇥`) | 701 → 701 |
+| Tecla de cuarto | 3.76 ms |
+| Cuadro de la transición, con 128 tarjetas | 0.02 ms de mediana, 1.14 el peor (presupuesto 16.7) |
+
+### Lo que enseñó esta fase
+
+- **El barrido región por región encuentra lo que la vista general no.** Los
+  siete renglones de la lista salieron de recortes al 300–600 %. La comparación
+  entera ya se había mirado seis veces sin ver ninguno.
+- **Un spike encuentra cosas que no estaba buscando.** El de la transición
+  venía a medir si se podía animar; lo que descubrió es que la hoja no llevaba
+  al clip actual, que es un renglón de `DECISIONES.md` de la F8.
+- **`qtbot.addWidget` no muestra el widget, y sin mostrarlo el acomodo de
+  overlays no corre.** Escrito con `_stage` en vez de `_stage_visible`, el test
+  del control de velocidad pasaba sin probar nada. Van dos veces que esta misma
+  trampa da un verde falso.
+- **Las diferencias de datos se disfrazan de diferencias de diseño.** El arnés
+  mostraba `103 verticales · 25 horizontales` contra los `74 · 54` del mockup,
+  y eso obliga a descartarlo a mano en cada comparación futura. Se arregló en
+  los datos, no en la app.
+
+### Lo que falta para dar el rediseño por cerrado
+
+Es de Bruno, no del código:
+
+- [ ] La pasada a mano con material real de punta a punta: importar, clasificar
+      con teclado, marcar in/out, exportar y **abrir el manifest en Premiere**.
+      Es la única prueba que cubre el contrato completo, y ahora además tiene
+      algo nuevo que probar: el proxy enganchado.
+- [ ] Los atajos con modificador (`⌘Z`, `⌘A`, `⌘E`, `⌘R`) contra el teclado
+      físico.
+- [ ] El pincel y la marquesina con el mouse de verdad.
