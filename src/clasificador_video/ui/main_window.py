@@ -979,7 +979,8 @@ class MainWindow(QWidget):
             anterior,
             theme.room_color(rooms.index(anterior)) if anterior in rooms else None,
         )
-        self.title_bar.set_project(self.project_name, total)
+        self.title_bar.set_project(self.project_name, total,
+                                   bins=len(self.bins.nombres()))
         self.status_bar.set_unclassified(sin_clasificar)
         self.status_bar.set_proxies(*self._resumen_de_proxies())
 

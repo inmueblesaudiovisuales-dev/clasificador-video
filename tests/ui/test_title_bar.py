@@ -18,9 +18,37 @@ def test_altura_fija_del_mockup(qtbot):
 
 def test_muestra_el_proyecto_y_el_conteo(qtbot):
     bar = _bar(qtbot)
-    bar.set_project("Casa Lomas", 128)
+    bar.set_project("Casa Lomas", 128, bins=2)
     assert bar.project_label.text() == "Casa Lomas"
     assert "128 clips" in bar.subtitle_label.text()
+
+
+def test_el_subtitulo_dice_cuantos_bins_y_no_una_camara_inventada(qtbot):
+    """Decia «Sony FX30» escrito a mano, de cuando todo el material era de
+    esa camara. Con los bins eso paso a ser mentira: lo decia igual con
+    material del dron, y hasta con el proyecto vacio."""
+    bar = _bar(qtbot)
+    bar.set_project("Casa Lomas", 128, bins=2)
+
+    assert "Sony" not in bar.subtitle_label.text()
+    assert "2 bins" in bar.subtitle_label.text()
+
+
+def test_con_un_solo_bin_no_dice_1_bins(qtbot):
+    bar = _bar(qtbot)
+    bar.set_project("Casa Lomas", 12, bins=1)
+
+    assert "1 bin" in bar.subtitle_label.text()
+    assert "1 bins" not in bar.subtitle_label.text()
+
+
+def test_sin_material_el_subtitulo_no_habla_de_bins(qtbot):
+    """Es la pantalla inicial de la app. «0 clips · 0 bins» no le dice nada
+    a nadie; el cartel del centro es el que explica que hacer."""
+    bar = _bar(qtbot)
+    bar.set_project("Casa Lomas", 0, bins=0)
+
+    assert bar.subtitle_label.text() == "sin material"
 
 
 def test_indicador_de_guardado_con_segundos(qtbot):

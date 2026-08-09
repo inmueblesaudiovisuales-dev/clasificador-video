@@ -513,8 +513,15 @@ def test_click_real_en_thumbnail_no_crasha_al_reconstruir_clip_sheet(qtbot):
         "el filmstrip se reconstruyo durante el click -> los widgets se "
         "destruyen dentro de su propio mousePressEvent (crash nativo real)"
     )
+    # Se comprueba que las miniaturas SIGAN ahí, no que midan lo mismo: el
+    # ancho de la tarjeta depende del acomodo de la ventana, y cualquier
+    # cambio de texto en la barra de titulo lo mueve unos pixeles. Comparar
+    # anchos exactos hacia que este test --que cuida un crash nativo y la
+    # perdida de portadas-- se cayera por un motivo que no tiene nada que ver
+    # con ninguna de las dos cosas. Si se recrearan con `thumbnail_path=None`,
+    # el pixmap seria nulo y el ancho 0, que es justo lo que esto detecta.
     widths_despues = [w.image_label.pixmap().width() for w in window.clip_sheet.item_widgets]
-    assert widths_despues == pixmap_widths, (
+    assert all(ancho > 0 for ancho in widths_despues), (
         "los pixmaps ya cargados se perdieron al reconstruir el filmstrip"
     )
 

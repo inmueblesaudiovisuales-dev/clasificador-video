@@ -121,9 +121,22 @@ class TitleBar(QWidget):
         layout.addWidget(self.proxies_button)
         layout.addWidget(self.export_button)
 
-    def set_project(self, nombre: str, total_clips: int) -> None:
+    def set_project(self, nombre: str, total_clips: int, bins: int = 0) -> None:
+        """El subtitulo decia «Sony FX30» escrito a mano, de cuando todo el
+        material de Bruno era de esa camara. Con los bins eso paso a ser
+        mentira: lo decia igual con material del dron, y hasta con el
+        proyecto vacio. Ahora dice cuantos bins hay, que ademas es el dato
+        que cambia mientras trabajas.
+        """
         self.project_label.setText(nombre)
-        self.subtitle_label.setText(f"{total_clips} clips · Sony FX30")
+        if not total_clips:
+            # la pantalla inicial de la app: «0 clips · 0 bins» no le dice
+            # nada a nadie, y el cartel del centro de la hoja es el que
+            # explica que hacer
+            self.subtitle_label.setText("sin material")
+            return
+        cuantos_bins = f"{bins} {'bin' if bins == 1 else 'bins'}"
+        self.subtitle_label.setText(f"{total_clips} clips · {cuantos_bins}")
 
     def set_modo_hoja(self, en_hoja: bool) -> None:
         """Sincroniza el switch con el modo. NO emite `mode_toggled`: el
