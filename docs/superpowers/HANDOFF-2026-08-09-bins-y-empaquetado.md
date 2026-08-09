@@ -119,6 +119,12 @@ mirándolas:
   widgets destruidos desde adentro de su propia señal, y un mpv real
   encendiéndose porque `cerrar_clip` tocaba `self.player`, que se construye
   perezosamente justo para que eso no pase.
+- **Un cuarto segfault, el que quedaba** (encontrado después de escribir esto,
+  midiendo 40 corridas: 2 caídas contra 0 en el commit anterior a los bins).
+  Cada trabajo en segundo plano traía su propio portador de señales, que nacía
+  en el hilo de la interfaz y moría en un hilo del `QThreadPool`. Ahora el
+  portador es uno solo, de la ventana (`SeñalesDeTrabajos`). Medido después:
+  **76 corridas completas seguidas sin una caída**.
 - **Código muerto borrado**: `IngestTree`/`IngestFolder` ya no los usaba nadie
   desde la interfaz. `ingest.py` conserva `VIDEO_EXTENSIONS`, `SUFIJO_PROXY`,
   `es_archivo_de_proxy` y `archivos_de_video`.
@@ -306,6 +312,14 @@ los últimos meses lo detectó la suite.
 - **Sin la hoja de estilos, Qt le da a cada `QPushButton` 80 px de ancho
   mínimo.** Medir sin ella da números de otra app.
 - **`qtbot.addWidget` no muestra el widget.** Sin `show()` el layout no corre.
+- **Ningún objeto de Qt debe nacer ni morir por trabajo del `QThreadPool`.** El
+  pool destruye el `QRunnable` en su propio hilo, y con él todo lo que cuelgue.
+  Los portadores de señales son de la ventana, no del trabajo
+  (ver `SeñalesDeTrabajos` en `main_window.py`, con los números).
+- **No guardes un `QThread.currentThread()` de otro hilo en una lista.** El
+  hilo muere, el envoltorio de Python sigue vivo, y cuando Qt reusa esa
+  memoria para otro widget el objeto nuevo se lee como un `QThread`. Para
+  saber en qué hilo estás dentro de una prueba: `threading.get_ident()`.
 
 ### De macOS
 

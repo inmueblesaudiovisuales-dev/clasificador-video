@@ -7,7 +7,7 @@ from dataclasses import replace
 from pathlib import Path
 from typing import Callable
 
-from PySide6.QtCore import Qt, QRunnable, QThreadPool, QTimer, Signal
+from PySide6.QtCore import Qt, QObject, QRunnable, QThreadPool, QTimer, Signal
 from PySide6.QtGui import QKeySequence, QPixmap, QShortcut
 from PySide6.QtWidgets import (
     QApplication,
@@ -103,23 +103,58 @@ class _AutosaveWriteJob(QRunnable):
             pass
 
 
+class SeñalesDeTrabajos(QObject):
+    """El UNICO portador de las señales de los trabajos en segundo plano.
+
+    Uno por ventana, creado en el hilo de la UI y vivo mientras vive la
+    ventana. Los `QRunnable` no crean el suyo: reciben este y lo usan para
+    avisar sus resultados.
+
+    Es asi por un segfault medido (agosto 2026). Antes cada trabajo traia su
+    propio portador, y ese portador nacia en el hilo de la UI pero moria en
+    un hilo del `QThreadPool` --el pool suelta el `QRunnable` al terminar
+    `run()` y con el se iba su unico dueño--. Destruir un objeto de Qt fuera
+    de su hilo choca con el hilo de la UI justo cuando este recorre sus
+    listas: la suite se caia con SIGSEGV 2 de cada 40 corridas.
+
+    Las tres variantes, medidas con el mismo arnes de estres (400 vueltas de
+    polish de estilo contra 3200 trabajos, 15 corridas cada una):
+
+    - portador `QWidget` por trabajo ......... 2 caidas de 15
+      (revienta el registro de widgets de `QApplication`)
+    - portador `QObject` por trabajo ........ 15 caidas de 15
+      (peor: revienta al entregar la señal encolada a un portador que el
+       hilo del pool ya borro)
+    - portador compartido por la ventana ..... 0 caidas de 15
+
+    O sea que volverlo `QObject` sin quitarle el "por trabajo" NO alcanza:
+    lo que cura es que ningun objeto de Qt nazca ni muera por trabajo.
+
+    Quien lo mantiene vivo: la ventana (referencia de Python, no hijo de Qt)
+    y ademas cada trabajo en vuelo. Y ninguna señal puede llegar tarde: el
+    `QThreadPool` SI es hijo de la ventana, y su destructor espera a que
+    todos los trabajos terminen antes de que la ventana suelte nada.
+    """
+
+    miniatura_lista = Signal(int, int, object)  # generation, indice, list[Path] | None
+    proxy_sondeado = Signal(int, int, object)   # generation, indice, info | None
+
+
 class _ThumbnailJob(QRunnable):
     """Extrae la miniatura (o la tira de frames para el scrub) de un clip
     fuera del hilo de la UI."""
 
     STRIP_COUNT = 12
 
-    class Signals(QWidget):
-        done = Signal(int, int, object)  # generation, indice, list[Path] | None
-
-    def __init__(self, generation: int, index: int, video: Path, outdir: Path, duration_seconds: float | None):
+    def __init__(self, generation: int, index: int, video: Path, outdir: Path,
+                 duration_seconds: float | None, signals: SeñalesDeTrabajos):
         super().__init__()
         self._generation = generation
         self.index = index
         self.video = video
         self.outdir = outdir
         self.duration_seconds = duration_seconds
-        self.signals = _ThumbnailJob.Signals()
+        self.signals = signals
 
     def run(self) -> None:
         try:
@@ -137,12 +172,11 @@ class _ThumbnailJob(QRunnable):
                 frames = [extract_thumbnail(self.video, 0.5, self.outdir)]
         except Exception:
             frames = None
-        try:
-            self.signals.done.emit(self._generation, self.index, frames or None)
-        except RuntimeError:
-            # la ventana dueña (y su Signals) ya se destruyo mientras este
-            # job corria en su propio hilo -- no hay nadie escuchando.
-            pass
+        # Sin guarda de `RuntimeError`: el portador vive mientras viva la
+        # ventana, y la ventana no se va sin antes esperar a este trabajo
+        # (ver `SeñalesDeTrabajos`). Si la ventana ya murio, Qt deshizo la
+        # conexion sola y el `emit` no llama a nadie.
+        self.signals.miniatura_lista.emit(self._generation, self.index, frames or None)
 
 
 def _con_el_rango_en_orden(clip: Clip) -> Clip:
@@ -206,27 +240,22 @@ class _ProxyProbeJob(QRunnable):
     el hilo de la UI, que es donde estan los datos del original.
     """
 
-    class Signals(QWidget):
-        done = Signal(int, int, object)  # generation, indice, info | None
-
-    def __init__(self, generation: int, index: int, proxy: Path, probe):
+    def __init__(self, generation: int, index: int, proxy: Path, probe,
+                 signals: SeñalesDeTrabajos):
         super().__init__()
         self._generation = generation
         self.index = index
         self.proxy = proxy
         self._probe = probe
-        self.signals = _ProxyProbeJob.Signals()
+        self.signals = signals
 
     def run(self) -> None:
         try:
             info = self._probe(self.proxy)
         except Exception:
             info = None
-        try:
-            self.signals.done.emit(self._generation, self.index, info)
-        except RuntimeError:
-            # la ventana dueña ya se destruyo mientras este job corria
-            pass
+        # sin guarda, por lo mismo que en `_ThumbnailJob.run`
+        self.signals.proxy_sondeado.emit(self._generation, self.index, info)
 
 
 class MainWindow(QWidget):
@@ -274,6 +303,14 @@ class MainWindow(QWidget):
         self._router = KeyboardRouter(active_rooms=room_selection.active_rooms())
         self._probe_clip = probe_clip          # inyectable para tests
         self._thumbnail_cache_root = thumbnail_cache_root or default_cache_root()
+        # el portador de señales de los trabajos: uno solo, de la ventana.
+        # Se conecta aqui una vez y no por trabajo (ver SeñalesDeTrabajos).
+        self._señales_de_trabajos = SeñalesDeTrabajos()
+        self._señales_de_trabajos.miniatura_lista.connect(self._on_thumbnail_ready)
+        self._señales_de_trabajos.proxy_sondeado.connect(self._on_proxy_sondeado)
+        # hijo de la ventana A PROPOSITO: su destructor espera a los trabajos
+        # en vuelo, y esa espera es lo que impide que una señal llegue
+        # cuando la ventana ya no puede atenderla.
         self._thread_pool = QThreadPool(self)
         # las miniaturas se extraen en software (--hwdec=no, ver
         # thumbnails.py) -- no tocan VideoToolbox, asi que un par en
@@ -1608,9 +1645,10 @@ class MainWindow(QWidget):
             # cada tanda, y compararlo contra el a secas tiraba los
             # resultados en vuelo del OTRO bin, que nadie invalido.
             self._proxy_generacion_de[index] = generation
-            job = _ProxyProbeJob(generation, index, proxy, self._probe_clip)
-            job.signals.done.connect(self._on_proxy_sondeado)
-            self._thread_pool.start(job)
+            self._thread_pool.start(
+                _ProxyProbeJob(generation, index, proxy, self._probe_clip,
+                               self._señales_de_trabajos)
+            )
         # y las miniaturas que falten se vuelven a pedir, ahora desde el
         # proxy: es 5.6 veces mas barato (medido con el material real, 5.90 s
         # contra 1.06 s por clip) y es justo lo que hacia trabajar a los
@@ -1747,10 +1785,11 @@ class MainWindow(QWidget):
             # miniatura alcanza, y esperar a la validacion --3.4 s de ffprobe
             # en 128 clips-- retrasaria justo lo que se quiere acelerar.
             fuente = self._proxy_candidatos.get(index, clip.ruta)
-            job = _ThumbnailJob(generation, index, fuente, cache_dir, duration_seconds)
-            job.signals.done.connect(self._on_thumbnail_ready)
             self._miniaturas_pendientes += 1
-            self._thread_pool.start(job)
+            self._thread_pool.start(
+                _ThumbnailJob(generation, index, fuente, cache_dir, duration_seconds,
+                              self._señales_de_trabajos)
+            )
         self._refrescar_progreso()
 
     def _on_thumbnail_ready(self, generation: int, index: int, frames: list[Path] | None) -> None:

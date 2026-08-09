@@ -1,13 +1,21 @@
 # tests/ui/test_main_window.py
+import threading
 from pathlib import Path
 
 import pytest
+
+from PySide6.QtCore import QObject, QThreadPool
+from PySide6.QtWidgets import QWidget
 
 from clasificador_video.manifest import Clip
 from clasificador_video.player import QUALITY_PROFILES
 from clasificador_video.rooms import RoomSelection
 from clasificador_video.ui import theme
-from clasificador_video.ui.main_window import MainWindow
+from clasificador_video.ui.main_window import (
+    MainWindow,
+    _ProxyProbeJob,
+    _ThumbnailJob,
+)
 from clasificador_video.ui.video_stage import VideoStage
 from clasificador_video.ui.video_widget import VideoWidget
 
@@ -225,25 +233,34 @@ def _no_mpv_in_test(*a, **k):
     raise RuntimeError("no se ejecuta mpv en tests")
 
 
-def test_thumbnail_job_no_truena_si_su_signal_ya_fue_destruido(qtbot, monkeypatch, tmp_path):
-    """Bug real visto en corridas repetidas de la suite: un job de
-    miniatura de una prueba anterior a veces termina su run() (en un
-    hilo del QThreadPool) despues de que la ventana dueña ya se
-    destruyo junto con el QWidget que carga la senal `done` -- emitir
-    sobre un objeto Qt ya borrado truena con RuntimeError dentro del
-    hilo. El job debe descartar el resultado en silencio, no propagar."""
-    import shiboken6
+def test_thumbnail_job_no_truena_si_la_ventana_ya_se_destruyo(qtbot, monkeypatch, tmp_path):
+    """Un trabajo de miniatura puede terminar su `run()` --en un hilo del
+    QThreadPool-- despues de que la ventana que escuchaba ya se destruyo.
 
-    from clasificador_video.ui.main_window import _ThumbnailJob
+    Antes esto se atajaba con un `except RuntimeError` alrededor del `emit`,
+    apoyado en la idea de que el portador de la señal moria con la ventana.
+    Ya no: el portador es un objeto aparte que el trabajo sostiene, asi que
+    el `emit` es valido igual; lo unico que pasa es que Qt ya deshizo la
+    conexion con la ventana muerta y el resultado no le llega a nadie."""
+    import shiboken6
 
     monkeypatch.setattr(
         "clasificador_video.ui.main_window.extract_thumbnail",
         lambda *a, **k: tmp_path / "frame.jpg",
     )
-    job = _ThumbnailJob(1, 0, Path("/a.MP4"), tmp_path, None)
-    shiboken6.delete(job.signals)
+    # sin `qtbot.addWidget`: esta ventana se destruye a proposito dentro
+    # del test, y el teardown de qtbot no sabe manejar una ya borrada.
+    window = MainWindow(project_name="Casa Jardin", room_selection=_seleccion(("Sala",)),
+                        video_factory=FakeMpvForWindow)
+    señales = window._señales_de_trabajos
+    recibidos = []
+    señales.miniatura_lista.connect(lambda *a: recibidos.append(a))
+    job = _ThumbnailJob(1, 0, Path("/a.MP4"), tmp_path, None, señales)
+    shiboken6.delete(window)
 
     job.run()  # no debe lanzar
+
+    assert recibidos == [(1, 0, [tmp_path / "frame.jpg"])]
 
 
 def test_avanzar_de_clip_no_borra_las_miniaturas_ya_cargadas(qtbot):
@@ -3675,3 +3692,83 @@ def test_la_tecla_r_vuelve_al_inicio_del_clip(qtbot):
 def test_reiniciar_sin_clip_no_truena(qtbot):
     window = _window_with_video(qtbot)
     window.handle_key_press("r")
+
+
+# --- los portadores de señales de los trabajos en segundo plano --------
+#
+# Ver el comentario largo en `SeñalesDeTrabajos`: cuando cada trabajo traia
+# su propio portador, ese portador moria en un hilo del QThreadPool y la
+# suite se caia con SIGSEGV cada tantas corridas. Lo que cura es que ningun
+# objeto de Qt nazca ni muera por trabajo.
+
+
+def test_el_portador_de_señales_no_es_un_widget(qtbot):
+    window = _window(qtbot)
+
+    assert isinstance(window._señales_de_trabajos, QObject)
+    assert not isinstance(window._señales_de_trabajos, QWidget)
+
+
+def test_los_trabajos_no_traen_su_propio_portador(qtbot, tmp_path):
+    """Todos usan el de la ventana, y ninguno crea uno."""
+    window = _window(qtbot)
+    señales = window._señales_de_trabajos
+    trabajos = [
+        _ThumbnailJob(0, 0, Path("v.mp4"), tmp_path, 3.0, señales),
+        _ProxyProbeJob(0, 0, Path("v.mp4"), lambda ruta: None, señales),
+    ]
+
+    assert all(t.signals is señales for t in trabajos)
+
+
+def test_los_trabajos_que_lanza_la_ventana_usan_su_portador(qtbot, tmp_path):
+    """Este es el que atrapa una regresion de verdad: que alguien vuelva a
+    crear un portador por trabajo dentro de la ventana."""
+    window = _window(qtbot)
+    lanzados = []
+
+    class PoolFalso:
+        def start(self, job):
+            lanzados.append(job)
+
+        def waitForDone(self, ms):  # noqa: N802 -- lo llama el closeEvent
+            return True
+
+    window._thread_pool = PoolFalso()
+    window.load_clips([_clip(1), _clip(2)])
+
+    window._schedule_thumbnails()
+
+    assert lanzados
+    assert all(t.signals is window._señales_de_trabajos for t in lanzados)
+
+
+def test_el_portador_no_muere_en_un_hilo_del_pool(qtbot, tmp_path):
+    """El trabajo corre en un hilo del pool y ahi se destruye; el portador
+    tiene que seguir vivo, porque es de la ventana."""
+    # con `threading.get_ident()` y NO con `QThread.currentThread()`: ese
+    # devuelve un objeto de Qt del hilo del pool, y guardarlo en una lista
+    # lo deja vivo en Python despues de que el hilo murio. Shiboken se queda
+    # entonces con una direccion vieja apuntada, y cuando Qt reusa esa
+    # memoria para otro widget, el objeto nuevo se lee como un QThread.
+    # Paso de verdad: una corrida de 38 murio con «QRubberBand(Shape,
+    # QThread)» en un test de otro archivo.
+    hilo_de_la_ui = threading.get_ident()
+    hilos = []
+    señales = _window(qtbot)._señales_de_trabajos
+    pool = QThreadPool()
+    pool.setMaxThreadCount(2)
+
+    class _Espia(_ProxyProbeJob):
+        def run(self):
+            super().run()
+            hilos.append(threading.get_ident())
+
+    for _ in range(20):
+        pool.start(_Espia(0, 0, Path("v.mp4"), lambda ruta: None, señales))
+    pool.waitForDone(5000)
+
+    # los trabajos si murieron fuera del hilo de la UI...
+    assert hilos and all(h != hilo_de_la_ui for h in hilos)
+    # ...y el portador sigue en pie
+    señales.proxy_sondeado.emit(0, 0, None)  # no truena: el objeto de C++ vive
