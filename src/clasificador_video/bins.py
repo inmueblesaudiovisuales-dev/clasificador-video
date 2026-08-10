@@ -205,6 +205,20 @@ class BinTree:
                     b.origen = self._origen_ampliado(b.origen, origen)
                 return
 
+    def fijar_origen(self, nombre: str, origen: Path) -> None:
+        """Le cambia la carpeta al bin, sin ampliarla: la REEMPLAZA.
+
+        Es lo que hace falta al reconectar la media en otra computadora. No
+        sirve `sumar`, porque su origen solo puede SUBIR --busca el ancestro
+        comun con el que ya habia-- y aqui la carpeta vieja no existe en
+        esta maquina: el ancestro comun de `/Volumes/CARD_A/...` y
+        `/Users/bruno/...` es `/`, o sea el disco entero.
+        """
+        for b in self._bins:
+            if b.nombre == nombre:
+                b.origen = origen
+                return
+
     @staticmethod
     def _origen_ampliado(actual: Path, nuevo: Path) -> Path:
         """El origen que cubre lo que el bin ya tenia Y lo que le llega.

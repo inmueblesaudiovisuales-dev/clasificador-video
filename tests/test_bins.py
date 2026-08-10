@@ -388,6 +388,28 @@ def test_sumar_sin_decir_de_donde_viene_no_toca_el_origen():
     assert arbol.clips_de("Sony") == [0, 1]
 
 
+def test_fijar_el_origen_lo_reemplaza_en_vez_de_ampliarlo():
+    """Al reconectar la media en otra computadora, la carpeta vieja NO
+    existe aqui. Con `sumar` el origen subiria al ancestro comun de
+    `/Volumes/CARD_A/...` y `/Users/bruno/...`, o sea al disco entero."""
+    arbol = BinTree()
+    arbol.agregar("Sony", Path("/Volumes/CARD_A/CAM"), [0])
+
+    arbol.fijar_origen("Sony", Path("/Users/bruno/Videos/boda"))
+
+    assert arbol.origen_de("Sony") == Path("/Users/bruno/Videos/boda")
+
+
+def test_fijar_el_origen_de_un_bin_que_no_existe_no_hace_nada():
+    arbol = BinTree()
+    arbol.agregar("Sony", Path("/cam"), [0])
+
+    arbol.fijar_origen("Dron", Path("/otro"))
+
+    assert arbol.origen_de("Sony") == Path("/cam")
+    assert arbol.nombres() == ["Sony"]
+
+
 def test_la_raiz_comun_de_varias_carpetas():
     """Lo usa el sitio del drop, que es donde se sabe de que carpeta viene
     cada archivo. Vive aqui para que «demasiado arriba» tenga UNA sola
