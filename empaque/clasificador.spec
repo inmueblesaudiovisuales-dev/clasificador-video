@@ -66,7 +66,20 @@ pyz = PYZ(a.pure)
 exe = EXE(pyz, a.scripts, [], exclude_binaries=True, name="Clasificador",
           console=False, target_arch=None, codesign_identity=None)
 coll = COLLECT(exe, a.binaries, a.datas, strip=False, upx=False, name="Clasificador")
+# La version va aqui y en un solo lugar. macOS la lee de `Info.plist` y es
+# lo que se ve en «Obtener informacion» y en el nombre del `.dmg`; si la app
+# y el instalador dijeran versiones distintas, nadie sabria cual tiene
+# instalada.
+VERSION = "1.0"
+
 app = BUNDLE(coll, name="Clasificador.app",
              bundle_identifier="com.brunogutierrez.clasificador",
+             version=VERSION,
              info_plist={"NSHighResolutionCapable": True,
-                         "LSMinimumSystemVersion": "12.0"})
+                         "LSMinimumSystemVersion": "12.0",
+                         "CFBundleShortVersionString": VERSION,
+                         "CFBundleVersion": VERSION,
+                         # Sin esto el Finder ofrece la app para abrir
+                         # cualquier archivo, y no abre archivos sueltos:
+                         # se abre ella y tu eliges el proyecto.
+                         "CFBundleDocumentTypes": []})

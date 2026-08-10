@@ -132,7 +132,7 @@ pasan a 17 MB con los mismos 1010 cuadros.
 .venv/bin/pyinstaller empaque/clasificador.spec --distpath empaque/dist --workpath empaque/build --noconfirm
 ```
 
-Sale `empaque/dist/Clasificador.app`, de unos 175 MB. **Adentro viajan
+Sale `empaque/dist/Clasificador.app`, de unos 173 MB. **Adentro viajan
 `ffprobe`, `ffmpeg`, `mpv` y las 55 librerías de las que cuelgan**, así que no
 hace falta instalar nada en la computadora donde se va a usar.
 
@@ -142,6 +142,35 @@ que un programa arranque. **No** lleva la firma de pago de Apple, así que:
 - **Pasándola por USB o carpeta compartida**: abre directo.
 - **Mandándola por internet** (Drive, WeTransfer, correo): la primera vez hay
   que ir a *Configuración → Privacidad y seguridad → Abrir de todos modos*.
+
+### El `.dmg` para repartirla
+
+```bash
+./empaque/hacer_dmg.sh
+```
+
+Sale `empaque/dist/Clasificador-<versión>.dmg`, de unos 72 MB. La versión la
+lee del `Info.plist` de la app, para que el instalador y la app nunca digan
+cosas distintas; se cambia en un solo lugar, la constante `VERSION` de
+`empaque/clasificador.spec`.
+
+Un `.dmg` es un disco falso: al abrirlo macOS lo monta como si conectaras una
+USB. Adentro van solo la app y un atajo a `/Applications`, porque instalar una
+app de Mac es literalmente arrastrar una a la otra.
+
+**Lo comprobado de la 1.0**, en esta misma máquina y no en otra:
+
+- Arranca con el `PATH` vacío, tanto recién armada como copiada desde el
+  `.dmg` montado — o sea que no está usando nada de Homebrew sin darse cuenta.
+- Ninguno de sus binarios apunta a `/opt/homebrew`.
+- El `ffprobe` y el `ffmpeg` de adentro corren y leen un clip real con el
+  `PATH` vacío. Ese fue el modo de fallo la primera vez que se empaquetó: la
+  app abría y no importaba un solo clip.
+- La firma del `.app` sigue válida después de viajar dentro del `.dmg` (por
+  eso se copia con `ditto` y no con `cp -R`).
+
+**Lo que sigue sin comprobarse**, y solo se puede comprobar allá: que abra en
+**otra** Mac.
 
 ## Tests
 
