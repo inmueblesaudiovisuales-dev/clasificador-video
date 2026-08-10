@@ -32,14 +32,15 @@ FILA_ALTO = 54          # dos renglones cortos, del alto de una fila de lista
 MARGEN = 28
 
 
-def _etiqueta(object_name: str, apagado: bool) -> ElidedLabel:
+def _etiqueta(object_name: str, apagado: bool,
+              modo: Qt.TextElideMode = Qt.TextElideMode.ElideRight) -> ElidedLabel:
     """Una etiqueta que se corta sola y no le pasa el clic al mouse.
 
     `Ignored` en horizontal no es un detalle: sin eso el `sizeHint` de la
     etiqueta es el del texto COMPLETO, y una carpeta con nombre largo
     empujaria el ancho de la ventana en vez de elidirse.
     """
-    etiqueta = ElidedLabel()
+    etiqueta = ElidedLabel(modo=modo)
     etiqueta.setObjectName(object_name)
     # el clic tiene que llegar al boton de abajo, que es lo que se puede
     # apretar: la fila entera es el control, no solo su borde
@@ -76,7 +77,12 @@ class _FilaReciente(QPushButton):
         caja.setSpacing(2)
         self.nombre = _etiqueta("recienteNombre", apagado=not disponible)
         self.nombre.setText(entrada.nombre)
-        self.detalle = _etiqueta("recienteDetalle", apagado=not disponible)
+        # por el MEDIO: en una ruta, lo que distingue una fila de otra es la
+        # carpeta del final. Cortando por el final quedan dos proyectos
+        # hermanos con el mismo prefijo largo y sin la unica parte que los
+        # separa -- se leen identicos.
+        self.detalle = _etiqueta("recienteDetalle", apagado=not disponible,
+                                 modo=Qt.TextElideMode.ElideMiddle)
         self.detalle.setText(self._detalle(entrada, disponible))
         caja.addWidget(self.nombre)
         caja.addWidget(self.detalle)

@@ -12,10 +12,19 @@ class ElidedLabel(QLabel):
     QSS no tiene `text-overflow: ellipsis`: sin esto, un cuarto con nombre
     largo desborda el rail de 200 px o lo estira, y en los dos casos el
     layout deja de parecerse al mockup.
+
+    `modo` decide POR DONDE se corta, y no es cosmetico: en un nombre lo que
+    importa esta al principio, asi que se corta el final; en una **ruta** lo
+    que distingue una de otra es la carpeta del final, y cortar por ahi deja
+    dos proyectos hermanos leyendose identicos --puro prefijo compartido--.
+    Para eso esta `ElideMiddle`, que es lo que ya hace `set_file_label` con
+    el nombre del archivo sobre el video, por esta misma razon.
     """
 
-    def __init__(self, text: str = "", parent=None):
+    def __init__(self, text: str = "", parent=None,
+                 modo: Qt.TextElideMode = Qt.TextElideMode.ElideRight):
         super().__init__(parent)
+        self._modo = modo
         self._full_text = text
         self.setText(text)
 
@@ -34,7 +43,7 @@ class ElidedLabel(QLabel):
         ancho = self.width()
         if ancho <= 0:
             return text
-        return QFontMetrics(self.font()).elidedText(text, Qt.TextElideMode.ElideRight, ancho)
+        return QFontMetrics(self.font()).elidedText(text, self._modo, ancho)
 
 
 def plural_clips(cuantos: int) -> str:

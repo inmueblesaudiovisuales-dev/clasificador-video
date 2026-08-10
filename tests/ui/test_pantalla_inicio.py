@@ -116,6 +116,41 @@ def test_se_puede_quitar_de_la_lista(qtbot, tmp_path):
     assert quitados == [ruta]
 
 
+def test_dos_rutas_con_el_mismo_prefijo_no_se_leen_iguales(qtbot):
+    """La carpeta del proyecto va al FINAL de la ruta, y es lo unico que
+    distingue una fila de otra cuando los dos cuelgan de la misma raiz.
+    Cortando por el final se pierde justo eso y las dos filas se leen
+    identicas -- por eso se elide por el medio, como el nombre de archivo
+    sobre el video."""
+    raiz = "/Volumes/SSD_RODAJE_2026/Clientes/Inmuebles/Entregas del año 2026"
+    pantalla = PantallaInicio()
+    qtbot.addWidget(pantalla)
+    pantalla.set_recientes([
+        Reciente(Path(f"{raiz}/IAV-2608.04-A/A.cvproj"), "Torre A", "2026-08-09 10:00"),
+        Reciente(Path(f"{raiz}/IAV-2608.04-B/B.cvproj"), "Torre B", "2026-08-08 09:00"),
+    ])
+    pantalla.resize(420, 320)
+    pantalla.grab()   # obliga a Qt a acomodar el layout antes de medir
+
+    uno, dos = (f.detalle.text() for f in pantalla.filas)
+    assert uno != dos, "las dos filas se leen igual: la carpeta se perdio al elidir"
+    assert uno.endswith("IAV-2608.04-A")
+    assert dos.endswith("IAV-2608.04-B")
+
+
+def test_el_tooltip_trae_la_ruta_entera_sin_cortar(qtbot):
+    """La elidida es para el vistazo; la completa se lee aqui."""
+    larga = Path("/Volumes/" + "/".join(["CARPETA_CON_NOMBRE_LARGUISIMO"] * 6) + "/P.cvproj")
+    pantalla = PantallaInicio()
+    qtbot.addWidget(pantalla)
+    pantalla.set_recientes([Reciente(larga, "Proyecto", "2026-08-09 10:00")])
+    pantalla.resize(420, 320)
+    pantalla.grab()
+
+    assert pantalla.filas[0].toolTip() == str(larga)
+    assert "…" not in pantalla.filas[0].toolTip()
+
+
 def test_una_ruta_larga_no_empuja_el_ancho(qtbot):
     """Una carpeta con nombre largo no puede decidir el ancho de la ventana:
     se corta con puntos suspensivos, como en el rail de cuartos."""
