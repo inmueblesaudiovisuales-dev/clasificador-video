@@ -19,7 +19,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from clasificador_video import proyecto
+from clasificador_video import proyecto, revinculo
 from clasificador_video.bins import BinTree, raiz_comun_de
 from clasificador_video.filters import FilterState, cola, contar
 from clasificador_video.history import History, HistoryEntry
@@ -45,6 +45,13 @@ from clasificador_video.thumbnails import (
     extract_thumbnail_strip,
 )
 from clasificador_video.ui import theme
+from clasificador_video.ui.aviso_de_media import (
+    TONO_ALERTA,
+    TONO_FALTA,
+    TONO_OK,
+    AvisoDeMedia,
+    Renglon,
+)
 from clasificador_video.ui.clip_sheet import SIN_BIN, ClipSheet, ClipThumbnail
 from clasificador_video.ui.room_palette import RoomPalette
 from clasificador_video.ui.room_rail import RoomRail
@@ -75,6 +82,38 @@ COLORES_DE_ESTADO = {
     "pick": theme.PICK_COLOR, "reject": theme.REJECT_COLOR,
     "destacado": theme.STAR_COLOR, "none": theme.TEXT_3,
 }
+
+
+# ---------------------------------------------------------------------------
+# Lo que dice la barra de media faltante, palabra por palabra.
+#
+# Los cuatro textos viven juntos porque lo que importa de ellos es que se
+# lean DISTINTO entre sí: son cuatro noticias distintas y confundir dos es
+# mentirle a Bruno sobre lo que pasó. «No apareció» es que no hay nada;
+# «no coincide» es que sí hay un archivo con ese nombre y NO es el mismo
+# --la segunda tarjeta de la Sony, que vuelve a numerar desde `C0001.MP4`--.
+# ---------------------------------------------------------------------------
+
+def _cuantos_faltan(n: int) -> str:
+    return "1 clip no se encuentra." if n == 1 else f"{n} clips no se encuentran."
+
+
+def _cuantos_reconectados(n: int) -> str:
+    return "1 clip reconectado." if n == 1 else f"{n} clips reconectados."
+
+
+def _cuantos_no_coinciden(n: int) -> str:
+    if n == 1:
+        return ("1 clip no coincide: hay un archivo con ese nombre, pero no es "
+                "el mismo video. No se conectó.")
+    return (f"{n} clips no coinciden: hay archivos con esos nombres, pero no "
+            "son los mismos videos. No se conectaron.")
+
+
+def _cuantos_no_aparecieron(n: int) -> str:
+    if n == 1:
+        return "1 clip no apareció en esa carpeta."
+    return f"{n} clips no aparecieron en esa carpeta."
 
 
 def _copiar(valor):
@@ -369,6 +408,10 @@ class MainWindow(QWidget):
         # una tarjeta de otra cuando dos archivos se llaman igual.
         self._relativas: dict[int, str] = {}
         self._bytes_guardados: dict[int, int] = {}
+        # nombre de bin -> el ultimo `Reencuentro` que devolvio buscar ahi.
+        # Es lo que permite decir los tres finales por separado: sin esto,
+        # «no coincide» y «no apareció» se verian iguales.
+        self._ultimo_reencuentro: dict[str, revinculo.Reencuentro] = {}
         # indice -> tamaño del PROXY, solo de los que ya validaron. El que
         # manda el layout sigue siendo `_clip_sizes`, que es del original:
         # esto es nada mas para escribir «720p» sin inventarlo.
@@ -458,6 +501,11 @@ class MainWindow(QWidget):
         self.status_bar = StatusBar()
         self.status_bar.unclassified_clicked.connect(self._filtrar_sin_clasificar)
 
+        # La barra de media faltante. Nace escondida y solo aparece cuando
+        # hay algo que decir (ver `revisar_media`).
+        self.aviso_de_media = AvisoDeMedia()
+        self.aviso_de_media.buscar_pedido.connect(self._on_buscar_media)
+
         cuerpo = QHBoxLayout()
         cuerpo.setContentsMargins(0, 0, 0, 0)
         cuerpo.setSpacing(0)
@@ -470,6 +518,10 @@ class MainWindow(QWidget):
         raiz.setContentsMargins(0, 0, 0, 0)
         raiz.setSpacing(0)
         raiz.addWidget(self.title_bar)
+        # Debajo del titulo y ENCIMA del cuerpo, ocupando su renglon: asi
+        # empuja la hoja hacia abajo en vez de taparle la primera fila de
+        # tarjetas, que es lo que haria un cartel flotante.
+        raiz.addWidget(self.aviso_de_media)
         raiz.addLayout(cuerpo)
         raiz.addWidget(self.status_bar)
 
@@ -519,6 +571,11 @@ class MainWindow(QWidget):
         alto_cuerpo = self.height()
         if not self._solo_video:
             alto_cuerpo -= theme.TITLEBAR_HEIGHT + theme.STATUSBAR_HEIGHT
+            if not self.aviso_de_media.isHidden():
+                # la barra de media faltante ocupa su renglon, asi que le
+                # quita alto al cuerpo igual que las otras dos. Su alto se
+                # LEE --no hay constante-- porque crece con los renglones.
+                alto_cuerpo -= self.aviso_de_media.sizeHint().height()
         ancho = VideoStage.width_for(alto_cuerpo, self.aspect_ratio_for(self.current_index))
         # El minimo REAL de la hoja, no la constante: su encabezado --titulo,
         # buscador, chip de cola y las dos filas de filtros-- pide bastante mas
@@ -1305,6 +1362,9 @@ class MainWindow(QWidget):
         # con bins apuntando a clips que ya no eran esos, y ese estado
         # corrupto se autosavea y sobrevive a cerrar la app.
         self.bins = BinTree()
+        # y lo que se buscó: habla de los bins y los clips de ANTES
+        self._ultimo_reencuentro = {}
+        self.aviso_de_media.poner([])
         self._refresh_history()
         self._refresh_sheet(force_rebuild=True)
         self._abrir_clip_actual()
@@ -1396,6 +1456,11 @@ class MainWindow(QWidget):
             duraciones=self._clip_durations,
             rotaciones=self._clip_rotations,
             bytes_conocidos=self._bytes_guardados,
+            # las que ya se sabian, de respaldo: reconectar a medias deja al
+            # bin colgando de la carpeta nueva y al clip que sigue perdido
+            # apuntando a la vieja, y ahi la relativa ya no se puede
+            # calcular. Tirarla lo dejaria sin con que reencontrarse.
+            relativas_conocidas=self._relativas,
         )
         self._relativas = {int(i): str(r) for i, r in data["relativas"].items()}
         # El indicador NO se toca aqui. Antes decia «guardado» apenas se
@@ -1428,6 +1493,129 @@ class MainWindow(QWidget):
             self._autosave_timer.stop()
             self._write_autosave_now()
         self._autosave_pool.waitForDone(2000)
+
+    # ------------------------------------------------------------------
+    # reencontrar la media (spec §5)
+    # ------------------------------------------------------------------
+
+    def revisar_media(self) -> None:
+        """¿Están los archivos donde el proyecto dice? Si no, se avisa.
+
+        Se llama al abrir un proyecto. No es una excepción: abrirlo en otra
+        computadora quiere decir que **ninguna** ruta va a coincidir, y por
+        eso se pregunta de inmediato en vez de esperar a que Bruno haga clic
+        en un clip y no pase nada.
+
+        Es barato: un `stat` por clip, imperceptible con 132.
+        """
+        # una revisión nueva empieza de cero: lo que se buscó antes hablaba
+        # de otras carpetas y otros archivos.
+        self._ultimo_reencuentro = {}
+        self._refrescar_aviso()
+
+    def reconectar_bin(self, nombre: str, carpeta: Path) -> None:
+        """Busca bajo `carpeta` los clips que le faltan al bin y los engancha.
+
+        Lo que no se confirma **no se engancha**, y se dice aparte: las
+        cámaras repiten los nombres --la Sony numera `C0001.MP4` en cada
+        tarjeta que formateas-- y enganchar el archivo equivocado sería peor
+        que no encontrarlo, porque Bruno no se enteraría.
+
+        Esto NO mueve índices: cambia la ruta de un clip que sigue siendo el
+        mismo clip, en el mismo lugar de la lista. Por eso no hay nada
+        indexado por clip que correr.
+        """
+        faltantes = self._faltantes_de_bin(nombre)
+        if not faltantes:
+            return
+        resultado = revinculo.reencontrar_bin(
+            carpeta,
+            {i: self._relativas[i] for i in faltantes if i in self._relativas},
+            {i: self._bytes_guardados[i] for i in faltantes
+             if i in self._bytes_guardados},
+            revinculo.cuadros_esperados_de(
+                self._clip_durations, {i: c.fps for i, c in enumerate(self.clips)}
+            ),
+            self._probe_clip,
+        )
+        # los que se buscaron pero no traían relativa no salen en ningún
+        # final de `reencontrar_bin` -- son «no encontrados» igual, y sin
+        # esto desaparecerían del aviso como si se hubieran resuelto.
+        sin_relativa = [i for i in faltantes if i not in self._relativas]
+        resultado.no_encontrados = sorted(resultado.no_encontrados + sin_relativa)
+        self._ultimo_reencuentro[nombre] = resultado
+        if resultado.reconectados:
+            for indice, ruta in resultado.reconectados.items():
+                self.clips[indice].ruta = ruta
+            # el bin pasa a colgar de la carpeta nueva, no del ancestro
+            # común con la vieja: la vieja no existe en esta computadora.
+            # Solo si algo enganchó -- señalar la carpeta equivocada no
+            # puede borrar de dónde salió el material.
+            self.bins.fijar_origen(nombre, carpeta)
+            self._refresh_sheet()
+            # SOLO las de los reconectados. Sin acotar, `_schedule_thumbnails()`
+            # sube la generación, invalida lo que está en vuelo y encola
+            # trabajos duplicados sobre el mismo socket IPC.
+            self._schedule_thumbnails(sorted(resultado.reconectados))
+            # y se guarda, para que la próxima vez abra sin preguntar
+            self._autosave()
+        self._refrescar_aviso()
+
+    def _faltantes_de_bin(self, nombre: str) -> list[int]:
+        """Qué clips del bin ya no tienen su archivo en disco."""
+        return revinculo.faltantes_de({
+            i: self.clips[i].ruta for i in self.bins.clips_de(nombre)
+            if 0 <= i < len(self.clips)
+        })
+
+    def _refrescar_aviso(self) -> None:
+        """Arma la barra: un renglón por bin y por final.
+
+        Los tres finales van en renglones distintos a propósito. Meterlos en
+        una sola frase haría que «apareció un archivo con ese nombre que no
+        es el mismo» se leyera como «no lo encontré», que es justo lo que
+        este camino existe para no decir.
+        """
+        renglones: list[Renglon] = []
+        for nombre in self.bins.nombres():
+            faltan = self._faltantes_de_bin(nombre)
+            resultado = self._ultimo_reencuentro.get(nombre)
+            if resultado is None:
+                if faltan:
+                    renglones.append(Renglon(
+                        nombre, _cuantos_faltan(len(faltan)),
+                        tono=TONO_FALTA, con_buscar=True))
+                continue
+            if resultado.reconectados:
+                renglones.append(Renglon(
+                    nombre, _cuantos_reconectados(len(resultado.reconectados)),
+                    tono=TONO_OK))
+            sin_confirmar = [i for i in resultado.sin_confirmar if i in faltan]
+            if sin_confirmar:
+                renglones.append(Renglon(
+                    nombre, _cuantos_no_coinciden(len(sin_confirmar)),
+                    tono=TONO_ALERTA, con_buscar=True))
+            no_encontrados = [i for i in resultado.no_encontrados if i in faltan]
+            if no_encontrados:
+                renglones.append(Renglon(
+                    nombre, _cuantos_no_aparecieron(len(no_encontrados)),
+                    tono=TONO_FALTA, con_buscar=True))
+        self.aviso_de_media.poner(renglones)
+        # el aviso ocupa su renglón: sin recalcular, el video se queda con
+        # el alto de antes y se sale por abajo de la ventana.
+        self._resize_video_stage()
+
+    def _on_buscar_media(self, nombre: str) -> None:
+        """El botón «Buscar…» de un renglón. Selector del sistema, que es el
+        único diálogo que el spec §8 deja usar."""
+        origen = self.bins.origen_de(nombre)
+        arranque = str(origen) if origen is not None else ""
+        carpeta = QFileDialog.getExistingDirectory(
+            self, f"¿Dónde quedó el material de «{nombre}»?", arranque
+        )
+        if not carpeta:
+            return
+        self.reconectar_bin(nombre, Path(carpeta))
 
     def _medir(self, archivos: list[Path],
                desde: int = 0) -> tuple[list[Clip], dict[str, dict]]:
@@ -1640,6 +1828,11 @@ class MainWindow(QWidget):
         # de refrescar, porque el refresco ya trae el nombre nuevo.
         if nuevo in self.bins.nombres():
             self.clip_sheet.renombrar_bin(viejo, nuevo)
+            # el aviso de media faltante tambien va por nombre: sin mover la
+            # llave, el renglon seguiria hablando de un bin que ya no existe
+            if viejo in self._ultimo_reencuentro:
+                self._ultimo_reencuentro[nuevo] = self._ultimo_reencuentro.pop(viejo)
+            self._refrescar_aviso()
         # `force_rebuild` no: reconstruir la hoja tiraria las portadas ya
         # cargadas, y aqui no cambio ni un clip -- solo como se llama su bin.
         self._refresh_sheet()
@@ -1733,6 +1926,10 @@ class MainWindow(QWidget):
         self._proxy_candidatos = _corrido(self._proxy_candidatos, fuera)
         self._relativas = _corrido(self._relativas, fuera)
         self._bytes_guardados = _corrido(self._bytes_guardados, fuera)
+        # el reencuentro guarda INDICES de clip, y correrlos aqui no alcanza:
+        # tambien habla de un bin que acaba de dejar de existir. Se tira
+        # entero y la revision se rehace sobre lo que quedo.
+        self._ultimo_reencuentro = {}
         # Los sondeos en vuelo NO se corren: se tiran enteros.
         #
         # Correr `_proxy_generacion_de` conserva el VALOR, y todos los clips
@@ -1770,6 +1967,7 @@ class MainWindow(QWidget):
         # indices nuevos. Va DESPUES del refresco: los aciertos de cache se
         # entregan en el acto y necesitan la hoja ya reconstruida.
         self._schedule_thumbnails()
+        self._refrescar_aviso()
         self._abrir_clip_actual()
         self._autosave()
 
@@ -2035,6 +2233,12 @@ class MainWindow(QWidget):
         for panel in (self.title_bar, self.room_rail, self.tool_column,
                       self.clip_sheet, self.status_bar):
             panel.setVisible(not self._solo_video)
+        # el aviso va aparte: al volver de solo video solo se muestra si
+        # todavia tiene algo que decir. Con el resto de los paneles, una
+        # barra vacia reaparecia con su relleno y su borde.
+        self.aviso_de_media.setVisible(
+            not self._solo_video and self.aviso_de_media.tiene_avisos()
+        )
         self._resize_video_stage()
 
     def _on_clip_activado(self, indice: int) -> None:

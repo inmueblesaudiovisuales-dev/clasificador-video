@@ -167,6 +167,20 @@ def test_abrir_un_proyecto_trae_lo_que_sirve_para_reencontrar(qtbot, tmp_path):
     assert window._bytes_guardados == {0: 700}
 
 
+def test_abrir_un_proyecto_con_la_media_perdida_lo_avisa_de_una(qtbot, tmp_path):
+    """Abrirlo en otra computadora quiere decir que NINGUNA ruta coincide.
+    Es el caso normal, no la excepción, así que se dice al abrir y no
+    cuando Bruno hace clic en un clip y no pasa nada."""
+    ruta = _proyecto_en(tmp_path)
+
+    window = abrir_proyecto(ruta, video_factory=_FakeMpv,
+                            recientes_path=tmp_path / "r.json")
+    qtbot.addWidget(window)
+
+    assert not window.aviso_de_media.isHidden()
+    assert window.aviso_de_media.text() == "Sony — 1 clip no se encuentra."
+
+
 def test_un_proyecto_viejo_sin_bins_cae_en_uno_solo(qtbot, tmp_path):
     """Un documento de antes de que existieran los bins no trae la llave.
     No se pierde: todo el material cae en un bin unico."""

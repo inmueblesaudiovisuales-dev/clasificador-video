@@ -1,0 +1,119 @@
+# src/clasificador_video/ui/aviso_de_media.py
+"""La barra que dice qué material no se encuentra, y deja ir a buscarlo.
+
+Barra y **no** un modal a propósito (spec §8): abrir el proyecto en otra
+computadora y no encontrar nada es lo normal, no una excepción, y con un
+cartel encima Bruno no podría ver su proyecto mientras decide.
+
+Un renglón por bin, que es la unidad que él reconoce. Y **un renglón por
+cada final**: reconectados, sin confirmar y no encontrados no se mezclan en
+una sola frase. «No lo encontré» cuando en realidad apareció un archivo con
+ese nombre que no es el mismo —la segunda tarjeta de la Sony, que vuelve a
+numerar desde `C0001.MP4`— sería mentirle sobre lo que pasó.
+"""
+from __future__ import annotations
+
+from dataclasses import dataclass
+
+from PySide6.QtCore import Signal
+from PySide6.QtWidgets import QHBoxLayout, QLabel, QPushButton, QVBoxLayout, QWidget
+
+# Los tres tonos del renglón. Van como texto y no como color porque el color
+# lo pone la hoja de estilos (Candado 1: ningún color se declara fuera de
+# `theme.py`); aquí solo se dice qué clase de noticia es.
+TONO_FALTA = "falta"        # no aparece nada
+TONO_ALERTA = "alerta"      # apareció algo que no es
+TONO_OK = "ok"              # reconectado
+
+
+@dataclass
+class Renglon:
+    """Lo que se le dice a Bruno de un bin, y si le toca un «Buscar…»."""
+    bin: str
+    texto: str
+    tono: str = TONO_FALTA
+    con_buscar: bool = False
+
+
+class AvisoDeMedia(QWidget):
+    """La barra completa. Se esconde sola cuando no hay nada que decir."""
+
+    buscar_pedido = Signal(str)   # nombre del bin
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setObjectName("avisoDeMedia")
+        self._renglones: list[Renglon] = []
+        self._filas: list[QWidget] = []
+        caja = QVBoxLayout(self)
+        caja.setContentsMargins(12, 8, 12, 8)
+        caja.setSpacing(4)
+        self._caja = caja
+        self.hide()
+
+    def poner(self, renglones: list[Renglon]) -> None:
+        """Reemplaza lo que dice la barra. Lista vacía = barra escondida."""
+        self._limpiar()
+        self._renglones = list(renglones)
+        for renglon in self._renglones:
+            self._caja.addWidget(self._fila(renglon))
+        self.setVisible(bool(self._renglones))
+
+    def tiene_avisos(self) -> bool:
+        """Si hay algo que decir. Lo usa `solo video` para no volver a
+        mostrar una barra vacía al salir del modo."""
+        return bool(self._renglones)
+
+    def text(self) -> str:
+        """Todo lo que la barra dice, en un solo texto.
+
+        Existe para poder preguntarle a la barra qué está diciendo sin
+        recorrerle los hijos -- y porque lo que importa comprobar es el
+        mensaje, no de cuántas etiquetas está hecho.
+        """
+        return "\n".join(f"{r.bin} — {r.texto}" for r in self._renglones)
+
+    def _fila(self, renglon: Renglon) -> QWidget:
+        fila = QWidget(self)
+        fila.setObjectName("avisoFila")
+        caja = QHBoxLayout(fila)
+        caja.setContentsMargins(0, 0, 0, 0)
+        caja.setSpacing(8)
+
+        nombre = QLabel(renglon.bin, fila)
+        nombre.setObjectName("avisoBin")
+        caja.addWidget(nombre)
+
+        texto = QLabel(renglon.texto, fila)
+        texto.setObjectName("avisoTexto")
+        # el tono viaja como propiedad de Qt para que lo pinte la hoja de
+        # estilos, que es donde viven los colores
+        texto.setProperty("tono", renglon.tono)
+        # que el texto largo del caso «no coincide» se acomode en vez de
+        # empujar la ventana a lo ancho
+        texto.setWordWrap(True)
+        caja.addWidget(texto, stretch=1)
+
+        if renglon.con_buscar:
+            boton = QPushButton("Buscar…", fila)
+            boton.setObjectName("avisoBuscar")
+            boton.clicked.connect(
+                lambda _=False, n=renglon.bin: self.buscar_pedido.emit(n)
+            )
+            caja.addWidget(boton)
+        self._filas.append(fila)
+        return fila
+
+    def _limpiar(self) -> None:
+        """Desecha las filas viejas.
+
+        `hide()` + `setParent(None)` + `deleteLater()`, los tres: soltar el
+        padre a secas deja el widget vivo y a la vista como una ventana
+        suelta hasta que el recolector pase.
+        """
+        for fila in self._filas:
+            fila.hide()
+            fila.setParent(None)
+            fila.deleteLater()
+        self._filas = []
+        self._renglones = []

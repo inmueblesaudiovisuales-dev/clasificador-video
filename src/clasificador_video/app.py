@@ -196,6 +196,10 @@ def abrir_proyecto(ruta: Path, video_factory: Callable[..., object] | None = Non
     # apuntarlo al .cvproj, guardar el proyecto es lo que la app ya hacia
     window.session_path = ruta
     _poblar_ventana(window, data, clips)
+    # spec §5: al abrir, si falta media se pregunta de inmediato. Abrirlo en
+    # otra computadora quiere decir que NINGUNA ruta va a coincidir, asi que
+    # esto no es el caso raro -- es el caso.
+    window.revisar_media()
     window.resize(1100, 700)
     Recientes(recientes_path or RECIENTES_PATH).registrar(ruta, window.project_name)
     return window

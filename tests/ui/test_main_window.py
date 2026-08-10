@@ -938,11 +938,22 @@ def test_aspect_ratio_ignora_tamanos_invalidos(qtbot):
 
 
 def test_la_ventana_no_tiene_bandas_horizontales(qtbot):
-    """El layout raiz solo puede tener tres filas: barra de titulo, cuerpo
-    y barra de estado. Cualquier cuarta fila es una banda, y en un clip
-    9:16 cada 16 px de banda cuestan 9 px de ancho de video."""
+    """Solo tres filas se VEN: barra de titulo, cuerpo y barra de estado.
+    Cualquier otra fila a la vista es una banda, y en un clip 9:16 cada
+    16 px de banda cuestan 9 px de ancho de video.
+
+    La cuarta fila del layout es la barra de media faltante, que nace
+    escondida --y escondida no ocupa ni un pixel-- porque aparece solo
+    cuando el proyecto se abre y sus archivos no estan donde decia.
+    """
     window = _window_with_video(qtbot)
-    assert window.layout().count() == 3
+    raiz = window.layout()
+    assert raiz.count() == 4
+    assert window.aviso_de_media.isHidden()
+    a_la_vista = [i for i in range(raiz.count())
+                  if raiz.itemAt(i).widget() is None            # el cuerpo
+                  or not raiz.itemAt(i).widget().isHidden()]
+    assert len(a_la_vista) == 3
 
 
 def test_alturas_fijas_de_las_barras(qtbot):

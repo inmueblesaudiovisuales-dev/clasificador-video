@@ -1179,6 +1179,61 @@ def build_stylesheet() -> str:
         padding: 8px 12px;
     }}
 
+    /* --- la barra de media faltante (F6 del plan de proyectos) ---
+       Es una BARRA, no un cartel: se mete entre la barra de titulo y el
+       cuerpo, con el mismo fondo de panel que las otras dos, para que se lea
+       como una fila mas de la ventana y no como algo que hay que cerrar.
+       El unico color propio es el borde de abajo, en ambar: el mismo con el
+       que la app marca lo que todavia no esta resuelto. */
+    QWidget#avisoDeMedia {{
+        background-color: {BG_SURFACE_0};
+        border-bottom: 1px solid {con_alfa_qss(CURRENT_COLOR, 115)};
+    }}
+    /* transparentes NO es redundante: la regla global de QWidget le pinta el
+       fondo de la app a toda QLabel, y sobre la barra eso se ve como cajitas
+       oscuras alrededor de cada texto. */
+    QWidget#avisoFila {{
+        background-color: transparent;
+    }}
+    QLabel#avisoBin {{
+        background-color: transparent;
+        color: {TEXT};
+        font-size: {FONT_SMALL}px;
+        font-weight: 650;
+    }}
+    /* Los tres finales se distinguen POR COLOR ademas de por texto: verde es
+       lo que quedo resuelto, ambar es lo que falta, y el rojo del reject se
+       guarda para el unico caso que hay que mirar dos veces --aparecio un
+       archivo con ese nombre y NO es el mismo--. Aqui no compite con el
+       estado de un clip: la barra vive fuera de la hoja de tarjetas. */
+    QLabel#avisoTexto {{
+        background-color: transparent;
+        color: {TEXT_2};
+        font-size: {FONT_SMALL}px;
+    }}
+    QLabel#avisoTexto[tono="falta"] {{
+        color: {aclarar(CURRENT_COLOR, 0.35)};
+    }}
+    QLabel#avisoTexto[tono="alerta"] {{
+        color: {aclarar(REJECT_COLOR, 0.25)};
+    }}
+    QLabel#avisoTexto[tono="ok"] {{
+        color: {aclarar(PICK_COLOR, 0.35)};
+    }}
+    QPushButton#avisoBuscar {{
+        background-color: {BG_SURFACE_2};
+        border: 1px solid {LINE};
+        border-radius: {RADIUS_MD}px;
+        padding: 3px 11px;
+        color: {TEXT};
+        font-size: {FONT_SMALL}px;
+        font-weight: 550;
+    }}
+    QPushButton#avisoBuscar:hover {{
+        background-color: {BG_SURFACE_1};
+        border-color: {CURRENT_COLOR};
+    }}
+
     QWidget#inicioVacio {{
         background-color: transparent;
     }}
