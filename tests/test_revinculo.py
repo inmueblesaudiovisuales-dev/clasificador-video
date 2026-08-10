@@ -281,12 +281,18 @@ def test_dos_clips_no_pueden_quedar_enganchados_al_mismo_archivo(tmp_path):
     )
 
     assert resultado.reconectados == {}
-    assert resultado.sin_confirmar == [0, 1]
+    # DISPUTADOS, no «sin confirmar»: el archivo si calzaba con los dos. El
+    # problema no es que no sea el mismo video --lo es-- sino que no puede
+    # ser dos clips a la vez. Decirlo como «no es el mismo» seria afirmar
+    # algo que no se comprobo.
+    assert resultado.disputados == [0, 1]
+    assert resultado.sin_confirmar == []
 
 
 def test_sin_datos_para_confirmar_no_es_lo_mismo_que_no_aparecio(tmp_path):
     """El archivo esta ahi; lo que falta es con que comprobar que sea el
-    mismo. A Bruno hay que decirle eso, no «no aparecio»."""
+    mismo. A Bruno hay que decirle eso, no «no aparecio» ni «no es el
+    mismo»: nadie comprobo nada."""
     nueva = tmp_path / "nueva"
     nueva.mkdir()
     (nueva / "C0001.MP4").write_bytes(b"x" * 500)
@@ -298,8 +304,27 @@ def test_sin_datos_para_confirmar_no_es_lo_mismo_que_no_aparecio(tmp_path):
     )
 
     assert resultado.reconectados == {}
-    assert resultado.sin_confirmar == [0]
+    assert resultado.sin_comprobar == [0]
+    assert resultado.sin_confirmar == []
     assert resultado.no_encontrados == []
+
+
+def test_el_tocayo_de_otra_tarjeta_si_es_sin_confirmar(tmp_path):
+    """El unico caso en que se puede decir «no es el mismo video»: habia con
+    que comprobarlo y no calzo."""
+    nueva = tmp_path / "nueva"
+    nueva.mkdir()
+    (nueva / "C0001.MP4").write_bytes(b"x" * 111)
+
+    resultado = reencontrar_bin(
+        carpeta=nueva, relativas={0: "C0001.MP4"},
+        bytes_esperados={0: 500}, cuadros_esperados={},
+        medir=lambda p: {"duration_frames": 0},
+    )
+
+    assert resultado.sin_confirmar == [0]
+    assert resultado.sin_comprobar == []
+    assert resultado.disputados == []
 
 
 def test_el_arbol_se_recorre_una_sola_vez(tmp_path, monkeypatch):

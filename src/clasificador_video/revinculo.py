@@ -11,7 +11,7 @@ Sin Qt.
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from clasificador_video import proyecto
@@ -166,16 +166,31 @@ def calza(archivo: Path, tamano_esperado: int | None,
 
 @dataclass
 class Reencuentro:
-    """Los tres finales posibles, separados a proposito.
+    """Los cinco finales posibles, separados a proposito.
 
-    `sin_confirmar` NO es lo mismo que `no_encontrados`: ahi hay un archivo
-    con el nombre correcto que **no es** el que era, y eso hay que
-    decirselo a Bruno con otras palabras --es el caso de la segunda tarjeta
-    de la misma camara-- en vez de mezclarlo con «no aparecio».
+    Cada uno se le dice a Bruno con otras palabras, porque son cosas
+    distintas y juntarlas es afirmar algo que no paso:
+
+    - `reconectados` -- se encontro y se comprobo que es el mismo archivo.
+    - `sin_confirmar` -- habia con que comprobarlo y NO calzo. El unico caso
+      en el que se puede decir «no es el mismo video»: es la segunda tarjeta
+      de la misma camara, que vuelve a numerar desde `C0001.MP4`.
+    - `disputados` -- el archivo SI calzaba, pero lo reclamaron dos clips y
+      un archivo no puede ser dos clips. Decirle «no es el mismo» aqui seria
+      mentira: lo es, y justamente por eso no se sabe de cual.
+    - `sin_comprobar` -- el archivo aparecio y el proyecto no guardo ni el
+      peso ni la duracion, asi que no hay CON QUE comprobarlo. Nadie
+      comprobo nada; decir que no coincide seria inventarlo.
+    - `no_encontrados` -- no aparecio nada con ese nombre.
+
+    Los tres del medio se enganchan igual --nada de lo que no se confirma se
+    engancha-- pero se cuentan aparte para poder decir la verdad.
     """
     reconectados: dict[int, Path]
     sin_confirmar: list[int]
     no_encontrados: list[int]
+    disputados: list[int] = field(default_factory=list)
+    sin_comprobar: list[int] = field(default_factory=list)
 
 
 def faltantes_de(rutas: dict[int, Path]) -> list[int]:
@@ -216,19 +231,30 @@ def reencontrar_bin(carpeta: Path, relativas: dict[int, str],
     reconectados: dict[int, Path] = {}
     sin_confirmar: list[int] = []
     no_encontrados: list[int] = []
+    sin_comprobar: list[int] = []
     for clip, relativa in relativas.items():
         candidato = buscar_bajo(carpeta, relativa, indice)
         if candidato is None:
             no_encontrados.append(clip)
+        elif (bytes_esperados.get(clip) is None
+                and cuadros_esperados.get(clip) is None):
+            # el archivo esta; lo que no hay es con que comprobarlo. Meterlo
+            # con los que «no coinciden» seria afirmar una comparacion que
+            # nunca se hizo.
+            sin_comprobar.append(clip)
         elif calza(candidato, bytes_esperados.get(clip),
                    cuadros_esperados.get(clip), medir):
             reconectados[clip] = candidato
         else:
             sin_confirmar.append(clip)
-    for clip in _reclamados_por_mas_de_un_clip(reconectados):
+    # los disputados salen de `reconectados`, o sea que YA habian calzado:
+    # por eso van a su propia lista y no con los tocayos que no calzaron.
+    disputados = _reclamados_por_mas_de_un_clip(reconectados)
+    for clip in disputados:
         del reconectados[clip]
-        sin_confirmar.append(clip)
-    return Reencuentro(reconectados, sorted(sin_confirmar), sorted(no_encontrados))
+    return Reencuentro(reconectados, sorted(sin_confirmar),
+                       sorted(no_encontrados), sorted(disputados),
+                       sorted(sin_comprobar))
 
 
 def _reclamados_por_mas_de_un_clip(reconectados: dict[int, Path]) -> list[int]:
