@@ -253,15 +253,39 @@ registrarPrueba("spike: parametros de Lumetri en el master clip", async (project
   const nombres = [];
   let paramLut = null;
   let indiceLut = -1;
+  let radiografia = "";  // como se ve el primer parametro por dentro
   for (let i = 0; i < cuantos; i++) {
-    let etiqueta = "?";
     let param = null;
     try {
-      param = componente.getParam(i);
-      etiqueta = await param.getDisplayName();
+      // Con `await`: la corrida anterior fallo con «getDisplayName is not a
+      // function» en los 130 parametros a la vez, que es la firma de estar
+      // hablandole a una promesa en vez de al objeto. La referencia dice que
+      // getParam devuelve el objeto directo, pero esta version ya nos mintio
+      // dos veces sobre lo mismo.
+      param = await componente.getParam(i);
     } catch (e) {
-      etiqueta = "error: " + e.message;
+      nombres.push(i + "=no se pudo obtener: " + e.message);
+      continue;
     }
+    if (premierepro.ComponentParam && typeof premierepro.ComponentParam.cast === "function") {
+      try { param = premierepro.ComponentParam.cast(param) || param; } catch (e) { /* se queda */ }
+    }
+    if (!radiografia) {
+      radiografia = "el parametro 0 por dentro: " + metodosDe(param) +
+        " | propias: " + Object.keys(param || {}).join(", ");
+    }
+
+    // Como se le pregunta el nombre tampoco esta claro, asi que se prueban
+    // las formas plausibles antes de darse por vencido.
+    let etiqueta = null;
+    for (const via of ["getDisplayName", "getName", "displayName", "name"]) {
+      try {
+        if (typeof param[via] === "function") { etiqueta = await param[via](); break; }
+        if (typeof param[via] === "string") { etiqueta = param[via]; break; }
+      } catch (e) { /* siguiente via */ }
+    }
+    if (etiqueta === null) etiqueta = "sin nombre legible";
+
     nombres.push(i + "=" + etiqueta);
     const bajo = String(etiqueta).toLowerCase();
     if (paramLut === null && bajo.indexOf("lut") !== -1) {
@@ -274,7 +298,10 @@ registrarPrueba("spike: parametros de Lumetri en el master clip", async (project
   if (!paramLut) {
     return {
       ok: false,
-      detalle: encabezado + " | NINGUN parametro menciona LUT | " + nombres.join(" ; "),
+      // La lista completa de 130 nombres es el dato que se viene a buscar:
+      // sin ella no hay como saber por que nombre pedir el LUT.
+      detalle: encabezado + " | NINGUN parametro menciona LUT | " + radiografia +
+        " | " + nombres.join(" ; "),
     };
   }
 
