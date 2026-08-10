@@ -21,20 +21,68 @@ _log = logging.getLogger(__name__)
 TOLERANCIA_DE_CUADROS = 1
 
 
-def buscar_bajo(carpeta: Path, relativa: str) -> Path | None:
+def indice_de_nombres(carpeta: Path) -> dict[str, list[Path]]:
+    """Un solo recorrido del arbol: de nombre de archivo a rutas.
+
+    Buscar cada clip por su cuenta significaba recorrer entero el disco de
+    Bruno una vez POR CLIP --con los 109 de una tarjeta de la Sony, 109
+    recorridos de 128 GB-- y eso pasa en el hilo de la interfaz, con la
+    ventana congelada y sin explicacion.
+
+    Los nombres se comparan literales y en minusculas: `rglob(nombre)` los
+    trataba como patron, y ahi `C0001[1].MP4` matchea con `C00011.MP4`, que
+    es otro archivo. Las minusculas emparejan este camino con la busqueda
+    literal, que en APFS ya ignoraba mayusculas.
+    """
+    indice: dict[str, list[Path]] = {}
+    if not carpeta.is_dir():
+        return indice
+    for ruta in carpeta.rglob("*"):
+        try:
+            if ruta.is_file():
+                indice.setdefault(ruta.name.casefold(), []).append(ruta)
+        except OSError:
+            continue  # un enlace roto o un permiso no corta la busqueda
+    return indice
+
+
+def _en_su_sitio(carpeta: Path, relativa: str) -> Path | None:
+    """La ruta que el proyecto decia, si sigue colgando de la carpeta.
+
+    La relativa sale de un `.cvproj`, que es dato externo: pudo escribirla
+    una version anterior al filtro, o editarse a mano. Una absoluta hace que
+    `carpeta / relativa` devuelva la absoluta, y un `..` se sale del arbol;
+    en los dos casos se engancharia algo que Bruno no señalo.
+    """
+    pedazo = Path(relativa)
+    if not pedazo.parts or pedazo.is_absolute() or ".." in pedazo.parts:
+        return None
+    destino = carpeta / pedazo
+    return destino if destino.is_file() else None
+
+
+def buscar_bajo(carpeta: Path, relativa: str,
+                indice: dict[str, list[Path]] | None = None) -> Path | None:
     """Primero donde decia; si no, por nombre en todo el arbol.
 
     Devuelve `None` cuando hay mas de un candidato con ese nombre: ahi
     elegir seria adivinar, y adivinar es justo el modo de falla que este
     modulo existe para evitar.
+
+    `indice` se pasa ya armado cuando se reencuentran varios clips de una
+    misma carpeta, para no recorrerla una vez por clip.
     """
     if not carpeta.is_dir():
         return None
-    en_su_sitio = carpeta / relativa
-    if en_su_sitio.is_file():
+    en_su_sitio = _en_su_sitio(carpeta, relativa)
+    if en_su_sitio is not None:
         return en_su_sitio
     nombre = Path(relativa).name
-    candidatos = [p for p in carpeta.rglob(nombre) if p.is_file()]
+    if not nombre:
+        return None
+    if indice is None:
+        indice = indice_de_nombres(carpeta)
+    candidatos = indice.get(nombre.casefold(), [])
     return candidatos[0] if len(candidatos) == 1 else None
 
 

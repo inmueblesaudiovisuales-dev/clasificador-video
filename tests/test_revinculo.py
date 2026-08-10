@@ -198,3 +198,60 @@ def test_lo_que_no_aparece_queda_como_no_encontrado(tmp_path):
 
     assert resultado.reconectados == {}
     assert resultado.no_encontrados == [0]
+
+
+def test_un_nombre_con_corchetes_no_se_usa_como_patron(tmp_path):
+    """`rglob` trataba el nombre como patron, asi que `C0001[1].MP4`
+    matcheaba con `C00011.MP4` -- otro archivo, con otro material. No basta
+    con que a veces falle del lado seguro: aqui sobre-encontraba."""
+    (tmp_path / "otra").mkdir()
+    (tmp_path / "otra" / "C00011.MP4").write_bytes(b"x")
+
+    assert buscar_bajo(tmp_path, "sub/C0001[1].MP4") is None
+
+
+def test_un_nombre_con_corchetes_si_se_encuentra_a_si_mismo(tmp_path):
+    """Y del otro lado: el archivo de verdad tiene que aparecer. Las copias
+    duplicadas se llaman asi todo el tiempo."""
+    (tmp_path / "otra").mkdir()
+    real = tmp_path / "otra" / "C0001[1].MP4"
+    real.write_bytes(b"x")
+
+    assert buscar_bajo(tmp_path, "sub/C0001[1].MP4") == real
+
+
+def test_un_asterisco_en_el_nombre_no_matchea_cualquier_cosa(tmp_path):
+    """`*` y `?` son legales en un nombre de archivo en macOS."""
+    (tmp_path / "otra").mkdir()
+    (tmp_path / "otra" / "C0001.MP4").write_bytes(b"x")
+
+    assert buscar_bajo(tmp_path, "sub/*.MP4") is None
+
+
+def test_no_se_sale_de_la_carpeta_que_Bruno_señalo(tmp_path):
+    """El `.cvproj` es dato externo: pudo escribirlo una version anterior al
+    filtro de `..`, o editarse a mano. Que la relativa se haya validado al
+    ESCRIBIR no sirve de nada aqui, donde se lee."""
+    carpeta = tmp_path / "nueva"
+    carpeta.mkdir()
+    fuera = tmp_path / "fuera.MP4"
+    fuera.write_bytes(b"x")
+
+    assert buscar_bajo(carpeta, "../fuera.MP4") is None
+    assert buscar_bajo(carpeta, str(fuera)) is None
+
+
+def test_una_relativa_vacia_no_revienta(tmp_path):
+    """Tronaba con un ValueError sin atrapar, en pleno abrir proyecto."""
+    assert buscar_bajo(tmp_path, "") is None
+
+
+def test_el_fallback_por_nombre_ignora_mayusculas(tmp_path):
+    """La busqueda literal ya era insensible en APFS, asi que un `c0001.mp4`
+    se encontraba por un camino y no por el otro. Que dependa de cual de los
+    dos caminos tomo es justo lo que no se quiere."""
+    (tmp_path / "otra").mkdir()
+    real = tmp_path / "otra" / "c0001.mp4"
+    real.write_bytes(b"x")
+
+    assert buscar_bajo(tmp_path, "sub/C0001.MP4") == real
