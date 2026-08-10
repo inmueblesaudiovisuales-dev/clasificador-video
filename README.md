@@ -84,12 +84,13 @@ caería en el cuadro equivocado y nadie se daría cuenta.
 
 ### Enganchar los que ya existen
 
-Se enganchan **a mano**, como el *Attach Proxies* de Premiere: eliges el proxy
-de **un** clip y la app engancha los demás sola.
+Se enganchan **a mano**, como el *Attach Proxies* de Premiere: eliges **un**
+proxy cualquiera del bin y la app engancha los demás sola.
 
-1. Ponte en un clip que sí tenga proxy.
-2. Botón **Proxies**, arriba a la derecha.
-3. Elige el archivo de proxy **de ese clip**.
+1. Botón **Proxies** arriba a la derecha, o clic derecho en el bin →
+   **Enlazar proxies…**
+2. Elige cualquier proxy de ese bin. **No** tiene que ser el del clip que
+   estás viendo: la app averigua a cuál corresponde por el nombre.
 
 De ese par sale el patrón de nombre —`C0001.MP4` + `C0001S03.MP4` da el sufijo
 `S03`— y con eso se buscan los demás **en esa misma carpeta**. Da igual cómo se

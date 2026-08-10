@@ -2,6 +2,7 @@
 from pathlib import Path
 
 from clasificador_video.proxy_match import (
+    clip_del_proxy,
     emparejar_con_patron,
     etiqueta_de_resolucion,
     patron_de_proxy,
@@ -65,3 +66,35 @@ def test_acepta_otra_extension_de_video(tmp_path):
 def test_una_carpeta_que_ya_no_esta_no_revienta(tmp_path):
     r = emparejar_con_patron([Path("/cam/C0001.MP4")], tmp_path / "no-existe", "", "S03", ".MP4")
     assert r == {Path("/cam/C0001.MP4"): None}
+
+
+def test_cualquier_proxy_del_bin_sirve_para_deducir_el_patron():
+    """Bruno se topo con esto en su material: «cuando quiero ponerle proxies
+    a un bin que ya tiene clips clasificados no puedo solo elegir el primer
+    clip de la carpeta de proxies».
+
+    El enganche pedia el proxy DEL CLIP EN EL QUE ESTABAS, y eso no se ve
+    por ningun lado: abres el dialogo, ves 111 proxies ordenados por nombre
+    y eliges el primero.
+    """
+    clips = [Path(f"/m/20260804_PIB{n}.MP4") for n in ("0587", "0654", "0700")]
+
+    assert clip_del_proxy(clips, Path("/p/20260804_PIB0587S03.MP4")) == clips[0]
+    assert clip_del_proxy(clips, Path("/p/20260804_PIB0700S03.MP4")) == clips[2]
+
+
+def test_gana_el_nombre_mas_largo_que_calza():
+    """`C0001` esta contenido en `C00011S03`. Con el corto se deduciria el
+    sufijo `1S03` y los otros 110 clips se buscarian con un patron
+    inventado."""
+    clips = [Path("/m/C0001.MP4"), Path("/m/C00011.MP4")]
+
+    assert clip_del_proxy(clips, Path("/p/C00011S03.MP4")) == Path("/m/C00011.MP4")
+
+
+def test_un_archivo_ajeno_al_bin_no_calza_con_ninguno():
+    """Mejor no enganchar nada que emparejar 111 clips con un patron
+    inventado."""
+    clips = [Path("/m/C0001.MP4"), Path("/m/C0002.MP4")]
+
+    assert clip_del_proxy(clips, Path("/p/DJI_0001.MP4")) is None

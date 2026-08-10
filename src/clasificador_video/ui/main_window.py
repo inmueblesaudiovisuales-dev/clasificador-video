@@ -34,6 +34,7 @@ from clasificador_video.probe import (
     probe_clip,
 )
 from clasificador_video.proxy_match import (
+    clip_del_proxy,
     emparejar_con_patron,
     etiqueta_de_resolucion,
     patron_de_proxy,
@@ -2180,10 +2181,11 @@ class MainWindow(QWidget):
                                 elegido: Path | None = None) -> None:
         """El «Enlazar proxies…» del menu del bin.
 
-        Eliges el proxy de UN clip de ESE bin y del par sale el patron de
-        nombre para los demas del MISMO bin --`C0001.MP4` + `C0001S03.MP4`
-        da el sufijo `S03`--, y con eso se buscan los otros en esa carpeta.
-        Es a mano y solo a mano, por pedido de Bruno.
+        Eliges CUALQUIER proxy de ESE bin: la app averigua a que clip
+        corresponde por el nombre, y de ese par sale el patron para los
+        demas --`C0001.MP4` + `C0001S03.MP4` da el sufijo `S03`--, con el
+        que se buscan los otros en esa carpeta. Es a mano y solo a mano, por
+        pedido de Bruno.
 
         Cada uno se valida igual que siempre (mismos cuadros, mismo fps,
         misma orientacion): el que no calce no se engancha, porque un proxy
@@ -2192,29 +2194,39 @@ class MainWindow(QWidget):
         indices = self.bins.clips_de(nombre_de_bin)
         if not indices:
             return
-        # el clip abierto si es de este bin, y si no el primero del bin: el
-        # patron sale del par que elijas, asi que la referencia tiene que
-        # ser el clip que estabas mirando cuando lo elegiste.
-        referencia = self.clips[
+        rutas_del_bin = [self.clips[i].ruta for i in indices]
+        # desde donde abre el dialogo: el clip que estabas mirando si es de
+        # este bin, y si no el primero. Solo decide la carpeta inicial --a
+        # cual clip corresponde el proxy se averigua despues, del nombre.
+        arranque = self.clips[
             self.current_index if self.current_index in indices else indices[0]
         ]
         if elegido is None:
             ruta, _ = QFileDialog.getOpenFileName(
                 self,
-                f"Elige el proxy de {referencia.ruta.name}",
-                str(referencia.ruta.parent),
+                f"Elige cualquier proxy de «{nombre_de_bin}»",
+                str(arranque.ruta.parent),
                 "Video (*.mp4 *.MP4 *.mov *.MOV *.mxf *.MXF)",
             )
             if not ruta:
                 return
             elegido = Path(ruta)
-        patron = patron_de_proxy(referencia.ruta, elegido)
+        # CUALQUIERA de los proxies del bin sirve. Antes tenia que ser el del
+        # clip en el que estabas parado, y eso no se ve por ningun lado:
+        # abres el dialogo, ves 111 proxies ordenados por nombre y eliges el
+        # primero. Bruno se topo justo con eso. El patron sale igual de bien
+        # de cualquier par; lo unico que hacia falta era averiguar de que par
+        # se trata.
+        referencia = clip_del_proxy(rutas_del_bin, elegido)
+        patron = patron_de_proxy(referencia, elegido) if referencia else None
         if patron is None:
             QMessageBox.warning(
                 self, "Ese archivo no corresponde",
-                f"«{elegido.name}» no lleva el nombre de «{referencia.ruta.name}» "
-                "adentro, así que no se puede deducir cómo se llaman los demás "
-                "proxies.\n\nElige el proxy que corresponde a ESE clip.",
+                f"«{elegido.name}» no lleva adentro el nombre de ningún clip "
+                f"de «{nombre_de_bin}», así que no se puede deducir cómo se "
+                "llaman los demás proxies.\n\nElige un proxy de este bin — "
+                "cualquiera sirve, no tiene que ser el del clip que estás "
+                "viendo.",
             )
             return
         prefijo, sufijo = patron

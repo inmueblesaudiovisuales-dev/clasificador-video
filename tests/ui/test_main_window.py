@@ -4167,3 +4167,22 @@ def test_sin_duracion_la_portada_vieja_no_se_re_extrae_cada_sesion(qtbot, monkey
     window._thread_pool.waitForDone(3000)
 
     assert pedidos == []
+
+
+def test_engancha_aunque_elijas_el_proxy_de_otro_clip_del_bin(qtbot, monkeypatch, tmp_path):
+    """El caso de Bruno, tal como lo reporto: estas parado en un clip y en
+    el dialogo eliges el PRIMERO de la carpeta de proxies, que es de otro
+    clip. Antes eso era un error con un cartel que no ayudaba; ahora
+    engancha, porque el patron sale igual de bien de cualquier par."""
+    window, _, proxies = _ventana_con_material(qtbot, monkeypatch, tmp_path)
+    window.current_index = 2                      # parado en el ultimo clip
+    _elegir(monkeypatch, proxies / "C0000S03.MP4")  # y eligiendo el del primero
+    _sin_avisos(monkeypatch)
+
+    window.adjuntar_proxies()
+    window._thread_pool.waitForDone(5000)
+    QApplication.processEvents()
+
+    assert [c.ruta_proxy.name for c in window.clips] == [
+        "C0000S03.MP4", "C0001S03.MP4", "C0002S03.MP4"
+    ]

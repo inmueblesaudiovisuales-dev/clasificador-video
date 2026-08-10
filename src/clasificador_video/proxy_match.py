@@ -32,6 +32,24 @@ def patron_de_proxy(original: Path, proxy_elegido: Path) -> tuple[str, str] | No
     return proxy_stem[:corte], proxy_stem[corte + len(original_stem):]
 
 
+def clip_del_proxy(rutas: list[Path], proxy_elegido: Path) -> Path | None:
+    """De todos los clips del bin, ¿a cual corresponde el proxy elegido?
+
+    Existe porque el enganche pedia el proxy DEL CLIP EN EL QUE ESTABAS, y
+    eso no se ve por ningun lado: abres el dialogo, ves una carpeta de 111
+    proxies ordenados por nombre y eliges el primero. Bruno se topo con
+    esto en su material -- «no puedo solo elegir el primer clip de la
+    carpeta de proxies». El patron sale igual de bien de CUALQUIER par, asi
+    que lo unico que hacia falta era averiguar de que par se trata.
+
+    Gana el nombre mas largo que calce: `C0001` esta contenido en
+    `C00011S03`, y con el corto se deduciria el sufijo equivocado (`1S03`)
+    para los 110 restantes.
+    """
+    calzan = [r for r in rutas if r.stem and r.stem in proxy_elegido.stem]
+    return max(calzan, key=lambda r: len(r.stem)) if calzan else None
+
+
 def emparejar_con_patron(
     originales: list[Path], carpeta: Path, prefijo: str, sufijo: str,
     extension: str,
