@@ -42,6 +42,83 @@ function metodosDe(obj) {
   }
 }
 
+// Saca de la cadena el componente ya montado -- el unico con el que se
+// puede hablar. Se vuelve a pedir la cadena al clip en vez de reusar la de
+// antes: no sabemos si el objeto viejo ve lo que se agrego despues.
+//
+// Se prueban varios nombres de metodo a proposito. La referencia de Adobe
+// documenta `getComponentCount`/`getComponentAtIndex`, pero esta version ya
+// nos mintio una vez (la fabrica devuelve un objeto pelon), asi que aqui se
+// intenta y se reporta, no se asume.
+async function recuperarComponenteDeLaCadena(clip, tipoVideo, filtroNombre) {
+  const premierepro = require("premierepro");
+  const notas = [];
+
+  let cadena;
+  try {
+    cadena = await clip.getComponentChain(tipoVideo);
+  } catch (e) {
+    return { componente: null, detalle: "no se pudo repedir la cadena: " + e.message };
+  }
+  notas.push("metodos de la cadena: " + metodosDe(cadena));
+
+  let cuantos = null;
+  for (const nombre of ["getComponentCount", "componentCount", "getComponentsCount"]) {
+    if (typeof cadena[nombre] === "function") {
+      try {
+        cuantos = await cadena[nombre]();
+        notas.push(nombre + "() = " + cuantos);
+        break;
+      } catch (e) {
+        notas.push(nombre + "() fallo: " + e.message);
+      }
+    }
+  }
+  if (cuantos === null) {
+    return { componente: null, detalle: notas.join(" | ") };
+  }
+
+  // Se recorre al reves: Lumetri es lo ultimo que se agrego, y asi no se
+  // devuelve por error algun efecto intrinseco del clip (Motion, Opacity)
+  // que vive al principio de la cadena.
+  const vistos = [];
+  for (let i = cuantos - 1; i >= 0; i--) {
+    let comp = null;
+    for (const nombre of ["getComponentAtIndex", "getComponent"]) {
+      if (typeof cadena[nombre] === "function") {
+        try { comp = await cadena[nombre](i); break; } catch (e) { /* siguiente */ }
+      }
+    }
+    if (!comp) continue;
+
+    // Mismo patron que FolderItem.cast/ClipProjectItem.cast en el resto del
+    // plugin: lo que devuelve la API a veces necesita el cast para exponer
+    // sus metodos.
+    if (premierepro.Component && typeof premierepro.Component.cast === "function") {
+      try { comp = premierepro.Component.cast(comp) || comp; } catch (e) { /* se queda el original */ }
+    }
+
+    let etiqueta = "?";
+    try { etiqueta = await comp.getDisplayName(); } catch (e) { etiqueta = "sin displayName"; }
+    vistos.push(i + "=" + etiqueta);
+
+    // El filtro importa: sin el, se devolveria el ultimo efecto que sepa
+    // hablar --Motion, Opacity, lo que sea-- y se leerian los parametros
+    // equivocados creyendo que son los de Lumetri.
+    const calzaElNombre = !filtroNombre ||
+      String(etiqueta).toLowerCase().indexOf(filtroNombre.toLowerCase()) !== -1;
+    if (calzaElNombre && typeof comp.getParamCount === "function") {
+      notas.push("componentes en la cadena: " + vistos.join(", "));
+      return { componente: comp, detalle: notas.join(" | ") };
+    }
+  }
+
+  notas.push("ningun componente calza «" + (filtroNombre || "cualquiera") +
+    "» y expone getParamCount (de " + cuantos + ")");
+  notas.push("componentes vistos: " + vistos.join(", "));
+  return { componente: null, detalle: notas.join(" | ") };
+}
+
 registrarPrueba("spike: con que matchName se crea Lumetri", async () => {
   const premierepro = require("premierepro");
   const factory = premierepro.VideoFilterFactory;
@@ -104,9 +181,18 @@ registrarPrueba("spike: parametros de Lumetri en el master clip", async (project
   }
 
   // La pregunta 2: ¿se le puede colgar Lumetri?
+  //
+  // Primero se mira si ya esta: el clip se reusa entre corridas, y sin esto
+  // cada vez que Bruno le da al boton se apila otro Lumetri encima del
+  // anterior. Ademas de basura, eso hace ambiguo cual de todos se leyo.
+  const yaMontado = await recuperarComponenteDeLaCadena(clip, tipoVideo, "lumetri");
   let componente = null;
   let matchUsado = null;
-  for (const nombre of MATCHNAMES_LUMETRI) {
+  if (yaMontado.componente) {
+    componente = yaMontado.componente;
+    matchUsado = "ya estaba montado";
+  }
+  for (const nombre of componente ? [] : MATCHNAMES_LUMETRI) {
     try {
       const c = await premierepro.VideoFilterFactory.createComponent(nombre);
       if (c) { componente = c; matchUsado = nombre; break; }
@@ -137,14 +223,30 @@ registrarPrueba("spike: parametros de Lumetri en el master clip", async (project
   // La pregunta 3, la que importa: ¿como se llaman sus parametros y hay uno
   // de LUT de entrada? Se enumeran TODOS con su nombre visible, porque el
   // nombre exacto es justo lo que no sabemos.
+  //
+  // Lo que devuelve la fabrica NO sirve para preguntarle nada: su prototipo
+  // trae solo `constructor` (medido en la corrida del 2026-08-10, falla
+  // `getParamCount is not a function`). Es un objeto de ida, para pasarselo
+  // a la accion de append. El componente con el que SI se puede hablar hay
+  // que sacarlo de vuelta de la cadena, ya montado.
+  const componenteUsable = await recuperarComponenteDeLaCadena(clip, tipoVideo, "lumetri");
+  if (!componenteUsable.componente) {
+    return {
+      ok: false,
+      detalle: "no se pudo recuperar el componente montado. " + componenteUsable.detalle,
+    };
+  }
+  componente = componenteUsable.componente;
+
   let cuantos = 0;
   try {
     cuantos = componente.getParamCount();
   } catch (e) {
     return {
       ok: false,
-      detalle: "getParamCount fallo: " + e.message +
-        " | metodos del componente: " + metodosDe(componente),
+      detalle: "getParamCount fallo tambien en el componente recuperado: " + e.message +
+        " | metodos: " + metodosDe(componente) +
+        " | como se recupero: " + componenteUsable.detalle,
     };
   }
 
@@ -187,31 +289,62 @@ registrarPrueba("spike: parametros de Lumetri en el master clip", async (project
     };
   }
 
+  const metodosDelParam = metodosDe(paramLut);
+
+  // Que valor tiene ANTES. Sirve para dos cosas: saber de que tipo es el
+  // parametro --si es un numero, un LUT no se pone con una ruta y hay que
+  // buscar otra via-- y tener contra que comparar despues.
+  let antes = "no se pudo leer";
+  const tiempoCero = premierepro.TickTime ? premierepro.TickTime.createWithSeconds(0) : null;
   try {
-    runTransaction(
-      project,
-      () => paramLut.createSetValueAction(RUTA_LUT, true),
-      "Spike: poner la ruta del LUT"
-    );
+    antes = String(await paramLut.getValueAtTime(tiempoCero));
   } catch (e) {
+    antes = "getValueAtTime fallo: " + e.message;
+  }
+
+  // La firma de createSetValueAction no esta documentada para ComponentParam
+  // --la referencia solo la documenta en Properties, con tres argumentos--
+  // asi que se prueban las dos plausibles y se reporta cual sirvio.
+  const intentosDeEscritura = [];
+  let escribio = false;
+  const firmas = [
+    ["(valor, true)", () => paramLut.createSetValueAction(RUTA_LUT, true)],
+    ["(valor)", () => paramLut.createSetValueAction(RUTA_LUT)],
+  ];
+  for (const [comoSeLlama, construir] of firmas) {
+    try {
+      runTransaction(project, construir, "Spike: poner la ruta del LUT");
+      intentosDeEscritura.push(comoSeLlama + " => OK");
+      escribio = true;
+      break;
+    } catch (e) {
+      intentosDeEscritura.push(comoSeLlama + " => " + e.message);
+    }
+  }
+  if (!escribio) {
     return {
       ok: false,
-      detalle: encabezado + " | createSetValueAction con una ruta fallo: " + e.message +
-        " | metodos del parametro: " + metodosDe(paramLut),
+      detalle: encabezado + " | no se pudo escribir la ruta: " +
+        intentosDeEscritura.join(" ; ") +
+        " | valor antes: " + antes +
+        " | metodos del parametro: " + metodosDelParam,
     };
   }
 
   let leido = "no se pudo leer";
   try {
-    const tiempo = premierepro.TickTime.createWithSeconds(0);
-    leido = String(await paramLut.getValueAtTime(tiempo));
+    leido = String(await paramLut.getValueAtTime(tiempoCero));
   } catch (e) {
     leido = "getValueAtTime fallo: " + e.message;
   }
 
   return {
     ok: leido === RUTA_LUT,
-    detalle: encabezado + " | se escribio la ruta y al releer quedo: " + leido +
-      " (esperado " + RUTA_LUT + ")",
+    detalle: encabezado + " | parametro de LUT en el indice " + indiceLut +
+      " | escritura: " + intentosDeEscritura.join(" ; ") +
+      " | antes: " + antes + " | despues: " + leido +
+      " (esperado " + RUTA_LUT + ")" +
+      " | metodos del parametro: " + metodosDelParam +
+      " | todos los parametros: " + nombres.join(" ; "),
   };
 });
