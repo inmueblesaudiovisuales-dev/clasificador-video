@@ -4272,11 +4272,15 @@ def test_una_tira_cortada_a_la_mitad_se_vuelve_a_extraer(qtbot, monkeypatch, tmp
     assert pedidos == [1]
 
 
-def _diciendo_que_si(monkeypatch):
-    monkeypatch.setattr(
-        "clasificador_video.ui.main_window.QMessageBox.question",
-        lambda *a, **k: QMessageBox.StandardButton.Yes,
-    )
+def _eligiendo(window, monkeypatch, que: str):
+    """Responde el diálogo de «enlazar o crear proxies» sin abrirlo.
+
+    Se parchea el método y no `QMessageBox`: el diálogo tiene botones
+    propios, así que la respuesta no es un valor estándar sino cuál botón se
+    apretó, y simularlo desde afuera sería reconstruir el diálogo entero.
+    """
+    monkeypatch.setattr(window, "_preguntar_que_hacer_con_proxies",
+                        lambda *a, **k: que)
 
 
 def test_si_aceptas_crear_proxies_las_portadas_esperan(qtbot, monkeypatch, tmp_path):
@@ -4293,7 +4297,7 @@ def test_si_aceptas_crear_proxies_las_portadas_esperan(qtbot, monkeypatch, tmp_p
     monkeypatch.setattr(window, "_schedule_thumbnails",
                         lambda indices=None: pedidas.append(indices))
     monkeypatch.setattr(proxy_gen, "generar", lambda *a, **k: Path("/p/x.mp4"))
-    _diciendo_que_si(monkeypatch)
+    _eligiendo(window, monkeypatch, "crear")
     clips, _ = _material_con_proxies(tmp_path, con_proxy=())
 
     window.importar_rutas([clips])
@@ -4335,3 +4339,52 @@ def test_al_terminar_los_proxies_se_piden_las_portadas_que_falten(qtbot, monkeyp
     _esperar_generacion(window)
 
     assert pedidas and pedidas[-1] == [0, 1, 2]
+
+
+def test_al_importar_tambien_se_pueden_enlazar_los_proxies_que_ya_existen(qtbot, monkeypatch, tmp_path):
+    """La Sony YA graba sus proxies: esos se enlazan, no se generan. Ofrecer
+    solo «crear» mandaba a transcodificar de cero archivos que ya estaban en
+    el disco -- minutos tirados y un duplicado de cada proxy."""
+    window = _window_with_video(qtbot, cache_root=tmp_path / "cache")
+    monkeypatch.setattr(window, "_probe_clip", _ProbeConProxy())
+    monkeypatch.setattr(
+        "clasificador_video.ui.main_window.extract_thumbnail_strip", lambda *a, **k: []
+    )
+    generados = []
+    monkeypatch.setattr(proxy_gen, "generar",
+                        lambda *a, **k: generados.append(1) or Path("/p/x.mp4"))
+    clips, proxies = _material_con_proxies(tmp_path)
+    _elegir(monkeypatch, proxies / "C0000S03.MP4")
+    _eligiendo(window, monkeypatch, "enlazar")
+
+    window.importar_rutas([clips])
+    window._thread_pool.waitForDone(5000)
+    QApplication.processEvents()
+
+    assert generados == []                       # no se transcodifico nada
+    assert [c.ruta_proxy.name for c in window.clips] == [
+        "C0000S03.MP4", "C0001S03.MP4", "C0002S03.MP4"
+    ]
+
+
+def test_si_cancelas_el_enlace_las_portadas_salen_del_original(qtbot, monkeypatch, tmp_path):
+    """O esas tarjetas se quedan en gris esperando un proxy que nunca
+    elegiste."""
+    window = _window_with_video(qtbot, cache_root=tmp_path / "cache")
+    monkeypatch.setattr(window, "_probe_clip", _ProbeConProxy())
+    monkeypatch.setattr(
+        "clasificador_video.ui.main_window.extract_thumbnail_strip", lambda *a, **k: []
+    )
+    pedidas = []
+    monkeypatch.setattr(window, "_schedule_thumbnails",
+                        lambda indices=None: pedidas.append(indices))
+    monkeypatch.setattr(
+        "clasificador_video.ui.main_window.QFileDialog.getOpenFileName",
+        lambda *a, **k: ("", ""),        # le diste a Cancelar
+    )
+    _eligiendo(window, monkeypatch, "enlazar")
+    clips, _ = _material_con_proxies(tmp_path, con_proxy=())
+
+    window.importar_rutas([clips])
+
+    assert pedidas == [[0, 1, 2]]

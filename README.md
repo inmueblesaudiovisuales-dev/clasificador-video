@@ -111,12 +111,19 @@ La barra de estado lo dice siempre: `proxies 720p · 118/128`, o `sin proxies`.
 Cuando la cámara no escribe proxies —el caso del dron— la app los genera:
 **clic derecho en el encabezado del bin → «Crear proxies del bin…»**.
 
-Y lo ofrece sola: al importar un bin sin proxies pregunta si los crea antes
-de nada. Vale la pena decir que sí, y no solo por la reproducción — **las
-portadas de la hoja salen del proxy y cuestan cinco veces menos** (1.2 s por
-clip contra 5.8 s, medido con material real). Con 132 clips eso es un minuto
-en vez de cuatro. Si dices que no, las portadas se sacan del original como
-siempre.
+### Al importar, la app lo ofrece sola
+
+Un bin sin proxies abre un diálogo con las dos salidas buenas juntas:
+
+- **Enlazar los que ya tengo…** — la Sony ya los graba; se eligen y listo.
+- **Crear los proxies** — el caso del dron, que no los trae.
+- **Ahora no.**
+
+Van juntas porque la respuesta correcta depende de la cámara y uno no quiere
+pensarlo dos veces. Y conviene resolverlo ahí: mientras no haya proxies, **las
+portadas de la hoja se sacan del original y cuestan cinco veces más** (5.8 s
+por clip contra 1.2 s, medido con material real). Con 132 clips, cuatro
+minutos en vez de uno.
 
 Los saca del original con el codificador del chip (`h264_videotoolbox`, lado
 corto 720), uno por uno y en segundo plano: puedes seguir clasificando

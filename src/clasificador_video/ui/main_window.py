@@ -1656,22 +1656,59 @@ class MainWindow(QWidget):
             return False        # ya hay una tanda corriendo; no encimar otra
         if any(self.clips[i].ruta_proxy is not None for i in indices):
             return False        # este bin ya tiene proxies enganchados
-        carpeta = proxy_gen.carpeta_de_proxies(self.clips[indices[0]].ruta.parent)
-        if not proxy_gen.faltantes([self.clips[i].ruta for i in indices], carpeta):
-            return False        # ya estan generados; se enganchan solos
+        eleccion = self._preguntar_que_hacer_con_proxies(nombre_de_bin, indices)
+        if eleccion == "crear":
+            self.generar_proxies_de_bin(nombre_de_bin, preguntar=False)
+            # si por lo que sea no arrancó, las portadas no se pueden quedar
+            # esperando a algo que no va a pasar
+            return self._generando_proxies is not None
+        if eleccion == "enlazar":
+            self.adjuntar_proxies_de_bin(nombre_de_bin)
+            # Si enganchó, `_sondear_proxies` ya volvió a pedir las portadas
+            # de esos clips —con el proxy como fuente— y no hay que pedirlas
+            # otra vez. Si no enganchó nada —cancelaste el diálogo, o ningún
+            # archivo calzó— hay que sacarlas del original o esas tarjetas se
+            # quedan en gris.
+            return any(i in self._proxy_candidatos for i in indices)
+        return False
+
+    def _preguntar_que_hacer_con_proxies(self, nombre_de_bin: str,
+                                         indices: list[int]) -> str:
+        """«enlazar», «crear» o «nada».
+
+        Las dos salidas buenas van juntas en un solo diálogo porque la
+        respuesta correcta depende de la cámara y uno no quiere pensarlo dos
+        veces: la Sony ya escribe sus proxies —esos se ENLAZAN— y el dron no
+        —esos se CREAN—. Ofrecer solo «crear» mandaba a generar de cero
+        proxies que ya existían en el disco.
+
+        Va con botones propios y no con `QMessageBox.question`: con los
+        botones estándar, «enlazar» tendría que llamarse «No» o «Abrir», y el
+        renglón más importante del diálogo se leería al revés.
+        """
         minutos = max(1, round(self._segundos_estimados(indices) / 60))
-        respuesta = QMessageBox.question(
-            self, "Crear los proxies primero",
-            f"«{nombre_de_bin}» no tiene proxies.\n\nSi los creo ahora "
-            f"(unos {minutos} min) el material se navega fluido y las "
-            f"portadas salen cinco veces más rápido.\n\n¿Los creo?",
+        dialogo = QMessageBox(self)
+        dialogo.setWindowTitle("Proxies")
+        dialogo.setText(f"«{nombre_de_bin}» no tiene proxies.")
+        dialogo.setInformativeText(
+            "Con proxies el material se navega fluido y las portadas de la "
+            "hoja salen cinco veces más rápido.\n\n"
+            "Si esta cámara ya los grabó, enlázalos. Si no, se pueden crear "
+            f"desde los originales (unos {minutos} min, en segundo plano)."
         )
-        if respuesta != QMessageBox.StandardButton.Yes:
-            return False
-        self.generar_proxies_de_bin(nombre_de_bin, preguntar=False)
-        # si por lo que sea no arrancó, las portadas no se pueden quedar
-        # esperando a algo que no va a pasar
-        return self._generando_proxies is not None
+        enlazar = dialogo.addButton("Enlazar los que ya tengo…",
+                                    QMessageBox.ButtonRole.AcceptRole)
+        crear = dialogo.addButton("Crear los proxies",
+                                  QMessageBox.ButtonRole.AcceptRole)
+        dialogo.addButton("Ahora no", QMessageBox.ButtonRole.RejectRole)
+        dialogo.setDefaultButton(enlazar)
+        dialogo.exec()
+        elegido = dialogo.clickedButton()
+        if elegido is enlazar:
+            return "enlazar"
+        if elegido is crear:
+            return "crear"
+        return "nada"
 
     def _autosave(self) -> None:
         if self.session_path is None:

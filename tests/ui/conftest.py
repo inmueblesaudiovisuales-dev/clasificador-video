@@ -46,6 +46,11 @@ def sin_dialogos_que_bloqueen(monkeypatch):
     uno, y el que se olvidaba colgaba la suite igual.
     """
     from PySide6.QtWidgets import QMessageBox
+    # `exec()` es el de los dialogos con botones propios --el de «enlazar o
+    # crear proxies»--, que no pasan por los estaticos de abajo. Devolver
+    # sin abrir deja `clickedButton()` en None, y la app lo lee como «ahora
+    # no»: el default correcto para un test que no vino a probar el dialogo.
+    monkeypatch.setattr(QMessageBox, "exec", lambda self, *a, **k: 0)
     monkeypatch.setattr(QMessageBox, "question",
                         staticmethod(lambda *a, **k: QMessageBox.StandardButton.No))
     monkeypatch.setattr(QMessageBox, "information",
