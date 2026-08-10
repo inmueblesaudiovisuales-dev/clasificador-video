@@ -150,9 +150,29 @@ class Reencuentro:
     no_encontrados: list[int]
 
 
-def faltantes_de(rutas: list[Path]) -> list[int]:
-    """Que posiciones de la lista ya no tienen archivo en disco."""
-    return [i for i, r in enumerate(rutas) if not Path(r).is_file()]
+def faltantes_de(rutas: dict[int, Path]) -> list[int]:
+    """Que clips ya no tienen su archivo en disco.
+
+    Recibe y devuelve **indices de clip**, como todo el resto del modulo.
+    Antes tomaba una lista y devolvia posiciones, que en un bin cualquiera
+    no son los mismos numeros -- y confundir unos con otros termina
+    reconectando el clip equivocado.
+    """
+    return sorted(i for i, ruta in rutas.items() if not Path(ruta).is_file())
+
+
+def _identidad(ruta: Path):
+    """Con que se decide si dos candidatos son el mismo archivo.
+
+    Por inodo y no por texto: la misma copia puede aparecer escrita de dos
+    formas --una por la ruta que decia el proyecto y otra por el indice, y
+    en APFS con otras mayusculas-- y como texto se verian distintas.
+    """
+    try:
+        info = ruta.stat()
+        return (info.st_dev, info.st_ino)
+    except OSError:
+        return str(ruta)
 
 
 def reencontrar_bin(carpeta: Path, relativas: dict[int, str],
@@ -164,16 +184,35 @@ def reencontrar_bin(carpeta: Path, relativas: dict[int, str],
     decirlo. Enganchar el archivo equivocado seria peor, porque nadie se
     entera.
     """
+    indice = indice_de_nombres(carpeta)
     reconectados: dict[int, Path] = {}
     sin_confirmar: list[int] = []
     no_encontrados: list[int] = []
-    for indice, relativa in relativas.items():
-        candidato = buscar_bajo(carpeta, relativa)
+    for clip, relativa in relativas.items():
+        candidato = buscar_bajo(carpeta, relativa, indice)
         if candidato is None:
-            no_encontrados.append(indice)
-        elif calza(candidato, bytes_esperados.get(indice),
-                   cuadros_esperados.get(indice), medir):
-            reconectados[indice] = candidato
+            no_encontrados.append(clip)
+        elif calza(candidato, bytes_esperados.get(clip),
+                   cuadros_esperados.get(clip), medir):
+            reconectados[clip] = candidato
         else:
-            sin_confirmar.append(indice)
+            sin_confirmar.append(clip)
+    for clip in _reclamados_por_mas_de_un_clip(reconectados):
+        del reconectados[clip]
+        sin_confirmar.append(clip)
     return Reencuentro(reconectados, sorted(sin_confirmar), sorted(no_encontrados))
+
+
+def _reclamados_por_mas_de_un_clip(reconectados: dict[int, Path]) -> list[int]:
+    """Un archivo no puede ser dos clips distintos.
+
+    Cada clip se resuelve por su cuenta, asi que dos podian quedarse con la
+    misma copia: dos tarjetas con su `C0001.MP4` cada una, y en el disco
+    nuevo sobrevivio una sola. Bruno terminaba con dos clips que son el
+    mismo video, con marcas distintas cada uno y nada que se lo dijera.
+    Cuando pasa, ninguno de los dos se engancha.
+    """
+    duenos: dict[object, list[int]] = {}
+    for clip, ruta in reconectados.items():
+        duenos.setdefault(_identidad(ruta), []).append(clip)
+    return [clip for clips in duenos.values() if len(clips) > 1 for clip in clips]

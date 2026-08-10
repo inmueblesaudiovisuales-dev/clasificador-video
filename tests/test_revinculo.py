@@ -1,4 +1,5 @@
 import logging
+from pathlib import Path
 
 from clasificador_video.revinculo import (
     buscar_bajo,
@@ -160,10 +161,13 @@ def test_una_carpeta_que_no_existe_no_revienta(tmp_path):
 
 
 def test_faltantes_de_lista_lo_que_no_esta(tmp_path):
+    """Recibe y devuelve INDICES DE CLIP, como todo el resto del modulo. Con
+    una lista devolvia posiciones, que en un bin cualquiera no son los
+    mismos numeros -- y confundirlos reconecta el clip equivocado."""
     esta = tmp_path / "A.MP4"
     esta.write_bytes(b"x")
 
-    assert faltantes_de([esta, tmp_path / "B.MP4"]) == [1]
+    assert faltantes_de({7: esta, 9: tmp_path / "B.MP4"}) == [9]
 
 
 def test_reencontrar_devuelve_los_que_calzan_y_los_que_no(tmp_path):
@@ -255,3 +259,70 @@ def test_el_fallback_por_nombre_ignora_mayusculas(tmp_path):
     real.write_bytes(b"x")
 
     assert buscar_bajo(tmp_path, "sub/C0001.MP4") == real
+
+
+def test_dos_clips_no_pueden_quedar_enganchados_al_mismo_archivo(tmp_path):
+    """Dos tarjetas de la Sony, cada una con su `C0001.MP4`, y en la carpeta
+    nueva sobrevivio una sola copia: el fallback por nombre la devolvia para
+    los DOS. Bruno terminaba con dos clips que son el mismo video, con
+    marcas distintas cada uno, y nada que se lo dijera."""
+    nueva = tmp_path / "nueva"
+    (nueva / "sobreviviente").mkdir(parents=True)
+    unico = nueva / "sobreviviente" / "C0001.MP4"
+    unico.write_bytes(b"x" * 500)
+
+    resultado = reencontrar_bin(
+        carpeta=nueva,
+        relativas={0: "tarjeta1/C0001.MP4", 1: "tarjeta2/C0001.MP4"},
+        bytes_esperados={0: 500, 1: 500},
+        cuadros_esperados={},
+        medir=lambda p: {"duration_frames": 0},
+    )
+
+    assert resultado.reconectados == {}
+    assert resultado.sin_confirmar == [0, 1]
+
+
+def test_sin_datos_para_confirmar_no_es_lo_mismo_que_no_aparecio(tmp_path):
+    """El archivo esta ahi; lo que falta es con que comprobar que sea el
+    mismo. A Bruno hay que decirle eso, no «no aparecio»."""
+    nueva = tmp_path / "nueva"
+    nueva.mkdir()
+    (nueva / "C0001.MP4").write_bytes(b"x" * 500)
+
+    resultado = reencontrar_bin(
+        carpeta=nueva, relativas={0: "C0001.MP4"},
+        bytes_esperados={}, cuadros_esperados={},
+        medir=lambda p: {"duration_frames": 0},
+    )
+
+    assert resultado.reconectados == {}
+    assert resultado.sin_confirmar == [0]
+    assert resultado.no_encontrados == []
+
+
+def test_el_arbol_se_recorre_una_sola_vez(tmp_path, monkeypatch):
+    """Con los 109 clips de una tarjeta de la Sony, uno por clip son 109
+    barridos de 128 GB colgando la ventana."""
+    nueva = tmp_path / "nueva"
+    nueva.mkdir()
+    for i in range(1, 6):
+        (nueva / f"C000{i}.MP4").write_bytes(b"x" * 500)
+    barridos = []
+    original = Path.rglob
+
+    def contar(self, patron, *args, **kwargs):
+        barridos.append(patron)
+        return original(self, patron, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "rglob", contar)
+
+    reencontrar_bin(
+        carpeta=nueva,
+        relativas={i: f"vieja/C000{i}.MP4" for i in range(1, 6)},
+        bytes_esperados={i: 500 for i in range(1, 6)},
+        cuadros_esperados={},
+        medir=lambda p: {"duration_frames": 0},
+    )
+
+    assert len(barridos) == 1
