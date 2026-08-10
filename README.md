@@ -6,6 +6,28 @@ manifest que un plugin de Adobe Premiere usa para armar el proyecto de
 edición solo. La usa un editor trabajando rápido con el teclado, muchas
 veces junto a Premiere abierto.
 
+El material real que la mueve: **HEVC 10-bit de una Sony FX30**, mayoría
+**vertical**, más tomas de un **dron DJI**. De ahí salen casi todas las
+decisiones de diseño — por qué importan tanto los proxies, por qué el material
+se agrupa por cámara y por qué el `in`/`out` no se negocia.
+
+## Qué hace, de entrada a salida
+
+1. **Importas** las carpetas de las tarjetas. El material se agrupa en **bins**
+   —uno por cámara— y también puedes crear bins vacíos y arrastrar clips entre
+   ellos.
+2. **Clasificas con el teclado**, sin tocar el mouse: cuarto, `pick`/`reject`/
+   destacado, `in`/`out`. `⌘Z` y el historial deshacen cualquier paso.
+3. **La hoja de contactos** (`⇥`) muestra todo junto, con búsqueda y filtros,
+   y deja pintar cuartos por lotes.
+4. **Los proxies**: los enganchas si la cámara ya los trae, o **la app te los
+   genera** (clic derecho en el bin) si no — el caso del dron.
+5. **Exportas a Premiere**, y el plugin arma el proyecto solo: bins por cuarto,
+   etiquetas de color, `in`/`out` y proxies enganchados.
+
+Todo vive en un archivo `.cvproj` que puedes mover, respaldar y abrir en otra
+computadora, reencontrando el material donde esté.
+
 ## Estructura del repo
 
 - **`src/clasificador_video/`** — la app de escritorio (Python/PySide6).
@@ -18,6 +40,7 @@ veces junto a Premiere abierto.
   etc.). `tests/ui/` cubre los widgets de PySide6.
 - **`scripts/`** — utilidades sueltas (`abrir_app.command`, doble click para
   correr la app sin depender de terminal).
+- **`empaque/`** — la receta de PyInstaller para armar el `.app`.
 - **`sample-media/`** — clips de video reales para pruebas manuales, no
   versionado (`.gitignore`).
 - **`docs/superpowers/`** — historial de handoffs, specs y planes de las
@@ -53,6 +76,14 @@ se borra: queda apartada como `sesion.migrada.json`.
 
 ## Proxies
 
+Un proxy es una copia ligera del clip que se usa **solo para navegar**: el
+`in`/`out` que marcas encima vale para el original. Por eso todo lo de abajo
+gira alrededor de una regla: **un proxy que no calce cuadro a cuadro con su
+original no se engancha**, venga de donde venga. Con uno corrido, el `in`
+caería en el cuadro equivocado y nadie se daría cuenta.
+
+### Enganchar los que ya existen
+
 Se enganchan **a mano**, como el *Attach Proxies* de Premiere: eliges el proxy
 de **un** clip y la app engancha los demás sola.
 
@@ -73,6 +104,26 @@ Con proxy, la app **lo reproduce a él** (ir un cuadro atrás pasa de ~530 ms a
 máquina— y se lo pasa a Premiere en el manifest para que quede enganchado allá.
 
 La barra de estado lo dice siempre: `proxies 720p · 118/128`, o `sin proxies`.
+
+### Crear los que no existen
+
+Cuando la cámara no escribe proxies —el caso del dron— la app los genera:
+**clic derecho en el encabezado del bin → «Crear proxies del bin…»**.
+
+Los saca del original con el codificador del chip (`h264_videotoolbox`, lado
+corto 720), uno por uno y en segundo plano: puedes seguir clasificando
+mientras corre. El encabezado del bin va diciendo `creando proxies · 7/23`, y
+**cada clip se engancha apenas termina el suyo**, así que el material se
+aligera conforme avanza. Desde el mismo menú se cancela — lo hecho se queda,
+lo que faltaba no se hace, y volver a darle solo genera los que faltan.
+
+Van a una carpeta **`Proxies` al lado** de la del material, no adentro, para
+no ensuciar la copia de la tarjeta. Terminan en `S03`, igual que los de la
+Sony, así que el ingest los descarta si algún día se arrastra esa carpeta
+como si fuera material.
+
+Cuesta unos **10 s por cada 6 s de video**. Medido con material real: 285 MB
+pasan a 17 MB con los mismos 1010 cuadros.
 
 ## Empaquetar como app
 

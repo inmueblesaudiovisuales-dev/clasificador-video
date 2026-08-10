@@ -1,26 +1,34 @@
 # Contexto y metas del proyecto
 
-*(Última actualización: 2026-08-10, después de cerrar los bins por cámara, los
-bins arrastrables y los proyectos guardables. Este documento describe
-**intención y dirección**, y lleva la cuenta de lo hecho y lo que falta — para
-decisiones técnicas ya tomadas, ver `CLAUDE.md`; para qué es la app y cómo
-correrla, ver `README.md`; para el detalle técnico de cada entrega y de cada
-bug, ver el handoff.)*
+*(Última actualización: 2026-08-10, al cierre de la sesión en la que se
+generaron los proxies, se contestó el LUT dentro de Premiere y se sacaron los
+`.LRF` del ingest. Este documento describe **intención y dirección**, y lleva
+la cuenta de lo hecho y lo que falta — para decisiones técnicas ya tomadas,
+ver `CLAUDE.md`; para qué es la app y cómo correrla, ver `README.md`; para el
+detalle técnico de cada entrega y de cada bug, ver el handoff.)*
 
 ## Estado actual
 
 **La app clasifica un shooting completo sin tocar el mouse, agrupa el material
-por cámara, y el proyecto es un archivo que se puede mover.** Llega
-reproduciendo, se marca con el teclado, se cruza a la hoja de contactos, se
-pinta por lotes y se exporta a Premiere, que arma el proyecto solo.
+por cámara, le genera los proxies, y el proyecto es un archivo que se puede
+mover.** Llega reproduciendo, se marca con el teclado, se cruza a la hoja de
+contactos, se pinta por lotes y se exporta a Premiere, que arma el proyecto
+solo.
 
-**1337 tests, 40 corridas seguidas sin un fallo.**
+**1355 tests.** Las 40 corridas seguidas sin fallo se midieron sobre 1337, o
+sea antes de la generación de proxies: ese número no se ha vuelto a medir.
 
 **Lo que sigue sin comprobarse, y atraviesa todo lo demás:** desde los bins en
 adelante, **nada se ha usado con el material real de Bruno**. Se midió con
 archivos inventados, `ffprobe` falso y los tres clips de `sample-media/`. Sus
-132 clips no han pasado por aquí. Lo anterior a eso sí — y de ese uso real
-salieron más bugs que de cualquier revisión.
+132 clips no han pasado por aquí. La única excepción es la generación de
+proxies, que sí se corrió contra un clip real de `sample-media/` de punta a
+punta —67 MB → 1.6 MB, mismos cuadros y fps— pero no contra una tarjeta
+entera. Lo anterior a los bins sí se usó de verdad, y de ese uso salieron más
+bugs que de cualquier revisión.
+
+**Por eso lo primero de la lista de abajo no es una función nueva:** es correr
+un shooting completo con la app.
 
 ---
 
@@ -75,9 +83,12 @@ renumeran desde cero en cada tarjeta.
 
 ---
 
-## Lo que falta
+## Lo que se cerró el 2026-08-10
 
-### 1. Generar los proxies del dron — **hecho, 2026-08-10**
+Cuatro cosas que estaban en «lo que falta» y ya no lo están. Se quedan escritas
+porque el **porqué** de cada una sigue aplicando.
+
+### 1. Generar los proxies del bin — **hecho**
 
 Clic derecho en el bin → «Crear proxies del bin…». Los genera del original
 uno por uno, en segundo plano, y **cada uno se engancha apenas termina**: se
@@ -118,7 +129,7 @@ completa de las 23 tomas del dron, de punta a punta. Se midió un clip y se
 probó la mecánica entera con ffmpeg sustituido; falta la corrida larga con el
 disco del dron conectado.
 
-### 2. LUT hacia Premiere — **parado por decisión de Bruno, 2026-08-10**
+### 2. LUT hacia Premiere — **parado por decisión de Bruno**
 
 Ya no está abierto: **se probó dentro de Premiere y no se puede como se
 quería.** Bruno decidió parar ahí («mejor solo no lo hagamos, no necesito
@@ -140,7 +151,36 @@ Lo que se aprendió, con el detalle completo en
 Si algún día se retoma, lo que falta no es código sino contestar cómo se
 verifica que el renglón N sigue siendo el LUT correcto.
 
-### 3. Probar el paquete en otra Mac — **bloqueado por hardware, no por código**
+### 3. La etiqueta dorada de la estrella — **hecha**
+
+Comprobado en vivo: `MANGO` existe y es el índice 7, y el clip cambió de
+etiqueta al aplicarlo. La guarda por si otra versión no lo trae se queda.
+
+De paso salió algo que nadie sabía: **la copia del plugin que Bruno tenía
+instalada era de agosto y no traía el soporte de la estrella**, así que hasta
+ese día sus clips destacados llegaban a Premiere sin etiqueta. Ya está la
+versión al día, idéntica al repo.
+
+### 4. Los `.LRF` como clips — **hecho**
+
+Ya no entran. Se comprobó primero que sí pasaba —una carpeta con `DJI_0001.MP4`
+y `DJI_0001.LRF` traía los dos— y Bruno decidió: «no me sirve el LRF si
+usaremos otros proxies». Tampoco se queda como candidato a proxy: ya se había
+medido que no calza cuadro a cuadro.
+
+---
+
+## Lo que falta
+
+### 1. Correr un shooting completo con la app — **lo primero**
+
+No es una función nueva y por eso es fácil que se cuele hacia abajo en la
+lista. Pero desde los bins en adelante nada ha pasado por los 132 clips de
+Bruno, y en este proyecto el uso real ha encontrado más bugs que cualquier
+revisión. Cualquier función que se construya antes de esto se construye sobre
+algo sin comprobar.
+
+### 2. Probar el paquete en otra Mac — **bloqueado por hardware, no por código**
 
 El `.app` de 175 MB se arma y arranca sin Homebrew; ninguno de sus 214 binarios
 apunta a Homebrew. Va con firma propia, que es gratis y suficiente: **por USB o
@@ -157,31 +197,21 @@ un `.cvproj` de verdad, que tampoco se ha hecho.
 máquina de Bruno copiando archivos sobre la instalación existente, pero **no
 se puede repartir a otra computadora**.
 
-### 4. La etiqueta dorada de la estrella — **hecho, 2026-08-10**
-
-Comprobado en vivo: `MANGO` existe y es el índice 7, y el clip cambió de
-etiqueta al aplicarlo. La guarda por si otra versión no lo trae se queda.
-
-De paso salió algo que nadie sabía: **la copia del plugin que Bruno tenía
-instalada era de agosto y no traía el soporte de la estrella**, así que hasta
-hoy sus clips destacados llegaban a Premiere sin etiqueta. Ya está la versión
-al día, idéntica al repo.
-
-### 5. Los `.LRF` como clips — **hecho, 2026-08-10**
-
-Ya no entran. Se comprobó primero que sí pasaba —una carpeta con `DJI_0001.MP4`
-y `DJI_0001.LRF` traía los dos— y Bruno decidió: «no me sirve el LRF si
-usaremos otros proxies». Tampoco se queda como candidato a proxy: ya se había
-medido que no calza cuadro a cuadro.
-
-### 6. Crear muchos cuartos de un jalón — **tiene spec, falta plan**
+### 3. Crear muchos cuartos de un jalón — **tiene spec, falta plan**
 
 `specs/2026-08-09-cuartos-rapidos-design.md`: un campo que acepta varios
 separados por coma o salto, autocompletar con los nombres ya usados, y
 plantillas guardadas. Aprobado por Bruno, sin plan ni implementación. Nace de
 que él graba inmuebles y los cuartos se repiten casa tras casa.
 
-### 7. Escala
+### 4. Los bins en el deshacer, y filtrar por duración
+
+Las dos son chicas y las dos salieron de corregir listas mal presentadas (ver
+abajo). Los bins —crear, borrar, renombrar, arrastrar clips— no pasan por el
+historial que ya existe. Y el buscador de la hoja ya filtra por nombre, cuarto,
+estado y bin; lo único que no cubre de lo que se ofreció es la duración.
+
+### 5. Escala
 
 Medido y cómodo con 128 clips. Lo que se degrada primero al crecer es la
 generación de portadas — ahora que salen del proxy, cinco veces más barata. Sin

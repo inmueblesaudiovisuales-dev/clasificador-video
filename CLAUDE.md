@@ -104,6 +104,26 @@ comentarios del código, que es donde sirve. En el chat, no.
 - **`QSurfaceFormat` a OpenGL Core 3.3 antes de crear la `QApplication`** —
   mpv necesita Core >= 3.3; el perfil de compatibilidad default de Qt en
   macOS no alcanza (`ui/app.py::configure_gl_surface_format`).
+- **El LUT por bin está parado, y no por falta de código.** Se comprobó
+  dentro de Premiere el 2026-08-10: sí se le pueden colgar efectos al *master
+  clip* sin armar secuencia (`AE.ADBE Lumetri`), pero el parámetro «Input
+  LUT» **no acepta rutas** — es un menú y su valor es el índice del renglón
+  elegido entre los LUTs que Premiere ya tiene instalados. La vía del índice
+  es frágil por diseño: apunta a otro LUT en otra computadora **sin avisar**.
+  Bruno decidió no seguir. Detalle en
+  `docs/superpowers/archive/RESULTADO-2026-08-10-lut-y-estrella-en-premiere.md`.
+- **Los `.LRF` del dron no son material ni proxy.** Fuera de
+  `VIDEO_EXTENSIONS` por decisión de Bruno: entraban como clips duplicados, y
+  como proxy no calzan cuadro a cuadro (contenido corrido 0–5 cuadros,
+  variable por toma). Los proxies del dron se generan del original con
+  `proxy_gen.py`.
+- **En el plugin de UXP, no confíes en la documentación de Adobe sobre qué
+  métodos existen.** Ya falló tres veces en el mismo día: la fábrica de
+  efectos devuelve un objeto sin métodos, `getParam` necesita `await` aunque
+  la referencia diga que no, y el nombre de un parámetro es `displayName`
+  como propiedad y no `getDisplayName()`. Antes de llamar a algo, imprimir
+  `Object.getOwnPropertyNames(Object.getPrototypeOf(obj))` y ver qué hay de
+  verdad. La misma trampa está documentada al tope de `importClip.js`.
 - **El enfoque `xmeml` (Final Cut Pro 7 XML) está descartado**, no solo
   "obsoleto" — Premiere nunca abre el archivo de video real al importar un
   xmeml, y ese formato no puede declarar rotación. La vía real de entrega es

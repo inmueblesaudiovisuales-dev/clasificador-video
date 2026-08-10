@@ -1,5 +1,21 @@
 # Instalar / actualizar el plugin
 
+> **Aviso del 2026-08-10:** el CLI de UXP que arma el `.ccx` **hoy no se
+> puede instalar**. Su biblioteca nativa no trae compilado para Node 24
+> (`No native build was found for platform=darwin arch=x64 ... abi=137`), y
+> con `--ignore-scripts` el `plugin package` falla por lo mismo. Es un
+> problema del CLI de Adobe, no del plugin.
+>
+> **Mientras tanto**, en una máquina donde el plugin YA está instalado se
+> actualiza copiando los archivos encima:
+> `~/Library/Application Support/Adobe/UXP/Plugins/External/com.iav.clasificadorvideo_1.0.0/`.
+> Ojo: eso **no sirve para instalar por primera vez** —Premiere no registra
+> un plugin que aparece solo en esa carpeta, ver abajo— y **no sirve para
+> repartirlo** a otra computadora. Para eso hay que resolver lo del `.ccx`.
+>
+> Y Premiere **no recoge archivos nuevos con Premiere abierto**: cerrar y
+> abrir el panel no basta, hay que cerrar Premiere entero.
+
 **Actualizado 2026-08-06.** El método de copiar la carpeta a mano a
 `.../UXP/Plugins/External/<id>_<version>` **no funciona** como instalación de
 producción — se probó en vivo y Premiere nunca lo registró (detalle completo

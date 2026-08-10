@@ -1,10 +1,22 @@
 # Handoff — 2026-08-09 — desde el rediseño terminado
 
+> **Actualizado el 2026-08-10.** Tres de las cosas que este documento dejaba
+> abiertas ya se cerraron: **los proxies se generan desde la app** (clic
+> derecho en el bin), la **estrella dorada quedó confirmada** dentro de
+> Premiere, y el **LUT se paró por decisión de Bruno** después de comprobar
+> ahí mismo que no se puede como se quería. El estado al día vive en
+> [`CONTEXTO-Y-METAS.md`](CONTEXTO-Y-METAS.md) y el detalle de la corrida
+> dentro de Premiere en
+> [`archive/RESULTADO-2026-08-10-lut-y-estrella-en-premiere.md`](archive/RESULTADO-2026-08-10-lut-y-estrella-en-premiere.md).
+> Lo de abajo se conserva porque el **porqué** de cada decisión sigue siendo
+> la mejor fuente que hay.
+
 El rediseño de la UI **está cerrado** (once fases, F0 a F10). También lo están
 **la importación por bins** (§3 y §3.b) y **los proyectos guardables con
 reencuentro de media** (§3.c): las tres secciones son registro de lo entregado,
-no tareas. Lo que sigue abierto es **repartir la app** a las computadoras del
-equipo de Bruno, los **proxies del dron** y el **LUT hacia Premiere**.
+no tareas. Lo que seguía abierto al escribirlo era **repartir la app** a las
+computadoras del equipo de Bruno, los **proxies del dron** y el **LUT hacia
+Premiere**.
 
 Y una cosa que atraviesa todo lo de abajo, dicha una sola vez para no repetirla
 en cada sección: **nada de esto se ha usado con el material real de Bruno.** Se
@@ -417,11 +429,12 @@ mirar la captura, el arreglo habría quedado peor que no hacer nada.
 
 | Qué | Estado | Quién sigue |
 |---|---|---|
-| **Proxies del dron** | medido y decidido: el `.LRF` **no sirve** ni renombrado (contenido corrido 1–5 cuadros, variable por clip). Hay que generarlos del original: ~10 s por cada 6 s de video | falta escribir la función; Bruno ya dijo que sí |
-| **LUT en Premiere** | alcanzable: la API deja poner efectos al *master clip* sin armar secuencia | falta un spike DENTRO de Premiere: ¿el LUT de entrada de Lumetri acepta una ruta? |
-| **Etiqueta dorada de la estrella** | escrita (`destacado→MANGO`) con guarda si el nombre no existe | falta correr `autocheck-tests.js` en Premiere |
+| **Proxies del dron** | **HECHO** (2026-08-10): clic derecho en el bin → «Crear proxies del bin…». Ver `proxy_gen.py` | falta correr una tarjeta entera |
+| **LUT en Premiere** | **PARADO** (2026-08-10): se corrió el spike y «Input LUT» NO acepta rutas — es un menú, su valor es un índice. Decisión de Bruno: no seguir | nadie |
+| **Etiqueta dorada de la estrella** | **HECHA** (2026-08-10): `MANGO` existe, es el índice 7, y el label cambia. Comprobado en vivo | nadie |
 | **Empaquetado** | `.app` de 175 MB que arranca sin Homebrew; 0 de 214 binarios apuntan a Homebrew | falta abrirlo **en otra Mac**, por USB |
-| **`.LRF` como clips** | DJI escribe un `.LRF` junto a cada `.MP4` y el ingest los toma como material: cada toma del dron aparece **dos veces** | decisión de Bruno: ¿fuera, como los `S03`? |
+| **Repartir el plugin** | bloqueo NUEVO (2026-08-10): el CLI de UXP que arma el `.ccx` no compila para Node 24 (`abi=137`). En la máquina de Bruno se actualiza copiando archivos sobre la instalación existente | sin resolver |
+| **`.LRF` como clips** | **HECHO** (2026-08-10): fuera del ingest, por decisión de Bruno | nadie |
 | **Caída al cerrar** | una de ~30 corridas murió **después** de pasar los 831 tests, en el apagado. 26 corridas seguidas no lo repitieron | anotado, sin arreglo inventado |
 
 ## 4.b Lo que ya se midió, para no volver a medirlo
