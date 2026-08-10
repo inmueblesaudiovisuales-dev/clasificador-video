@@ -238,6 +238,37 @@ def test_un_proyecto_sin_version_pero_con_clips_si_abre(qtbot, tmp_path):
     assert window is not None
 
 
+def test_un_proyecto_con_clips_rotos_no_tira_la_app(qtbot, tmp_path):
+    """`es_proyecto` solo mira que la llave exista, asi que cualquier JSON
+    con `clips` pasa. Si el armado del clip truena, truena DENTRO de un slot
+    de Qt --el clic en la fila-- y una excepcion sin atrapar ahi aborta el
+    proceso: la app se cierra sola. Alcanzable desde «Abrir otro…» y desde
+    una sesion migrada a medio corromper.
+    """
+    for clips in ([{"orden": 1}],                       # sin ruta ni fps
+                  [{"ruta": "/a.MP4", "fps": 30.0}],    # sin orden
+                  ["esto no es un clip"],
+                  [{"orden": 1, "ruta": "/a.MP4", "fps": "treinta"}]):
+        ruta = tmp_path / "roto.cvproj"
+        guardar(ruta, {"version": 1, "proyecto": "P", "clips": clips})
+
+        assert abrir_proyecto(ruta, video_factory=_FakeMpv,
+                              recientes_path=tmp_path / "r.json") is None
+
+
+def test_un_proyecto_con_clips_rotos_lo_dice_en_la_pantalla(qtbot, tmp_path):
+    coord = _coordinador(tmp_path)
+    qtbot.addWidget(coord.inicio)
+    coord.mostrar_inicio()
+    ruta = tmp_path / "roto.cvproj"
+    guardar(ruta, {"version": 1, "proyecto": "P", "clips": [{"orden": 1}]})
+
+    coord.inicio.abrir_pedido.emit(ruta)
+
+    assert coord.ventanas == []
+    assert coord.inicio.aviso.isVisible()
+
+
 def test_abrir_sin_la_media_no_borra_los_pesos_al_autoguardar(qtbot, tmp_path):
     """EL pendiente de este plan, de punta a punta.
 
@@ -576,3 +607,26 @@ def test_main_aplica_el_stylesheet_global(qtbot, monkeypatch):
     # hexadecimal aqui, la asercion queda obsoleta en silencio (paso: este
     # test afirmaba #08080a, un color que ya no existia en theme.py).
     assert f"background-color: {theme.BG_APP}" in app.styleSheet()
+
+
+def test_un_tamano_ilegible_no_impide_abrir_el_proyecto(qtbot, tmp_path):
+    """Al revés que con los clips: sin el tamaño la tarjeta cae en 16:9 y se
+    ve raro —recuperable, y a la vista—, mientras que un clip perdido se
+    lleva su clasificación sin dejar rastro."""
+    ruta = _proyecto_en(tmp_path, {
+        "tamanos": {"0": "no son dos numeros", "no-es-indice": [10, 20]},
+        "duraciones": {"0": "larga"},
+        "rotaciones": {"0": None},
+        "bytes": {"0": "setecientos"},
+        "rooms": "Sala",                 # ni siquiera es una lista
+    })
+
+    window = abrir_proyecto(ruta, video_factory=_FakeMpv,
+                            recientes_path=tmp_path / "r.json")
+    qtbot.addWidget(window)
+
+    assert window is not None
+    assert window._clip_sizes == {}
+    assert window._clip_durations == {}
+    assert window._bytes_guardados == {}
+    assert window.room_selection.active_rooms() == []

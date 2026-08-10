@@ -68,11 +68,18 @@ def _aplanar_categoria(path: list) -> list[str]:
 
 
 def _clip_from_dict(d: dict) -> Clip:
+    """Un clip desde el JSON. **Truena** si el dato no sirve -- ver `_clips_de`,
+    que es quien atrapa: aqui adentro no se puede decidir si un proyecto a
+    medio corromper se abre igual o no se abre.
+
+    `int` y `float` no son adorno: sin ellos un `"fps": "treinta"` entra sin
+    quejarse y revienta mucho despues, al dividir, con la ventana ya armada.
+    """
     return Clip(
-        orden=d["orden"],
+        orden=int(d["orden"]),
         ruta=Path(d["ruta"]),
         categoria_path=_aplanar_categoria(list(d.get("categoria_path") or [])),
-        fps=d["fps"],
+        fps=float(d["fps"]),
         in_frame=d.get("in_frame"),
         out_frame=d.get("out_frame"),
         flag=d.get("flag", "none"),
@@ -80,8 +87,57 @@ def _clip_from_dict(d: dict) -> Clip:
     )
 
 
-def _poblar_ventana(window: MainWindow, data: dict) -> None:
+def _clips_de(data: dict) -> list[Clip] | None:
+    """Los clips del proyecto, o `None` si alguno no se puede leer.
+
+    Se arman ANTES de construir la ventana, y por eso esto existe: si
+    reventaran a mitad del armado, el error saldria dentro de un slot de Qt
+    --el clic en una fila de la lista-- y una excepcion sin atrapar ahi
+    **aborta el proceso**. Bruno vería la app cerrarse sola por elegir un
+    archivo. Devolviendo `None` se toma el mismo camino que un archivo
+    ilegible, que ya se dice bien.
+
+    Todo o nada, no clip por clip: un proyecto al que le faltan tres clips en
+    silencio es peor que uno que no abre, porque el trabajo de esos tres
+    desaparece sin que nadie se entere.
+    """
+    crudos = data.get("clips")
+    if crudos is None:
+        return []
+    if not isinstance(crudos, list):
+        return None
+    try:
+        return [_clip_from_dict(d) for d in crudos]
+    except (AttributeError, KeyError, TypeError, ValueError):
+        return None
+
+
+def _mapa_por_clip(crudo, convertir) -> dict:
+    """Un `{indice: valor}` del JSON, saltándose lo que no se entiende.
+
+    Aqui SI se descarta entrada por entrada, al reves que con los clips. La
+    diferencia es qué se pierde: sin el tamaño de un clip su tarjeta cae en
+    16:9 y se ve raro --recuperable, y a la vista--, mientras que un clip
+    perdido se lleva su clasificacion sin dejar rastro.
+
+    Y no revienta: esto corre dentro de un slot de Qt, donde una excepcion
+    sin atrapar aborta el proceso.
+    """
+    limpio = {}
+    for llave, valor in (crudo or {}).items() if isinstance(crudo, dict) else ():
+        try:
+            limpio[int(llave)] = convertir(valor)
+        except (KeyError, IndexError, TypeError, ValueError):
+            continue
+    return limpio
+
+
+def _poblar_ventana(window: MainWindow, data: dict, clips: list[Clip]) -> None:
     """Arma la ventana desde el dict de un proyecto.
+
+    Los `clips` llegan ya armados y no se sacan de `data` aqui: armarlos
+    puede fallar, y tiene que fallar ANTES de que exista la ventana (ver
+    `_clips_de`).
 
     Salio de `_restore_session`, que hacia esto Y ademas preguntaba si
     recuperar la sesion escondida. Abrir un proyecto no pregunta nada, asi
@@ -90,11 +146,14 @@ def _poblar_ventana(window: MainWindow, data: dict) -> None:
     sin la mitad del proyecto.
     """
     window.project_name = str(data.get("proyecto") or "Shooting sin nombre")
-    window.room_selection = _rebuild_room_selection(data.get("rooms", []))
+    rooms = data.get("rooms")
+    window.room_selection = _rebuild_room_selection(
+        [str(r) for r in rooms] if isinstance(rooms, list) else []
+    )
     # `category_tree` de proyectos viejos se ignora a proposito: los
     # subcuartos murieron en la F3 y los paths se aplanan al cuarto padre.
     window._router = KeyboardRouter(active_rooms=window.room_selection.active_rooms())
-    window.load_clips([_clip_from_dict(d) for d in data.get("clips", [])])
+    window.load_clips(clips)
     # un proyecto sin la llave "bins" -- porque es de antes de que
     # existieran -- no se pierde: todo el material cae en un bin unico.
     window.bins = BinTree.desde_sesion(
@@ -102,26 +161,18 @@ def _poblar_ventana(window: MainWindow, data: dict) -> None:
     )
     # ANTES de las miniaturas: la duracion decide si se extrae la tira de
     # 12 cuadros o un solo frame, y el tamaño decide la forma de la tarjeta.
-    window._clip_sizes = {
-        int(i): (int(t[0]), int(t[1])) for i, t in (data.get("tamanos") or {}).items()
-    }
-    window._clip_durations = {
-        int(i): float(s) for i, s in (data.get("duraciones") or {}).items()
-    }
-    window._clip_rotations = {
-        int(i): int(r) for i, r in (data.get("rotaciones") or {}).items()
-    }
+    window._clip_sizes = _mapa_por_clip(
+        data.get("tamanos"), lambda t: (int(t[0]), int(t[1]))
+    )
+    window._clip_durations = _mapa_por_clip(data.get("duraciones"), float)
+    window._clip_rotations = _mapa_por_clip(data.get("rotaciones"), int)
     # Lo que hace falta para reencontrar el material si el proyecto se abre
     # en otra computadora. Va DESPUES de `load_clips`, que los limpia --van
     # por indice de clip-- y por eso no se puede adelantar. Llega a tiempo
     # igual: el autoguardado que `load_clips` dejo armado tiene 400 ms de
     # debounce y no corre hasta que esta funcion devuelve.
-    window._relativas = {
-        int(i): str(r) for i, r in (data.get("relativas") or {}).items()
-    }
-    window._bytes_guardados = {
-        int(i): int(b) for i, b in (data.get("bytes") or {}).items()
-    }
+    window._relativas = _mapa_por_clip(data.get("relativas"), str)
+    window._bytes_guardados = _mapa_por_clip(data.get("bytes"), int)
     window._refresh_sheet(force_rebuild=True)
     window._resize_video_stage()
     window._schedule_thumbnails()
@@ -133,6 +184,9 @@ def abrir_proyecto(ruta: Path, video_factory: Callable[..., object] | None = Non
     data = proyecto.abrir(ruta)
     if not proyecto.es_proyecto(data):
         return None
+    clips = _clips_de(data)
+    if clips is None:
+        return None
     window = MainWindow(
         project_name=str(data.get("proyecto") or ruta.stem),
         room_selection=RoomSelection(),
@@ -141,7 +195,7 @@ def abrir_proyecto(ruta: Path, video_factory: Callable[..., object] | None = Non
     # el autoguardado que ya existe escribe donde diga `session_path`: al
     # apuntarlo al .cvproj, guardar el proyecto es lo que la app ya hacia
     window.session_path = ruta
-    _poblar_ventana(window, data)
+    _poblar_ventana(window, data, clips)
     window.resize(1100, 700)
     Recientes(recientes_path or RECIENTES_PATH).registrar(ruta, window.project_name)
     return window
