@@ -81,7 +81,7 @@ def test_la_scrub_bar_es_hija_del_video_no_hermana(qtbot):
 def test_todos_los_overlays_son_hijos_del_video(qtbot):
     stage = _stage(qtbot)
     for widget in (stage.file_label, stage.badges, stage.scrim,
-                   stage.timecode_label, stage.quality):
+                   stage.timecode_label, stage.speed):
         assert widget.parent() is stage.video, widget.objectName()
 
 
@@ -107,11 +107,6 @@ def test_la_scrub_bar_si_recibe_mouse(qtbot):
     """Es el unico overlay interactivo: click y arrastre hacen seek."""
     stage = _stage(qtbot)
     assert not stage.scrub_bar.testAttribute(Qt.WA_TransparentForMouseEvents)
-
-
-def test_el_selector_de_calidad_si_recibe_mouse(qtbot):
-    stage = _stage(qtbot)
-    assert not stage.quality.testAttribute(Qt.WA_TransparentForMouseEvents)
 
 
 def test_los_overlays_se_reposicionan_al_cambiar_el_tamano(qtbot):
@@ -142,10 +137,12 @@ def test_el_nombre_de_archivo_va_arriba_a_la_izquierda(qtbot):
     assert stage.file_label.y() == theme.OVERLAY_MARGIN
 
 
-def test_el_selector_de_calidad_va_arriba_a_la_derecha(qtbot):
+def test_el_control_de_velocidad_va_arriba_a_la_derecha(qtbot):
+    """Ocupa el lugar que tenia el selector de calidad, que se quito el
+    2026-08-10 por no hacer nada."""
     stage = _stage_visible(qtbot)
     qtbot.wait(50)
-    derecha = stage.quality.x() + stage.quality.width()
+    derecha = stage.speed.x() + stage.speed.width()
     assert stage.video.width() - derecha == theme.OVERLAY_MARGIN
 
 
@@ -225,18 +222,9 @@ def test_el_control_de_velocidad_arranca_en_1x(qtbot):
 
 
 def test_el_control_de_velocidad_recibe_mouse(qtbot):
-    """Es interactivo como el de calidad: si fuera transparente al mouse, se
-    veria y no se podria tocar."""
+    """Si fuera transparente al mouse, se veria y no se podria tocar."""
     stage = _stage(qtbot)
     assert not stage.speed.testAttribute(Qt.WA_TransparentForMouseEvents)
-
-
-def test_el_control_de_velocidad_va_a_la_izquierda_del_de_calidad(qtbot):
-    """Ese es su lugar en el mockup, y los dos viven en la misma fila."""
-    stage = _stage_visible(qtbot)
-    qtbot.wait(50)
-    assert stage.speed.x() + stage.speed.width() <= stage.quality.x()
-    assert stage.speed.y() == stage.quality.y()
 
 
 def test_el_segmento_activo_de_velocidad_va_en_ambar_y_no_en_gris(qtbot):
@@ -543,7 +531,7 @@ def test_los_cuatro_badges_juntos_caben_en_un_video_angosto(qtbot):
 
 
 def _fila_de_arriba(stage):
-    return (stage.file_label, stage.speed, stage.quality)
+    return (stage.file_label, stage.speed)
 
 
 def test_ningun_control_de_arriba_se_sale_del_video(qtbot):
@@ -553,7 +541,7 @@ def test_ningun_control_de_arriba_se_sale_del_video(qtbot):
 
     Ojo con el diagnostico: no es la ventana ANGOSTA, es la ventana BAJA.
     Con un clip vertical el ancho del video sale de la altura, asi que a
-    800 px de alto no caben nombre + velocidad + calidad. Por eso las
+    800 px de alto no caben nombre + bin + velocidad. Por eso las
     revisiones anteriores, hechas a 1000 px de alto, no lo veian.
     """
     # _stage_visible y no _stage: `qtbot.addWidget` NO muestra el widget, y
@@ -577,12 +565,14 @@ def test_lo_primero_que_se_esconde_es_la_velocidad(qtbot):
     # sin probar nada.
     stage = _stage_visible(qtbot)
     stage.set_file_label("C0087.MP4    87 / 128")
-    stage.resize(416, 740)
+    # Mas angosto que antes (eran 416): con el selector de calidad fuera
+    # --se quito el 2026-08-10 por no hacer nada-- sobran ~90 px en esa
+    # fila, asi que el aprieto ahora empieza a los 260. Medido, no estimado.
+    stage.resize(250, 740)
     qtbot.wait(1)
 
     assert stage.speed.isHidden()
     assert not stage.file_label.isHidden()
-    assert not stage.quality.isHidden()
 
 
 def test_con_ancho_de_sobra_la_velocidad_vuelve(qtbot):
@@ -600,9 +590,9 @@ def test_con_ancho_de_sobra_la_velocidad_vuelve(qtbot):
 
 
 def test_los_badges_no_se_encaraman_con_la_fila_de_arriba(qtbot):
-    """El nombre del archivo mide 15 px y el selector de calidad 25, y los
+    """El nombre del archivo mide 15 px y los controles 25, y los
     badges se colocaban debajo del NOMBRE -- o sea 2 px por dentro de la
-    caja de la calidad, que es translucida y les comia el borde de arriba.
+    caja del control, que es translucida y les comia el borde de arriba.
 
     Pasaba en los dos anchos desde la F6 y no se veia en la comparacion
     general: hay que ampliar para notarlo.
@@ -613,7 +603,7 @@ def test_los_badges_no_se_encaraman_con_la_fila_de_arriba(qtbot):
     stage.badges.set_proxy("1080p")
     qtbot.wait(1)
 
-    fila_de_arriba = stage.quality.geometry().united(stage.file_label.geometry())
+    fila_de_arriba = stage.speed.geometry().united(stage.file_label.geometry())
     assert not fila_de_arriba.intersects(stage.badges.geometry())
 
 
@@ -622,7 +612,7 @@ def test_los_badges_no_se_encaraman_con_la_fila_de_arriba(qtbot):
 
 def test_el_nombre_del_archivo_no_se_mete_bajo_los_controles(qtbot):
     """Un nombre largo --y el de la app es `archivo   87 / 128`-- crecia
-    hasta pasar POR DEBAJO del selector de calidad: se veia el nombre
+    hasta pasar POR DEBAJO de los controles: se veia el nombre
     cortado a la mitad por una caja translucida encima.
 
     QSS no tiene `text-overflow: ellipsis`, asi que hay que cortarlo a
@@ -632,7 +622,12 @@ def test_el_nombre_del_archivo_no_se_mete_bajo_los_controles(qtbot):
     stage.set_file_label("UN_NOMBRE_DE_ARCHIVO_MUY_LARGO_PARA_UN_CLIP_0001.MP4    87 / 128")
     qtbot.wait(1)
 
-    assert not stage.file_label.geometry().intersects(stage.quality.geometry())
+    # Solo si la velocidad se esta VIENDO: `geometry()` de un widget
+    # escondido sigue devolviendo su rectangulo, asi que compararlo a secas
+    # daba un choque que nadie puede ver. Antes no pasaba porque el control
+    # con el que se comparaba --el de calidad-- nunca se escondia.
+    if not stage.speed.isHidden():
+        assert not stage.file_label.geometry().intersects(stage.speed.geometry())
     assert stage.file_label.geometry().right() <= stage.video.width()
 
 
@@ -756,7 +751,9 @@ def test_la_velocidad_se_va_antes_que_el_bin(qtbot):
     velocidad se sigue cambiando con `J K L` sin mirarla; el bin no tiene
     otro lugar donde leerse en modo clip."""
     stage = _stage_visible(qtbot)
-    stage.resize(460, 700)
+    # Mas angosto que antes (eran 460), por lo mismo: sin el selector de
+    # calidad sobran ~90 px en la fila de arriba.
+    stage.resize(330, 700)
     qtbot.wait(10)
 
     stage.set_file_label("DJI_20260808_0009.MP4", bin_nombre="Dron")
@@ -765,10 +762,10 @@ def test_la_velocidad_se_va_antes_que_el_bin(qtbot):
     assert stage.speed.isHidden()
 
 
-def test_el_bin_no_se_encima_con_el_selector_de_calidad(qtbot):
+def test_el_bin_no_se_encima_con_los_controles(qtbot):
     stage = _stage_visible(qtbot)
 
     stage.set_file_label("C0001.MP4", bin_nombre="Sony FX30")
 
     assert (stage.bin_label.x() + stage.bin_label.width()
-            <= stage.quality.x())
+            <= stage.speed.x())

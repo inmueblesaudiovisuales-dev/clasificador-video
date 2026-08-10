@@ -10,7 +10,6 @@ from PySide6.QtWidgets import QApplication, QMessageBox, QWidget
 from clasificador_video import proxy_gen
 
 from clasificador_video.manifest import Clip
-from clasificador_video.player import QUALITY_PROFILES
 from clasificador_video.rooms import RoomSelection
 from clasificador_video.ui import theme
 from clasificador_video.ui.main_window import (
@@ -130,20 +129,6 @@ def test_presionar_p_marca_pick_en_el_clip_actual(qtbot):
     window.load_clips(clips)
     window.handle_key_press("p")
     assert window.current_clip.flag == "pick"
-
-
-def test_ventana_tiene_reproductor_embebido_y_selector_de_calidad(qtbot):
-    window = _window_with_video(qtbot)
-    assert isinstance(window.video_stage.video, VideoWidget)
-    assert len(window.video_stage.quality.buttons) == len(QUALITY_PROFILES)
-
-
-def test_cambiar_calidad_aplica_el_perfil(qtbot):
-    window = _window_with_video(qtbot)
-    window.show()
-    qtbot.waitExposed(window)
-    window.video_stage.quality.selected.emit("1/2")
-    assert window.video_stage.video.player._mpv.vid_scale == QUALITY_PROFILES["1/2"]
 
 
 def test_leyenda_muestra_el_cuarto_real_de_cada_numero(qtbot):

@@ -214,7 +214,17 @@ class VideoStage(QWidget):
             self.video,
             object_name="speedSegmented",
         )
-        self.quality = SegmentedControl(["Full", "1/2", "1/4", "1/8"], self.video)
+        # Aqui vivia un selector de calidad («Full 1/2 1/4 1/8»). Se quito
+        # el 2026-08-10, cuando Bruno pregunto si hacia diferencia «porque yo
+        # no lo veo»: no la hacia. Le pedia a mpv una propiedad que NO EXISTE
+        # (`vid-scale`), y python-mpv la guardaba como atributo cualquiera sin
+        # quejarse -- comprobado leyendo `mpv --list-properties`.
+        #
+        # Y no se arreglo, se quito: el truco que hace Premiere --decodificar
+        # mas chico-- necesita un codec que se pueda leer por capas (ProRes,
+        # RED). En H.264/HEVC, que es TODO el material de Bruno, cada cuadro
+        # se arma de los anteriores y hay que reconstruirlo completo. La
+        # version de eso que si sirve aqui es el proxy, que ya existe.
         self.scrub_bar = ScrubBar(self.video)
         self.scrub_bar.set_over_video(True)
 
@@ -425,13 +435,10 @@ class VideoStage(QWidget):
         self.top_scrim.setGeometry(0, 0, ancho, TOP_SCRIM_HEIGHT)
 
 
-        self.quality.adjustSize()
-        self.quality.move(ancho - self.quality.width() - M, M)
-
-        # a la izquierda del de calidad, en la misma fila -- es su lugar en
-        # el mockup, y los dos son controles del reproductor
+        # Arriba a la derecha, el lugar que ocupaba el selector de calidad
+        # antes de que se fuera por no hacer nada.
         self.speed.adjustSize()
-        x_velocidad = self.quality.x() - self.speed.width() - 8
+        x_velocidad = ancho - self.speed.width() - M
         # Si no cabe, la velocidad se esconde: es lo que Bruno eligio que se
         # fuera primero, porque `J K L` la siguen cambiando y el nombre del
         # archivo es lo que te dice que clip estas viendo.
@@ -457,9 +464,12 @@ class VideoStage(QWidget):
 
         # Y si ni asi entra, se corta con puntos suspensivos. QSS no tiene
         # `text-overflow: ellipsis`: sin cortarlo, un nombre largo seguia
-        # de largo POR DEBAJO del selector de calidad y se leia partido a
-        # la mitad por una caja translucida encima.
-        limite = (x_velocidad if cabe else self.quality.x()) - M - 8
+        # de largo POR DEBAJO de los controles y se leia partido a la mitad
+        # por una caja translucida encima.
+        #
+        # Con la velocidad escondida el limite es el borde derecho: ya no hay
+        # nada mas alla, y antes se medía contra el selector de calidad.
+        limite = (x_velocidad if cabe else ancho) - M - 8
         # con la velocidad ya fuera, el bin solo se queda si el nombre entero
         # sigue entrando a su lado
         cabe_bin = bool(self._bin_nombre) and limite >= entero + ancho_bin
@@ -492,7 +502,7 @@ class VideoStage(QWidget):
         # calidad --que es translucida-- y les comia el borde de arriba.
         # Pasaba en los dos anchos desde la F6.
         self.badges.adjustSize()
-        alto_fila = max(self.file_label.height(), self.quality.height())
+        alto_fila = max(self.file_label.height(), self.speed.height())
         self.badges.move(M, M + alto_fila + 8)
 
         # El pie se arma de ABAJO hacia arriba: la fila de teclas y la
@@ -516,7 +526,7 @@ class VideoStage(QWidget):
         self.scrim.lower()
         self.top_scrim.lower()
         for encima in (self.file_label, self.bin_label, self.badges,
-                       self.quality, self.speed,
+                       self.speed,
                        self.timecode_label, self.frame_label, self.io_label,
                        self.range_pill, self.keys_hint, self.scrub_bar):
             encima.raise_()

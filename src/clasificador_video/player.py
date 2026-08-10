@@ -4,12 +4,19 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Callable
 
-QUALITY_PROFILES: dict[str, float] = {
-    "Full": 1.0,
-    "1/2": 0.5,
-    "1/4": 0.25,
-    "1/8": 0.125,
-}
+# Aqui vivia QUALITY_PROFILES («Full 1/2 1/4 1/8»), que alimentaba a
+# `set_quality`. Se quito el 2026-08-10: le asignaba a mpv una propiedad que
+# NO EXISTE (`vid-scale` no aparece en `mpv --list-properties`), y python-mpv
+# la guardaba como un atributo cualquiera del objeto sin quejarse. O sea que
+# el control existia, se movia, y no cambiaba absolutamente nada. Bruno lo
+# noto antes que nadie: «el boton de resolucion (por ejemplo, 1/8) si hace
+# diferencia? porque yo no lo veo».
+#
+# Tampoco se reemplazo por algo que si funcione. Bajar la resolucion de
+# DECODIFICACION --lo que hace Premiere-- necesita un codec que se pueda leer
+# por capas (ProRes, RED). El material de Bruno es H.264/HEVC, donde cada
+# cuadro se reconstruye a partir de los anteriores y hay que armarlo entero.
+# La version de eso que si sirve aqui es el proxy, y ya existe.
 
 # Las tres del mockup. `L` cicla entre ellas en este orden y vuelve al inicio.
 SPEED_PROFILES: tuple[float, ...] = (1.0, 2.0, 4.0)
@@ -18,8 +25,7 @@ SPEED_PROFILES: tuple[float, ...] = (1.0, 2.0, 4.0)
 class MpvPlayer:
     """Envoltura delgada sobre python-mpv (spec §6): hwdec=videotoolbox
     fijo (validado en vivo el 2026-08-06 contra HEVC 10-bit real de la
-    FX30), selector de calidad, y marcado de in/out sobre el tiempo
-    actual de reproduccion.
+    FX30) y marcado de in/out sobre el tiempo actual de reproduccion.
     """
 
     def __init__(self, mpv_factory: Callable[..., object]):
@@ -171,11 +177,6 @@ class MpvPlayer:
         """
         del_archivo = getattr(self._mpv, "container_fps", None)
         return del_archivo or fps or 30.0
-
-    def set_quality(self, profile_name: str) -> None:
-        if profile_name not in QUALITY_PROFILES:
-            raise ValueError(f"perfil de calidad desconocido: '{profile_name}'")
-        self._mpv.vid_scale = QUALITY_PROFILES[profile_name]
 
     # Los dos pasan por `self.position`, no por `self._mpv.time_pos`: mpv no
     # reporta la posicion apenas se abre el clip, y leerla cruda hacia que

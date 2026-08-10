@@ -246,6 +246,22 @@ dijo, para no volver a preguntárselo:
   la tarjeta al importar, ordenar la hoja por hora de grabación, detectar
   tomas repetidas.
 
+## Controles que mentían
+
+Van juntos a propósito: **tres de los bugs más caros del proyecto no fueron
+fallas, fueron cosas que decían hacer algo y no lo hacían.** No los encuentra
+la suite —hacen exactamente lo que su código dice— y solo salen usando la app.
+
+- **El selector de calidad** («Full 1/2 1/4 1/8»). Le pedía a mpv una
+  propiedad inexistente. Bruno: «¿sí hace diferencia? porque yo no lo veo».
+  Quitado el 2026-08-10, no arreglado: el truco de Premiere necesita un codec
+  que se lea por capas y el suyo no lo es.
+- **El botón «Cuartos»** de la barra, que solo movía el foco. «No hace nada.»
+- **«Sony FX30»** escrito a mano en el subtítulo, que lo decía igual con
+  material del dron y con el proyecto vacío.
+
+Si aparece un cuarto, vale la pena revisar los demás controles de un jalón.
+
 ## Qué NO es una meta (para no asumir de más)
 
 - **Ninguna función de edición.** La app clasifica y prepara; Premiere edita.

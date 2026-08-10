@@ -646,7 +646,6 @@ class MainWindow(QWidget):
         self.title_bar.proxies_requested.connect(self.adjuntar_proxies)
 
         self.video_stage = VideoStage(mpv_factory=video_factory)
-        self.video_stage.quality.selected.connect(self._on_quality_changed)
         self.video_stage.speed.selected.connect(self._on_speed_changed)
         self.scrub_bar = self.video_stage.scrub_bar
         self.scrub_bar.seek_started.connect(self._on_scrub_seek_started)
@@ -3296,9 +3295,6 @@ class MainWindow(QWidget):
         self._update_scrub_bar()
         self._resize_video_stage()
         self._autosave()
-
-    def _on_quality_changed(self, profile_name: str) -> None:
-        self.video_widget.player.set_quality(profile_name)
 
     def _on_export_manifest(self) -> None:
         unclassified = [c for c in self.clips if not c.categoria_path]

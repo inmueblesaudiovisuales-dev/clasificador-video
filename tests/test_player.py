@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from clasificador_video.player import MpvPlayer, QUALITY_PROFILES, SPEED_PROFILES
+from clasificador_video.player import MpvPlayer, SPEED_PROFILES
 
 
 class FakeMpv:
@@ -70,21 +70,6 @@ def test_play_pause_alterna_el_estado():
     assert player._mpv.pause is False
     player.pause()
     assert player._mpv.pause is True
-
-
-def test_set_quality_aplica_el_perfil_conocido():
-    player = MpvPlayer(mpv_factory=FakeMpv)
-    player.set_quality("1/2")
-    assert player._mpv.vid_scale == QUALITY_PROFILES["1/2"]
-
-
-def test_set_quality_perfil_desconocido_lanza_error_claro():
-    player = MpvPlayer(mpv_factory=FakeMpv)
-    try:
-        player.set_quality("1/16")
-        assert False, "debio lanzar ValueError"
-    except ValueError as e:
-        assert "1/16" in str(e)
 
 
 def test_mark_in_guarda_el_frame_actual_en_segundos_convertido_por_fps():
