@@ -138,7 +138,11 @@ def test_abrir_un_proyecto_carga_sus_clips_y_sus_bins(qtbot, tmp_path):
 def test_abrir_un_proyecto_devuelve_los_tamanos_antes_de_las_miniaturas(qtbot, tmp_path):
     """Sin esto el material vertical se dibujaba en tarjetas horizontales:
     no habia con que calcular el aspecto. Y la duracion decide si se extrae
-    la tira de 12 cuadros o un solo frame, asi que va ANTES de programarlas."""
+    la tira de 12 cuadros o un solo frame, asi que va ANTES de programarlas.
+
+    Las miniaturas ahora se programan cuando termina la revision de media
+    --que corre en otro hilo-- para no pedirle la portada a archivos que no
+    existen, asi que hay que esperarla."""
     ruta = _proyecto_en(tmp_path, {
         "tamanos": {"0": [2160, 3840]},
         "duraciones": {"0": 18.4},
@@ -153,7 +157,7 @@ def test_abrir_un_proyecto_devuelve_los_tamanos_antes_de_las_miniaturas(qtbot, t
     assert window._clip_durations == {0: 18.4}
     assert window._clip_rotations == {0: 90}
     assert window.aspect_ratio_for(0) == 2160 / 3840
-    assert window._thumb_generation == 1
+    qtbot.waitUntil(lambda: window._thumb_generation == 1, timeout=3000)
 
 
 def test_abrir_un_proyecto_trae_lo_que_sirve_para_reencontrar(qtbot, tmp_path):

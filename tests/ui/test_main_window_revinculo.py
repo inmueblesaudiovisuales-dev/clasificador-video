@@ -7,10 +7,12 @@ son tres cosas distintas, y decirle «no lo encontré» cuando lo que pasó fue
 que apareció el `C0001.MP4` de otra tarjeta sería mentirle.
 """
 import json
+import threading
 from pathlib import Path
 
 import pytest
 
+from PySide6.QtCore import QRunnable
 from PySide6.QtWidgets import QWidget
 
 from clasificador_video import revinculo
@@ -580,3 +582,96 @@ def test_un_segundo_clic_mientras_busca_no_hace_nada(ventana, tmp_path, qtbot,
     ventana.reconectar_bin("Dron", nueva)
 
     assert vueltas == [1]
+
+
+# ------------------------------------------- que el aviso llegue de verdad
+
+
+class _Tapon(QRunnable):
+    """Ocupa un hilo del pool hasta que se le diga que suelte."""
+
+    def __init__(self, suelta):
+        super().__init__()
+        self._suelta = suelta
+
+    def run(self):
+        self._suelta.wait(10)
+
+
+def test_el_aviso_llega_aunque_haya_portadas_encoladas(ventana, qtbot):
+    """El aviso que le dice a Bruno «tu material no está» no puede quedar
+    atrás de la extracción de portadas de ese mismo material que no está.
+    Con los 132 clips suyos, eso era no llegar nunca.
+    """
+    ventana.load_clips([_clip(0, "/no/existe/A.MP4")])
+    ventana.bins.agregar("Dron", Path("/no/existe"), [0])
+    suelta = threading.Event()
+    try:
+        for _ in range(ventana._thread_pool.maxThreadCount()):
+            ventana._thread_pool.start(_Tapon(suelta))
+
+        ventana.revisar_media()
+
+        qtbot.waitUntil(lambda: ventana._revisiones_terminadas > 0, timeout=3000)
+        assert ventana.aviso_de_media.text() == "Dron — 1 clip no se encuentra."
+    finally:
+        suelta.set()
+        ventana._thread_pool.waitForDone(10000)
+
+
+def test_no_se_piden_portadas_de_lo_que_no_esta(ventana, qtbot, monkeypatch):
+    """Al abrir en otra computadora no está NINGUNO: eran 132 mpv lanzados
+    contra archivos inexistentes, los tres hilos ocupados y los ventiladores
+    girando — la queja que originó todo el trabajo de proxies."""
+    ventana.load_clips([_clip(0, "/no/existe/A.MP4")])
+    ventana.bins.agregar("Dron", Path("/no/existe"), [0])
+    _revisar(ventana, qtbot)
+    encolados = []
+    monkeypatch.setattr(ventana._thread_pool, "start",
+                        lambda trabajo, *a: encolados.append(trabajo))
+
+    ventana._schedule_thumbnails()
+
+    assert encolados == []
+    assert ventana._miniaturas_pendientes == 0
+
+
+def test_las_portadas_de_lo_que_si_esta_se_siguen_pidiendo(ventana, tmp_path,
+                                                           qtbot, monkeypatch):
+    """Saltarse lo que falta no puede saltarse lo que está."""
+    archivo = tmp_path / "A.MP4"
+    archivo.write_bytes(b"x" * 500)
+    ventana.load_clips([_clip(0, archivo), _clip(1, "/no/existe/B.MP4")])
+    ventana.bins.agregar("Dron", tmp_path, [0, 1])
+    _revisar(ventana, qtbot)
+    encolados = []
+    monkeypatch.setattr(ventana._thread_pool, "start",
+                        lambda trabajo, *a: encolados.append(trabajo))
+
+    ventana._schedule_thumbnails()
+
+    assert [t.index for t in encolados] == [0]
+
+
+def test_al_enganchar_un_proxy_la_insignia_del_bin_se_entera(ventana, tmp_path,
+                                                             qtbot):
+    """El encabezado decía «sin proxies» con un proxy ya validado: la
+    insignia solo se rehacía al reconstruir la hoja, y los resultados del
+    sondeo llegan de a uno mucho después. Visto en el recorrido a mano, no
+    en la suite."""
+    archivo = tmp_path / "A.MP4"
+    archivo.write_bytes(b"x" * 500)
+    proxy = tmp_path / "AS03.MP4"
+    proxy.write_bytes(b"x" * 50)
+    ventana.session_path = tmp_path / "P.cvproj"
+    ventana.load_clips([_clip(0, archivo)])
+    ventana.bins.agregar("Dron", tmp_path, [0])
+    # con qué comparar el proxy: sin original medido no valida ninguno
+    ventana._clip_durations = {0: 10.0}      # 10 s a 30 fps = 300 cuadros
+    ventana._clip_sizes = {0: (1920, 1080)}
+    ventana._refresh_sheet(force_rebuild=True)
+
+    ventana._sondear_proxies({archivo: proxy}, indices=[0])
+    qtbot.waitUntil(lambda: ventana.clips[0].ruta_proxy == proxy, timeout=3000)
+
+    assert ventana.clip_sheet._bin_meta["Dron"]["proxies"] == (1, 1)

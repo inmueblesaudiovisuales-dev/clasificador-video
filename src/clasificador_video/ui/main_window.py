@@ -478,6 +478,15 @@ class MainWindow(QWidget):
         # en vuelo, y esa espera es lo que impide que una señal llegue
         # cuando la ventana ya no puede atenderla.
         self._thread_pool = QThreadPool(self)
+        # La revisión de media tiene el SUYO, y no es un lujo: el otro pool
+        # se llena con las portadas --tres hilos, un trabajo por clip-- y el
+        # aviso que le dice a Bruno «tu material no está» quedaba encolado
+        # detrás de la extracción de ese mismo material que no está. Con sus
+        # 132 clips eso es no llegar nunca. Hijo de la ventana, igual que el
+        # otro: su destructor espera a los trabajos en vuelo, y esa espera es
+        # lo que impide que una señal llegue cuando ya no hay quien la atienda.
+        self._revision_pool = QThreadPool(self)
+        self._revision_pool.setMaxThreadCount(1)
         # las miniaturas se extraen en software (--hwdec=no, ver
         # thumbnails.py) -- no tocan VideoToolbox, asi que un par en
         # paralelo no compite con el reproductor embebido.
@@ -514,6 +523,10 @@ class MainWindow(QWidget):
         # (bin, acción) mientras una búsqueda está corriendo. Ver
         # `_mientras_busca`.
         self._buscando: tuple[str, str] | None = None
+        # si al terminar la revisión hay que pedir las portadas. Solo al
+        # abrir: es el único momento en que hay que esperarla para saber qué
+        # archivos existen.
+        self._portadas_tras_revisar = False
         self._revision_generation = 0
         # cuántas revisiones entregaron resultado. Solo para poder esperarlas
         # desde los tests sin adivinar con un `sleep`.
@@ -1628,7 +1641,7 @@ class MainWindow(QWidget):
     # reencontrar la media (spec §5)
     # ------------------------------------------------------------------
 
-    def revisar_media(self) -> None:
+    def revisar_media(self, luego_portadas: bool = False) -> None:
         """¿Están los archivos donde el proyecto dice? Si no, se avisa.
 
         Se llama al abrir un proyecto. No es una excepción: abrirlo en otra
@@ -1647,8 +1660,9 @@ class MainWindow(QWidget):
         # barra no parpadee a vacío mientras tanto.
         self._ultimo_reencuentro = {}
         self._exitos = {}
+        self._portadas_tras_revisar = luego_portadas
         self._revision_generation += 1
-        self._thread_pool.start(_RevisionDeMediaJob(
+        self._revision_pool.start(_RevisionDeMediaJob(
             self._revision_generation,
             {i: c.ruta for i, c in enumerate(self.clips)},
             {i: c.ruta_proxy for i, c in enumerate(self.clips)
@@ -1665,6 +1679,13 @@ class MainWindow(QWidget):
                                   for i, n in proxies_perdidos.items()}
         self._revisiones_terminadas += 1
         self._refrescar_aviso()
+        if self._portadas_tras_revisar:
+            # Al abrir, las portadas se piden DESPUÉS de saber qué hay: antes
+            # se pedían primero, así que `_faltantes` estaba vacío y se
+            # encolaba un trabajo por cada archivo inexistente. Una sola
+            # tanda completa, igual que antes -- la generación no sube de más.
+            self._portadas_tras_revisar = False
+            self._schedule_thumbnails()
 
     def _on_pesos_medidos(self, generacion: int, pesos: dict) -> None:
         """Los pesos que midió el hilo del guardado, de vuelta en la ventana.
@@ -2443,6 +2464,12 @@ class MainWindow(QWidget):
         if index == self.current_index:
             self._refresh_overlays()
         self.status_bar.set_proxies(*self._resumen_de_proxies())
+        # y la insignia del encabezado del bin, que dice lo MISMO que la
+        # barra de abajo. Se rehacía solo al reconstruir la hoja, y los
+        # resultados del sondeo llegan de a uno bastante después: el
+        # encabezado se quedaba diciendo «sin proxies» con proxies ya
+        # validados. Es barato -- recorre bins en memoria, no toca disco.
+        self._refrescar_meta_de_bins()
 
     def _resumen_de_proxies(self) -> tuple[int, int, str]:
         """Lo que dice el contador: cuantos, de cuantos, y de que tamaño.
@@ -2499,6 +2526,21 @@ class MainWindow(QWidget):
         generation = self._thumb_generation
         cache_root = self._thumbnail_cache_root
         for index in alcance:
+            if index in self._faltantes:
+                # el archivo no está: extraerle una portada es lanzar mpv
+                # contra la nada. Al abrir en otra computadora no está
+                # NINGUNO, así que eran 132 trabajos inútiles ocupando los
+                # tres hilos con los ventiladores girando -- la queja que
+                # originó todo el trabajo de proxies.
+                #
+                # Se mira `_faltantes` --lo que dijo la última revisión-- y
+                # no el disco: preguntarle aquí serían 132 `stat` en serie
+                # en el hilo de la interfaz, que es justo el bug que la
+                # revisión fuera de hilo vino a arreglar.
+                #
+                # Cuando se reconecten se piden con el alcance acotado, que
+                # eso ya funciona (ver `reconectar_bin`).
+                continue
             clip = self.clips[index]
             cache_dir = cache_dir_for(clip.ruta, cache_root)
             cached_frames = sorted(cache_dir.glob("strip_*.jpg")) if cache_dir.exists() else []
