@@ -1229,9 +1229,18 @@ def build_stylesheet() -> str:
         font-size: {FONT_SMALL}px;
         font-weight: 550;
     }}
-    QPushButton#avisoBuscar:hover {{
+    QPushButton#avisoBuscar:hover:enabled {{
         background-color: {BG_SURFACE_1};
         border-color: {CURRENT_COLOR};
+    }}
+    /* apagado mientras una búsqueda corre. Sin esta regla se veía IGUAL que
+       prendido --nuestros colores pisan la paleta de deshabilitado de Qt-- y
+       un botón que se ve prendido y no responde se lee como que la app se
+       trabó, que es justo lo que el renglón «Buscando…» viene a desmentir. */
+    QPushButton#avisoBuscar:disabled {{
+        background-color: transparent;
+        border: 1px solid {LINE_SOFT};
+        color: {TEXT_3};
     }}
 
     QWidget#inicioVacio {{

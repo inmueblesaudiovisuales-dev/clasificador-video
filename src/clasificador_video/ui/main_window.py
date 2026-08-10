@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import shutil
 import time
+from contextlib import contextmanager
 from dataclasses import replace
 from pathlib import Path
 from typing import Callable
@@ -510,6 +511,9 @@ class MainWindow(QWidget):
         # los que ni se buscaron, por no tener ruta relativa. Aparte de «no
         # apareció»: a estos no los salva ninguna carpeta.
         self._sin_donde_buscar: set[int] = set()
+        # (bin, acción) mientras una búsqueda está corriendo. Ver
+        # `_mientras_busca`.
+        self._buscando: tuple[str, str] | None = None
         self._revision_generation = 0
         # cuántas revisiones entregaron resultado. Solo para poder esperarlas
         # desde los tests sin adivinar con un `sleep`.
@@ -1689,19 +1693,34 @@ class MainWindow(QWidget):
         mismo clip, en el mismo lugar de la lista. Por eso no hay nada
         indexado por clip que correr.
         """
+        if self._buscando is not None:
+            return          # ya hay una búsqueda corriendo (ver `_mientras_busca`)
         faltantes = self._faltantes_de_bin(nombre)
         if not faltantes:
             return
-        resultado = revinculo.reencontrar_bin(
-            carpeta,
-            {i: self._relativas[i] for i in faltantes if i in self._relativas},
-            {i: self._bytes_guardados[i] for i in faltantes
-             if i in self._bytes_guardados},
-            revinculo.cuadros_esperados_de(
-                self._clip_durations, {i: c.fps for i, c in enumerate(self.clips)}
-            ),
-            self._probe_clip,
-        )
+        # ESTO CORRE EN EL HILO DE LA INTERFAZ, a diferencia de `revisar_media`,
+        # y es a propósito: aquí Bruno acaba de dar un clic y de elegir una
+        # carpeta, así que una espera se entiende --al abrir un proyecto no
+        # entendería nada--, y volverlo asíncrono le cambiaría la forma a todo
+        # lo que lo prueba a cambio de un beneficio que nadie midió.
+        #
+        # Lo que haría cambiar de opinión: que alguien lo MIDA y duela. Recorre
+        # el árbol de la carpeta (`indice_de_nombres`) y corre un ffprobe por
+        # candidato --26.7 ms cada uno-- así que una tarjeta de 128 GB con los
+        # 109 clips de la Sony es el caso donde esto se va a sentir. Si eso
+        # pasa, el camino es el mismo que ya tomó `_RevisionDeMediaJob`.
+        with self._mientras_busca(nombre, ACCION_MEDIA):
+            resultado = revinculo.reencontrar_bin(
+                carpeta,
+                {i: self._relativas[i] for i in faltantes if i in self._relativas},
+                {i: self._bytes_guardados[i] for i in faltantes
+                 if i in self._bytes_guardados},
+                revinculo.cuadros_esperados_de(
+                    self._clip_durations,
+                    {i: c.fps for i, c in enumerate(self.clips)},
+                ),
+                self._probe_clip,
+            )
         self._ultimo_reencuentro[nombre] = resultado
         # los que ni se buscaron: sin ruta relativa no hay con qué buscarlos.
         # Van aparte de «no apareció en esa carpeta», que suena a que basta
@@ -1743,10 +1762,13 @@ class MainWindow(QWidget):
         en `clips/` y `proxy/`, como llegan de la cámara— así que la carpeta
         que Bruno señaló para los originales muchas veces no los tiene.
         """
+        if self._buscando is not None:
+            return
         indices = [i for i in self.bins.clips_de(nombre)
                    if i in self._proxies_perdidos]
         if indices:
-            self._reenganchar_proxies(indices, carpeta)
+            with self._mientras_busca(nombre, ACCION_PROXIES):
+                self._reenganchar_proxies(indices, carpeta)
             self._refrescar_aviso()
 
     def _reenganchar_proxies(self, indices: list[int], carpeta: Path) -> None:
@@ -1786,6 +1808,36 @@ class MainWindow(QWidget):
                 self._proxies_perdidos.pop(i, None)
         self._sondear_proxies(emparejados, indices=list(indices))
 
+    @contextmanager
+    def _mientras_busca(self, nombre: str, accion: str):
+        """Deja a la vista que está buscando, y no deja lanzar dos búsquedas.
+
+        Buscar corre en el hilo de la interfaz (ver `reconectar_bin`), así
+        que durante ese rato la ventana no se redibuja sola: sin esto se
+        queda muda y congelada, y una app congelada sin ninguna señal se lee
+        como que tronó. Por eso el `repaint()`, que pinta ya mismo en vez de
+        anotar un pedido que nadie va a atender hasta que esto termine.
+
+        `repaint()` y no `processEvents()`: lo segundo entrega también los
+        clics que estén esperando, y el primero de esos sería otro «Buscar…»
+        encima de este. La guarda de reentrada está igual, porque un botón
+        apagado es una promesa de la interfaz y no del dato.
+        """
+        self._buscando = (nombre, accion)
+        try:
+            self._refrescar_aviso()
+            # `activate()` ANTES de repintar, y no es un detalle: los
+            # renglones se acaban de crear y todavia no tienen ni posicion ni
+            # alto --el layout los coloca cuando corre, y no va a correr
+            # hasta que esto termine--. Sin esto, `repaint()` dibujaba una
+            # barra en blanco: el hueco estaba, el texto no. Visto en la
+            # captura, no en un test.
+            self.layout().activate()
+            self.aviso_de_media.repaint()
+            yield
+        finally:
+            self._buscando = None
+
     def _faltantes_de_bin(self, nombre: str) -> list[int]:
         """Qué clips del bin ya no tenían su archivo en la última revisión.
 
@@ -1812,6 +1864,20 @@ class MainWindow(QWidget):
         pero lo reclamaron dos, y «no hay con qué comprobar» es que nadie
         comparó nada.
         """
+        if self._buscando is not None and self._buscando[0] == nombre:
+            # mientras busca, ese bin dice UNA cosa: que está buscando. Lo
+            # de antes ya no describe nada -- se está averiguando ahorita.
+            _, accion = self._buscando
+            de_proxies = accion == ACCION_PROXIES
+            return [Renglon(
+                nombre,
+                "Buscando los proxies en esa carpeta…" if de_proxies
+                else "Buscando en esa carpeta…",
+                tono=TONO_FALTA,
+                boton="Buscar proxies…" if de_proxies else "Buscar…",
+                accion=accion,
+                boton_activo=False,
+            )]
         faltan = set(self._faltantes_de_bin(nombre))
         renglones: list[Renglon] = []
         exito = self._exitos.get(nombre)
@@ -1865,6 +1931,11 @@ class MainWindow(QWidget):
                     renglon.boton = "Buscar…"
                     renglon.accion = ACCION_MEDIA
                     ya_hay = True
+                # y mientras una búsqueda corre se apagan TODOS, no solo los
+                # de su bin: el hilo de la interfaz está ocupado con esa, y
+                # un botón que se ve prendido promete algo que no va a pasar.
+                if self._buscando is not None:
+                    renglon.boton_activo = False
             renglones.extend(del_bin)
         self.aviso_de_media.poner(renglones)
         self._mostrar_aviso_si_toca()

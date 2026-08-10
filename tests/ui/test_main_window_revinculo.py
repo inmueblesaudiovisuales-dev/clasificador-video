@@ -13,6 +13,7 @@ import pytest
 
 from PySide6.QtWidgets import QWidget
 
+from clasificador_video import revinculo
 from clasificador_video.manifest import Clip
 from clasificador_video.rooms import RoomSelection
 from clasificador_video.ui.main_window import MainWindow
@@ -500,3 +501,82 @@ def test_en_solo_video_la_barra_no_reaparece(ventana, qtbot):
     ventana.alternar_solo_video()
 
     assert not ventana.aviso_de_media.isHidden()
+
+
+def _boton_de_buscar(ventana):
+    botones = [b for b in ventana.aviso_de_media.findChildren(QWidget)
+               if b.objectName() == "avisoBuscar"]
+    assert len(botones) == 1
+    return botones[0]
+
+
+def test_mientras_busca_se_ve_que_esta_buscando(ventana, tmp_path, qtbot,
+                                                monkeypatch):
+    """Recorrer una tarjeta de 128 GB tarda, y esto corre en el hilo de la
+    interfaz a propósito. Sin ninguna señal, la ventana congelada y muda se
+    lee como que la app tronó."""
+    nueva = _proyecto_con_un_clip_perdido(ventana, tmp_path, qtbot,
+                                          peso_en_disco=500)
+    # con la ventana MOSTRADA: es la única forma de que los renglones tengan
+    # geometría de verdad, que es la mitad de lo que este test comprueba.
+    ventana.show()
+    visto = {}
+
+    def espiar(*a, **k):
+        visto["texto"] = ventana.aviso_de_media.text()
+        visto["boton"] = _boton_de_buscar(ventana).isEnabled()
+        # el renglón tiene que estar COLOCADO, no solo creado: el layout no
+        # va a correr hasta que esto termine, así que sin activarlo a mano
+        # la barra se dibuja en blanco --el hueco está, el texto no--.
+        visto["a_la_vista"] = [f.isVisible() for f in
+                               ventana.aviso_de_media.findChildren(QWidget)
+                               if f.objectName() == "avisoFila"]
+        return revinculo.Reencuentro({}, [], [])
+
+    monkeypatch.setattr("clasificador_video.revinculo.reencontrar_bin", espiar)
+
+    ventana.reconectar_bin("Dron", nueva)
+
+    assert visto["texto"] == "Dron — Buscando en esa carpeta…"
+    assert visto["boton"] is False
+    assert visto["a_la_vista"] and all(visto["a_la_vista"])
+    # y al terminar deja de decirlo
+    assert "Buscando" not in ventana.aviso_de_media.text()
+
+
+def test_al_buscar_proxies_tambien_se_ve(ventana, tmp_path, qtbot, monkeypatch):
+    nueva = _proyecto_con_un_clip_perdido(ventana, tmp_path, qtbot,
+                                          peso_en_disco=500)
+    ventana.clips[0].ruta_proxy = Path("/viejo/proxy/AS03.MP4")
+    ventana.reconectar_bin("Dron", nueva)
+    visto = {}
+
+    def espiar(*a, **k):
+        visto["texto"] = ventana.aviso_de_media.text()
+        return {}
+
+    monkeypatch.setattr("clasificador_video.revinculo.indice_de_nombres", espiar)
+
+    ventana.reconectar_proxies_de_bin("Dron", tmp_path)
+
+    assert visto["texto"] == "Dron — Buscando los proxies en esa carpeta…"
+
+
+def test_un_segundo_clic_mientras_busca_no_hace_nada(ventana, tmp_path, qtbot,
+                                                     monkeypatch):
+    """El repintado de «Buscando…» no puede abrir la puerta a que se lance
+    una segunda búsqueda encima de la primera."""
+    nueva = _proyecto_con_un_clip_perdido(ventana, tmp_path, qtbot,
+                                          peso_en_disco=500)
+    vueltas = []
+
+    def espiar(*a, **k):
+        vueltas.append(1)
+        ventana.reconectar_bin("Dron", nueva)      # el segundo clic
+        return revinculo.Reencuentro({}, [], [])
+
+    monkeypatch.setattr("clasificador_video.revinculo.reencontrar_bin", espiar)
+
+    ventana.reconectar_bin("Dron", nueva)
+
+    assert vueltas == [1]

@@ -45,6 +45,9 @@ class Renglon:
     quiere_buscar: bool = False
     boton: str | None = None
     accion: str = ACCION_MEDIA
+    # apagado mientras una busqueda esta corriendo: recorrer una tarjeta de
+    # 128 GB tarda, y durante ese rato el boton no puede prometer nada.
+    boton_activo: bool = True
 
 
 class AvisoDeMedia(QWidget):
@@ -73,7 +76,17 @@ class AvisoDeMedia(QWidget):
         self._limpiar()
         self._renglones = list(renglones)
         for renglon in self._renglones:
-            self._caja.addWidget(self._fila(renglon))
+            fila = self._fila(renglon)
+            self._caja.addWidget(fila)
+            # `show()` a mano: meter un widget en un layout NO lo muestra
+            # ahora, lo deja para la siguiente vuelta del bucle de eventos.
+            # Y hay un momento en que esa vuelta no llega: mientras se busca
+            # en la carpeta, que corre en el hilo de la interfaz. Ahí la
+            # barra se dibujaba en blanco --el hueco estaba, el texto no--,
+            # que es peor que no decir nada: parece que la app tronó.
+            # Con el padre escondido esto no lo muestra: `isVisible()` sigue
+            # siendo falso hasta que el padre aparezca.
+            fila.show()
 
     def tiene_avisos(self) -> bool:
         """Si hay algo que decir. Lo usa `solo video` para no volver a
@@ -113,6 +126,7 @@ class AvisoDeMedia(QWidget):
         if renglon.boton:
             boton = QPushButton(renglon.boton, fila)
             boton.setObjectName("avisoBuscar")
+            boton.setEnabled(renglon.boton_activo)
             boton.clicked.connect(
                 lambda _=False, n=renglon.bin, a=renglon.accion:
                     self.buscar_pedido.emit(n, a)
