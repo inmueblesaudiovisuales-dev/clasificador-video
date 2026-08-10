@@ -72,3 +72,28 @@ def test_un_proxy_de_camara_no_entra_como_clip(tmp_path):
     (tmp_path / "C0001S03.MP4").touch()
 
     assert archivos_de_video([tmp_path]) == [tmp_path / "C0001.MP4"]
+
+
+def test_el_lrf_del_dron_no_entra_como_clip(tmp_path):
+    """DJI escribe un `.LRF` --su propio proxy-- junto a cada `.MP4`, en la
+    misma carpeta. Al arrastrar la tarjeta completa cada toma del dron
+    entraba DOS veces, igual que pasaba con los `S03` de la Sony.
+
+    No se queda como material «por si acaso»: se midio contra la carpeta
+    real de Bruno y el `.LRF` NO calza cuadro a cuadro con el original --el
+    contenido va corrido entre 0 y 5 cuadros, y el desfase cambia de toma
+    en toma--, asi que ni siquiera sirve de proxy. Bruno lo decidio el
+    2026-08-10: fuera.
+    """
+    (tmp_path / "DJI_0001.MP4").touch()
+    (tmp_path / "DJI_0001.LRF").touch()
+
+    assert archivos_de_video([tmp_path]) == [tmp_path / "DJI_0001.MP4"]
+
+
+def test_un_lrf_solo_tampoco_entra(tmp_path):
+    """Aunque no tenga su `.MP4` al lado: sigue sin poder marcarse in/out
+    encima."""
+    (tmp_path / "DJI_0001.LRF").touch()
+
+    assert archivos_de_video([tmp_path]) == []

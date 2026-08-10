@@ -2071,8 +2071,9 @@ class MainWindow(QWidget):
             QMessageBox.information(
                 self, "Nada que importar",
                 "En lo que elegiste no hay archivos de video que la app "
-                "reconozca.\n\nSe aceptan .mp4, .mov, .mxf y .lrf. Los proxies "
-                "de cámara (los que terminan en S03) se descartan a propósito.",
+                "reconozca.\n\nSe aceptan .mp4, .mov y .mxf. Los proxies de "
+                "cámara (los que terminan en S03 y los .LRF del dron) se "
+                "descartan a propósito.",
             )
             return
         ya_estan = {c.ruta for c in self.clips}

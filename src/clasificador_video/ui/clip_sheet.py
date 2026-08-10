@@ -1255,7 +1255,7 @@ class _ZonaDeBinNuevo(QWidget):
             # el subtitulo tambien: dejarlo prometiendo el bin decia lo
             # contrario del renglon de arriba
             self.hint_label.setText(
-                "se aceptan .mp4, .mov, .mxf y .lrf · los proxies de cámara "
+                "se aceptan .mp4, .mov y .mxf · los proxies de cámara "
                 "se descartan a propósito"
             )
             return
