@@ -12,7 +12,7 @@
 
 ## Notas para quien ejecute este plan
 
-- La carpeta del proyecto es `/Users/brunogutierrez/Documents/CLAUDE CODE/ORGANIZADOR VIDEO` — tiene espacios en el nombre, hay que citarla entre comillas en cualquier comando de shell.
+- La carpeta del proyecto es `<RAIZ-DEL-REPO>` — tiene espacios en el nombre, hay que citarla entre comillas en cualquier comando de shell.
 - Ya existe un repositorio git inicializado ahí, con un commit del handoff original y otro del spec. Este plan sigue commiteando sobre esa misma rama (`master`).
 - El paso final (importar el XML generado en Premiere y confirmar visualmente que los cortes caen donde deben) es un paso **manual, no automatizable** — lo hace el usuario, no el agente. El Task 13 deja instrucciones exactas para ese paso.
 
@@ -29,7 +29,7 @@
 - [ ] **Step 1: Crear la estructura de carpetas**
 
 ```bash
-cd "/Users/brunogutierrez/Documents/CLAUDE CODE/ORGANIZADOR VIDEO"
+cd "<RAIZ-DEL-REPO>"
 mkdir -p src/clasificador_video tests scripts
 touch src/clasificador_video/__init__.py
 ```
@@ -37,7 +37,7 @@ touch src/clasificador_video/__init__.py
 - [ ] **Step 2: Crear el entorno virtual e instalar pytest**
 
 ```bash
-cd "/Users/brunogutierrez/Documents/CLAUDE CODE/ORGANIZADOR VIDEO"
+cd "<RAIZ-DEL-REPO>"
 python3 -m venv .venv
 source .venv/bin/activate
 pip install pytest
@@ -70,13 +70,13 @@ __pycache__/
 
 - [ ] **Step 6: Verificar que pytest corre sin pruebas todavía**
 
-Run: `cd "/Users/brunogutierrez/Documents/CLAUDE CODE/ORGANIZADOR VIDEO" && source .venv/bin/activate && pytest -v`
+Run: `cd "<RAIZ-DEL-REPO>" && source .venv/bin/activate && pytest -v`
 Expected: `no tests ran` (sin errores de configuración)
 
 - [ ] **Step 7: Commit**
 
 ```bash
-cd "/Users/brunogutierrez/Documents/CLAUDE CODE/ORGANIZADOR VIDEO"
+cd "<RAIZ-DEL-REPO>"
 git add pyproject.toml requirements.txt .gitignore src/clasificador_video/__init__.py
 git commit -m "chore: scaffold del proyecto Python (pytest, src layout)"
 ```
@@ -129,7 +129,7 @@ def test_fps_5994_es_ntsc_timebase_60():
 
 - [ ] **Step 2: Correr la prueba y confirmar que falla**
 
-Run: `cd "/Users/brunogutierrez/Documents/CLAUDE CODE/ORGANIZADOR VIDEO" && source .venv/bin/activate && pytest tests/test_rate.py -v`
+Run: `cd "<RAIZ-DEL-REPO>" && source .venv/bin/activate && pytest tests/test_rate.py -v`
 Expected: FAIL — `ModuleNotFoundError: No module named 'clasificador_video.rate'`
 
 - [ ] **Step 3: Implementación mínima**
@@ -151,13 +151,13 @@ def rate_for_fps(fps: float) -> tuple[int, bool]:
 
 - [ ] **Step 4: Correr la prueba y confirmar que pasa**
 
-Run: `cd "/Users/brunogutierrez/Documents/CLAUDE CODE/ORGANIZADOR VIDEO" && source .venv/bin/activate && pytest tests/test_rate.py -v`
+Run: `cd "<RAIZ-DEL-REPO>" && source .venv/bin/activate && pytest tests/test_rate.py -v`
 Expected: PASS (5 passed)
 
 - [ ] **Step 5: Commit**
 
 ```bash
-cd "/Users/brunogutierrez/Documents/CLAUDE CODE/ORGANIZADOR VIDEO"
+cd "<RAIZ-DEL-REPO>"
 git add src/clasificador_video/rate.py tests/test_rate.py
 git commit -m "feat: calculo de timebase/ntsc a partir del fps real"
 ```
@@ -213,7 +213,7 @@ def test_flag_por_defecto_es_none():
 
 - [ ] **Step 2: Correr la prueba y confirmar que falla**
 
-Run: `cd "/Users/brunogutierrez/Documents/CLAUDE CODE/ORGANIZADOR VIDEO" && source .venv/bin/activate && pytest tests/test_models.py -v`
+Run: `cd "<RAIZ-DEL-REPO>" && source .venv/bin/activate && pytest tests/test_models.py -v`
 Expected: FAIL — `ModuleNotFoundError: No module named 'clasificador_video.models'`
 
 - [ ] **Step 3: Implementación mínima**
@@ -247,13 +247,13 @@ class ClipSpec:
 
 - [ ] **Step 4: Correr la prueba y confirmar que pasa**
 
-Run: `cd "/Users/brunogutierrez/Documents/CLAUDE CODE/ORGANIZADOR VIDEO" && source .venv/bin/activate && pytest tests/test_models.py -v`
+Run: `cd "<RAIZ-DEL-REPO>" && source .venv/bin/activate && pytest tests/test_models.py -v`
 Expected: PASS (3 passed)
 
 - [ ] **Step 5: Commit**
 
 ```bash
-cd "/Users/brunogutierrez/Documents/CLAUDE CODE/ORGANIZADOR VIDEO"
+cd "<RAIZ-DEL-REPO>"
 git add src/clasificador_video/models.py tests/test_models.py
 git commit -m "feat: modelo ClipSpec con in/out efectivo"
 ```
@@ -309,7 +309,7 @@ def test_probe_sin_audio():
 
 - [ ] **Step 2: Correr la prueba y confirmar que falla**
 
-Run: `cd "/Users/brunogutierrez/Documents/CLAUDE CODE/ORGANIZADOR VIDEO" && source .venv/bin/activate && pytest tests/test_probe.py -v`
+Run: `cd "<RAIZ-DEL-REPO>" && source .venv/bin/activate && pytest tests/test_probe.py -v`
 Expected: FAIL — `ModuleNotFoundError: No module named 'clasificador_video.probe'`
 
 - [ ] **Step 3: Implementación mínima**
@@ -362,13 +362,13 @@ def probe_clip(path: Path, runner: Callable[[Path], str] = _run_ffprobe) -> dict
 
 - [ ] **Step 4: Correr la prueba y confirmar que pasa**
 
-Run: `cd "/Users/brunogutierrez/Documents/CLAUDE CODE/ORGANIZADOR VIDEO" && source .venv/bin/activate && pytest tests/test_probe.py -v`
+Run: `cd "<RAIZ-DEL-REPO>" && source .venv/bin/activate && pytest tests/test_probe.py -v`
 Expected: PASS (2 passed)
 
 - [ ] **Step 5: Commit**
 
 ```bash
-cd "/Users/brunogutierrez/Documents/CLAUDE CODE/ORGANIZADOR VIDEO"
+cd "<RAIZ-DEL-REPO>"
 git add src/clasificador_video/probe.py tests/test_probe.py
 git commit -m "feat: sondeo de metadatos de clip via ffprobe"
 ```
@@ -410,7 +410,7 @@ def test_pathurl_codifica_espacios():
 
 - [ ] **Step 2: Correr la prueba y confirmar que falla**
 
-Run: `cd "/Users/brunogutierrez/Documents/CLAUDE CODE/ORGANIZADOR VIDEO" && source .venv/bin/activate && pytest tests/test_xmeml_helpers.py -v`
+Run: `cd "<RAIZ-DEL-REPO>" && source .venv/bin/activate && pytest tests/test_xmeml_helpers.py -v`
 Expected: FAIL — `ModuleNotFoundError: No module named 'clasificador_video.xmeml'`
 
 - [ ] **Step 3: Implementación mínima**
@@ -436,13 +436,13 @@ def _pathurl(path: Path) -> str:
 
 - [ ] **Step 4: Correr la prueba y confirmar que pasa**
 
-Run: `cd "/Users/brunogutierrez/Documents/CLAUDE CODE/ORGANIZADOR VIDEO" && source .venv/bin/activate && pytest tests/test_xmeml_helpers.py -v`
+Run: `cd "<RAIZ-DEL-REPO>" && source .venv/bin/activate && pytest tests/test_xmeml_helpers.py -v`
 Expected: PASS (3 passed)
 
 - [ ] **Step 5: Commit**
 
 ```bash
-cd "/Users/brunogutierrez/Documents/CLAUDE CODE/ORGANIZADOR VIDEO"
+cd "<RAIZ-DEL-REPO>"
 git add src/clasificador_video/xmeml.py tests/test_xmeml_helpers.py
 git commit -m "feat: helpers de rate XML y pathurl codificado"
 ```
@@ -509,7 +509,7 @@ def test_file_pathurl_y_duracion():
 
 - [ ] **Step 2: Correr la prueba y confirmar que falla**
 
-Run: `cd "/Users/brunogutierrez/Documents/CLAUDE CODE/ORGANIZADOR VIDEO" && source .venv/bin/activate && pytest tests/test_xmeml_file.py -v`
+Run: `cd "<RAIZ-DEL-REPO>" && source .venv/bin/activate && pytest tests/test_xmeml_file.py -v`
 Expected: FAIL — `ImportError: cannot import name '_file_xml'`
 
 - [ ] **Step 3: Implementación**
@@ -554,13 +554,13 @@ def _file_xml(clip: ClipSpec, file_id: str) -> str:
 
 - [ ] **Step 4: Correr la prueba y confirmar que pasa**
 
-Run: `cd "/Users/brunogutierrez/Documents/CLAUDE CODE/ORGANIZADOR VIDEO" && source .venv/bin/activate && pytest tests/test_xmeml_file.py -v`
+Run: `cd "<RAIZ-DEL-REPO>" && source .venv/bin/activate && pytest tests/test_xmeml_file.py -v`
 Expected: PASS (3 passed)
 
 - [ ] **Step 5: Commit**
 
 ```bash
-cd "/Users/brunogutierrez/Documents/CLAUDE CODE/ORGANIZADOR VIDEO"
+cd "<RAIZ-DEL-REPO>"
 git add src/clasificador_video/xmeml.py tests/test_xmeml_file.py
 git commit -m "feat: bloque file XML, audio solo si el clip tiene pista real"
 ```
@@ -624,7 +624,7 @@ def test_clipitem_con_in_out_marcados():
 
 - [ ] **Step 2: Correr la prueba y confirmar que falla**
 
-Run: `cd "/Users/brunogutierrez/Documents/CLAUDE CODE/ORGANIZADOR VIDEO" && source .venv/bin/activate && pytest tests/test_xmeml_clipitem.py -v`
+Run: `cd "<RAIZ-DEL-REPO>" && source .venv/bin/activate && pytest tests/test_xmeml_clipitem.py -v`
 Expected: FAIL — `ImportError: cannot import name '_clipitem_xml'`
 
 - [ ] **Step 3: Implementación**
@@ -650,13 +650,13 @@ def _clipitem_xml(clip: ClipSpec, clipitem_id: str, masterclip_id: str, file_xml
 
 - [ ] **Step 4: Correr la prueba y confirmar que pasa**
 
-Run: `cd "/Users/brunogutierrez/Documents/CLAUDE CODE/ORGANIZADOR VIDEO" && source .venv/bin/activate && pytest tests/test_xmeml_clipitem.py -v`
+Run: `cd "<RAIZ-DEL-REPO>" && source .venv/bin/activate && pytest tests/test_xmeml_clipitem.py -v`
 Expected: PASS (2 passed)
 
 - [ ] **Step 5: Commit**
 
 ```bash
-cd "/Users/brunogutierrez/Documents/CLAUDE CODE/ORGANIZADOR VIDEO"
+cd "<RAIZ-DEL-REPO>"
 git add src/clasificador_video/xmeml.py tests/test_xmeml_clipitem.py
 git commit -m "feat: clipitem con in/out por numero de frame"
 ```
@@ -720,7 +720,7 @@ def test_clip_reject_tiene_label_rose():
 
 - [ ] **Step 2: Correr la prueba y confirmar que falla**
 
-Run: `cd "/Users/brunogutierrez/Documents/CLAUDE CODE/ORGANIZADOR VIDEO" && source .venv/bin/activate && pytest tests/test_xmeml_clip.py -v`
+Run: `cd "<RAIZ-DEL-REPO>" && source .venv/bin/activate && pytest tests/test_xmeml_clip.py -v`
 Expected: FAIL — `ImportError: cannot import name '_clip_xml'`
 
 - [ ] **Step 3: Implementación**
@@ -761,13 +761,13 @@ def _clip_xml(clip: ClipSpec, index: int) -> str:
 
 - [ ] **Step 4: Correr la prueba y confirmar que pasa**
 
-Run: `cd "/Users/brunogutierrez/Documents/CLAUDE CODE/ORGANIZADOR VIDEO" && source .venv/bin/activate && pytest tests/test_xmeml_clip.py -v`
+Run: `cd "<RAIZ-DEL-REPO>" && source .venv/bin/activate && pytest tests/test_xmeml_clip.py -v`
 Expected: PASS (3 passed)
 
 - [ ] **Step 5: Commit**
 
 ```bash
-cd "/Users/brunogutierrez/Documents/CLAUDE CODE/ORGANIZADOR VIDEO"
+cd "<RAIZ-DEL-REPO>"
 git add src/clasificador_video/xmeml.py tests/test_xmeml_clip.py
 git commit -m "feat: masterclip con label de color para pick/reject"
 ```
@@ -830,7 +830,7 @@ def test_clip_sin_categoria_cae_en_sin_clasificar():
 
 - [ ] **Step 2: Correr la prueba y confirmar que falla**
 
-Run: `cd "/Users/brunogutierrez/Documents/CLAUDE CODE/ORGANIZADOR VIDEO" && source .venv/bin/activate && pytest tests/test_xmeml_grouping.py -v`
+Run: `cd "<RAIZ-DEL-REPO>" && source .venv/bin/activate && pytest tests/test_xmeml_grouping.py -v`
 Expected: FAIL — `ImportError: cannot import name '_group_by_category'`
 
 - [ ] **Step 3: Implementación**
@@ -853,13 +853,13 @@ def _group_by_category(clips: list[ClipSpec]) -> OrderedDict:
 
 - [ ] **Step 4: Correr la prueba y confirmar que pasa**
 
-Run: `cd "/Users/brunogutierrez/Documents/CLAUDE CODE/ORGANIZADOR VIDEO" && source .venv/bin/activate && pytest tests/test_xmeml_grouping.py -v`
+Run: `cd "<RAIZ-DEL-REPO>" && source .venv/bin/activate && pytest tests/test_xmeml_grouping.py -v`
 Expected: PASS (3 passed)
 
 - [ ] **Step 5: Commit**
 
 ```bash
-cd "/Users/brunogutierrez/Documents/CLAUDE CODE/ORGANIZADOR VIDEO"
+cd "<RAIZ-DEL-REPO>"
 git add src/clasificador_video/xmeml.py tests/test_xmeml_grouping.py
 git commit -m "feat: agrupar clips en arbol de cuarto/subcuarto"
 ```
@@ -927,7 +927,7 @@ def test_counter_incrementa_por_cada_clip():
 
 - [ ] **Step 2: Correr la prueba y confirmar que falla**
 
-Run: `cd "/Users/brunogutierrez/Documents/CLAUDE CODE/ORGANIZADOR VIDEO" && source .venv/bin/activate && pytest tests/test_xmeml_bin.py -v`
+Run: `cd "<RAIZ-DEL-REPO>" && source .venv/bin/activate && pytest tests/test_xmeml_bin.py -v`
 Expected: FAIL — `ImportError: cannot import name '_bin_xml'`
 
 - [ ] **Step 3: Implementación**
@@ -949,13 +949,13 @@ def _bin_xml(name: str, node: OrderedDict, counter: list[int]) -> str:
 
 - [ ] **Step 4: Correr la prueba y confirmar que pasa**
 
-Run: `cd "/Users/brunogutierrez/Documents/CLAUDE CODE/ORGANIZADOR VIDEO" && source .venv/bin/activate && pytest tests/test_xmeml_bin.py -v`
+Run: `cd "<RAIZ-DEL-REPO>" && source .venv/bin/activate && pytest tests/test_xmeml_bin.py -v`
 Expected: PASS (2 passed)
 
 - [ ] **Step 5: Commit**
 
 ```bash
-cd "/Users/brunogutierrez/Documents/CLAUDE CODE/ORGANIZADOR VIDEO"
+cd "<RAIZ-DEL-REPO>"
 git add src/clasificador_video/xmeml.py tests/test_xmeml_bin.py
 git commit -m "feat: bins anidados recursivos en XML"
 ```
@@ -1037,7 +1037,7 @@ def test_documento_con_lista_vacia_no_truena():
 
 - [ ] **Step 2: Correr la prueba y confirmar que falla**
 
-Run: `cd "/Users/brunogutierrez/Documents/CLAUDE CODE/ORGANIZADOR VIDEO" && source .venv/bin/activate && pytest tests/test_xmeml_generate.py -v`
+Run: `cd "<RAIZ-DEL-REPO>" && source .venv/bin/activate && pytest tests/test_xmeml_generate.py -v`
 Expected: FAIL — `ImportError: cannot import name 'generate_xmeml'`
 
 - [ ] **Step 3: Implementación**
@@ -1112,18 +1112,18 @@ def generate_xmeml(project_name: str, clips: list[ClipSpec]) -> str:
 
 - [ ] **Step 4: Correr la prueba y confirmar que pasa**
 
-Run: `cd "/Users/brunogutierrez/Documents/CLAUDE CODE/ORGANIZADOR VIDEO" && source .venv/bin/activate && pytest tests/test_xmeml_generate.py -v`
+Run: `cd "<RAIZ-DEL-REPO>" && source .venv/bin/activate && pytest tests/test_xmeml_generate.py -v`
 Expected: PASS (4 passed)
 
 - [ ] **Step 5: Correr toda la suite completa**
 
-Run: `cd "/Users/brunogutierrez/Documents/CLAUDE CODE/ORGANIZADOR VIDEO" && source .venv/bin/activate && pytest -v`
+Run: `cd "<RAIZ-DEL-REPO>" && source .venv/bin/activate && pytest -v`
 Expected: todas las pruebas de Task 1 a Task 10 en verde (alrededor de 25 pruebas)
 
 - [ ] **Step 6: Commit**
 
 ```bash
-cd "/Users/brunogutierrez/Documents/CLAUDE CODE/ORGANIZADOR VIDEO"
+cd "<RAIZ-DEL-REPO>"
 git add src/clasificador_video/xmeml.py tests/test_xmeml_generate.py
 git commit -m "feat: generate_xmeml arma el documento completo (bins + secuencia)"
 ```
@@ -1204,13 +1204,13 @@ if __name__ == "__main__":
 
 - [ ] **Step 2: Verificar que el script corre sin argumentos reales todavía (falla de forma esperada)**
 
-Run: `cd "/Users/brunogutierrez/Documents/CLAUDE CODE/ORGANIZADOR VIDEO" && source .venv/bin/activate && python scripts/spike_export.py`
+Run: `cd "<RAIZ-DEL-REPO>" && source .venv/bin/activate && python scripts/spike_export.py`
 Expected: `SystemExit: No existe el archivo: /ruta/completa/al/clip/con/audio.MP4` (falla porque el MANIFEST todavía tiene rutas de ejemplo — es correcto en este punto, el usuario las reemplaza en el Task 12)
 
 - [ ] **Step 3: Commit**
 
 ```bash
-cd "/Users/brunogutierrez/Documents/CLAUDE CODE/ORGANIZADOR VIDEO"
+cd "<RAIZ-DEL-REPO>"
 git add scripts/spike_export.py
 git commit -m "feat: script de spike para generar xmeml de validacion con clips reales"
 ```
@@ -1234,7 +1234,7 @@ Reemplazar las tres rutas de ejemplo por las rutas reales de esos clips en disco
 
 - [ ] **Step 3: Correr el script**
 
-Run: `cd "/Users/brunogutierrez/Documents/CLAUDE CODE/ORGANIZADOR VIDEO" && source .venv/bin/activate && python scripts/spike_export.py`
+Run: `cd "<RAIZ-DEL-REPO>" && source .venv/bin/activate && python scripts/spike_export.py`
 Expected: `Escrito: .../spike-output.xml` sin errores
 
 - [ ] **Step 4: Importar en Premiere Pro 2026**

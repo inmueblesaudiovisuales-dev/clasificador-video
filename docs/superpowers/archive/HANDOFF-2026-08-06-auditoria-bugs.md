@@ -43,7 +43,7 @@ App externa del **Clasificador de Video para Bienes Raíces** — una herramient
 
 **137 tests en verde, 37 commits en `master`.**
 
-**Ruta del repo:** `/Users/brunogutierrez/Documents/CLAUDE CODE/ORGANIZADOR VIDEO`
+**Ruta del repo:** `<RAIZ-DEL-REPO>`
 
 ---
 
@@ -224,7 +224,7 @@ El JSON exportado debe tener esta forma exacta:
 ## 5. Cómo ejecutar
 
 ```bash
-cd "/Users/brunogutierrez/Documents/CLAUDE CODE/ORGANIZADOR VIDEO"
+cd "<RAIZ-DEL-REPO>"
 
 # Tests
 .venv/bin/pytest -v --tb=short

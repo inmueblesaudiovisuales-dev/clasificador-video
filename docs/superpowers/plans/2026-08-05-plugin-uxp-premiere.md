@@ -49,7 +49,7 @@ node node_modules/@adobe/uxp-devtools-helper/scripts/devtools_setup.js
 arch -x86_64 node /tmp/uxpcli-install/node_modules/@adobe/uxp-devtools-cli/src/uxp.js apps list
 
 # Cargar / recargar el plugin (desde la carpeta uxp-plugin/)
-cd "/Users/brunogutierrez/Documents/CLAUDE CODE/ORGANIZADOR VIDEO/uxp-plugin"
+cd "<RAIZ-DEL-REPO>/uxp-plugin"
 arch -x86_64 node /tmp/uxpcli-install/node_modules/@adobe/uxp-devtools-cli/src/uxp.js plugin load
 arch -x86_64 node /tmp/uxpcli-install/node_modules/@adobe/uxp-devtools-cli/src/uxp.js plugin reload
 ```
@@ -146,7 +146,7 @@ Expected: aparece el panel con el título, el botón deshabilitado, y el mensaje
 - [ ] **Step 5: Commit**
 
 ```bash
-cd "/Users/brunogutierrez/Documents/CLAUDE CODE/ORGANIZADOR VIDEO"
+cd "<RAIZ-DEL-REPO>"
 git add uxp-plugin/
 git commit -m "chore: scaffold del plugin UXP de produccion"
 ```
@@ -246,7 +246,7 @@ Agregar `<script src="js/autocheck.js"></script>` después de `log.js`, y al fin
 Registrar una prueba de mentiras que siempre pase, recargar por CLI, y confirmar que el archivo aparece:
 
 ```bash
-cd "/Users/brunogutierrez/Documents/CLAUDE CODE/ORGANIZADOR VIDEO/uxp-plugin"
+cd "<RAIZ-DEL-REPO>/uxp-plugin"
 arch -x86_64 node /tmp/uxpcli-install/node_modules/@adobe/uxp-devtools-cli/src/uxp.js plugin reload
 sleep 5 && cat /tmp/clasificador-autocheck/resultado.json
 ```
@@ -258,7 +258,7 @@ Expected: el JSON trae `"fallidas": 0` y el nombre del proyecto desechable. Quit
 - [ ] **Step 5: Commit**
 
 ```bash
-cd "/Users/brunogutierrez/Documents/CLAUDE CODE/ORGANIZADOR VIDEO"
+cd "<RAIZ-DEL-REPO>"
 git add uxp-plugin/js/autocheck.js uxp-plugin/index.html
 git commit -m "chore: arnes de auto-comprobacion que corre al cargar y escribe resultados a disco"
 ```
@@ -318,7 +318,7 @@ Quitar el `addEventListener` de prueba antes de continuar (no se necesita en pro
 - [ ] **Step 4: Commit**
 
 ```bash
-cd "/Users/brunogutierrez/Documents/CLAUDE CODE/ORGANIZADOR VIDEO"
+cd "<RAIZ-DEL-REPO>"
 git add uxp-plugin/js/premiereActions.js uxp-plugin/index.html
 git commit -m "feat: helper runTransaction (lockedAccess + executeTransaction)"
 ```
@@ -383,7 +383,7 @@ Quitar el `addEventListener` de prueba.
 - [ ] **Step 4: Commit**
 
 ```bash
-cd "/Users/brunogutierrez/Documents/CLAUDE CODE/ORGANIZADOR VIDEO"
+cd "<RAIZ-DEL-REPO>"
 git add uxp-plugin/js/bins.js uxp-plugin/index.html
 git commit -m "feat: resolver/crear cadena de bins anidados"
 ```
@@ -504,7 +504,7 @@ document.getElementById("status").addEventListener("click", async () => {
   const clip = await importOrReuseClip(
     project,
     folder,
-    "/Users/brunogutierrez/Documents/CLAUDE CODE/ORGANIZADOR VIDEO/TEST/20260804_PIB0588.MP4"
+    "<RAIZ-DEL-REPO>/TEST/20260804_PIB0588.MP4"
   );
   logToPanel("clip resuelto: " + (clip ? clip.name : "NO ENCONTRADO"));
 });
@@ -521,7 +521,7 @@ Registrar estas comprobaciones con `registrarPrueba(...)`, recargar por CLI, y c
 - [ ] **Step 4: Commit**
 
 ```bash
-cd "/Users/brunogutierrez/Documents/CLAUDE CODE/ORGANIZADOR VIDEO"
+cd "<RAIZ-DEL-REPO>"
 git add uxp-plugin/js/importClip.js uxp-plugin/index.html
 git commit -m "feat: importar o reusar clip existente por ruta (sin duplicar en reexportaciones)"
 ```
@@ -585,7 +585,7 @@ Quitar el `addEventListener` de prueba.
 - [ ] **Step 4: Commit**
 
 ```bash
-cd "/Users/brunogutierrez/Documents/CLAUDE CODE/ORGANIZADOR VIDEO"
+cd "<RAIZ-DEL-REPO>"
 git add uxp-plugin/js/label.js uxp-plugin/index.html
 git commit -m "feat: aplicar color de etiqueta segun pick/reject"
 ```
@@ -648,7 +648,7 @@ Quitar el `addEventListener` de prueba.
 - [ ] **Step 4: Commit**
 
 ```bash
-cd "/Users/brunogutierrez/Documents/CLAUDE CODE/ORGANIZADOR VIDEO"
+cd "<RAIZ-DEL-REPO>"
 git add uxp-plugin/js/inOut.js uxp-plugin/index.html
 git commit -m "feat: aplicar in/out directo sobre el clip maestro"
 ```
@@ -697,11 +697,11 @@ document.getElementById("status").addEventListener("click", async () => {
   const clip = await importOrReuseClip(
     project,
     folder,
-    "/Users/brunogutierrez/Documents/CLAUDE CODE/ORGANIZADOR VIDEO/TEST/20260804_PIB0587.MP4"
+    "<RAIZ-DEL-REPO>/TEST/20260804_PIB0587.MP4"
   );
   const ok = await attachProxyIfPresent(
     clip,
-    "/Users/brunogutierrez/Documents/CLAUDE CODE/ORGANIZADOR VIDEO/TEST/20260804_PIB0587S03.MP4"
+    "<RAIZ-DEL-REPO>/TEST/20260804_PIB0587S03.MP4"
   );
   logToPanel("attachProxy resultado: " + ok);
 });
@@ -714,7 +714,7 @@ Quitar el `addEventListener` de prueba.
 - [ ] **Step 4: Commit**
 
 ```bash
-cd "/Users/brunogutierrez/Documents/CLAUDE CODE/ORGANIZADOR VIDEO"
+cd "<RAIZ-DEL-REPO>"
 git add uxp-plugin/js/proxy.js uxp-plugin/index.html
 git commit -m "feat: adjuntar proxy al clip cuando el manifest lo trae"
 ```
@@ -825,15 +825,15 @@ document.getElementById("status").addEventListener("click", async () => {
     proyecto: "Prueba Task 7",
     clips: [
       {
-        ruta: "/Users/brunogutierrez/Documents/CLAUDE CODE/ORGANIZADOR VIDEO/TEST/20260804_PIB0587.MP4",
+        ruta: "<RAIZ-DEL-REPO>/TEST/20260804_PIB0587.MP4",
         categoria_path: ["PruebaTask7", "Bano"],
         in_frame: 10,
         out_frame: 90,
         flag: "pick",
-        ruta_proxy: "/Users/brunogutierrez/Documents/CLAUDE CODE/ORGANIZADOR VIDEO/TEST/20260804_PIB0587S03.MP4",
+        ruta_proxy: "<RAIZ-DEL-REPO>/TEST/20260804_PIB0587S03.MP4",
       },
       {
-        ruta: "/Users/brunogutierrez/Documents/CLAUDE CODE/ORGANIZADOR VIDEO/TEST/no-existe.MP4",
+        ruta: "<RAIZ-DEL-REPO>/TEST/no-existe.MP4",
         categoria_path: ["PruebaTask7"],
         in_frame: null,
         out_frame: null,
@@ -858,7 +858,7 @@ Quitar el `addEventListener` de prueba.
 - [ ] **Step 4: Commit**
 
 ```bash
-cd "/Users/brunogutierrez/Documents/CLAUDE CODE/ORGANIZADOR VIDEO"
+cd "<RAIZ-DEL-REPO>"
 git add uxp-plugin/js/processManifest.js uxp-plugin/index.html
 git commit -m "feat: procesar un manifest completo, tolerante a errores por clip"
 ```
@@ -925,7 +925,7 @@ Recargar el plugin en UDT, confirmar que no hay errores en la consola al cargar 
 - [ ] **Step 4: Commit**
 
 ```bash
-cd "/Users/brunogutierrez/Documents/CLAUDE CODE/ORGANIZADOR VIDEO"
+cd "<RAIZ-DEL-REPO>"
 git add uxp-plugin/js/processManifest.js
 git commit -m "refactor: el fps del clip viene del manifest, no se infiere en el plugin"
 ```
@@ -1047,7 +1047,7 @@ Crear el archivo `~/Desktop/prueba-task9.json` (en el Escritorio a propósito: c
   "clips": [
     {
       "orden": 1,
-      "ruta": "/Users/brunogutierrez/Documents/CLAUDE CODE/ORGANIZADOR VIDEO/TEST/20260804_PIB0589.MP4",
+      "ruta": "<RAIZ-DEL-REPO>/TEST/20260804_PIB0589.MP4",
       "categoria_path": ["PruebaTask9"],
       "fps": 59.94005994005994,
       "in_frame": null,
@@ -1074,7 +1074,7 @@ Tres de los cuatro se comprueban solos, llamando a las funciones directamente (s
 - [ ] **Step 5: Commit**
 
 ```bash
-cd "/Users/brunogutierrez/Documents/CLAUDE CODE/ORGANIZADOR VIDEO"
+cd "<RAIZ-DEL-REPO>"
 git add uxp-plugin/js/importarManifest.js uxp-plugin/index.html
 git commit -m "feat: boton para elegir e importar una clasificacion, con casos de error cubiertos"
 ```
@@ -1094,7 +1094,7 @@ Si UXP Developer Tools tiene cargado el plugin desde `uxp-plugin/` y además exi
 
 ```bash
 mkdir -p ~/"Library/Application Support/Adobe/UXP/Plugins/External/com.iav.clasificadorvideo_1"
-cp -R "/Users/brunogutierrez/Documents/CLAUDE CODE/ORGANIZADOR VIDEO/uxp-plugin/"* ~/"Library/Application Support/Adobe/UXP/Plugins/External/com.iav.clasificadorvideo_1/"
+cp -R "<RAIZ-DEL-REPO>/uxp-plugin/"* ~/"Library/Application Support/Adobe/UXP/Plugins/External/com.iav.clasificadorvideo_1/"
 ```
 
 El nombre de la carpeta es el id del manifest + guion bajo + **el major de la versión** (`1.0.0` → `_1`).
@@ -1127,7 +1127,7 @@ Notas:
 - [ ] **Step 6: Commit**
 
 ```bash
-cd "/Users/brunogutierrez/Documents/CLAUDE CODE/ORGANIZADOR VIDEO"
+cd "<RAIZ-DEL-REPO>"
 git add uxp-plugin/README.md
 git commit -m "docs: procedimiento de instalacion y actualizacion del plugin"
 ```
@@ -1145,9 +1145,9 @@ La única prueba que se parece a un día de trabajo. Todo lo anterior se verific
 Dos tarjetas distintas producen archivos con el mismo nombre. Simularlo:
 
 ```bash
-mkdir -p "/Users/brunogutierrez/Documents/CLAUDE CODE/ORGANIZADOR VIDEO/TEST/tarjeta2"
-cp "/Users/brunogutierrez/Documents/CLAUDE CODE/ORGANIZADOR VIDEO/TEST/20260804_PIB0588.MP4" \
-   "/Users/brunogutierrez/Documents/CLAUDE CODE/ORGANIZADOR VIDEO/TEST/tarjeta2/20260804_PIB0587.MP4"
+mkdir -p "<RAIZ-DEL-REPO>/TEST/tarjeta2"
+cp "<RAIZ-DEL-REPO>/TEST/20260804_PIB0588.MP4" \
+   "<RAIZ-DEL-REPO>/TEST/tarjeta2/20260804_PIB0587.MP4"
 ```
 
 Ahora existen dos archivos distintos llamados `20260804_PIB0587.MP4` en rutas diferentes.
@@ -1163,17 +1163,17 @@ En `~/Desktop/prueba-e2e.json`, con los cinco casos que importan: dos bins homó
   "clips": [
     {
       "orden": 1,
-      "ruta": "/Users/brunogutierrez/Documents/CLAUDE CODE/ORGANIZADOR VIDEO/TEST/20260804_PIB0587.MP4",
+      "ruta": "<RAIZ-DEL-REPO>/TEST/20260804_PIB0587.MP4",
       "categoria_path": ["Recamara 1", "Bano"],
       "fps": 59.94005994005994,
       "in_frame": 10,
       "out_frame": 90,
       "flag": "pick",
-      "ruta_proxy": "/Users/brunogutierrez/Documents/CLAUDE CODE/ORGANIZADOR VIDEO/TEST/20260804_PIB0587S03.MP4"
+      "ruta_proxy": "<RAIZ-DEL-REPO>/TEST/20260804_PIB0587S03.MP4"
     },
     {
       "orden": 2,
-      "ruta": "/Users/brunogutierrez/Documents/CLAUDE CODE/ORGANIZADOR VIDEO/TEST/tarjeta2/20260804_PIB0587.MP4",
+      "ruta": "<RAIZ-DEL-REPO>/TEST/tarjeta2/20260804_PIB0587.MP4",
       "categoria_path": ["Recamara 2", "Bano"],
       "fps": 59.94005994005994,
       "in_frame": null,
@@ -1183,7 +1183,7 @@ En `~/Desktop/prueba-e2e.json`, con los cinco casos que importan: dos bins homó
     },
     {
       "orden": 3,
-      "ruta": "/Users/brunogutierrez/Documents/CLAUDE CODE/ORGANIZADOR VIDEO/TEST/20260804_PIB0589.MP4",
+      "ruta": "<RAIZ-DEL-REPO>/TEST/20260804_PIB0589.MP4",
       "categoria_path": [],
       "fps": 59.94005994005994,
       "in_frame": 30,
@@ -1219,7 +1219,7 @@ Editar el manifest en memoria: mover el primer clip a `["Cocina"]`. Volver a pro
 - [ ] **Step 5: Limpiar el material de prueba**
 
 ```bash
-rm -rf "/Users/brunogutierrez/Documents/CLAUDE CODE/ORGANIZADOR VIDEO/TEST/tarjeta2"
+rm -rf "<RAIZ-DEL-REPO>/TEST/tarjeta2"
 ```
 
 Tirar también el proyecto de Premiere desechable.
@@ -1262,7 +1262,7 @@ Recargar el plugin, confirmar que carga sin errores y que el botón sigue funcio
 - [ ] **Step 4: Commit**
 
 ```bash
-cd "/Users/brunogutierrez/Documents/CLAUDE CODE/ORGANIZADOR VIDEO"
+cd "<RAIZ-DEL-REPO>"
 git add uxp-plugin/js/secuencia.js uxp-plugin/index.html
 git commit -m "chore: modulo de secuencia vacio, frontera lista para el armado automatico futuro"
 ```
@@ -1302,7 +1302,7 @@ Después de copiar el plugin a la carpeta de plugins de Adobe (Task 10) y **desc
 Ya no debe correr en el plugin que el usuario usa a diario: poner `AUTOCHECK_ACTIVO = false` en `uxp-plugin/js/autocheck.js`, volver a copiar el plugin instalado, y confirmar que el panel arranca limpio.
 
 ```bash
-cd "/Users/brunogutierrez/Documents/CLAUDE CODE/ORGANIZADOR VIDEO"
+cd "<RAIZ-DEL-REPO>"
 git add uxp-plugin/js/autocheck.js
 git commit -m "chore: apagar el arnes de auto-comprobacion para uso diario"
 ```
@@ -1337,7 +1337,7 @@ El generador de xmeml en `src/clasificador_video/` y sus pruebas ya no son el ca
 - [ ] **Step 4: Commit**
 
 ```bash
-cd "/Users/brunogutierrez/Documents/CLAUDE CODE/ORGANIZADOR VIDEO"
+cd "<RAIZ-DEL-REPO>"
 git add docs/ src/
 git commit -m "docs: cierre del plan del plugin UXP, spec y handoff al dia"
 ```

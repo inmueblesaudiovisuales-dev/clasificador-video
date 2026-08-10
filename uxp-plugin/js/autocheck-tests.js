@@ -56,7 +56,10 @@ registrarPrueba("resolveBinChain crea y reusa bins anidados", async (project) =>
 // clips a `sample-media/clips/`. O sea que estaba mal por dos motivos a la
 // vez, y quien corriera esto se habria topado con «archivo no encontrado» en
 // la primera prueba sin saber por que.
-const RUTA_MEDIA = "/Users/brunogutierrez/Documents/CLAUDE CODE/ORGANIZADOR VIDEO/sample-media";
+// Va con un marcador y no con una ruta real desde que el repo es publico:
+// una ruta absoluta de verdad lleva adentro el nombre de usuario de quien la
+// escribio. Cambiala por la tuya antes de correr el arnes.
+const RUTA_MEDIA = "/RUTA/A/ESTE/REPO/sample-media";
 const RUTA_TEST_DIR = RUTA_MEDIA + "/clips";
 // El proxy NO vive junto a los clips: `sample-media/` los separa en `clips/`
 // y `proxy/`, que es como llegan de la tarjeta de la camara.

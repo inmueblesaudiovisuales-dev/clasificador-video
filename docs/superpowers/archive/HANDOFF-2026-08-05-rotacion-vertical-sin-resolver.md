@@ -110,7 +110,7 @@ Se generó un tercer XML de prueba (`rotation-test-raw-dims.xml`, tampoco en git
 ## 7. Cómo reproducir el problema
 
 ```bash
-cd "/Users/brunogutierrez/Documents/CLAUDE CODE/ORGANIZADOR VIDEO"
+cd "<RAIZ-DEL-REPO>"
 source .venv/bin/activate
 python scripts/spike_export.py   # genera spike-output.xml con los 3 clips reales (todos verticales)
 ```

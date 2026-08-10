@@ -724,7 +724,7 @@ EOF
 
 - [ ] **Step 1: Construir un script de verificación**
 
-Crear `/private/tmp/claude-501/-Users-brunogutierrez-Documents-CLAUDE-CODE-ORGANIZADOR-VIDEO/*/scratchpad/verify_scrub_bar.py` (usar el directorio de scratchpad de la sesión activa) que:
+Crear ``<scratchpad-de-la-sesion>/verify_scrub_bar.py`` (usar el directorio de scratchpad de la sesión activa) que:
 1. Construya una `MainWindow` de prueba con un `FakeMpv`/`video_factory` y un `Clip` con `fps=30.0`.
 2. Capture y guarde tres PNGs con `window.grab()`:
    - sin in/out marcado,

@@ -225,7 +225,7 @@ Archivo: `docs/superpowers/plans/2026-08-06-app-externa-clasificador-fase3.md`
 ## 10. Cómo ejecutar
 
 ```bash
-cd "/Users/brunogutierrez/Documents/CLAUDE CODE/ORGANIZADOR VIDEO"
+cd "<RAIZ-DEL-REPO>"
 
 # Instalar (una vez)
 .venv/bin/pip install -e .
