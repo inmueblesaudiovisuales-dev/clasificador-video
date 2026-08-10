@@ -32,10 +32,25 @@ function anotarResultado(nombre, ok, detalle) {
 async function correrAutocheck() {
   if (!AUTOCHECK_ACTIVO) return;
 
+  // Empezar limpio: con el boton de «Correr pruebas» esto se llama varias
+  // veces en la misma sesion, y si no, el JSON de salida acumularia la
+  // corrida vieja junto con la nueva -- o sea que se leeria un fallo que ya
+  // no es cierto.
+  autocheckResultados.length = 0;
+
   const premierepro = require("premierepro");
   const project = await premierepro.Project.getActiveProject();
   if (!project) {
-    anotarResultado("proyecto activo", false, "No hay proyecto abierto en Premiere");
+    // El panel de UXP carga cuando Premiere arranca, que es ANTES de que
+    // haya proyecto abierto. Correr esto al cargar y solo al cargar
+    // convertia un problema de orden en un diagnostico falso: decia «no hay
+    // proyecto» cuando si lo habia, nomas que llego despues. Por eso existe
+    // el boton.
+    anotarResultado(
+      "proyecto activo", false,
+      "getActiveProject() devolvio nulo. Si tienes un proyecto abierto, dale " +
+      "al boton «Correr pruebas» -- el panel carga antes que el proyecto."
+    );
     await escribirResultadoAutocheck();
     return;
   }
