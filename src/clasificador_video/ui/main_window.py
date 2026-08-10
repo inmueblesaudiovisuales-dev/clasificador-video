@@ -2356,6 +2356,11 @@ class MainWindow(QWidget):
                    if 0 <= i < len(self.clips)]
         if not indices:
             return
+        # La carpeta sale del PRIMER clip del bin. Con un bin que junta dos
+        # tarjetas de la misma camara, los proxies de las dos terminan en el
+        # mismo lugar --al lado de la primera-- en vez de uno por tarjeta.
+        # Es a proposito: `faltantes` mira ahi mismo, asi que sigue sin
+        # rehacer lo hecho, y un solo lugar es mas facil de encontrar que dos.
         carpeta = proxy_gen.carpeta_de_proxies(self.clips[indices[0]].ruta.parent)
         # solo los que no tienen proxy YA ENGANCHADO y no tienen archivo en
         # la carpeta de proxies: volver a darle no rehace lo hecho.
