@@ -33,6 +33,24 @@ python -m venv .venv
 
 O con doble click en `scripts/abrir_app.command` una vez instalado.
 
+## Proyectos
+
+La app abre en una lista con tus últimos proyectos. Cada proyecto es **un
+archivo `.cvproj`** que puedes guardar donde quieras, mover y respaldar como
+cualquier otro archivo. **Proyecto nuevo** te pregunta dónde ponerlo y lo crea
+ahí mismo: nunca hay trabajo sin un archivo donde vivir.
+
+De ahí en adelante se guarda solo, en ese archivo, mientras trabajas.
+
+Un proyecto que ya no está en su lugar —el disco desconectado, la carpeta
+movida— **no desaparece de la lista**: se ve apagado y dice que no se
+encuentra.
+
+Si vienes de una versión anterior, lo que tenías clasificado estaba en una
+sesión escondida. La primera vez que abres esta versión se convierte sola en
+un `.cvproj` dentro de `~/Documents` y aparece en la lista. La sesión vieja no
+se borra: queda apartada como `sesion.migrada.json`.
+
 ## Proxies
 
 Se enganchan **a mano**, como el *Attach Proxies* de Premiere: eliges el proxy

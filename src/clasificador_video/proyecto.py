@@ -138,6 +138,23 @@ def guardar(ruta: Path, data: dict) -> None:
         tmp.unlink(missing_ok=True)
 
 
+def es_proyecto(data: dict | None) -> bool:
+    """¿Este JSON es un proyecto de la app, o un archivo de otra cosa?
+
+    `abrir` acepta cualquier JSON que sea un objeto, asi que con «Abrir
+    otro…» se puede elegir un `.json` cualquiera. Sin esta pregunta, ese
+    archivo abriria un «proyecto» vacio sin decir que no lo era, y Bruno
+    veria una ventana en blanco donde creia tener su trabajo.
+
+    Basta con UNA de las dos llaves: los proyectos convertidos de la sesion
+    vieja pueden no traer `version`, y exigir las dos dejaria a Bruno sin
+    poder abrir lo suyo.
+    """
+    if not isinstance(data, dict):
+        return False
+    return "version" in data or "clips" in data
+
+
 def abrir(ruta: Path) -> dict | None:
     """`None` si no se pudo leer. Esto corre al elegir un archivo, asi que
     reventar aqui dejaria a Bruno sin forma de salir."""

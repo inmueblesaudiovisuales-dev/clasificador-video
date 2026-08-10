@@ -11,10 +11,20 @@
 # Si alguna vez vuelve a colgarse, es un bug a resolver, no una limitación a
 # esquivar. Cubre el arranque de la app, que ningún otro test toca.
 import json
+from pathlib import Path
 
-from PySide6.QtWidgets import QMessageBox
+from PySide6.QtWidgets import QFileDialog
 
 from clasificador_video import app as app_module
+from clasificador_video.app import (
+    Coordinador,
+    abrir_proyecto,
+    arrancar_inicio,
+    crear_proyecto,
+    migrar_sesion,
+    migrar_sesion_vieja,
+)
+from clasificador_video.proyecto import abrir, guardar
 from clasificador_video.ui import theme
 
 
@@ -23,10 +33,10 @@ class _FakeMpv:
 
     MpvPlayer crea el reproductor en el constructor (ya no al mostrarse el
     widget), y VideoWidget.player lo crea perezosamente al primer acceso.
-    `arrancar()` accede a `video_widget.open_clip(...)` al restaurar una
-    sesion con clips -- sin este doble, cada prueba de app.py abriria un
-    mpv real y su hilo de eventos, acumulando hilos reales entre pruebas
-    hasta comprometer el proceso (crash nativo documentado en el handoff).
+    Abrir un proyecto con clips abre el primero -- sin este doble, cada
+    prueba de app.py abriria un mpv real y su hilo de eventos, acumulando
+    hilos reales entre pruebas hasta comprometer el proceso (crash nativo
+    documentado en el handoff).
     """
 
     def __init__(self, **kwargs):
@@ -37,69 +47,55 @@ class _FakeMpv:
     def play(self, path):
         pass
 
+    def command(self, *args):
+        pass
 
-def _sesion(tmp_path, categoria_path=None, extra=None):
-    session = tmp_path / "sesion.json"
+
+def _clip_crudo(ruta="/cam/C0001.MP4", categoria_path=None, flag="none"):
+    return {
+        "orden": 1, "ruta": ruta, "fps": 30.0,
+        "categoria_path": categoria_path if categoria_path is not None else [],
+        "in_frame": None, "out_frame": None, "flag": flag, "ruta_proxy": None,
+    }
+
+
+def _documento(extra=None):
     data = {
-        "proyecto": "Casa",
+        "version": 1,
+        "proyecto": "P",
         "rooms": ["Sala"],
-        "clips": [{
-            "orden": 1, "ruta": "/a.MP4", "fps": 30.0,
-            "categoria_path": categoria_path if categoria_path is not None else [],
-            "in_frame": None, "out_frame": None, "flag": "none", "ruta_proxy": None,
-        }],
+        "clips": [_clip_crudo(categoria_path=["Sala"], flag="pick")],
+        "bins": [{"nombre": "Sony", "origen": "/cam", "clips": [0]}],
+        "tamanos": {}, "duraciones": {}, "rotaciones": {},
+        "relativas": {"0": "C0001.MP4"}, "bytes": {},
     }
     data.update(extra or {})
-    session.write_text(json.dumps(data))
-    return session
+    return data
 
 
-# --- F3: se abre directo, sin configurar nada ------------------------------
+def _proyecto_en(tmp_path, extra=None, nombre="P.cvproj"):
+    ruta = tmp_path / nombre
+    guardar(ruta, _documento(extra))
+    return ruta
 
 
-def test_arrancar_abre_directo_y_con_el_rail_vacio(qtbot, tmp_path):
-    """No hay paso previo de 'elige los cuartos': la app abre lista para
-    trabajar y los cuartos se crean sobre la marcha (DECISIONES.md)."""
-    window = app_module.arrancar(
-        video_factory=_FakeMpv, session_path=tmp_path / "sesion.json"
-    )
-    assert window is not None
-    assert window.room_selection.active_rooms() == []
-    assert window.room_rail.rows == []
+def _sesion_vieja(tmp_path, extra=None):
+    """La sesión escondida de antes de que los proyectos tuvieran nombre."""
+    sesion = tmp_path / "sesion.json"
+    data = {
+        "proyecto": "Lo de antes", "rooms": ["Cocina"],
+        "clips": [_clip_crudo(categoria_path=["Cocina"], flag="pick")],
+        "bins": [], "tamanos": {}, "duraciones": {}, "rotaciones": {},
+    }
+    data.update(extra or {})
+    sesion.write_text(json.dumps(data))
+    return sesion
 
 
-def test_arrancar_ya_no_puede_devolver_none(qtbot, tmp_path):
-    """Antes devolvia None si el usuario cancelaba el dialogo. Sin dialogo
-    no hay nada que cancelar, y `main()` ya no comprueba el caso."""
-    assert app_module.arrancar(
-        video_factory=_FakeMpv, session_path=tmp_path / "x.json"
-    ) is not None
+# --- sesiones viejas: lo que se conserva de ellas ---------------------------
 
 
-def test_el_dialogo_de_configuracion_ya_no_existe():
-    assert not hasattr(app_module, "RoomConfigDialog")
-
-
-# --- sesiones guardadas -----------------------------------------------------
-
-
-def test_arrancar_restaura_sesion_si_existe_y_el_usuario_acepta(qtbot, monkeypatch, tmp_path):
-    monkeypatch.setattr(QMessageBox, "question", lambda *a, **k: QMessageBox.Yes)
-    window = app_module.arrancar(video_factory=_FakeMpv, session_path=_sesion(tmp_path))
-    assert window.clips[0].ruta.name == "a.MP4"
-    assert window.room_selection.active_rooms() == ["Sala"]
-
-
-def test_arrancar_restaura_sesion_tambien_programa_miniaturas(qtbot, monkeypatch, tmp_path):
-    """Bug real encontrado en uso: restaurar sesion cargaba los clips pero
-    nunca llamaba a _schedule_thumbnails, dejando la hoja de contactos sin
-    miniaturas hasta la siguiente importacion manual."""
-    monkeypatch.setattr(QMessageBox, "question", lambda *a, **k: QMessageBox.Yes)
-    window = app_module.arrancar(video_factory=_FakeMpv, session_path=_sesion(tmp_path))
-    assert window._thumb_generation == 1
-
-
-def test_una_sesion_vieja_con_subcuartos_se_aplana_al_cuarto_padre(tmp_path):
+def test_una_sesion_vieja_con_subcuartos_se_aplana_al_cuarto_padre():
     """Se conserva el cuarto, que sigue existiendo; se descarta el subcuarto,
     que ya no es representable. Tirar el clip entero seria peor: el editor ya
     tomo esa decision."""
@@ -110,14 +106,413 @@ def test_una_sesion_vieja_con_subcuartos_se_aplana_al_cuarto_padre(tmp_path):
     assert clip.categoria_path == ["Recámara 1"]
 
 
-def test_una_sesion_vieja_con_arbol_de_subcuartos_se_carga_igual(qtbot, monkeypatch, tmp_path):
-    """`category_tree` ya no se escribe, pero una sesion anterior a la F3 lo
-    trae: se ignora en vez de reventar."""
-    monkeypatch.setattr(QMessageBox, "question", lambda *a, **k: QMessageBox.Yes)
-    session = _sesion(tmp_path, extra={"category_tree": {"Recámara 1": ["Baño"]}})
-    window = app_module.arrancar(video_factory=_FakeMpv, session_path=session)
-    assert window.clips[0].ruta.name == "a.MP4"
-    assert not hasattr(window, "category_tree")
+def test_el_dialogo_de_configuracion_ya_no_existe():
+    assert not hasattr(app_module, "RoomConfigDialog")
+
+
+# --- abrir un proyecto -----------------------------------------------------
+
+
+def test_arranca_mostrando_los_recientes(qtbot, tmp_path):
+    inicio = arrancar_inicio(recientes_path=tmp_path / "r.json")
+    qtbot.addWidget(inicio)
+
+    assert inicio.nombres_visibles() == []
+
+
+def test_abrir_un_proyecto_carga_sus_clips_y_sus_bins(qtbot, tmp_path):
+    ruta = _proyecto_en(tmp_path)
+
+    window = abrir_proyecto(ruta, video_factory=_FakeMpv,
+                            recientes_path=tmp_path / "r.json")
+    qtbot.addWidget(window)
+
+    assert window.project_name == "P"
+    assert [c.ruta for c in window.clips] == [Path("/cam/C0001.MP4")]
+    assert window.bins.nombres() == ["Sony"]
+    assert window.clips[0].flag == "pick"
+    assert window.room_selection.active_rooms() == ["Sala"]
+
+
+def test_abrir_un_proyecto_devuelve_los_tamanos_antes_de_las_miniaturas(qtbot, tmp_path):
+    """Sin esto el material vertical se dibujaba en tarjetas horizontales:
+    no habia con que calcular el aspecto. Y la duracion decide si se extrae
+    la tira de 12 cuadros o un solo frame, asi que va ANTES de programarlas."""
+    ruta = _proyecto_en(tmp_path, {
+        "tamanos": {"0": [2160, 3840]},
+        "duraciones": {"0": 18.4},
+        "rotaciones": {"0": 90},
+    })
+
+    window = abrir_proyecto(ruta, video_factory=_FakeMpv,
+                            recientes_path=tmp_path / "r.json")
+    qtbot.addWidget(window)
+
+    assert window._clip_sizes == {0: (2160, 3840)}
+    assert window._clip_durations == {0: 18.4}
+    assert window._clip_rotations == {0: 90}
+    assert window.aspect_ratio_for(0) == 2160 / 3840
+    assert window._thumb_generation == 1
+
+
+def test_abrir_un_proyecto_trae_lo_que_sirve_para_reencontrar(qtbot, tmp_path):
+    ruta = _proyecto_en(tmp_path, {"bytes": {"0": 700}})
+
+    window = abrir_proyecto(ruta, video_factory=_FakeMpv,
+                            recientes_path=tmp_path / "r.json")
+    qtbot.addWidget(window)
+
+    assert window._relativas == {0: "C0001.MP4"}
+    assert window._bytes_guardados == {0: 700}
+
+
+def test_un_proyecto_viejo_sin_bins_cae_en_uno_solo(qtbot, tmp_path):
+    """Un documento de antes de que existieran los bins no trae la llave.
+    No se pierde: todo el material cae en un bin unico."""
+    ruta = _proyecto_en(tmp_path, {"bins": None})
+
+    window = abrir_proyecto(ruta, video_factory=_FakeMpv,
+                            recientes_path=tmp_path / "r.json")
+    qtbot.addWidget(window)
+
+    assert window.bins.nombres() == ["cam"]
+    assert window.bins.clips_de("cam") == [0]
+
+
+def test_abrir_guarda_en_el_archivo_que_bruno_eligio(qtbot, tmp_path):
+    """El autoguardado no cambia: escribe donde diga `session_path`, y eso
+    ahora apunta al .cvproj."""
+    ruta = _proyecto_en(tmp_path)
+
+    window = abrir_proyecto(ruta, video_factory=_FakeMpv,
+                            recientes_path=tmp_path / "r.json")
+    qtbot.addWidget(window)
+
+    assert window.session_path == ruta
+
+
+def test_abrir_lo_registra_en_recientes(qtbot, tmp_path):
+    from clasificador_video.recientes import Recientes
+
+    ruta = _proyecto_en(tmp_path)
+    recientes = tmp_path / "r.json"
+
+    window = abrir_proyecto(ruta, video_factory=_FakeMpv, recientes_path=recientes)
+    qtbot.addWidget(window)
+
+    assert [(e.nombre, e.ruta) for e in Recientes(recientes).lista()] == [("P", ruta)]
+
+
+def test_abrir_algo_ilegible_no_revienta(tmp_path):
+    malo = tmp_path / "roto.cvproj"
+    malo.write_text("esto no es json {")
+
+    assert abrir_proyecto(malo, video_factory=_FakeMpv,
+                          recientes_path=tmp_path / "r.json") is None
+
+
+def test_un_json_cualquiera_no_abre_un_proyecto_vacio(qtbot, tmp_path):
+    """`proyecto.abrir` acepta cualquier JSON que sea un objeto, asi que con
+    «Abrir otro…» se puede elegir un `.json` de otra cosa. Abrirlo como un
+    proyecto vacio seria peor que no abrirlo: Bruno veria una ventana en
+    blanco y creeria que perdio el trabajo."""
+    otro = tmp_path / "config.json"
+    otro.write_text(json.dumps({"tema": "oscuro", "volumen": 0.8}))
+
+    assert abrir_proyecto(otro, video_factory=_FakeMpv,
+                          recientes_path=tmp_path / "r.json") is None
+
+
+def test_un_proyecto_sin_version_pero_con_clips_si_abre(qtbot, tmp_path):
+    """Los .cvproj migrados de la sesion vieja pueden no traer version. Con
+    clips adentro es un proyecto, y exigir las dos cosas dejaria a Bruno sin
+    poder abrir lo suyo."""
+    ruta = tmp_path / "viejo.cvproj"
+    ruta.write_text(json.dumps({"proyecto": "P", "clips": [_clip_crudo()]}))
+
+    window = abrir_proyecto(ruta, video_factory=_FakeMpv,
+                            recientes_path=tmp_path / "r.json")
+    qtbot.addWidget(window)
+
+    assert window is not None
+
+
+def test_abrir_sin_la_media_no_borra_los_pesos_al_autoguardar(qtbot, tmp_path):
+    """EL pendiente de este plan, de punta a punta.
+
+    Guardas con la media conectada, abres el .cvproj en otra computadora, y
+    el autoguardado se dispara solo a los pocos segundos --lo dispara
+    `load_clips`--. Si ahi se reescriben los pesos «como se ven», el archivo
+    queda sin ninguno, porque no hay nada que medir. Y recien entonces Bruno
+    aprieta «Buscar…», ya sin con que confirmar que un archivo es el que era.
+    """
+    ruta = _proyecto_en(tmp_path, {
+        "clips": [_clip_crudo(ruta="/tarjeta/que/no/esta/C0001.MP4")],
+        "bins": [{"nombre": "Sony", "origen": "/tarjeta/que/no/esta",
+                  "clips": [0]}],
+        "bytes": {"0": 700},
+    })
+
+    window = abrir_proyecto(ruta, video_factory=_FakeMpv,
+                            recientes_path=tmp_path / "r.json")
+    qtbot.addWidget(window)
+
+    # el autoguardado quedo armado solo, sin que nadie tocara una tecla
+    assert window._autosave_timer.isActive()
+    qtbot.wait(500)                       # se cumple el debounce y escribe
+    window._autosave_pool.waitForDone(2000)
+
+    assert abrir(ruta)["bytes"] == {"0": 700}
+    assert abrir(ruta)["relativas"] == {"0": "C0001.MP4"}
+
+
+# --- proyecto nuevo --------------------------------------------------------
+
+
+def test_proyecto_nuevo_crea_el_archivo_de_una_vez(qtbot, tmp_path):
+    """Nunca existe trabajo sin un archivo donde vivir: decision de Bruno."""
+    ruta = tmp_path / "Casa Nueva.cvproj"
+
+    window = crear_proyecto(ruta, "Casa Nueva", video_factory=_FakeMpv,
+                            recientes_path=tmp_path / "r.json")
+    qtbot.addWidget(window)
+
+    assert ruta.exists()
+    assert window.project_name == "Casa Nueva"
+    assert window.clips == []
+    assert abrir(ruta)["proyecto"] == "Casa Nueva"
+
+
+def test_proyecto_nuevo_queda_en_recientes(qtbot, tmp_path):
+    from clasificador_video.recientes import Recientes
+
+    recientes = tmp_path / "r.json"
+    window = crear_proyecto(tmp_path / "Casa Nueva.cvproj", "Casa Nueva",
+                            video_factory=_FakeMpv, recientes_path=recientes)
+    qtbot.addWidget(window)
+
+    assert [e.nombre for e in Recientes(recientes).lista()] == ["Casa Nueva"]
+
+
+# --- migrar la sesion vieja ------------------------------------------------
+
+
+def test_la_sesion_vieja_se_convierte_en_proyecto(tmp_path):
+    """Bruno tiene material clasificado en la sesion escondida. Al arrancar
+    con esto por primera vez, NO se pierde."""
+    sesion = _sesion_vieja(tmp_path)
+    destino = tmp_path / "convertido.cvproj"
+
+    assert migrar_sesion(sesion, destino) is True
+
+    data = abrir(destino)
+    assert data["proyecto"] == "Lo de antes"
+    assert data["clips"][0]["flag"] == "pick"
+    assert data["version"] == 1
+    # la vieja NO se borra: se conserva hasta que lo nuevo este a salvo
+    assert sesion.exists()
+
+
+def test_una_sesion_sin_clips_no_se_migra(tmp_path):
+    sesion = _sesion_vieja(tmp_path, {"clips": []})
+
+    assert migrar_sesion(sesion, tmp_path / "x.cvproj") is False
+    assert not (tmp_path / "x.cvproj").exists()
+
+
+def test_migrar_una_sesion_que_no_esta_no_revienta(tmp_path):
+    assert migrar_sesion(tmp_path / "no-esta.json", tmp_path / "x.cvproj") is False
+
+
+def test_la_sesion_migrada_queda_en_recientes(tmp_path):
+    from clasificador_video.recientes import Recientes
+
+    sesion = _sesion_vieja(tmp_path)
+    recientes = tmp_path / "r.json"
+
+    destino = migrar_sesion_vieja(sesion=sesion, carpeta=tmp_path / "docs",
+                                  recientes_path=recientes)
+
+    assert destino == tmp_path / "docs" / "Lo de antes.cvproj"
+    assert [e.nombre for e in Recientes(recientes).lista()] == ["Lo de antes"]
+
+
+def test_la_sesion_vieja_se_migra_una_sola_vez(tmp_path):
+    """Si se migrara en cada arranque, el trabajo de hoy se pisaria con el
+    de la sesion vieja cada vez que Bruno abre la app."""
+    sesion = _sesion_vieja(tmp_path)
+    recientes = tmp_path / "r.json"
+
+    primero = migrar_sesion_vieja(sesion=sesion, carpeta=tmp_path / "docs",
+                                  recientes_path=recientes)
+    segundo = migrar_sesion_vieja(sesion=sesion, carpeta=tmp_path / "docs",
+                                  recientes_path=recientes)
+
+    assert primero is not None
+    assert segundo is None
+
+
+def test_migrar_conserva_la_sesion_vieja_con_todo_adentro(tmp_path):
+    """Se conserva hasta que lo nuevo este a salvo: borrar lo viejo antes de
+    que lo nuevo exista es como se pierden cosas. Se aparta con otro nombre,
+    que ademas es la marca de que ya se migro."""
+    sesion = _sesion_vieja(tmp_path)
+    antes = sesion.read_text()
+
+    migrar_sesion_vieja(sesion=sesion, carpeta=tmp_path / "docs",
+                        recientes_path=tmp_path / "r.json")
+
+    apartada = tmp_path / "sesion.migrada.json"
+    assert apartada.exists()
+    assert apartada.read_text() == antes
+
+
+def test_sin_sesion_vieja_no_hay_nada_que_migrar(tmp_path):
+    assert migrar_sesion_vieja(sesion=tmp_path / "no-esta.json",
+                               carpeta=tmp_path / "docs",
+                               recientes_path=tmp_path / "r.json") is None
+
+
+def test_migrar_no_pisa_un_proyecto_que_ya_estaba_ahi(tmp_path):
+    """Dos migraciones distintas con el mismo nombre de proyecto no se
+    sobreescriben: la segunda busca otro nombre."""
+    docs = tmp_path / "docs"
+    docs.mkdir()
+    (docs / "Lo de antes.cvproj").write_text("{}")
+    sesion = _sesion_vieja(tmp_path)
+
+    destino = migrar_sesion_vieja(sesion=sesion, carpeta=docs,
+                                  recientes_path=tmp_path / "r.json")
+
+    assert destino == docs / "Lo de antes (2).cvproj"
+    assert (docs / "Lo de antes.cvproj").read_text() == "{}"
+
+
+# --- el coordinador: los tres caminos de la pantalla de inicio -------------
+
+
+def _coordinador(tmp_path):
+    return Coordinador(recientes_path=tmp_path / "r.json", video_factory=_FakeMpv)
+
+
+def test_abrir_desde_la_pantalla_esconde_la_pantalla(qtbot, tmp_path):
+    coord = _coordinador(tmp_path)
+    qtbot.addWidget(coord.inicio)
+    ruta = _proyecto_en(tmp_path)
+    coord.mostrar_inicio()
+
+    coord.inicio.abrir_pedido.emit(ruta)
+
+    assert len(coord.ventanas) == 1
+    assert not coord.inicio.isVisible()
+    coord.ventanas[0].close()
+
+
+def test_al_cerrarse_la_ventana_vuelve_la_pantalla(qtbot, tmp_path):
+    coord = _coordinador(tmp_path)
+    qtbot.addWidget(coord.inicio)
+    coord.mostrar_inicio()
+    coord.inicio.abrir_pedido.emit(_proyecto_en(tmp_path))
+    ventana = coord.ventanas[0]
+
+    ventana.close()
+
+    assert coord.ventanas == []
+    assert coord.inicio.isVisible()
+    # y con la lista al dia: el proyecto que se acaba de cerrar esta arriba
+    assert coord.inicio.nombres_visibles() == ["P"]
+
+
+def test_un_proyecto_que_no_abre_deja_la_pantalla_puesta(qtbot, tmp_path, monkeypatch):
+    """Y lo dice, en vez de dejar a Bruno mirando la lista sin entender."""
+    from PySide6.QtWidgets import QMessageBox
+
+    avisos = []
+    monkeypatch.setattr(QMessageBox, "warning",
+                        lambda *a, **k: avisos.append(a[2]))
+    coord = _coordinador(tmp_path)
+    qtbot.addWidget(coord.inicio)
+    coord.mostrar_inicio()
+    malo = tmp_path / "roto.cvproj"
+    malo.write_text("no es json {")
+
+    coord.inicio.abrir_pedido.emit(malo)
+
+    assert coord.ventanas == []
+    assert coord.inicio.isVisible()
+    assert len(avisos) == 1
+
+
+def test_proyecto_nuevo_pide_donde_guardarlo(qtbot, tmp_path, monkeypatch):
+    destino = tmp_path / "Casa Nueva.cvproj"
+    monkeypatch.setattr(QFileDialog, "getSaveFileName",
+                        lambda *a, **k: (str(destino), ""))
+    coord = _coordinador(tmp_path)
+    qtbot.addWidget(coord.inicio)
+    coord.mostrar_inicio()
+
+    coord.inicio.nuevo_pedido.emit()
+
+    assert destino.exists()
+    assert coord.ventanas[0].project_name == "Casa Nueva"
+    coord.ventanas[0].close()
+
+
+def test_cancelar_el_selector_no_crea_nada(qtbot, tmp_path, monkeypatch):
+    monkeypatch.setattr(QFileDialog, "getSaveFileName", lambda *a, **k: ("", ""))
+    coord = _coordinador(tmp_path)
+    qtbot.addWidget(coord.inicio)
+    coord.mostrar_inicio()
+
+    coord.inicio.nuevo_pedido.emit()
+
+    assert coord.ventanas == []
+    assert coord.inicio.isVisible()
+
+
+def test_al_proyecto_nuevo_se_le_pone_la_extension_si_falta(qtbot, tmp_path, monkeypatch):
+    """El selector de macOS deja borrar la extension. Sin ella el archivo no
+    se reconoce como proyecto la proxima vez."""
+    monkeypatch.setattr(QFileDialog, "getSaveFileName",
+                        lambda *a, **k: (str(tmp_path / "Sin extension"), ""))
+    coord = _coordinador(tmp_path)
+    qtbot.addWidget(coord.inicio)
+    coord.mostrar_inicio()
+
+    coord.inicio.nuevo_pedido.emit()
+
+    assert (tmp_path / "Sin extension.cvproj").exists()
+    coord.ventanas[0].close()
+
+
+def test_abrir_otro_usa_el_selector_de_archivos(qtbot, tmp_path, monkeypatch):
+    ruta = _proyecto_en(tmp_path)
+    monkeypatch.setattr(QFileDialog, "getOpenFileName",
+                        lambda *a, **k: (str(ruta), ""))
+    coord = _coordinador(tmp_path)
+    qtbot.addWidget(coord.inicio)
+    coord.mostrar_inicio()
+
+    coord.inicio.abrir_otro_pedido.emit()
+
+    assert coord.ventanas[0].project_name == "P"
+    coord.ventanas[0].close()
+
+
+def test_quitar_un_reciente_lo_saca_de_la_lista(qtbot, tmp_path):
+    coord = _coordinador(tmp_path)
+    qtbot.addWidget(coord.inicio)
+    ruta = _proyecto_en(tmp_path)
+    coord.inicio.abrir_pedido.emit(ruta)
+    coord.ventanas[0].close()
+    assert coord.inicio.nombres_visibles() == ["P"]
+
+    coord.inicio.quitar_pedido.emit(ruta)
+
+    assert coord.inicio.nombres_visibles() == []
+
+
+# --- main() ----------------------------------------------------------------
 
 
 def test_main_aplica_el_stylesheet_global(qtbot, monkeypatch):
@@ -125,15 +520,15 @@ def test_main_aplica_el_stylesheet_global(qtbot, monkeypatch):
 
     QApplication.instance().setStyleSheet("")
 
-    class _Window:
-        clips: list = []
-        video_widget = None
-
-        def show(self):
+    class _CoordinadorFalso:
+        def __init__(self, **kwargs):
             pass
 
-    mock_window = _Window()
-    monkeypatch.setattr(app_module, "arrancar", lambda **kw: mock_window)
+        def mostrar_inicio(self):
+            pass
+
+    monkeypatch.setattr(app_module, "migrar_sesion_vieja", lambda: None)
+    monkeypatch.setattr(app_module, "Coordinador", _CoordinadorFalso)
     monkeypatch.setattr(app_module.QApplication, "exec", lambda self: 0)
     monkeypatch.setattr(app_module.sys, "exit", lambda code=0: None)
 
@@ -144,117 +539,3 @@ def test_main_aplica_el_stylesheet_global(qtbot, monkeypatch):
     # hexadecimal aqui, la asercion queda obsoleta en silencio (paso: este
     # test afirmaba #08080a, un color que ya no existia en theme.py).
     assert f"background-color: {theme.BG_APP}" in app.styleSheet()
-
-
-def test_restaurar_una_sesion_devuelve_los_tamanos(qtbot, tmp_path):
-    """Sin esto, al recuperar la sesion el material vertical se dibujaba
-    en tarjetas horizontales: no habia con que calcular el aspecto."""
-    from clasificador_video.app import _restore_session
-    from PySide6.QtWidgets import QMessageBox
-    import json
-
-    sesion = tmp_path / "s.json"
-    sesion.write_text(json.dumps({
-        "proyecto": "P",
-        "rooms": ["Sala"],
-        "clips": [{"orden": 1, "ruta": "/a.MP4", "categoria_path": ["Sala"],
-                   "fps": 59.94, "in_frame": None, "out_frame": None,
-                   "flag": "none", "ruta_proxy": None}],
-        "tamanos": {"0": [2160, 3840]},
-        "duraciones": {"0": 18.4},
-        "rotaciones": {"0": 90},
-    }))
-    from clasificador_video.ui.main_window import MainWindow
-    from clasificador_video.rooms import RoomSelection
-    ventana = MainWindow(project_name="P", room_selection=RoomSelection(),
-                         thumbnail_cache_root=tmp_path / "cache",
-                         video_factory=_MpvFalso)
-    qtbot.addWidget(ventana)
-    import clasificador_video.app as app_mod
-    original = app_mod.QMessageBox.question
-    app_mod.QMessageBox.question = staticmethod(lambda *a, **k: QMessageBox.Yes)
-    try:
-        _restore_session(ventana, sesion)
-    finally:
-        app_mod.QMessageBox.question = original
-
-    assert ventana._clip_sizes == {0: (2160, 3840)}
-    assert ventana._clip_durations == {0: 18.4}
-    assert ventana.aspect_ratio_for(0) == 2160 / 3840
-
-
-class _MpvFalso:
-    """Restaurar una sesion abre el clip actual, y abrirlo enciende el
-    reproductor. Sin este doble eso es un mpv DE VERDAD, con sus hilos: el
-    segfault intermitente de la suite completa --una de cada ocho corridas--
-    salia de aqui.
-    """
-
-    def __init__(self, **kwargs):
-        self.pause = True
-        self.time_pos = 0.0
-
-    def play(self, path):
-        self.loaded_path = path
-
-    def command(self, *args):
-        pass
-
-
-def _restaurar(tmp_path, data, qtbot):
-    """Ayudante comun a los tests de bins de abajo: arma la sesion, la
-    restaura y devuelve la ventana ya con `bins` puesto (o no)."""
-    from clasificador_video.app import _restore_session
-    from clasificador_video.rooms import RoomSelection
-    from clasificador_video.ui.main_window import MainWindow
-
-    sesion = tmp_path / "s.json"
-    sesion.write_text(json.dumps(data))
-    ventana = MainWindow(project_name="P", room_selection=RoomSelection(),
-                         thumbnail_cache_root=tmp_path / "cache",
-                         video_factory=_MpvFalso)
-    qtbot.addWidget(ventana)
-    original = app_module.QMessageBox.question
-    app_module.QMessageBox.question = staticmethod(lambda *a, **k: QMessageBox.Yes)
-    try:
-        _restore_session(ventana, sesion)
-    finally:
-        app_module.QMessageBox.question = original
-    return ventana
-
-
-def _datos_de_sesion(extra=None):
-    data = {
-        "proyecto": "P",
-        "rooms": ["Sala"],
-        "clips": [
-            {"orden": 1, "ruta": "/cam/A.MP4", "categoria_path": [], "fps": 30.0,
-             "in_frame": None, "out_frame": None, "flag": "none", "ruta_proxy": None},
-            {"orden": 2, "ruta": "/cam/B.MP4", "categoria_path": [], "fps": 30.0,
-             "in_frame": None, "out_frame": None, "flag": "none", "ruta_proxy": None},
-        ],
-    }
-    data.update(extra or {})
-    return data
-
-
-def test_restaurar_una_sesion_con_bins_deja_bins_puestos(qtbot, tmp_path):
-    """La tarea 3 del plan escribio la llave "bins" en el autosave pero
-    nadie probaba que _restore_session la leyera de vuelta -- solo estaba
-    cubierto a nivel BinTree, no en el camino real de arrancar la app."""
-    data = _datos_de_sesion({"bins": [
-        {"nombre": "Sony", "origen": "/cam", "clips": [0, 1]},
-    ]})
-    ventana = _restaurar(tmp_path, data, qtbot)
-
-    assert ventana.bins.nombres() == ["Sony"]
-    assert ventana.bins.clips_de("Sony") == [0, 1]
-
-
-def test_restaurar_una_sesion_vieja_sin_bins_cae_en_uno_solo(qtbot, tmp_path):
-    """Una sesion de antes de que existieran los bins no trae la llave.
-    No se pierde: todo el material cae en un bin unico."""
-    ventana = _restaurar(tmp_path, _datos_de_sesion(), qtbot)
-
-    assert ventana.bins.nombres() == ["cam"]
-    assert ventana.bins.clips_de("cam") == [0, 1]
