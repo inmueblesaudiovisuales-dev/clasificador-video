@@ -14,11 +14,39 @@ import logging
 from dataclasses import dataclass
 from pathlib import Path
 
+from clasificador_video import proyecto
+
 _log = logging.getLogger(__name__)
 
 # cuantos cuadros de diferencia se toleran al confirmar. El mismo margen
 # que usa `_el_proxy_calza`: ffprobe redondea distinto segun el contenedor.
 TOLERANCIA_DE_CUADROS = 1
+
+
+def cuadros_esperados_de(duraciones: dict, fps: dict) -> dict[int, int]:
+    """El puente entre lo que el proyecto guarda y lo que `calza` compara.
+
+    El documento guarda la duracion en **segundos** y aqui se confirma en
+    **cuadros**. Sin este puente pasa una de dos: o media confirmacion no se
+    cablea nunca, o alguien pasa segundos donde van cuadros y entonces no
+    confirma jamas nada -- las dos terminan con Bruno sin poder reconectar.
+
+    Redondea igual que `_el_proxy_calza`, que ya compara asi contra el
+    original. Lo que no tenga los dos datos queda fuera: es mejor confirmar
+    solo por peso que comparar contra un numero inventado.
+    """
+    segundos_por_clip = proyecto.por_indice_de_clip(duraciones)
+    fps_por_clip = proyecto.por_indice_de_clip(fps)
+    cuadros: dict[int, int] = {}
+    for clip, segundos in segundos_por_clip.items():
+        cuadros_por_segundo = fps_por_clip.get(clip)
+        try:
+            total = round(float(segundos) * float(cuadros_por_segundo))
+        except (TypeError, ValueError):
+            continue
+        if total > 0:
+            cuadros[clip] = total
+    return cuadros
 
 
 def indice_de_nombres(carpeta: Path) -> dict[str, list[Path]]:

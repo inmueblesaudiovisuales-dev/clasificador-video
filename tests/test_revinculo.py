@@ -4,6 +4,7 @@ from pathlib import Path
 from clasificador_video.revinculo import (
     buscar_bajo,
     calza,
+    cuadros_esperados_de,
     faltantes_de,
     reencontrar_bin,
 )
@@ -326,3 +327,31 @@ def test_el_arbol_se_recorre_una_sola_vez(tmp_path, monkeypatch):
     )
 
     assert len(barridos) == 1
+
+
+def test_la_duracion_guardada_en_segundos_se_vuelve_cuadros():
+    """El proyecto guarda SEGUNDOS y `calza` compara CUADROS. Sin este
+    puente, o media confirmacion no se cablea nunca, o alguien pasa segundos
+    donde van cuadros y entonces no confirma jamas nada."""
+    assert cuadros_esperados_de({0: 10.0}, {0: 30.0}) == {0: 300}
+
+
+def test_redondea_igual_que_el_proxy():
+    """Mismo criterio que `_el_proxy_calza`, que ya compara asi contra el
+    original: `round(segundos * fps)`."""
+    assert cuadros_esperados_de({0: 3.98}, {0: 29.97}) == {0: 119}
+
+
+def test_sin_fps_no_se_inventan_cuadros():
+    """Mejor confirmar solo por peso que comparar contra un numero
+    inventado: eso rechazaria material bueno."""
+    assert cuadros_esperados_de({0: 10.0}, {}) == {}
+    assert cuadros_esperados_de({0: 10.0}, {0: 0}) == {}
+    assert cuadros_esperados_de({0: "diez"}, {0: 30.0}) == {}
+
+
+def test_las_llaves_pueden_venir_del_json_en_texto():
+    """`duraciones` sale del `.cvproj`, donde toda llave es texto, y los fps
+    salen de los clips en memoria, donde son enteros. Si no se cruzan, esto
+    devuelve vacio en silencio y nada se confirma nunca por duracion."""
+    assert cuadros_esperados_de({"0": 10.0}, {0: 30.0}) == {0: 300}
