@@ -269,14 +269,18 @@ def build_stylesheet() -> str:
         color: {CURRENT_COLOR};
     }}
 
-    QPushButton#startButton, QPushButton#exportButton {{
+    /* `inicioPrimario` --«Proyecto nuevo»-- comparte la regla en vez de
+       tener la suya: es el mismo papel, la accion principal de su pantalla,
+       y dos reglas gemelas se despintan una sin la otra. */
+    QPushButton#startButton, QPushButton#exportButton, QPushButton#inicioPrimario {{
         background-color: {CURRENT_COLOR};
         color: {BG_APP};
         font-weight: 700;
         border: none;
         padding: 10px 16px;
     }}
-    QPushButton#startButton:hover, QPushButton#exportButton:hover {{
+    QPushButton#startButton:hover, QPushButton#exportButton:hover,
+    QPushButton#inicioPrimario:hover {{
         background-color: {PLAYHEAD_HIGHLIGHT};
     }}
 
@@ -1103,6 +1107,71 @@ def build_stylesheet() -> str:
     QWidget#scrubBar {{
         background-color: {BG_SURFACE_0};
         border-radius: 3px;
+    }}
+
+    /* --- la pantalla de inicio (F4 del plan de proyectos) ---
+       Sin colores nuevos: las filas son la superficie de un control en
+       reposo, el titulo es el numero grande que ya usa el rail y la fila
+       apagada baja al gris de lo secundario. */
+    QWidget#pantallaInicio {{
+        background-color: {BG_APP};
+    }}
+    QLabel#inicioTitulo {{
+        color: {TEXT};
+        font-size: {FONT_BIG}px;
+        font-weight: 600;
+    }}
+    /* `text-align: left` y `padding: 0`: la regla generica de QPushButton
+       centra y mete 8x14 px, y aqui adentro hay un layout con dos renglones
+       --el relleno lo pone la fila, no el estilo del boton. */
+    QPushButton#filaReciente {{
+        background-color: {BG_SURFACE_1};
+        border: 1px solid {LINE};
+        border-radius: {RADIUS_LG}px;
+        padding: 0px;
+        text-align: left;
+    }}
+    QPushButton#filaReciente:hover {{
+        background-color: {BG_SURFACE_2};
+        border-color: {CURRENT_COLOR};
+    }}
+    /* el que ya no esta en su lugar: se hunde al fondo de la app y pierde
+       el borde visible, para que se lea como «esta, pero no se puede» */
+    QPushButton#filaReciente:disabled {{
+        background-color: {BG_SURFACE_0};
+        border: 1px solid {LINE_SOFT};
+    }}
+    /* transparente NO es redundante: la regla global de QWidget le pinta el
+       fondo de la app a toda QLabel, y sobre la fila eso se ve como dos
+       cajas oscuras encima del nombre y la ruta. */
+    QLabel#recienteNombre {{
+        background-color: transparent;
+        color: {TEXT};
+        font-size: {FONT_BODY}px;
+        font-weight: 600;
+    }}
+    QLabel#recienteDetalle {{
+        background-color: transparent;
+        color: {TEXT_3};
+        font-family: {MONO_FONT};
+        font-size: {FONT_MICRO}px;
+    }}
+    QLabel#recienteNombre[apagado="true"] {{
+        color: {TEXT_3};
+    }}
+    QWidget#inicioVacio {{
+        background-color: transparent;
+    }}
+    QLabel#inicioVacioTitulo {{
+        background-color: transparent;
+        color: {TEXT_2};
+        font-size: {FONT_BODY}px;
+        font-weight: 650;
+    }}
+    QLabel#inicioVacioHint {{
+        background-color: transparent;
+        color: {TEXT_3};
+        font-size: {FONT_SMALL}px;
     }}
 
     """
