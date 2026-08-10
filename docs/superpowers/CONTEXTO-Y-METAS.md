@@ -180,8 +180,18 @@ dijo, para no volver a preguntárselo:
 
 - **Buscar y filtrar** (por nombre, cuarto, duración, cámara) — **le gustó.**
   Con 132 clips todavía se ve todo; con 500 no.
-- **Deshacer** — **le gustó.** Hoy borrar un bin o reclasificar de más no
-  tiene vuelta atrás.
+- **Deshacer** — **le gustó**, pero se le presentó mal y él lo cachó
+  («¿deshacer no existe?»). **Sí existe**: `⌘Z` más el historial del rail,
+  que revierte cualquier fila con un click, con las últimas 50 acciones de
+  la sesión. Cubre asignar cuarto (incluido el pincel), borrar un cuarto,
+  in/out y los estados.
+
+  **Lo que NO cubre son los bins** —crear, borrar, renombrar y arrastrar
+  clips entre bins— porque quedaron fuera cuando se construyeron. O sea que
+  la tarea real no es «hacer deshacer», es **meter los bins al historial que
+  ya existe**, que es bastante más chico. `bins.py::mover` ya está escrito
+  para no tocar el historial, así que hay que decidir a propósito qué
+  guarda cada acción de bin.
 - **Varios in/out en un mismo clip (subclips)** — se le explicaron las dos
   formas (varios rangos dentro del clip, o partirlo en tarjetas nuevas) y
   **dijo que ya no le llama tanto la atención**. No reproponerlo.
