@@ -96,6 +96,12 @@ class VideoWidget(QOpenGLWidget):
         self._proc_addr_fn = None  # mantener viva la referencia -- ctypes no lo hace por nosotros
         self._frame_signal = _FrameReadySignal()
         self._frame_signal.frame_ready.connect(self.update)
+        self._apagado = False
+
+    @property
+    def esta_apagado(self) -> bool:
+        """Ya se solto mpv: este widget no vuelve a reproducir nada."""
+        return self._apagado
 
     @property
     def player(self) -> MpvPlayer:
@@ -105,8 +111,48 @@ class VideoWidget(QOpenGLWidget):
         hilos hasta comprometer el proceso.
         """
         if self._player is None:
+            if self._apagado:
+                # Un temporizador que llegue tarde --el del playhead corre
+                # cada 150 ms-- resucitaria mpv, con sus hilos, sobre una
+                # ventana que se esta cerrando.
+                raise RuntimeError("el reproductor de esta ventana ya se apagó")
             self._player = MpvPlayer(mpv_factory=self._mpv_factory)
         return self._player
+
+    def apagar(self) -> None:
+        """Suelta mpv y su contexto de render, en este orden y en este hilo.
+
+        Hasta la F5 la ventana vivia hasta que moria el proceso y esto no
+        hacia falta. Con la pantalla de inicio la ventana se destruye **en
+        caliente**: sin apagar, el contexto de OpenGL se va con el widget y
+        el de mpv se libera despues, sin orden garantizado respecto al
+        callback de cuadro nuevo, que corre en un hilo de mpv. Es el terreno
+        exacto de los cuatro segfaults de este proyecto.
+
+        El orden importa y es este:
+
+        1. **Se corta el callback primero.** Mientras siga puesto, mpv puede
+           avisar «hay cuadro nuevo» a un widget que se esta desarmando.
+        2. **Se libera el contexto de render con el de OpenGL puesto.** Es el
+           contexto con el que mpv lo creo; liberarlo sin el es liberar
+           recursos de GL sin el GL de donde salieron.
+        3. **Y recien despues se termina mpv**, que es el dueño de todo lo
+           anterior.
+
+        Se puede llamar dos veces: `closeEvent` puede llegar mas de una vez.
+        """
+        self._apagado = True
+        contexto, self._render_ctx = self._render_ctx, None
+        if contexto is not None:
+            contexto.update_cb = None
+            self.makeCurrent()
+            try:
+                contexto.free()
+            finally:
+                self.doneCurrent()
+        player, self._player = self._player, None
+        if player is not None:
+            player.apagar()
 
     def initializeGL(self) -> None:
         import mpv

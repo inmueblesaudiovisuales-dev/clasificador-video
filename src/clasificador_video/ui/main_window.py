@@ -751,11 +751,26 @@ class MainWindow(QWidget):
         super().keyReleaseEvent(event)
 
     def closeEvent(self, event) -> None:  # noqa: N802 -- override de Qt
+        """El apagado ordenado de la ventana. El orden no es casual.
+
+        Los temporizadores PRIMERO: el del playhead corre cada 150 ms y le
+        pregunta la posicion al reproductor, asi que uno que llegue despues
+        de apagar mpv lo resucitaria --con sus hilos-- sobre una ventana que
+        se esta cerrando.
+
+        Despues el guardado y los trabajos en vuelo, y solo entonces mpv:
+        hasta la F5 esto no existia porque la ventana vivia hasta que moria
+        el proceso. Con la pantalla de inicio se destruye en caliente y cada
+        proyecto cerrado dejaria un mpv atras.
+        """
+        self._playhead_timer.stop()
+        self._saved_timer.stop()
         self._flush_autosave()
         self._thread_pool.waitForDone(5000)
-        # despues de guardar y de esperar a los trabajos: quien escucha esto
-        # devuelve la pantalla de inicio, y tiene que hacerlo con el proyecto
-        # ya a salvo en disco.
+        self.video_widget.apagar()
+        # al final: quien escucha esto devuelve la pantalla de inicio, y
+        # tiene que hacerlo con el proyecto ya a salvo en disco y con la
+        # ventana sin nada vivo adentro.
         self.cerrada.emit()
         super().closeEvent(event)
 

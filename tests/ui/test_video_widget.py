@@ -586,3 +586,97 @@ def test_las_marcas_se_aclaran_cuando_van_sobre_el_video(qtbot):
     mayor_video, menor_video = barra.tick_colors()
     assert mayor_panel.alpha() == 255 and mayor_video.alpha() < 255
     assert menor_video.alpha() < mayor_video.alpha()
+
+
+# --- apagar: la ventana ahora se destruye en caliente -----------------------
+
+
+class _MpvQueSeApaga(FakeMpv):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.terminado = False
+
+    def terminate(self):
+        self.terminado = True
+
+
+class _ContextoDeRenderFalso:
+    def __init__(self):
+        self.update_cb = None
+        self.liberado = False
+
+    def free(self):
+        self.liberado = True
+
+
+def test_apagar_libera_el_contexto_de_render_y_termina_mpv(qtbot):
+    """Hasta la F5 la `MainWindow` vivía hasta que moría el proceso, así que
+    nadie apagaba nada. Con la pantalla de inicio la ventana se destruye en
+    caliente: el contexto de OpenGL se va con el widget y el de mpv se
+    liberaría después, sin orden garantizado respecto al callback que corre
+    en un hilo de mpv. Es el terreno exacto de los segfaults de este
+    proyecto.
+    """
+    widget = VideoWidget(mpv_factory=_MpvQueSeApaga)
+    qtbot.addWidget(widget)
+    mpv_falso = widget.player._mpv
+    contexto = _ContextoDeRenderFalso()
+    widget._render_ctx = contexto
+
+    widget.apagar()
+
+    assert contexto.liberado
+    assert contexto.update_cb is None      # y ANTES de liberarlo
+    assert mpv_falso.terminado
+    assert widget._render_ctx is None
+
+
+def test_apagar_una_ventana_que_nunca_toco_video_no_enciende_mpv(qtbot):
+    """La propiedad `player` CONSTRUYE el reproductor, y construirlo abre
+    hilos de mpv de verdad: pedirlo aquí encendería un mpv para apagarlo."""
+    creados = []
+
+    def fabrica(**kwargs):
+        creados.append(1)
+        return _MpvQueSeApaga(**kwargs)
+
+    widget = VideoWidget(mpv_factory=fabrica)
+    qtbot.addWidget(widget)
+
+    widget.apagar()
+
+    assert creados == []
+
+
+def test_apagar_dos_veces_no_revienta(qtbot):
+    """`closeEvent` puede llegar más de una vez."""
+    widget = VideoWidget(mpv_factory=_MpvQueSeApaga)
+    qtbot.addWidget(widget)
+    widget.player                          # lo enciende
+    widget._render_ctx = _ContextoDeRenderFalso()
+
+    widget.apagar()
+    widget.apagar()
+
+
+def test_despues_de_apagar_no_se_pinta(qtbot):
+    """Pintar sin contexto de render es dibujar contra memoria liberada."""
+    widget = VideoWidget(mpv_factory=_MpvQueSeApaga)
+    qtbot.addWidget(widget)
+    widget._render_ctx = _ContextoDeRenderFalso()
+
+    widget.apagar()
+    widget.paintGL()                       # no revienta y no dibuja nada
+
+
+def test_apagar_no_deja_al_reproductor_a_medias(qtbot):
+    """Nadie puede volver a hablarle a un mpv terminado: la propiedad
+    perezosa devolvería uno nuevo, con sus hilos, sobre una ventana que se
+    está cerrando."""
+    widget = VideoWidget(mpv_factory=_MpvQueSeApaga)
+    qtbot.addWidget(widget)
+    widget.player
+
+    widget.apagar()
+
+    assert widget.esta_apagado

@@ -62,6 +62,25 @@ class MpvPlayer:
         self.in_frame = None
         self.out_frame = None
 
+    def apagar(self) -> None:
+        """Termina mpv y sus hilos. Despues de esto no se le habla mas.
+
+        `terminate()` y no dejarlo al recolector de basura: python-mpv lo
+        dice en su propio docstring, y aqui importa mas todavia --con la
+        pantalla de inicio, cada proyecto que Bruno cierra deja un mpv atras
+        si nadie lo apaga, y son hilos reales, no objetos--.
+        """
+        terminar = getattr(self._mpv, "terminate", None)
+        if terminar is None:
+            return          # un doble de pruebas: no hay hilos que soltar
+        try:
+            terminar()
+        except Exception:
+            # Cerrar la ventana no puede fallar por esto. Lo peor que pasa
+            # es que mpv se lleve sus hilos al morir el proceso, que es
+            # exactamente lo que pasaba antes de que esto existiera.
+            pass
+
     def toggle(self) -> None:
         if self._mpv.pause:
             self.play()

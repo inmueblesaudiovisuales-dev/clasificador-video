@@ -204,3 +204,28 @@ def test_el_indicador_solo_cuenta_cuando_de_verdad_se_escribio(ventana, qtbot, t
     qtbot.waitUntil(lambda: ventana._last_saved_at is not None, timeout=2000)
 
     assert "Guardado hace" in ventana.title_bar.saved_label.text()
+
+
+def test_cerrar_la_ventana_apaga_mpv(ventana, qtbot):
+    """Con la pantalla de inicio la ventana se destruye en caliente, y cada
+    proyecto que Bruno cierra dejaría atrás un mpv vivo —hilos reales, no
+    objetos— si nadie lo apaga."""
+    from PySide6.QtGui import QCloseEvent
+
+    ventana.video_widget.player            # lo enciende
+
+    ventana.closeEvent(QCloseEvent())
+
+    assert ventana.video_widget.esta_apagado
+
+
+def test_el_playhead_se_detiene_antes_de_apagar(ventana, qtbot):
+    """El temporizador del playhead corre cada 150 ms y le pregunta la
+    posición al reproductor. Uno que llegue después de apagar resucitaría
+    mpv sobre una ventana que se está cerrando."""
+    from PySide6.QtGui import QCloseEvent
+
+    ventana.closeEvent(QCloseEvent())
+
+    assert not ventana._playhead_timer.isActive()
+    assert not ventana._saved_timer.isActive()
