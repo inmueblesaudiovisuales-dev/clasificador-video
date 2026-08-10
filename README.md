@@ -105,6 +105,8 @@ Con proxy, la app **lo reproduce a él** (ir un cuadro atrás pasa de ~530 ms a
 máquina— y se lo pasa a Premiere en el manifest para que quede enganchado allá.
 
 La barra de estado lo dice siempre: `proxies 720p · 118/128`, o `sin proxies`.
+Y cada tarjeta de la hoja lleva una marca **PROXY** abajo a la izquierda: el
+contador dice *cuántos* faltaron, la marca dice *cuáles*.
 
 ### Crear los que no existen
 

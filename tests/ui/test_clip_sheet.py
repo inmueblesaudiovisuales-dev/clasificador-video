@@ -2582,3 +2582,33 @@ def test_el_cartel_de_arrastre_sobre_un_bin_vacio_dice_que_esta_vacio(qtbot):
     cabecera.set_soltando(True, cuantos=1)
 
     assert cabecera.drop_label.text() == "＋ soltar aquí · 1 video · el bin está vacío"
+
+
+def test_la_tarjeta_dice_si_el_clip_tiene_proxy(qtbot):
+    """Pedido de Bruno: «quiero que haya algo que distinga los videos que son
+    proxies desde el thumbnail».
+
+    Hasta ahora eso solo se leia en la insignia del BIN, que es un conteo
+    --«21/23»--: dice cuantos faltaron pero no CUALES, y los que faltan son
+    justo los que hay que ir a buscar.
+    """
+    hoja = ClipSheet()
+    qtbot.addWidget(hoja)
+    hoja.set_clips([_thumb(0, tiene_proxy=True), _thumb(1)])
+
+    assert hoja.item_widgets[0].plan_de_pintado()["proxy"] is True
+    assert hoja.item_widgets[1].plan_de_pintado()["proxy"] is False
+
+
+def test_la_marca_de_proxy_no_se_encima_con_la_palomita(qtbot):
+    """Las dos viven abajo a la izquierda --es la unica esquina libre: arriba
+    van el numero y el estado, abajo a la derecha la duracion-- asi que con
+    el clip seleccionado la marca se corre a la derecha de la palomita."""
+    hoja = ClipSheet()
+    qtbot.addWidget(hoja)
+    hoja.set_clips([_thumb(0, tiene_proxy=True)])
+    tarjeta = hoja.item_widgets[0]
+    tarjeta.set_visual_state(False, True)
+
+    plan = tarjeta.plan_de_pintado()
+    assert plan["proxy"] and plan["palomita"]

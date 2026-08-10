@@ -1,7 +1,7 @@
 # src/clasificador_video/ui/clip_sheet.py
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 from PySide6.QtCore import (
@@ -122,6 +122,12 @@ class ClipThumbnail:
     # refrescar los bins. La hoja lo trata como un bin sin nombre y no
     # revienta.
     bin_nombre: str = ""
+    # ¿este clip esta enganchado a un proxy? Se dibuja en la tarjeta porque
+    # cambia lo que se puede esperar de el: con proxy navega fluido y la
+    # portada salio barata; sin proxy, no. Hasta ahora eso solo se leia en la
+    # insignia del BIN --un conteo, «21/23»-- y ahi no hay forma de saber
+    # CUALES son los dos que faltaron.
+    tiene_proxy: bool = False
 
 
 class _CardOverlay(QWidget):
@@ -164,6 +170,13 @@ class _CardOverlay(QWidget):
             self._pintar_glifo(pintor, *plan["glifo"])
         if plan["palomita"]:
             self._pintar_palomita(pintor)
+        if plan["proxy"]:
+            # Abajo a la izquierda, la unica esquina libre: arriba-izq lleva
+            # el numero, arriba-der el estado y abajo-der la duracion. Si la
+            # palomita de seleccion esta puesta, se corre a su derecha en vez
+            # de encimarse.
+            self._pintar_pastilla(pintor, "PROXY", esquina="abajo-izq",
+                                  corrimiento=(GLYPH_SIZE + 4) if plan["palomita"] else 0)
         if plan["rango"]:
             self._pintar_rango(pintor, *plan["rango"])
         if plan["hover"]:
@@ -207,13 +220,17 @@ class _CardOverlay(QWidget):
             pintor.drawLine(x, alto, x + alto, 0)
         pintor.restore()
 
-    def _pintar_pastilla(self, pintor: QPainter, texto: str, esquina: str) -> None:
+    def _pintar_pastilla(self, pintor: QPainter, texto: str, esquina: str,
+                         corrimiento: int = 0) -> None:
         pintor.setFont(_fuente_mono())
         metricas = pintor.fontMetrics()
         ancho = metricas.horizontalAdvance(texto) + 8
         alto = metricas.height() + 3
         if esquina == "arriba-izq":
             rect = QRect(PAD + 1, PAD, ancho, alto)
+        elif esquina == "abajo-izq":
+            rect = QRect(PAD + 1 + corrimiento, self.height() - alto - PAD,
+                         ancho, alto)
         else:
             rect = QRect(self.width() - ancho - PAD, self.height() - alto - PAD,
                          ancho, alto)
@@ -519,6 +536,7 @@ class ClipCard(QWidget):
             "franja": clip.room_color or "rayada",
             "rango": rango,
             "palomita": bool(getattr(self, "_is_selected", False)),
+            "proxy": clip.tiene_proxy,
             # lo que el mockup dibuja al escrubear: barrita de progreso y
             # timecode. Va en el mismo plan --y en el mismo paintEvent-- que
             # el resto: seis QLabel encima de la miniatura es lo que la F2
@@ -706,6 +724,16 @@ class ClipCard(QWidget):
         super().leaveEvent(event)
 
     # --- estado visual ---------------------------------------------------
+
+    def set_tiene_proxy(self, tiene: bool) -> None:
+        """Los proxies se enganchan de a uno y bastante despues de que la
+        hoja se dibujo. Sin esto, la marca solo aparecia al reconstruir la
+        hoja por otra razon --y esa reconstruccion podia no llegar nunca--,
+        que es el mismo tropiezo que ya tuvo la insignia del bin."""
+        if self._clip.tiene_proxy == tiene:
+            return
+        self._clip = replace(self._clip, tiene_proxy=tiene)
+        self._overlay.update()
 
     def set_visual_state(self, is_current: bool, is_selected: bool = False) -> None:
         self._is_current = is_current
@@ -2048,6 +2076,14 @@ class ClipSheet(QWidget):
         cabecera.set_source(meta.get("origen", ""))
         enganchados, total = meta.get("proxies", (0, 0))
         cabecera.set_proxies(enganchados, total, meta.get("resolucion", ""))
+
+    def set_proxy_de_clip(self, index: int, tiene: bool) -> None:
+        """`index` es indice de CLIP, no posicion visual: `item_widgets`
+        conserva el orden de `self.clips` aunque las tarjetas se vean
+        agrupadas por cuarto. Usar el visual pondria la marca en la tarjeta
+        equivocada -- el mismo bug que ya paso con las miniaturas."""
+        if 0 <= index < len(self.item_widgets):
+            self.item_widgets[index].set_tiene_proxy(tiene)
 
     def set_bin_generando(self, nombre: str, hechos: int | None,
                           total: int = 0) -> None:

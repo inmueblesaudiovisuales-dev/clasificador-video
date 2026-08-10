@@ -4388,3 +4388,34 @@ def test_si_cancelas_el_enlace_las_portadas_salen_del_original(qtbot, monkeypatc
     window.importar_rutas([clips])
 
     assert pedidas == [[0, 1, 2]]
+
+
+def test_la_hoja_recibe_cuales_clips_tienen_proxy(qtbot, monkeypatch, tmp_path):
+    """El dato tiene que llegar del clip a la tarjeta: sin este cableado la
+    marca existe y nunca se enciende."""
+    window, _, proxies = _ventana_con_material(qtbot, monkeypatch, tmp_path,
+                                               con_proxy=(0, 2))
+    _elegir(monkeypatch, proxies / "C0000S03.MP4")
+    window.adjuntar_proxies()
+    window._thread_pool.waitForDone(5000)
+    QApplication.processEvents()
+
+    marcados = [w.plan_de_pintado()["proxy"] for w in window.clip_sheet.item_widgets]
+    assert marcados == [True, False, True]
+
+
+def test_quitar_los_proxies_apaga_la_marca(qtbot, monkeypatch, tmp_path):
+    """El otro sentido. Sin esto la tarjeta seguiria diciendo PROXY sobre un
+    clip que ya no lo tiene, que es peor que no decir nada."""
+    window, _, proxies = _ventana_con_material(qtbot, monkeypatch, tmp_path)
+    _elegir(monkeypatch, proxies / "C0000S03.MP4")
+    window.adjuntar_proxies()
+    window._thread_pool.waitForDone(5000)
+    QApplication.processEvents()
+    nombre = window.bins.to_list()[0]["nombre"]
+
+    window.quitar_proxies_de_bin(nombre)
+    window._thread_pool.waitForDone(5000)
+    QApplication.processEvents()
+
+    assert not any(w.plan_de_pintado()["proxy"] for w in window.clip_sheet.item_widgets)

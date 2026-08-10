@@ -2678,6 +2678,13 @@ class MainWindow(QWidget):
             self._proxy_generacion_de.pop(i, None)
             se_limpio_algo = se_limpio_algo or self.clips[i].ruta_proxy is not None
             self.clips[i].ruta_proxy = None
+            # apagar la marca «PROXY» de esa tarjeta. Va aqui, en el bucle
+            # que limpia, y no en `_refrescar_indicadores_de_proxy` --que
+            # corre por clip cuando un sondeo SALE BIEN--: quitar los proxies
+            # no lanza ningun sondeo, asi que por ese camino no llega nada y
+            # la tarjeta se quedaba diciendo PROXY sobre un clip que ya no lo
+            # tiene. Peor que no decir nada.
+            self.clip_sheet.set_proxy_de_clip(i, False)
         if se_limpio_algo:
             # `ruta_proxy` viaja en `Clip.to_dict()`, o sea que se persiste:
             # sin guardar aqui, los proxies que quitaste vuelven al reabrir
@@ -2763,6 +2770,12 @@ class MainWindow(QWidget):
         repinta lo que ese resultado puede haber cambiado."""
         if index == self.current_index:
             self._refresh_overlays()
+        # la marca «PROXY» de la tarjeta, que responde «¿cuales faltaron?» --
+        # la insignia del bin solo dice cuantos
+        if 0 <= index < len(self.clips):
+            self.clip_sheet.set_proxy_de_clip(
+                index, self.clips[index].ruta_proxy is not None
+            )
         self.status_bar.set_proxies(*self._resumen_de_proxies())
         # y la insignia del encabezado del bin, que dice lo MISMO que la
         # barra de abajo. Se rehacía solo al reconstruir la hoja, y los
@@ -3507,6 +3520,7 @@ class MainWindow(QWidget):
                 ),
                 aspect_ratio=self.aspect_ratio_for(index),
                 bin_nombre=bin_de.get(index, ""),
+                tiene_proxy=clip.ruta_proxy is not None,
             )
             for index, clip in enumerate(self.clips)
         ]
