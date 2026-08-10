@@ -175,3 +175,49 @@ def test_un_archivo_que_ya_no_esta_no_impide_guardar(tmp_path):
                   bins=bins, tamanos={}, duraciones={}, rotaciones={})
 
     assert data["bytes"] == {}
+
+
+def test_guardar_sin_la_media_conserva_los_bytes_que_ya_se_sabian(tmp_path):
+    """EL bug: abres el proyecto en otra computadora, el autoguardado se
+    dispara solo a los pocos segundos, y como ningun archivo se puede medir
+    reescribia `bytes: {}`. Cuando Bruno aprieta «Buscar…» ya no queda con
+    que confirmar nada, y el que confirma es el que engancha material
+    equivocado. Lo que no se puede medir se conserva."""
+    bins = BinTree()
+    bins.agregar("Sony", Path("/no/existe"), [0])
+
+    data = a_dict(proyecto="P", rooms=[], clips=[_clip(0, "/no/existe/X.MP4")],
+                  bins=bins, tamanos={}, duraciones={}, rotaciones={},
+                  bytes_conocidos={0: 700})
+
+    assert data["bytes"] == {"0": 700}
+
+
+def test_los_bytes_conocidos_llegan_con_la_llave_en_texto(tmp_path):
+    """Vienen de vuelta del JSON, donde toda llave es texto. Si no se
+    normalizan, `0` y `"0"` no se cruzan nunca y el dato se pierde igual que
+    si no se hubiera guardado -- en silencio, que es lo peor."""
+    bins = BinTree()
+    bins.agregar("Sony", Path("/no/existe"), [0])
+
+    data = a_dict(proyecto="P", rooms=[], clips=[_clip(0, "/no/existe/X.MP4")],
+                  bins=bins, tamanos={}, duraciones={}, rotaciones={},
+                  bytes_conocidos={"0": 700})
+
+    assert data["bytes"] == {"0": 700}
+
+
+def test_el_disco_manda_cuando_el_archivo_si_se_puede_medir(tmp_path):
+    """Conservar es para cuando no hay con que medir. Si el archivo esta
+    ahi, el peso de hoy es el bueno: pudo haberse reemplazado por otra
+    toma."""
+    archivo = tmp_path / "C0001.MP4"
+    archivo.write_bytes(b"x" * 700)
+    bins = BinTree()
+    bins.agregar("Sony", tmp_path, [0])
+
+    data = a_dict(proyecto="P", rooms=[], clips=[_clip(0, str(archivo))],
+                  bins=bins, tamanos={}, duraciones={}, rotaciones={},
+                  bytes_conocidos={0: 111})
+
+    assert data["bytes"] == {"0": 700}

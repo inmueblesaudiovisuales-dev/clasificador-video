@@ -50,23 +50,54 @@ def rutas_relativas(clips: list, bins) -> dict[int, str]:
     return relativas
 
 
-def _tamanos_en_disco(clips: list) -> dict[int, int]:
+def por_indice_de_clip(mapa: dict | None) -> dict[int, object]:
+    """Las llaves del JSON son texto; adentro de la app son enteros.
+
+    Sin este puente, un `{"0": 700}` recien leido del archivo y un `{0: ...}`
+    de memoria no se cruzan nunca, y el dato se pierde **en silencio** --que
+    es la forma en que este modulo hace daño.
+    """
+    normalizado: dict[int, object] = {}
+    for llave, valor in (mapa or {}).items():
+        try:
+            normalizado[int(llave)] = valor
+        except (TypeError, ValueError):
+            continue
+    return normalizado
+
+
+def _tamanos_en_disco(clips: list, conocidos: dict | None) -> dict[int, int]:
     """El peso de cada archivo, para poder confirmarlo al reencontrarlo.
 
-    Lo que no se puede leer se omite: guardar tiene que funcionar con el
-    disco desconectado, o se pierde trabajo justo cuando mas duele.
+    Lo que no se puede medir **conserva** el valor que el proyecto ya traia,
+    y solo se omite si tampoco habia uno. Antes se omitia siempre, y eso
+    borraba el dato justo cuando hacia falta: al abrir el proyecto sin la
+    media conectada, el autoguardado se dispara solo a los pocos segundos y
+    reescribia el archivo sin un solo peso. Despues de eso ya no hay con que
+    distinguir una tarjeta de otra.
+
+    Guardar tiene que seguir funcionando con el disco desconectado, o se
+    pierde trabajo justo cuando mas duele: por eso no revienta.
     """
+    previos = por_indice_de_clip(conocidos)
     tamanos: dict[int, int] = {}
     for indice, clip in enumerate(clips):
         try:
             tamanos[indice] = Path(clip.ruta).stat().st_size
-        except OSError:
             continue
+        except OSError:
+            pass
+        viejo = previos.get(indice)
+        if isinstance(viejo, int) and not isinstance(viejo, bool):
+            tamanos[indice] = viejo
     return tamanos
 
 
 def a_dict(proyecto: str, rooms: list[str], clips: list, bins,
-           tamanos: dict, duraciones: dict, rotaciones: dict) -> dict:
+           tamanos: dict, duraciones: dict, rotaciones: dict,
+           bytes_conocidos: dict | None = None) -> dict:
+    """`bytes_conocidos` son los pesos que el proyecto ya traia --tal cual
+    salen de `abrir`--, para no perderlos al guardar sin la media."""
     return {
         "version": VERSION,
         "proyecto": proyecto,
@@ -82,7 +113,8 @@ def a_dict(proyecto: str, rooms: list[str], clips: list, bins,
         # El peso en bytes es lo unico con que se puede confirmar que un
         # archivo reencontrado es el que era: el nombre lo repiten las
         # camaras y la duracion sola no distingue dos tomas iguales.
-        "bytes": {str(i): t for i, t in _tamanos_en_disco(clips).items()},
+        "bytes": {str(i): t
+                  for i, t in _tamanos_en_disco(clips, bytes_conocidos).items()},
     }
 
 
