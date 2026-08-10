@@ -814,3 +814,42 @@ def test_si_el_proyecto_nuevo_no_se_puede_crear_se_dice(qtbot, tmp_path, monkeyp
     assert coord.ventanas == []
     assert coord.inicio.isVisible()
     assert coord.inicio.aviso.isVisible()
+
+
+class _RelojFalso:
+    """Un reloj que avanza cuando se le dice. La fecha de un reciente se
+    escribe con `datetime.now()`, y sin fijarla no se puede distinguir la
+    hora de abrir de la de cerrar."""
+
+    def __init__(self, momentos):
+        self._momentos = list(momentos)
+
+    def now(self):
+        return self._momentos.pop(0) if self._momentos else self._ultimo
+
+
+def test_la_fecha_del_reciente_es_la_de_la_ultima_vez_que_trabajaste(qtbot, tmp_path, monkeypatch):
+    """Guardaba cuándo lo ABRISTE, y la lista se ordena por ese dato.
+
+    Abres un proyecto a las 9 y trabajas en él toda la tarde: la lista sigue
+    diciendo 9:00, y basta con que a mediodía hayas abierto otro un minuto
+    para que ese otro te quede arriba. Se ordena por lo que menos importa.
+    """
+    import datetime as _datetime
+
+    from clasificador_video.recientes import Recientes
+
+    reloj = _RelojFalso([
+        _datetime.datetime(2026, 8, 9, 9, 0),      # al abrirlo
+        _datetime.datetime(2026, 8, 9, 18, 30),    # al cerrarlo
+    ])
+    reloj._ultimo = _datetime.datetime(2026, 8, 9, 18, 30)
+    monkeypatch.setattr("clasificador_video.recientes.datetime", reloj)
+    recientes = tmp_path / "r.json"
+    coord = Coordinador(recientes_path=recientes, video_factory=_FakeMpv)
+    qtbot.addWidget(coord.inicio)
+    coord.inicio.abrir_pedido.emit(_proyecto_en(tmp_path))
+
+    coord.ventanas[0].close()
+
+    assert Recientes(recientes).lista()[0].cuando == "2026-08-09 18:30"

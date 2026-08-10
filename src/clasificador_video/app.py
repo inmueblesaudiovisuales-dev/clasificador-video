@@ -488,6 +488,15 @@ class Coordinador(QObject):
     def _al_cerrarse(self, ventana: MainWindow) -> None:
         if ventana in self.ventanas:
             self.ventanas.remove(ventana)
+        # Se vuelve a registrar AL CERRAR, no solo al abrir: la lista se
+        # ordena por esa fecha, y la de abrir es la que menos dice. Abres un
+        # proyecto a las 9 y trabajas en el toda la tarde; basta con que a
+        # mediodia hayas abierto otro un minuto para que ese otro te quede
+        # arriba.
+        if ventana.session_path is not None:
+            Recientes(self._recientes_path).registrar(
+                ventana.session_path, ventana.project_name
+            )
         # `deleteLater` y no soltar la referencia a secas: esto corre DENTRO
         # del `closeEvent` de la ventana, y destruir ahi el objeto de C++ es
         # de donde salieron varios segfaults de este proyecto. Qt lo borra
