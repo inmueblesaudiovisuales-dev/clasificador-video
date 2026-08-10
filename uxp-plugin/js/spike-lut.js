@@ -17,7 +17,7 @@
 // Bruno: pon aqui la ruta de tu .cube y vuelve a cargar el plugin. Si la
 // dejas vacia, el spike igual sirve -- enumera los parametros de Lumetri,
 // que es la mitad importante; lo unico que no hace es intentar aplicarlo.
-const RUTA_LUT = "";
+const RUTA_LUT = "/Users/brunogutierrez/Documents/CLAUDE CODE/ORGANIZADOR VIDEO/luts/2_SGamut3CineSLog3_To_LC-709TypeA.cube";
 
 // Los candidatos a matchName de Lumetri. Los efectos de Premiere llevan
 // prefijo `PR.`, los heredados de After Effects `AE.`; Lumetri viene de AE,
