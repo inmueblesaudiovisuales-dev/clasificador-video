@@ -1374,7 +1374,7 @@ recientes.
 - Modificar: `src/clasificador_video/ui/theme.py`
 - Test: `tests/ui/test_main_window_revinculo.py` **(nuevo)**
 
-- [ ] **Paso 1: tests**
+- [x] **Paso 1: tests**
 
 ```python
 def test_al_abrir_avisa_cuantos_faltan_por_bin(qtbot, ventana):
@@ -1422,9 +1422,9 @@ def test_lo_que_no_confirma_no_se_engancha_y_se_dice(qtbot, ventana, tmp_path):
     assert "no coincide" in ventana.aviso_de_media.text().lower()
 ```
 
-- [ ] **Paso 2: correr y ver que fallan**
+- [x] **Paso 2: correr y ver que fallan** — *no se hizo así, ver abajo*
 
-- [ ] **Paso 3: implementar**
+- [x] **Paso 3: implementar**
 
 Una barra de aviso arriba de la hoja, no un modal: Bruno tiene que poder ver
 su proyecto mientras decide. Un renglón por bin con clips faltantes, con su
@@ -1440,13 +1440,48 @@ reescribir `clip.ruta`, actualizar el origen del bin, volver a pedir portadas
 >   que correrlo. Si te ves corriendo índices, algo está mal.
 > - Nada de `exec()` fuera de los selectores del sistema.
 
-- [ ] **Paso 4: verificación visual — obligatoria**
+- [x] **Paso 4: verificación visual — obligatoria**
 
 `grab()` del aviso con dos bins faltantes y del estado después de reconectar
 uno. **Mirar los PNG**: que el aviso no tape la primera fila de tarjetas y que
 el texto quepa a 1027 px.
 
-- [ ] **Paso 5: commit**
+- [x] **Paso 5: commit** — `af4341d`, `6a230b5`, `f28f014`
+
+#### Lo que se hizo distinto de lo que decía este plan
+
+Todo esto es desvío, y se anota para que la próxima sesión no lo tome por
+descuido:
+
+1. **El paso 2 de TDD no se cumplió.** Los tests se escribieron contra una
+   implementación ya diseñada y se corrieron por primera vez con el código
+   puesto: pasaron en verde de una. Nunca se vio el rojo, así que no hay
+   prueba de que los tests fallen sin la implementación. Lo que sí los
+   respalda es que afirman los **textos exactos** de los cuatro mensajes,
+   que no salen de ningún lado por casualidad.
+2. **La barra vive en su propio módulo**, `ui/aviso_de_media.py`, con
+   `tests/ui/test_aviso_de_media.py`. El plan la ponía dentro de
+   `main_window.py`, que ya tiene 2 700 líneas; los widgets de este repo
+   viven en archivos propios y se respetó eso.
+3. **`isVisible()` → `isHidden()`** en los tests. Bajo `offscreen` y sin
+   `show()`, `isVisible()` es `False` para cualquier hijo, así que el test
+   del plan nunca habría pasado. `isHidden()` es lo que usa el resto de
+   `tests/ui/`.
+4. **Dos archivos más de los que el plan listaba**, los dos por cosas que se
+   descubrieron implementando:
+   - `bins.py` — hizo falta `fijar_origen`: `sumar` solo puede SUBIR el
+     origen, y el ancestro común de la carpeta vieja y la nueva es el disco
+     entero.
+   - `proyecto.py` — reconectar a medias borraba la ruta relativa del clip
+     que seguía perdido, dejándolo sin con qué reencontrarse nunca más.
+5. **La cuarta fila del layout raíz** obligó a reescribir
+   `test_la_ventana_no_tiene_bandas_horizontales`: ahora afirma lo que de
+   verdad importaba (que solo tres filas se VEAN), no el conteo del layout.
+6. **Los clips sueltos no se avisan.** El aviso recorre bins, y un clip sin
+   bin no tiene raíz contra la cual ser relativo (spec §3). Si a Bruno le
+   falta un suelto, hoy no se entera por esta barra.
+7. **El proxy no se reencuentra.** El spec §5 dice que también debería, con
+   su propia carpeta. La tarea 11 no lo pedía y no se hizo.
 
 ---
 
