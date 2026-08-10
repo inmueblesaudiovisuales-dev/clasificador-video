@@ -1,10 +1,15 @@
 # Handoff — 2026-08-09 — desde el rediseño terminado
 
-El rediseño de la UI **está cerrado** (once fases, F0 a F10), y **la
-importación por bins también** — se hizo la noche del 2026-08-09 y esta sección
-3 quedó como registro de lo entregado, no como tarea. Lo que sigue abierto es
-**repartir la app** a las computadoras del equipo de Bruno, los **proxies del
-dron** y el **LUT hacia Premiere**.
+El rediseño de la UI **está cerrado** (once fases, F0 a F10). También lo están
+**la importación por bins** (§3 y §3.b) y **los proyectos guardables con
+reencuentro de media** (§3.c): las tres secciones son registro de lo entregado,
+no tareas. Lo que sigue abierto es **repartir la app** a las computadoras del
+equipo de Bruno, los **proxies del dron** y el **LUT hacia Premiere**.
+
+Y una cosa que atraviesa todo lo de abajo, dicha una sola vez para no repetirla
+en cada sección: **nada de esto se ha usado con el material real de Bruno.** Se
+midió con archivos inventados, con `ffprobe` falso, y con los tres clips de
+`sample-media/`. Sus 132 clips no han pasado por aquí ni una vez.
 
 Reemplaza a [`archive/HANDOFF-2026-08-08-rediseno-ui-desde-f9.md`](archive/HANDOFF-2026-08-08-rediseno-ui-desde-f9.md).
 
@@ -29,7 +34,7 @@ verticales).
 
 ## 2. Dónde está todo hoy
 
-- Rama `master`, árbol limpio. **1121 tests en verde** — ese es el número de
+- Rama `master`, árbol limpio. **1337 tests en verde** — ese es el número de
   partida. (Eran 831 antes de los bins.)
 
 ```bash
@@ -49,6 +54,7 @@ verdad**: `tests/conftest.py` lo impide, y romper esa guarda es el síntoma.
 | **Dos vistas** | `⇥` alterna clip ↔ hoja, llevando siempre al clip actual, con transición animada |
 | **Importar** | arrastrar carpetas y archivos; cada tanda es un **bin** (una cámara), con nombre editable |
 | **Proxies** | **a mano y por bin**: eliges el de un clip y del par sale el patrón para los demás de ESA cámara |
+| **Proyectos** | archivo `.cvproj` donde quieras; la app abre en la lista de recientes; al abrirlo en otra computadora avisa qué material falta y lo reencuentra por bin |
 | **Entregar** | `⌘E` exporta el manifest; el plugin arma el proyecto |
 
 ### Arquitectura
@@ -305,6 +311,107 @@ vez de por fuente.
 no se trata de reconstruir el panel de proyecto de Premiere con jerarquía y
 arrastre anidado. Se trata de saber de qué cámara viene cada clip y poder
 actuar por cámara. Lo entregado se queda de este lado de esa línea a propósito.
+
+## 3.c — Proyectos guardables y reencontrar la media (2026-08-09, tarde)
+
+Salió de dos preguntas de Bruno: «¿habría forma de también guardar el
+proyecto?» y «¿que otra computadora pudiera abrir el proyecto y revincular la
+media?».
+
+- Spec: [`specs/2026-08-09-proyectos-y-revinculacion-design.md`](specs/2026-08-09-proyectos-y-revinculacion-design.md)
+- Plan: [`plans/2026-08-09-proyectos-y-revinculacion.md`](plans/2026-08-09-proyectos-y-revinculacion.md)
+
+**Lo que definió el alcance:** el dato ya se guardaba entero —cuartos, bins,
+cada clip con su pick, su in/out y su proxy— solo que en un archivo escondido y
+único. No había que inventar qué guardar; había que darle nombre y agregarle
+**la ruta relativa de cada clip respecto a la carpeta de su bin**, que es lo
+único que permite reencontrar en otra máquina, donde las absolutas nunca
+coinciden.
+
+**Lo que quedó construido:**
+
+| | |
+|---|---|
+| **El documento** | `.cvproj`, donde Bruno quiera. Se guarda solo mientras trabajas, como antes |
+| **Pantalla de inicio** | los recientes por nombre y fecha; el que ya no está se ve apagado y dice por qué, en vez de desaparecer |
+| **Proyecto nuevo** | pide nombre y lugar al crearse: nunca hay trabajo sin un archivo donde vivir |
+| **Reencontrar** | por bin, señalando una carpeta. Cada archivo se **confirma** por peso y duración antes de engancharse |
+| **Migración** | la sesión escondida se convierte sola en un `.cvproj`, y **la vieja no se borra** |
+
+**La decisión que hace que esto funcione:** una carpeta **por bin**, no una por
+proyecto. La Sony viene de una tarjeta y el dron de otra, y pueden estar en
+discos distintos.
+
+### El modo de fallo que todo esto existe para evitar
+
+**Enganchar el archivo equivocado es peor que no encontrarlo**, porque Bruno no
+se entera: ve su proyecto completo, con las marcas puestas sobre material que
+no es. Las cámaras renumeran desde cero en cada tarjeta —la Sony escribe
+`C0001.MP4` en todas—, así que el nombre no alcanza.
+
+La cadena de defensas, toda con test: la ruta relativa desempata primero; con
+dos tocayos no se elige ninguno; el candidato se confirma por **peso y
+duración**; sin datos con qué confirmar **no** confirma; y un archivo reclamado
+por dos clips no se engancha a ninguno. Los motivos se dicen **por separado**,
+porque «no apareció» y «apareció algo que no es» son cosas distintas.
+
+### Los bugs que salieron, y de dónde salió cada uno
+
+**De la revisión de código:**
+
+- **El dato que confirma la identidad se borraba solo, justo antes de usarse.**
+  Al abrir en otra computadora, el autoguardado reescribía el archivo sin los
+  pesos —no podía medir archivos ausentes— y para cuando Bruno apretaba
+  «Buscar…» ya no quedaba con qué comprobar nada.
+- **Dos clips distintos podían quedar enganchados al mismo archivo.**
+- **Una línea de más anulaba los proxies al abrir un proyecto**: volvía a
+  cargar el clip con la ruta cruda, así que el clip donde aterrizas iba a 530 ms
+  por cuadro en vez de 22, sin ninguna señal.
+- **Nadie apagaba mpv al cerrar una ventana** — y esta entrega es la primera en
+  que una `MainWindow` se destruye en caliente.
+
+**Del recorrido a mano, que es lo que ninguna prueba vio:**
+
+- **El aviso de «no encuentro tus archivos» no aparecía nunca.** Se encolaba en
+  el mismo pool de tres hilos que la extracción de portadas, detrás de la
+  extracción de ese mismo material que no está. Medido: no llegaba en 15
+  segundos con 3 clips.
+- **Se pedían portadas de archivos inexistentes** — al abrir en otra
+  computadora, 132 procesos contra archivos que no están.
+- **La insignia del bin decía «sin proxies»** con un proxy ya validado.
+
+**Del pixel, que tampoco vio ninguna prueba:** la barra de «Buscando…» se
+dibujaba **en blanco**, porque meter un widget en un layout no lo muestra hasta
+la siguiente vuelta del bucle de eventos — y ahí esa vuelta no llega nunca. Sin
+mirar la captura, el arreglo habría quedado peor que no hacer nada.
+
+### Qué quedó MEDIDO y qué quedó SUPUESTO
+
+**Medido:**
+
+- **1337 tests en verde**, con las tandas contadas sobre 40 corridas y el árbol
+  quieto.
+- **El recorrido completo, con material real de `sample-media/`**: crear
+  proyecto → importar → marcar → cerrar → **mover la carpeta** → reabrir →
+  reconectar. La revisión de media termina en **0.03 s** (antes no llegaba en
+  15 s), las marcas sobreviven, y las rutas quedan apuntando a archivos que
+  existen.
+- **Lo visual, mirando el pixel**: la pantalla de inicio con un reciente
+  apagado, la elisión por el medio de las rutas, el aviso con sus renglones de
+  colores a 1027 px, y el estado «Buscando…».
+
+**Supuesto, no medido:**
+
+- **Nadie ha abierto un proyecto en otra computadora de verdad.** Todo el
+  «cross-computadora» se probó moviendo carpetas en la misma máquina. La
+  diferencia real —otro usuario, otro punto de montaje, otra versión de
+  macOS— sigue sin tocarse.
+- **Ni con los 132 clips de Bruno.** El recorrido usó 3.
+- **El paquete `.app` sigue sin abrirse en otra Mac**, y este trabajo no lo
+  cambia.
+- **`reconectar_bin` corre en el hilo de la interfaz** a propósito: es un clic
+  de Bruno y ahí una espera se entiende. Sobre una tarjeta de 128 GB eso no
+  está medido. Ahora al menos **se ve** que está buscando.
 
 ## 4. Lo demás que está abierto
 
