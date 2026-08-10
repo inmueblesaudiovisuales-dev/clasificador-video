@@ -1,7 +1,17 @@
 // Arnes de auto-comprobacion. Solo se usa durante la construccion: corre al
 // cargar el plugin y deja el resultado en un archivo que se lee desde la
 // terminal. Se apaga poniendo AUTOCHECK_ACTIVO en false (Task 13).
-const AUTOCHECK_ACTIVO = false;
+const AUTOCHECK_ACTIVO = true;
+
+// Cuales correr. Vacio = todas. Con algo adentro, solo las pruebas cuyo
+// nombre contenga alguno de estos pedazos.
+//
+// Existe porque correr las ~40 pruebas para contestar dos preguntas sueltas
+// tiene dos costos que no valen la pena: dejan bins de basura por todo el
+// proyecto de Bruno, y una de ellas necesita una carpeta de segunda tarjeta
+// que hay que armar a mano y que el repo no trae -- o sea que fallaria por
+// una razon que no tiene nada que ver con lo que se esta preguntando.
+const AUTOCHECK_SOLO = ["spike:", "MANGO"];
 const AUTOCHECK_SALIDA_DIR = "/private/tmp/clasificador-autocheck";
 const AUTOCHECK_SALIDA_ARCHIVO = "resultado.json";
 
@@ -31,7 +41,17 @@ async function correrAutocheck() {
   }
   anotarResultado("proyecto activo", true, project.name);
 
-  for (const prueba of autocheckPruebas) {
+  const seleccionadas = AUTOCHECK_SOLO.length
+    ? autocheckPruebas.filter((p) => AUTOCHECK_SOLO.some((pedazo) => p.nombre.indexOf(pedazo) !== -1))
+    : autocheckPruebas;
+  anotarResultado(
+    "seleccion",
+    seleccionadas.length > 0,
+    seleccionadas.length + " de " + autocheckPruebas.length + " pruebas" +
+      (AUTOCHECK_SOLO.length ? " (filtro: " + AUTOCHECK_SOLO.join(", ") + ")" : "")
+  );
+
+  for (const prueba of seleccionadas) {
     try {
       const r = await prueba.fn(project);
       anotarResultado(prueba.nombre, r.ok, r.detalle);
