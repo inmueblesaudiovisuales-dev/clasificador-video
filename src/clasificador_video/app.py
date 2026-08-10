@@ -203,13 +203,18 @@ def abrir_proyecto(ruta: Path, video_factory: Callable[..., object] | None = Non
 
 def crear_proyecto(ruta: Path, nombre: str,
                    video_factory: Callable[..., object] | None = None,
-                   recientes_path: Path | None = None) -> MainWindow:
-    """Un proyecto nuevo, vacio y YA guardado.
+                   recientes_path: Path | None = None) -> MainWindow | None:
+    """Un proyecto nuevo, vacio y YA guardado. `None` si no se pudo escribir.
 
     Se escribe el archivo antes de devolver la ventana por decision de
     Bruno: nunca existe trabajo sin un archivo donde vivir. Si el disco
-    donde lo puso se desconecta despues, el autoguardado fallara --pero al
+    donde lo puso se desconecta despues, el autoguardado avisara --pero al
     menos el proyecto existio.
+
+    Y se COMPRUEBA que exista. Prometer «ya guardado» sin mirar dejaba una
+    ventana abierta sobre un archivo que nunca se creo, y un reciente que
+    salia apagado desde el primer dia: todo el trabajo de esa tarde vivia
+    solo en memoria.
     """
     window = MainWindow(
         project_name=nombre,
@@ -219,6 +224,9 @@ def crear_proyecto(ruta: Path, nombre: str,
     window.session_path = ruta
     window._write_autosave_now()
     window._autosave_pool.waitForDone(2000)
+    if not ruta.exists():
+        window.deleteLater()
+        return None
     window.resize(1100, 700)
     Recientes(recientes_path or RECIENTES_PATH).registrar(ruta, nombre)
     return window
@@ -439,9 +447,16 @@ class Coordinador(QObject):
             # el selector de macOS deja borrar la extension, y sin ella el
             # archivo no se reconoce como proyecto la proxima vez
             ruta = ruta.with_name(ruta.name + proyecto.EXTENSION)
-        self._tomar(crear_proyecto(ruta, ruta.stem,
-                                   video_factory=self._video_factory,
-                                   recientes_path=self._recientes_path))
+        ventana = crear_proyecto(ruta, ruta.stem,
+                                 video_factory=self._video_factory,
+                                 recientes_path=self._recientes_path)
+        if ventana is None:
+            self.inicio.avisar(
+                f"No se pudo crear «{ruta.name}» en {ruta.parent}. Elige otra "
+                "carpeta, o comprueba que el disco esté conectado."
+            )
+            return
+        self._tomar(ventana)
 
     def _abrir_otro(self) -> None:
         elegido, _ = QFileDialog.getOpenFileName(

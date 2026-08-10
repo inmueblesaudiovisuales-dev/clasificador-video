@@ -782,3 +782,35 @@ def test_sin_sesion_vieja_el_arranque_no_dice_nada(qtbot, tmp_path):
     coord.mostrar_inicio()
 
     assert coord.inicio.aviso.isHidden()
+
+
+def test_un_proyecto_nuevo_que_no_se_pudo_escribir_no_se_devuelve(qtbot, tmp_path):
+    """`crear_proyecto` promete «vacío y YA guardado». Si la carpeta no era
+    escribible devolvía la ventana igual y registraba un reciente que iba a
+    salir apagado desde el primer día."""
+    estorbo = tmp_path / "estorbo"
+    estorbo.write_text("no soy una carpeta")
+    recientes = tmp_path / "r.json"
+
+    ventana = crear_proyecto(estorbo / "P.cvproj", "P", video_factory=_FakeMpv,
+                             recientes_path=recientes)
+
+    assert ventana is None
+    from clasificador_video.recientes import Recientes
+    assert Recientes(recientes).lista() == []
+
+
+def test_si_el_proyecto_nuevo_no_se_puede_crear_se_dice(qtbot, tmp_path, monkeypatch):
+    estorbo = tmp_path / "estorbo"
+    estorbo.write_text("no soy una carpeta")
+    monkeypatch.setattr(QFileDialog, "getSaveFileName",
+                        lambda *a, **k: (str(estorbo / "P.cvproj"), ""))
+    coord = _coordinador(tmp_path)
+    qtbot.addWidget(coord.inicio)
+    coord.mostrar_inicio()
+
+    coord.inicio.nuevo_pedido.emit()
+
+    assert coord.ventanas == []
+    assert coord.inicio.isVisible()
+    assert coord.inicio.aviso.isVisible()
