@@ -1,8 +1,6 @@
 <div style="padding: 8px; font-family: sans-serif;">
   <h3>Clasificador de Video</h3>
   <button id="importar" disabled>Importar clasificacion...</button>
-  <!-- Solo mientras el arnes de pruebas este encendido; se va con el spike. -->
-  <button id="correr-pruebas">Correr pruebas</button>
   <div id="status" style="margin-top: 8px;">Listo.</div>
   <div id="log-list" style="margin-top: 8px; font-size: 12px; max-height: 400px; overflow-y: auto;"></div>
 </div>
@@ -18,27 +16,9 @@
 <script src="js/importarManifest.js"></script>
 <script src="js/secuencia.js"></script>
 <script src="js/autocheck-tests.js"></script>
-<script src="js/spike-lut.js"></script>
 <script>
   logToPanel("Plugin cargado.");
   correrAutocheck();
-
-  // El panel carga junto con Premiere, antes de que haya proyecto abierto:
-  // sin este boton, la unica corrida posible era la del arranque y siempre
-  // decia «no hay proyecto» aunque si lo hubiera.
-  const botonPruebas = document.getElementById("correr-pruebas");
-  botonPruebas.addEventListener("click", async () => {
-    botonPruebas.disabled = true;
-    document.getElementById("log-list").innerHTML = "";
-    try {
-      await correrAutocheck();
-    } catch (e) {
-      logToPanel(e.message + " | " + e.stack, true);
-    } finally {
-      botonPruebas.disabled = false;
-    }
-  });
-
   const boton = document.getElementById("importar");
   boton.disabled = false;
   boton.addEventListener("click", async () => {

@@ -102,19 +102,27 @@ en el menú del bin, qué se ve mientras corre (son minutos con 23 clips) y si s
 puede cancelar. El resto ya está resuelto: enganchado, validación y
 reproducción son maquinaria que ya existe.
 
-### 2. LUT hacia Premiere — **falta un spike, no código**
+### 2. LUT hacia Premiere — **parado por decisión de Bruno, 2026-08-10**
 
-Bruno lo pidió junto con los bins: «también meter los LUTs a esos videos». Un
-LUT de S-Log de la FX30 no va sobre material del dron, así que va **por bin**,
-igual que los proxies.
+Ya no está abierto: **se probó dentro de Premiere y no se puede como se
+quería.** Bruno decidió parar ahí («mejor solo no lo hagamos, no necesito
+complicar más esto»).
 
-- **Alcanzable:** la API de UXP permite ponerle un efecto al *master clip*
-  (`ClipProjectItem.getComponentChain`), o sea sin armar la secuencia.
-- **Lo que bloquea:** falta comprobar **dentro de Premiere** que el parámetro
-  de LUT de entrada de Lumetri acepta una ruta de archivo. Es un spike corto
-  con Premiere abierto, y hasta que se haga todo lo demás es suposición.
-- El bin ya existe para colgárselo y el manifest ya viaja por clip, así que la
-  pieza que falta del lado de la app es chica.
+Lo que se aprendió, con el detalle completo en
+`archive/RESULTADO-2026-08-10-lut-y-estrella-en-premiere.md`:
+
+- **Sí se le pueden colgar efectos al master clip sin armar secuencia**, y
+  eso sirve más allá del LUT. `matchName` de Lumetri: `AE.ADBE Lumetri`.
+- **«Input LUT» existe** (parámetro 6 de 130) pero **no acepta rutas**: su
+  valor es `{ value: 0 }`, un número. Es un menú desplegable, y el número es
+  el renglón elegido dentro de los LUTs que Premiere ya tiene instalados.
+- La vía que quedaría —instalar el `.cube` donde Premiere lo vea y poner el
+  índice— es frágil por diseño: el índice depende de qué haya instalado y en
+  qué orden, así que en otra computadora apunta a otro LUT **sin avisar**.
+  Mismo modo de fallo que enganchar el proxy equivocado.
+
+Si algún día se retoma, lo que falta no es código sino contestar cómo se
+verifica que el renglón N sigue siendo el LUT correcto.
 
 ### 3. Probar el paquete en otra Mac — **bloqueado por hardware, no por código**
 
@@ -127,20 +135,28 @@ Eso es cómo funciona macOS según la documentación de Apple, **no comprobado**
 La única prueba válida es abrirla en otra computadora. Va junto con probar ahí
 un `.cvproj` de verdad, que tampoco se ha hecho.
 
-### 4. La etiqueta dorada de la estrella — **una corrida dentro de Premiere**
+**Y hay un bloqueo nuevo, del lado del plugin:** el CLI de UXP que arma el
+`.ccx` ya no instala — su biblioteca nativa no trae compilado para Node 24
+(`abi=137`). Mientras eso no se resuelva, el plugin se puede actualizar en la
+máquina de Bruno copiando archivos sobre la instalación existente, pero **no
+se puede repartir a otra computadora**.
 
-`destacado → MANGO` está escrito, con guarda que avisa si esa versión de
-Premiere no conoce el color. Falta correr `autocheck-tests.js` dentro de
-Premiere para confirmar el nombre de la constante. Ojo: ese archivo apuntaba a
-una carpeta que ya no existe; se arregló, pero una de sus pruebas necesita que
-se cree a mano una carpeta que el repo no trae.
+### 4. La etiqueta dorada de la estrella — **hecho, 2026-08-10**
 
-### 5. Los `.LRF` como clips — **decisión de Bruno**
+Comprobado en vivo: `MANGO` existe y es el índice 7, y el clip cambió de
+etiqueta al aplicarlo. La guarda por si otra versión no lo trae se queda.
 
-DJI escribe un `.LRF` junto a cada `.MP4`, y el ingest los toma como material:
-cada toma del dron aparece **dos veces**. Los proxies de la Sony ya se excluyen
-por su sufijo `S03`. ¿Se hace lo mismo con los `.LRF`? Es una línea de código y
-una decisión suya.
+De paso salió algo que nadie sabía: **la copia del plugin que Bruno tenía
+instalada era de agosto y no traía el soporte de la estrella**, así que hasta
+hoy sus clips destacados llegaban a Premiere sin etiqueta. Ya está la versión
+al día, idéntica al repo.
+
+### 5. Los `.LRF` como clips — **hecho, 2026-08-10**
+
+Ya no entran. Se comprobó primero que sí pasaba —una carpeta con `DJI_0001.MP4`
+y `DJI_0001.LRF` traía los dos— y Bruno decidió: «no me sirve el LRF si
+usaremos otros proxies». Tampoco se queda como candidato a proxy: ya se había
+medido que no calza cuadro a cuadro.
 
 ### 6. Crear muchos cuartos de un jalón — **tiene spec, falta plan**
 
@@ -156,6 +172,23 @@ generación de portadas — ahora que salen del proxy, cinco veces más barata. 
 medición por encima de eso.
 
 ---
+
+## Ideas nuevas que se ofrecieron el 2026-08-10
+
+Se le presentó a Bruno una lista de lo que le podría faltar a la app. Lo que
+dijo, para no volver a preguntárselo:
+
+- **Buscar y filtrar** (por nombre, cuarto, duración, cámara) — **le gustó.**
+  Con 132 clips todavía se ve todo; con 500 no.
+- **Deshacer** — **le gustó.** Hoy borrar un bin o reclasificar de más no
+  tiene vuelta atrás.
+- **Varios in/out en un mismo clip (subclips)** — se le explicaron las dos
+  formas (varios rangos dentro del clip, o partirlo en tarjetas nuevas) y
+  **dijo que ya no le llama tanto la atención**. No reproponerlo.
+- Sin respuesta todavía, ofrecidas en la misma lista: exportar un reporte del
+  shooting, notas por clip, copiar solo los picks a otra carpeta, respaldar
+  la tarjeta al importar, ordenar la hoja por hora de grabación, detectar
+  tomas repetidas.
 
 ## Qué NO es una meta (para no asumir de más)
 
