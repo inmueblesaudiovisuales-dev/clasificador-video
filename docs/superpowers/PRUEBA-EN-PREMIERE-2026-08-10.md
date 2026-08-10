@@ -37,48 +37,36 @@ Las dos se contestan en **una sola corrida**.
   — o sea que fallaría por algo que no tiene nada que ver con lo que se está
   preguntando.
 
-## Cómo correrlo
+## Cómo se instaló esta vez (y por qué no fue con el `.ccx`)
 
-**1. Opcional pero recomendado: apunta el spike a un `.cube` tuyo.**
+El camino documentado en `uxp-plugin/README.md` —empaquetar `.ccx` con el
+CLI de UXP e instalarlo con UPIA— **no se pudo usar hoy**: el CLI vive en
+`/tmp`, que macOS limpia, y al reinstalarlo su biblioteca nativa no tiene
+compilado para Node 24 (`No native build was found for ... abi=137`). Eso es
+un problema del CLI de Adobe, no del plugin.
 
-En `uxp-plugin/js/spike-lut.js`, primera constante:
+Se usó otra vía, válida en este caso concreto: **copiar los archivos encima
+de la instalación que ya existe**, en
+`~/Library/Application Support/Adobe/UXP/Plugins/External/com.iav.clasificadorvideo_1.0.0/`.
 
-```js
-const RUTA_LUT = "/ruta/a/tu/lut.cube";
-```
+Ojo con la distinción, porque el README dice que copiar a mano ahí **no
+funciona** — y sigue siendo cierto **para instalar por primera vez**:
+Premiere nunca registra un plugin que aparece solo en esa carpeta. Aquí el
+plugin ya estaba registrado por UPIA desde agosto; lo único que cambió son
+los archivos que lee al cargar. Para distribuir sigue haciendo falta el
+`.ccx`.
 
-Si la dejas vacía el spike igual sirve — enumera los parámetros de Lumetri,
-que es la mitad importante. Lo único que no hace es intentar aplicarlo.
+El estado anterior quedó respaldado en el scratchpad de la sesión antes de
+copiar.
 
-**2. Arranca el servicio de UXP** (una vez por sesión de terminal):
+**Para correrlo:** abrir Premiere **con un proyecto nuevo y vacío** —el
+spike crea bins de prueba, no conviene encima de un proyecto de trabajo— y
+abrir el panel en `Window > UXP Plugins > Clasificador de Video`. El spike
+corre solo al cargarse y va escribiendo en el panel.
 
-```bash
-arch -x86_64 node /tmp/uxpcli-install/node_modules/@adobe/uxp-devtools-cli/src/uxp.js service start
-```
-
-**3. Empaqueta el plugin:**
-
-```bash
-cd "uxp-plugin/" && arch -x86_64 node /tmp/uxpcli-install/node_modules/@adobe/uxp-devtools-cli/src/uxp.js plugin package --outputPath /tmp/uxp-package-output
-```
-
-**4. Quita la versión instalada y pon la nueva.** El `--install` encima de
-una instalación existente es un no-op: UPIA ve el mismo id y la misma
-versión y no reextrae nada, aunque el `.ccx` haya cambiado.
-
-```bash
-"/Library/Application Support/Adobe/Adobe Desktop Common/RemoteComponents/UPI/UnifiedPluginInstallerAgent/UnifiedPluginInstallerAgent.app/Contents/MacOS/UnifiedPluginInstallerAgent" --remove "Clasificador de Video IAV"
-```
-
-```bash
-"/Library/Application Support/Adobe/Adobe Desktop Common/RemoteComponents/UPI/UnifiedPluginInstallerAgent/UnifiedPluginInstallerAgent.app/Contents/MacOS/UnifiedPluginInstallerAgent" --install /tmp/uxp-package-output/com.iav.clasificadorvideo_premierepro.ccx
-```
-
-**5. Abre Premiere con un proyecto nuevo y vacío** — el spike crea bins de
-prueba, así que no lo corras encima de un proyecto de trabajo.
-
-**6. Abre el panel:** `Window > UXP Plugins > Clasificador de Video`. El
-spike corre solo al cargarse y va escribiendo en el panel.
+El LUT ya está apuntado al de S-Log de Bruno
+(`luts/2_SGamut3CineSLog3_To_LC-709TypeA.cube`), así que la prueba llega
+hasta el final: escribe la ruta en el parámetro y la vuelve a leer.
 
 ## Dónde queda el resultado
 
