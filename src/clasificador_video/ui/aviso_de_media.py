@@ -22,23 +22,40 @@ from PySide6.QtWidgets import QHBoxLayout, QLabel, QPushButton, QVBoxLayout, QWi
 # lo pone la hoja de estilos (Candado 1: ningún color se declara fuera de
 # `theme.py`); aquí solo se dice qué clase de noticia es.
 TONO_FALTA = "falta"        # no aparece nada
-TONO_ALERTA = "alerta"      # apareció algo que no es
+TONO_ALERTA = "alerta"      # apareció algo que no se pudo enganchar
 TONO_OK = "ok"              # reconectado
+
+# Qué hace el botón del renglón. Son acciones distintas sobre carpetas
+# distintas: el original y su proxy no viven en el mismo lado.
+ACCION_MEDIA = "media"
+ACCION_PROXIES = "proxies"
 
 
 @dataclass
 class Renglon:
-    """Lo que se le dice a Bruno de un bin, y si le toca un «Buscar…»."""
+    """Lo que se le dice a Bruno de un bin, y qué botón le toca.
+
+    `quiere_buscar` y `boton` son cosas distintas a propósito: el renglón
+    dice si le SERVIRÍA un «Buscar…», y quien arma la barra decide cuál se
+    lo lleva — uno solo por bin, porque dos idénticos hacen lo mismo.
+    """
     bin: str
     texto: str
     tono: str = TONO_FALTA
-    con_buscar: bool = False
+    quiere_buscar: bool = False
+    boton: str | None = None
+    accion: str = ACCION_MEDIA
 
 
 class AvisoDeMedia(QWidget):
-    """La barra completa. Se esconde sola cuando no hay nada que decir."""
+    """La barra completa.
 
-    buscar_pedido = Signal(str)   # nombre del bin
+    NO decide si se ve: esa regla vive entera en la ventana, que es la única
+    que sabe si está el modo solo video. Con la regla partida en dos, poner
+    renglones podía hacerla reaparecer encima del video a pantalla completa.
+    """
+
+    buscar_pedido = Signal(str, str)   # nombre del bin, acción
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -52,12 +69,11 @@ class AvisoDeMedia(QWidget):
         self.hide()
 
     def poner(self, renglones: list[Renglon]) -> None:
-        """Reemplaza lo que dice la barra. Lista vacía = barra escondida."""
+        """Reemplaza lo que dice la barra. No la muestra ni la esconde."""
         self._limpiar()
         self._renglones = list(renglones)
         for renglon in self._renglones:
             self._caja.addWidget(self._fila(renglon))
-        self.setVisible(bool(self._renglones))
 
     def tiene_avisos(self) -> bool:
         """Si hay algo que decir. Lo usa `solo video` para no volver a
@@ -94,11 +110,12 @@ class AvisoDeMedia(QWidget):
         texto.setWordWrap(True)
         caja.addWidget(texto, stretch=1)
 
-        if renglon.con_buscar:
-            boton = QPushButton("Buscar…", fila)
+        if renglon.boton:
+            boton = QPushButton(renglon.boton, fila)
             boton.setObjectName("avisoBuscar")
             boton.clicked.connect(
-                lambda _=False, n=renglon.bin: self.buscar_pedido.emit(n)
+                lambda _=False, n=renglon.bin, a=renglon.accion:
+                    self.buscar_pedido.emit(n, a)
             )
             caja.addWidget(boton)
         self._filas.append(fila)

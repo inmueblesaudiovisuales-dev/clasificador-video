@@ -46,6 +46,8 @@ from clasificador_video.thumbnails import (
 )
 from clasificador_video.ui import theme
 from clasificador_video.ui.aviso_de_media import (
+    ACCION_MEDIA,
+    ACCION_PROXIES,
     TONO_ALERTA,
     TONO_FALTA,
     TONO_OK,
@@ -116,6 +118,44 @@ def _cuantos_no_aparecieron(n: int) -> str:
     return f"{n} clips no aparecieron en esa carpeta."
 
 
+def _cuantos_se_pelean(n: int) -> str:
+    """El archivo SI calzaba -- con los dos. Decir «no es el mismo video»
+    seria mentira: lo es, y por eso justamente no se sabe de cual."""
+    return (f"{n} clips se pelean el mismo archivo: hay uno solo con ese "
+            "nombre y los dos lo reclaman. Ninguno se conectó.")
+
+
+def _cuantos_sin_comprobar(n: int) -> str:
+    """Nadie comparo nada. Decir que no coincide seria inventarlo."""
+    if n == 1:
+        return ("1 clip apareció, pero el proyecto no guardó su peso ni su "
+                "duración, así que no hay con qué comprobar que sea el mismo. "
+                "No se conectó.")
+    return (f"{n} clips aparecieron, pero el proyecto no guardó su peso ni su "
+            "duración, así que no hay con qué comprobar que sean los mismos. "
+            "No se conectaron.")
+
+
+def _cuantos_sin_donde_buscar(n: int) -> str:
+    """Ni se buscaron. «No apareció en esa carpeta» suena a que basta con
+    probar en otra, y a estos no los salva ninguna."""
+    if n == 1:
+        return ("1 clip no se puede buscar: el proyecto no guardó de dónde "
+                "colgaba dentro de su carpeta.")
+    return (f"{n} clips no se pueden buscar: el proyecto no guardó de dónde "
+            "colgaban dentro de su carpeta.")
+
+
+def _cuantos_sin_proxy(n: int) -> str:
+    """Navegar sin proxy cuesta 530 ms por cuadro contra 22. Callarlo deja
+    el proyecto 25 veces mas lento sin decir por que."""
+    if n == 1:
+        return ("1 clip quedó sin proxy: vas a navegar sobre el original, que "
+                "es mucho más lento.")
+    return (f"{n} clips quedaron sin proxy: vas a navegar sobre el original, "
+            "que es mucho más lento.")
+
+
 def _copiar(valor):
     """Copia los valores mutables que guarda el historial.
 
@@ -140,25 +180,34 @@ class _AutosaveWriteJob(QRunnable):
     y puede estar en un disco externo que se desconecta a media tarde.
     """
 
-    def __init__(self, path: Path, data: dict, señales: "SeñalesDeTrabajos"):
+    def __init__(self, path: Path, data: dict, generacion: int,
+                 señales: "SeñalesDeTrabajos"):
         super().__init__()
         self.path = path
         self.data = data
+        self._generacion = generacion
         self._señales = señales
 
     def run(self) -> None:
         try:
-            # el archivo es el que ACUMULA los pesos: la ventana no se entera
-            # de los que se midieron aqui, asi que sin releer lo que ya habia
-            # se perderia el peso de un clip medido con la tarjeta puesta en
+            # el archivo ACUMULA los pesos: sin releer lo que ya habia se
+            # perderia el peso de un clip medido con la tarjeta puesta en
             # cuanto se desconectara.
             previos = (proyecto.abrir(self.path) or {}).get("bytes")
-            proyecto.guardar(
-                self.path, proyecto.con_pesos_medidos(self.data, previos)
-            )
+            documento = proyecto.con_pesos_medidos(self.data, previos)
+            proyecto.guardar(self.path, documento)
         except OSError as error:
             self._señales.guardado_fallo.emit(str(error))
             return
+        # y la VENTANA tambien se entera. Que el archivo fuera el unico que
+        # los acumulaba dejaba la defensa principal apagada justo en la
+        # sesion donde Bruno importa: ahi `_bytes_guardados` esta vacio --se
+        # llena solo al abrir un .cvproj-- y reconectar en esa misma sesion
+        # confirmaba solo por duracion, que dos tomas del mismo largo de dos
+        # tarjetas de la Sony pasan sin problema.
+        self._señales.pesos_medidos.emit(
+            self._generacion, proyecto.por_indice_de_clip(documento.get("bytes"))
+        )
         self._señales.guardado_listo.emit()
 
 
@@ -199,6 +248,44 @@ class SeñalesDeTrabajos(QObject):
     proxy_sondeado = Signal(int, int, object)   # generation, indice, info | None
     guardado_listo = Signal()
     guardado_fallo = Signal(str)                # el motivo, tal como lo dio el SO
+    pesos_medidos = Signal(int, object)         # generacion de indices, {clip: bytes}
+    # los clips cuyo archivo ya no esta, y los proxies perdidos. Se revisa
+    # fuera del hilo de la interfaz: son `stat` uno por clip en serie, y
+    # sobre un volumen montado e incomunicado cada uno se traba hasta el
+    # timeout -- justo lo que pasa al abrir en otra computadora.
+    media_revisada = Signal(int, object, object)  # generacion, faltantes, proxies
+
+
+class _RevisionDeMediaJob(QRunnable):
+    """¿Estan los archivos donde el proyecto dice? Fuera del hilo de la UI.
+
+    La leccion ya estaba escrita en `proyecto.con_pesos_medidos`, y aqui se
+    volvio a tropezar con ella: un `stat` cuesta menos de un milisegundo en
+    local, pero sobre un volumen montado e incomunicado se traba hasta el
+    timeout, y son uno por clip en serie. Y esto corre justo al ABRIR un
+    proyecto cuyo material puede estar en un disco de red que ya no
+    responde: el peor momento posible para congelar la ventana.
+
+    Revisa los originales y tambien los proxies. Un proxy perdido no se ve
+    en `clip.ruta`, pero navegar sin el cuesta 530 ms por cuadro contra 22
+    (ver `ruta_de_reproduccion`), asi que callarlo seria dejar el proyecto
+    25 veces mas lento sin decir por que.
+    """
+
+    def __init__(self, generacion: int, rutas: dict[int, Path],
+                 proxies: dict[int, Path], señales: "SeñalesDeTrabajos"):
+        super().__init__()
+        self._generacion = generacion
+        self._rutas = rutas
+        self._proxies = proxies
+        self._señales = señales
+
+    def run(self) -> None:
+        faltantes = revinculo.faltantes_de(self._rutas)
+        perdidos = {i: Path(p).name
+                    for i, p in self._proxies.items()
+                    if not Path(p).is_file()}
+        self._señales.media_revisada.emit(self._generacion, faltantes, perdidos)
 
 
 class _ThumbnailJob(QRunnable):
@@ -384,6 +471,8 @@ class MainWindow(QWidget):
         self._señales_de_trabajos.proxy_sondeado.connect(self._on_proxy_sondeado)
         self._señales_de_trabajos.guardado_listo.connect(self._on_guardado_listo)
         self._señales_de_trabajos.guardado_fallo.connect(self._on_guardado_fallo)
+        self._señales_de_trabajos.pesos_medidos.connect(self._on_pesos_medidos)
+        self._señales_de_trabajos.media_revisada.connect(self._on_media_revisada)
         # hijo de la ventana A PROPOSITO: su destructor espera a los trabajos
         # en vuelo, y esa espera es lo que impide que una señal llegue
         # cuando la ventana ya no puede atenderla.
@@ -409,9 +498,36 @@ class MainWindow(QWidget):
         self._relativas: dict[int, str] = {}
         self._bytes_guardados: dict[int, int] = {}
         # nombre de bin -> el ultimo `Reencuentro` que devolvio buscar ahi.
-        # Es lo que permite decir los tres finales por separado: sin esto,
-        # «no coincide» y «no apareció» se verian iguales.
+        # Es lo que permite decir cada final por separado: sin esto, «no
+        # coincide» y «no apareció» se verian iguales.
         self._ultimo_reencuentro: dict[str, revinculo.Reencuentro] = {}
+        # Lo que la ultima revision encontro. Se GUARDA en vez de volver a
+        # preguntarle al disco cada vez que hay que redibujar la barra: cada
+        # barrido son `stat` uno por clip en serie, y `_refrescar_aviso`
+        # corre en cada renombrado de bin y en cada reconexion.
+        self._faltantes: set[int] = set()
+        self._proxies_perdidos: dict[int, str] = {}   # clip -> nombre del proxy
+        # los que ni se buscaron, por no tener ruta relativa. Aparte de «no
+        # apareció»: a estos no los salva ninguna carpeta.
+        self._sin_donde_buscar: set[int] = set()
+        self._revision_generation = 0
+        # cuántas revisiones entregaron resultado. Solo para poder esperarlas
+        # desde los tests sin adivinar con un `sleep`.
+        self._revisiones_terminadas = 0
+        # Sube cada vez que los indices de clip se mueven. Los resultados que
+        # vienen de otro hilo hablan de los indices de CUANDO arrancaron: si
+        # entre medio se quito un bin, un peso caeria sobre el clip
+        # equivocado -- y con ese peso es con lo que despues se confirma que
+        # un archivo reencontrado es el que era.
+        self._indices_generation = 0
+        # bin -> cuantos se reconectaron, para el renglon verde. Es efimero a
+        # proposito (`_olvidar_exitos`): dejarlo fijo le roba alto al video
+        # el resto de la sesion por algo que ya salio bien.
+        self._exitos: dict[str, int] = {}
+        self._timer_de_exito = QTimer(self)
+        self._timer_de_exito.setSingleShot(True)
+        self._timer_de_exito.setInterval(8000)
+        self._timer_de_exito.timeout.connect(self._olvidar_exitos)
         # indice -> tamaño del PROXY, solo de los que ya validaron. El que
         # manda el layout sigue siendo `_clip_sizes`, que es del original:
         # esto es nada mas para escribir «720p» sin inventarlo.
@@ -1362,9 +1478,18 @@ class MainWindow(QWidget):
         # con bins apuntando a clips que ya no eran esos, y ese estado
         # corrupto se autosavea y sobrevive a cerrar la app.
         self.bins = BinTree()
-        # y lo que se buscó: habla de los bins y los clips de ANTES
+        # y lo que se buscó y lo que se revisó: hablan de los bins y los
+        # clips de ANTES, que no son estos.
         self._ultimo_reencuentro = {}
+        self._faltantes = set()
+        self._proxies_perdidos = {}
+        self._sin_donde_buscar = set()
+        self._exitos = {}
+        # los índices se movieron: lo que venga de otro hilo describiendo a
+        # los de antes ya no aplica a nadie (ver `_indices_generation`).
+        self._indices_generation += 1
         self.aviso_de_media.poner([])
+        self._mostrar_aviso_si_toca()
         self._refresh_history()
         self._refresh_sheet(force_rebuild=True)
         self._abrir_clip_actual()
@@ -1469,7 +1594,8 @@ class MainWindow(QWidget):
         # mientras el archivo no se tocaba. Ahora lo mueve el resultado real
         # (`_on_guardado_listo` / `_on_guardado_fallo`).
         self._autosave_pool.start(
-            _AutosaveWriteJob(self.session_path, data, self._señales_de_trabajos)
+            _AutosaveWriteJob(self.session_path, data, self._indices_generation,
+                              self._señales_de_trabajos)
         )
 
     def _on_guardado_listo(self) -> None:
@@ -1506,20 +1632,58 @@ class MainWindow(QWidget):
         eso se pregunta de inmediato en vez de esperar a que Bruno haga clic
         en un clip y no pase nada.
 
-        Es barato: un `stat` por clip, imperceptible con 132.
+        **Corre fuera del hilo de la interfaz** (ver `_RevisionDeMediaJob`).
+        Barato no es: son `stat` uno por clip en serie, y sobre un volumen
+        montado e incomunicado cada uno se traba hasta el timeout — que es
+        exactamente el disco de red del que puede colgar este proyecto.
         """
         # una revisión nueva empieza de cero: lo que se buscó antes hablaba
-        # de otras carpetas y otros archivos.
+        # de otras carpetas y otros archivos. Lo que NO se limpia es
+        # `_faltantes`: se reemplaza cuando llega el resultado, para que la
+        # barra no parpadee a vacío mientras tanto.
         self._ultimo_reencuentro = {}
+        self._exitos = {}
+        self._revision_generation += 1
+        self._thread_pool.start(_RevisionDeMediaJob(
+            self._revision_generation,
+            {i: c.ruta for i, c in enumerate(self.clips)},
+            {i: c.ruta_proxy for i, c in enumerate(self.clips)
+             if c.ruta_proxy is not None},
+            self._señales_de_trabajos,
+        ))
+
+    def _on_media_revisada(self, generacion: int, faltantes: list,
+                           proxies_perdidos: dict) -> None:
+        if generacion != self._revision_generation:
+            return  # una revisión que ya quedó vieja
+        self._faltantes = {int(i) for i in faltantes}
+        self._proxies_perdidos = {int(i): str(n)
+                                  for i, n in proxies_perdidos.items()}
+        self._revisiones_terminadas += 1
         self._refrescar_aviso()
+
+    def _on_pesos_medidos(self, generacion: int, pesos: dict) -> None:
+        """Los pesos que midió el hilo del guardado, de vuelta en la ventana.
+
+        Con la guarda de generación: si entre que arrancó el guardado y que
+        llegó esto se quitó un bin, los índices ya se corrieron y el peso
+        describiría al clip equivocado — y con ese peso es con lo que
+        después se confirma que un archivo reencontrado es el que era.
+        """
+        if generacion != self._indices_generation:
+            return
+        self._bytes_guardados.update(
+            {int(i): int(t) for i, t in pesos.items()
+             if isinstance(t, int) and not isinstance(t, bool)}
+        )
 
     def reconectar_bin(self, nombre: str, carpeta: Path) -> None:
         """Busca bajo `carpeta` los clips que le faltan al bin y los engancha.
 
-        Lo que no se confirma **no se engancha**, y se dice aparte: las
-        cámaras repiten los nombres --la Sony numera `C0001.MP4` en cada
-        tarjeta que formateas-- y enganchar el archivo equivocado sería peor
-        que no encontrarlo, porque Bruno no se enteraría.
+        Lo que no se confirma **no se engancha**, y cada motivo se dice
+        aparte: las cámaras repiten los nombres --la Sony numera `C0001.MP4`
+        en cada tarjeta que formateas-- y enganchar el archivo equivocado
+        sería peor que no encontrarlo, porque Bruno no se enteraría.
 
         Esto NO mueve índices: cambia la ruta de un clip que sigue siendo el
         mismo clip, en el mismo lugar de la lista. Por eso no hay nada
@@ -1538,84 +1702,204 @@ class MainWindow(QWidget):
             ),
             self._probe_clip,
         )
-        # los que se buscaron pero no traían relativa no salen en ningún
-        # final de `reencontrar_bin` -- son «no encontrados» igual, y sin
-        # esto desaparecerían del aviso como si se hubieran resuelto.
-        sin_relativa = [i for i in faltantes if i not in self._relativas]
-        resultado.no_encontrados = sorted(resultado.no_encontrados + sin_relativa)
         self._ultimo_reencuentro[nombre] = resultado
+        # los que ni se buscaron: sin ruta relativa no hay con qué buscarlos.
+        # Van aparte de «no apareció en esa carpeta», que suena a que basta
+        # con probar en otra — a estos no los salva ninguna carpeta.
+        self._sin_donde_buscar = {
+            i for i in faltantes if i not in self._relativas
+        } | (self._sin_donde_buscar - set(faltantes))
         if resultado.reconectados:
+            reconectados = sorted(resultado.reconectados)
             for indice, ruta in resultado.reconectados.items():
                 self.clips[indice].ruta = ruta
+            self._faltantes -= set(reconectados)
+            self._exitos[nombre] = len(reconectados)
+            self._timer_de_exito.start()
             # el bin pasa a colgar de la carpeta nueva, no del ancestro
             # común con la vieja: la vieja no existe en esta computadora.
             # Solo si algo enganchó -- señalar la carpeta equivocada no
             # puede borrar de dónde salió el material.
             self.bins.fijar_origen(nombre, carpeta)
+            # ANTES de las portadas: el proxy es de donde se extraen, y
+            # dejar el candidato viejo apuntando a una ruta muerta deja la
+            # tarjeta sin portada y sin explicación.
+            #
+            # Y las portadas las pide ÉL, con el mismo alcance: al final de
+            # `_sondear_proxies` ya hay una llamada acotada a estos índices.
+            # Pedirlas otra vez aquí era el segundo trabajo por clip sobre la
+            # misma carpeta de salida y el mismo socket IPC — justo el daño
+            # que acotar el alcance existe para evitar.
+            self._reenganchar_proxies(reconectados, carpeta)
             self._refresh_sheet()
-            # SOLO las de los reconectados. Sin acotar, `_schedule_thumbnails()`
-            # sube la generación, invalida lo que está en vuelo y encola
-            # trabajos duplicados sobre el mismo socket IPC.
-            self._schedule_thumbnails(sorted(resultado.reconectados))
             # y se guarda, para que la próxima vez abra sin preguntar
             self._autosave()
         self._refrescar_aviso()
 
+    def reconectar_proxies_de_bin(self, nombre: str, carpeta: Path) -> None:
+        """El «Buscar proxies…»: solo los proxies, en su propia carpeta.
+
+        Existe aparte porque el proxy vive aparte —`sample-media/` los separa
+        en `clips/` y `proxy/`, como llegan de la cámara— así que la carpeta
+        que Bruno señaló para los originales muchas veces no los tiene.
+        """
+        indices = [i for i in self.bins.clips_de(nombre)
+                   if i in self._proxies_perdidos]
+        if indices:
+            self._reenganchar_proxies(indices, carpeta)
+            self._refrescar_aviso()
+
+    def _reenganchar_proxies(self, indices: list[int], carpeta: Path) -> None:
+        """Busca bajo `carpeta` el proxy de cada clip, por su nombre.
+
+        El proyecto no guarda la ruta relativa del proxy, solo la absoluta
+        —que en otra computadora no existe—, así que lo único que queda es
+        el nombre del archivo. Se valida como siempre, cuadro a cuadro, por
+        `_sondear_proxies`: un proxy corrido pone el in/out en el cuadro
+        equivocado.
+
+        Sin esto, después de reconectar todo el proyecto navega sobre el 4K
+        HEVC: 530 ms por cuadro contra 22 (ver `ruta_de_reproduccion`).
+        """
+        # el nombre del proxy, ANTES de que `_sondear_proxies` lo limpie
+        nombres = {}
+        for i in indices:
+            viejo = self.clips[i].ruta_proxy
+            nombre = self._proxies_perdidos.get(i)
+            if nombre is None and viejo is not None:
+                nombre = Path(viejo).name
+            if nombre:
+                nombres[i] = nombre
+        if not nombres:
+            # ni un proxy que reenganchar, pero los candidatos viejos siguen
+            # apuntando a rutas muertas: hay que limpiarlos igual.
+            self._sondear_proxies({}, indices=list(indices))
+            return
+        indice_de_nombres = revinculo.indice_de_nombres(carpeta)
+        emparejados: dict[Path, Path | None] = {}
+        for i, nombre in nombres.items():
+            hallado = revinculo.buscar_bajo(carpeta, nombre, indice_de_nombres)
+            emparejados[self.clips[i].ruta] = hallado
+            if hallado is None:
+                self._proxies_perdidos[i] = nombre
+            else:
+                self._proxies_perdidos.pop(i, None)
+        self._sondear_proxies(emparejados, indices=list(indices))
+
     def _faltantes_de_bin(self, nombre: str) -> list[int]:
-        """Qué clips del bin ya no tienen su archivo en disco."""
-        return revinculo.faltantes_de({
-            i: self.clips[i].ruta for i in self.bins.clips_de(nombre)
-            if 0 <= i < len(self.clips)
-        })
+        """Qué clips del bin ya no tenían su archivo en la última revisión.
+
+        Del cache y no del disco: esto lo llama `_refrescar_aviso`, que corre
+        en cada renombrado de bin y en cada reconexión, y cada barrido son
+        `stat` uno por clip en el hilo de la interfaz.
+        """
+        return [i for i in self.bins.clips_de(nombre) if i in self._faltantes]
+
+    def _olvidar_exitos(self) -> None:
+        """Borra los renglones verdes. Los llama un timer: «1 clip
+        reconectado» no puede quedarse el resto de la sesión robándole alto
+        al video por algo que ya salió bien."""
+        if self._exitos:
+            self._exitos = {}
+            self._refrescar_aviso()
+
+    def _renglones_del_bin(self, nombre: str) -> list[Renglon]:
+        """Un renglón por cada final, y cada uno con sus palabras.
+
+        Mezclarlos sería mentirle a Bruno en un momento de confusión: «no
+        apareció» es que no hay nada, «no coincide» es que hay un archivo
+        con ese nombre que NO es el mismo, «se pelean» es que sí calzaba
+        pero lo reclamaron dos, y «no hay con qué comprobar» es que nadie
+        comparó nada.
+        """
+        faltan = set(self._faltantes_de_bin(nombre))
+        renglones: list[Renglon] = []
+        exito = self._exitos.get(nombre)
+        if exito:
+            renglones.append(Renglon(nombre, _cuantos_reconectados(exito),
+                                     tono=TONO_OK))
+        resultado = self._ultimo_reencuentro.get(nombre)
+        if resultado is None:
+            if faltan:
+                renglones.append(Renglon(nombre, _cuantos_faltan(len(faltan)),
+                                         tono=TONO_FALTA, quiere_buscar=True))
+        else:
+            sin_buscar = faltan & self._sin_donde_buscar
+            for indices, texto, tono, quiere in (
+                (resultado.sin_confirmar, _cuantos_no_coinciden,
+                 TONO_ALERTA, True),
+                (resultado.disputados, _cuantos_se_pelean, TONO_ALERTA, True),
+                (resultado.sin_comprobar, _cuantos_sin_comprobar,
+                 TONO_ALERTA, False),
+                (resultado.no_encontrados, _cuantos_no_aparecieron,
+                 TONO_FALTA, True),
+                (sorted(sin_buscar), _cuantos_sin_donde_buscar,
+                 TONO_FALTA, False),
+            ):
+                cuantos = len([i for i in indices if i in faltan])
+                if cuantos:
+                    renglones.append(Renglon(nombre, texto(cuantos), tono=tono,
+                                             quiere_buscar=quiere))
+        # el proxy solo se menciona cuando el original YA está: mientras
+        # falta el original, el problema grande es ese.
+        sin_proxy = [i for i in self.bins.clips_de(nombre)
+                     if i in self._proxies_perdidos and i not in faltan]
+        if sin_proxy:
+            renglones.append(Renglon(
+                nombre, _cuantos_sin_proxy(len(sin_proxy)), tono=TONO_FALTA,
+                boton="Buscar proxies…", accion=ACCION_PROXIES))
+        return renglones
 
     def _refrescar_aviso(self) -> None:
-        """Arma la barra: un renglón por bin y por final.
-
-        Los tres finales van en renglones distintos a propósito. Meterlos en
-        una sola frase haría que «apareció un archivo con ese nombre que no
-        es el mismo» se leyera como «no lo encontré», que es justo lo que
-        este camino existe para no decir.
-        """
+        """Arma la barra entera y decide si se ve."""
         renglones: list[Renglon] = []
         for nombre in self.bins.nombres():
-            faltan = self._faltantes_de_bin(nombre)
-            resultado = self._ultimo_reencuentro.get(nombre)
-            if resultado is None:
-                if faltan:
-                    renglones.append(Renglon(
-                        nombre, _cuantos_faltan(len(faltan)),
-                        tono=TONO_FALTA, con_buscar=True))
-                continue
-            if resultado.reconectados:
-                renglones.append(Renglon(
-                    nombre, _cuantos_reconectados(len(resultado.reconectados)),
-                    tono=TONO_OK))
-            sin_confirmar = [i for i in resultado.sin_confirmar if i in faltan]
-            if sin_confirmar:
-                renglones.append(Renglon(
-                    nombre, _cuantos_no_coinciden(len(sin_confirmar)),
-                    tono=TONO_ALERTA, con_buscar=True))
-            no_encontrados = [i for i in resultado.no_encontrados if i in faltan]
-            if no_encontrados:
-                renglones.append(Renglon(
-                    nombre, _cuantos_no_aparecieron(len(no_encontrados)),
-                    tono=TONO_FALTA, con_buscar=True))
+            del_bin = self._renglones_del_bin(nombre)
+            # UN solo «Buscar…» por bin: dos botones idénticos en el mismo
+            # bin hacen exactamente lo mismo. Se lo lleva el primer renglón
+            # al que le sirva. El de proxies es otra acción y otra etiqueta,
+            # así que no compite con este.
+            ya_hay = False
+            for renglon in del_bin:
+                if renglon.quiere_buscar and not ya_hay:
+                    renglon.boton = "Buscar…"
+                    renglon.accion = ACCION_MEDIA
+                    ya_hay = True
+            renglones.extend(del_bin)
         self.aviso_de_media.poner(renglones)
+        self._mostrar_aviso_si_toca()
+
+    def _mostrar_aviso_si_toca(self) -> None:
+        """La ÚNICA regla de visibilidad de la barra.
+
+        Vivía repartida entre el widget --que se escondía solo al quedar
+        vacío-- y `alternar_solo_video`, y solo una de las dos sabía del
+        modo: poner renglones podía hacerla reaparecer encima del video a
+        pantalla completa.
+        """
+        self.aviso_de_media.setVisible(
+            self.aviso_de_media.tiene_avisos() and not self._solo_video
+        )
         # el aviso ocupa su renglón: sin recalcular, el video se queda con
         # el alto de antes y se sale por abajo de la ventana.
         self._resize_video_stage()
 
-    def _on_buscar_media(self, nombre: str) -> None:
-        """El botón «Buscar…» de un renglón. Selector del sistema, que es el
-        único diálogo que el spec §8 deja usar."""
+    def _on_buscar_media(self, nombre: str, accion: str) -> None:
+        """Los botones de la barra. Selector del sistema, que es el único
+        diálogo que el spec §8 deja usar."""
         origen = self.bins.origen_de(nombre)
         arranque = str(origen) if origen is not None else ""
-        carpeta = QFileDialog.getExistingDirectory(
-            self, f"¿Dónde quedó el material de «{nombre}»?", arranque
-        )
+        if accion == ACCION_PROXIES:
+            titulo = f"¿Dónde quedaron los proxies de «{nombre}»?"
+        else:
+            titulo = f"¿Dónde quedó el material de «{nombre}»?"
+        carpeta = QFileDialog.getExistingDirectory(self, titulo, arranque)
         if not carpeta:
             return
-        self.reconectar_bin(nombre, Path(carpeta))
+        if accion == ACCION_PROXIES:
+            self.reconectar_proxies_de_bin(nombre, Path(carpeta))
+        else:
+            self.reconectar_bin(nombre, Path(carpeta))
 
     def _medir(self, archivos: list[Path],
                desde: int = 0) -> tuple[list[Clip], dict[str, dict]]:
@@ -1930,6 +2214,11 @@ class MainWindow(QWidget):
         # tambien habla de un bin que acaba de dejar de existir. Se tira
         # entero y la revision se rehace sobre lo que quedo.
         self._ultimo_reencuentro = {}
+        self._exitos = {}
+        # `_faltantes` y `_proxies_perdidos` van por índice igual que todo lo
+        # de arriba, pero no se corren a mano: se vuelven a revisar al final,
+        # que ahora es barato para la ventana porque corre en otro hilo.
+        self._indices_generation += 1
         # Los sondeos en vuelo NO se corren: se tiran enteros.
         #
         # Correr `_proxy_generacion_de` conserva el VALOR, y todos los clips
@@ -1967,7 +2256,7 @@ class MainWindow(QWidget):
         # indices nuevos. Va DESPUES del refresco: los aciertos de cache se
         # entregan en el acto y necesitan la hoja ya reconstruida.
         self._schedule_thumbnails()
-        self._refrescar_aviso()
+        self.revisar_media()
         self._abrir_clip_actual()
         self._autosave()
 
@@ -2233,13 +2522,10 @@ class MainWindow(QWidget):
         for panel in (self.title_bar, self.room_rail, self.tool_column,
                       self.clip_sheet, self.status_bar):
             panel.setVisible(not self._solo_video)
-        # el aviso va aparte: al volver de solo video solo se muestra si
-        # todavia tiene algo que decir. Con el resto de los paneles, una
-        # barra vacia reaparecia con su relleno y su borde.
-        self.aviso_de_media.setVisible(
-            not self._solo_video and self.aviso_de_media.tiene_avisos()
-        )
-        self._resize_video_stage()
+        # el aviso va aparte, por la MISMA regla que usa `_refrescar_aviso`:
+        # una barra vacía no puede reaparecer con su relleno y su borde, y
+        # una llena no puede reaparecer encima del video a pantalla completa.
+        self._mostrar_aviso_si_toca()
 
     def _on_clip_activado(self, indice: int) -> None:
         """Doble click en una tarjeta: abre ESE clip en modo clip."""

@@ -112,6 +112,40 @@ def test_el_peso_se_mide_al_guardar_y_se_arrastra_solo(ventana, tmp_path):
     assert _guardado(ventana)["bytes"] == {"0": 500}
 
 
+def test_el_peso_medido_tambien_vuelve_a_la_ventana(ventana, tmp_path, qtbot):
+    """El archivo no puede ser el único que se entere.
+
+    En la sesión donde Bruno IMPORTA, `_bytes_guardados` estaba vacío: solo
+    se llena al abrir un `.cvproj`. Así que si en esa misma sesión mueve la
+    carpeta y da «Buscar…», `calza` recibe `tamano_esperado=None` y confirma
+    solo por duración — y dos tomas del mismo largo de dos tarjetas de la
+    Sony pasan ese filtro. La defensa principal apagada, en el único caso
+    que todo esto existe para evitar.
+    """
+    archivo = tmp_path / "C0001.MP4"
+    archivo.write_bytes(b"x" * 500)
+    ventana.session_path = tmp_path / "P.cvproj"
+    ventana.load_clips([_clip(0, str(archivo))])
+
+    _guardado(ventana)
+    qtbot.waitUntil(lambda: ventana._bytes_guardados == {0: 500}, timeout=2000)
+
+
+def test_los_pesos_de_un_guardado_viejo_no_caen_sobre_otros_clips(ventana, tmp_path):
+    """Los pesos van por ÍNDICE. Si entre que arrancó el guardado y que
+    llegó su resultado se quitó un bin, los índices ya se corrieron y ese
+    peso describiría al clip equivocado — que es justo con lo que después se
+    confirma que un archivo reencontrado es el que era."""
+    ventana.session_path = tmp_path / "P.cvproj"
+    ventana.load_clips([_clip(0, "/cam/A.MP4"), _clip(1, "/dron/B.MP4")])
+    generacion_vieja = ventana._indices_generation
+
+    ventana.load_clips([_clip(0, "/otro/C.MP4")])
+    ventana._on_pesos_medidos(generacion_vieja, {0: 999, 1: 111})
+
+    assert ventana._bytes_guardados == {}
+
+
 def test_material_nuevo_no_hereda_los_pesos_del_anterior(ventana, tmp_path):
     """`_bytes_guardados` va por ÍNDICE de clip, igual que los bins y los
     proxies: dejarlo vivo al cargar otro material lo deja describiendo al

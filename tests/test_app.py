@@ -177,7 +177,10 @@ def test_abrir_un_proyecto_con_la_media_perdida_lo_avisa_de_una(qtbot, tmp_path)
                             recientes_path=tmp_path / "r.json")
     qtbot.addWidget(window)
 
-    assert not window.aviso_de_media.isHidden()
+    # el barrido corre fuera del hilo de la interfaz: son `stat` uno por
+    # clip en serie, y el material puede colgar de un disco de red que ya no
+    # responde. Justo al abrir es el peor momento para congelar la ventana.
+    qtbot.waitUntil(lambda: not window.aviso_de_media.isHidden(), timeout=3000)
     assert window.aviso_de_media.text() == "Sony — 1 clip no se encuentra."
 
 
