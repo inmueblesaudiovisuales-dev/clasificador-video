@@ -30,6 +30,32 @@ const MATCHNAMES_LUMETRI = [
   "PR.ADBE LumetriColor",
 ];
 
+// Todo lo que se pueda decir de un valor sin saber que es. El parametro de
+// LUT no guarda la ruta como texto: guarda un objeto, y "[object Object]" no
+// alcanza para saber que ponerle adentro.
+function describirValor(v) {
+  if (v === null || v === undefined) return String(v);
+  const tipo = typeof v;
+  if (tipo !== "object") return tipo + " " + String(v);
+
+  const partes = ["objeto"];
+  try { partes.push("clase=" + (v.constructor && v.constructor.name)); } catch (e) { /* nada */ }
+  try { partes.push("claves propias=[" + Object.keys(v).join(", ") + "]"); } catch (e) { /* nada */ }
+  try { partes.push("metodos=[" + Object.getOwnPropertyNames(Object.getPrototypeOf(v)).join(", ") + "]"); } catch (e) { /* nada */ }
+  try { partes.push("json=" + JSON.stringify(v)); } catch (e) { partes.push("json no serializable"); }
+  // Los getters sin argumentos suelen ser donde vive el dato de verdad.
+  try {
+    const leidos = [];
+    for (const nombre of Object.getOwnPropertyNames(Object.getPrototypeOf(v))) {
+      if (nombre === "constructor" || typeof v[nombre] !== "function") continue;
+      if (v[nombre].length !== 0) continue;  // solo los que no piden argumentos
+      try { leidos.push(nombre + "()=" + String(v[nombre]())); } catch (e) { /* se salta */ }
+    }
+    if (leidos.length) partes.push("getters=[" + leidos.join(" ; ") + "]");
+  } catch (e) { /* nada */ }
+  return partes.join(" ");
+}
+
 // Metodos reales de un objeto en runtime. La otra vez esto salvo horas: la
 // API declara metodos en el .d.ts que en Premiere no existen (ver la nota
 // larga al tope de importClip.js).
@@ -322,22 +348,43 @@ registrarPrueba("spike: parametros de Lumetri en el master clip", async (project
   // parametro --si es un numero, un LUT no se pone con una ruta y hay que
   // buscar otra via-- y tener contra que comparar despues.
   let antes = "no se pudo leer";
+  let valorPrevio = null;
   const tiempoCero = premierepro.TickTime ? premierepro.TickTime.createWithSeconds(0) : null;
   try {
-    antes = String(await paramLut.getValueAtTime(tiempoCero));
+    valorPrevio = await paramLut.getValueAtTime(tiempoCero);
+    antes = describirValor(valorPrevio);
   } catch (e) {
     antes = "getValueAtTime fallo: " + e.message;
   }
+  let arranque = "no se leyo";
+  try {
+    arranque = describirValor(await paramLut.getStartValue());
+  } catch (e) {
+    arranque = "getStartValue fallo: " + e.message;
+  }
 
-  // La firma de createSetValueAction no esta documentada para ComponentParam
-  // --la referencia solo la documenta en Properties, con tres argumentos--
-  // asi que se prueban las dos plausibles y se reporta cual sirvio.
+  // La corrida del 2026-08-10 dijo «Illegal Parameter type» con la ruta como
+  // texto, y que el valor actual es un OBJETO. O sea que el parametro de LUT
+  // no se pone con un string. Aqui se prueba, en orden: el texto (para dejar
+  // constancia de que sigue sin funcionar), el objeto que ya tiene con la
+  // ruta metida adentro por cada una de sus claves, y el objeto tal cual
+  // (control: si este pasa, el problema es el contenido y no el tipo).
   const intentosDeEscritura = [];
   let escribio = false;
   const firmas = [
-    ["(valor, true)", () => paramLut.createSetValueAction(RUTA_LUT, true)],
-    ["(valor)", () => paramLut.createSetValueAction(RUTA_LUT)],
+    ["texto (valor, true)", () => paramLut.createSetValueAction(RUTA_LUT, true)],
+    ["texto (valor)", () => paramLut.createSetValueAction(RUTA_LUT)],
   ];
+  if (valorPrevio && typeof valorPrevio === "object") {
+    firmas.push(["el objeto tal cual", () => paramLut.createSetValueAction(valorPrevio, true)]);
+    for (const clave of Object.keys(valorPrevio)) {
+      firmas.push(["objeto con ." + clave + " = la ruta", () => {
+        const copia = Object.assign({}, valorPrevio);
+        copia[clave] = RUTA_LUT;
+        return paramLut.createSetValueAction(copia, true);
+      }]);
+    }
+  }
   for (const [comoSeLlama, construir] of firmas) {
     try {
       runTransaction(project, construir, "Spike: poner la ruta del LUT");
@@ -351,9 +398,11 @@ registrarPrueba("spike: parametros de Lumetri en el master clip", async (project
   if (!escribio) {
     return {
       ok: false,
-      detalle: encabezado + " | no se pudo escribir la ruta: " +
+      detalle: encabezado + " | parametro de LUT en el indice " + indiceLut +
+        " («" + nombres[indiceLut] + "») | no se pudo escribir la ruta: " +
         intentosDeEscritura.join(" ; ") +
-        " | valor antes: " + antes +
+        " | VALOR ACTUAL: " + antes +
+        " | getStartValue: " + arranque +
         " | metodos del parametro: " + metodosDelParam,
     };
   }
