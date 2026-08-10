@@ -607,6 +607,15 @@ class MainWindow(QWidget):
         self._proxy_candidatos: dict[int, Path] = {}
         self._miniaturas_pendientes = 0
         self._miniaturas_totales = 0
+        # `{indice: archivo del que se esta extrayendo}` de lo que corre
+        # ahora. Dos trabajos para el mismo clip comparten carpeta de salida
+        # y socket IPC, y el segundo le borra el socket al primero: el primer
+        # mpv muere a media tira y esa tarjeta se queda con un solo cuadro,
+        # o sea sin escrubeo.
+        self._miniaturas_en_vuelo: dict[int, Path] = {}
+        # Los que hay que rehacer en cuanto termine lo que corre: pasa cuando
+        # se enganchan los proxies a media extraccion y la fuente cambia.
+        self._miniaturas_a_rehacer: set[int] = set()
         self._proxy_generation = 0
         # indice -> generacion del sondeo que sigue siendo valido para ese
         # clip. Con bins, cada tanda toca un bin nada mas: el contador
@@ -2722,6 +2731,10 @@ class MainWindow(QWidget):
             # material nuevo: invalida las señales stale de la tanda anterior
             self._thumb_generation += 1
             self._miniaturas_pendientes = 0
+            # los de la tanda anterior ya no cuentan: sus señales se
+            # descartan por generacion, asi que nadie los va a sacar de aqui
+            self._miniaturas_en_vuelo.clear()
+            self._miniaturas_a_rehacer.clear()
             self._miniaturas_totales = len(self.clips)
             alcance = list(range(len(self.clips)))
         else:
@@ -2753,10 +2766,17 @@ class MainWindow(QWidget):
             clip = self.clips[index]
             cache_dir = cache_dir_for(clip.ruta, cache_root)
             cached_frames = sorted(cache_dir.glob("strip_*.jpg")) if cache_dir.exists() else []
-            if cached_frames:
+            if len(cached_frames) > 1:
                 # cache hit: mismo clip ya procesado en una sesion anterior.
                 self._on_thumbnail_ready(generation, index, cached_frames)
                 continue
+            # Con UNA sola foto no es un cache hit: es una tira que se corto a
+            # la mitad. Quedaron asi los clips a los que dos extracciones se
+            # les pisaron el socket, y darlas por buenas los dejaba sin
+            # escrubeo para siempre --el mismo callejon del que se acaba de
+            # salir con la portada suelta--. Se pinta y se vuelve a extraer.
+            if cached_frames:
+                self._on_thumbnail_ready(generation, index, cached_frames)
             duration_seconds = self._clip_durations.get(index)
             # La portada suelta de las versiones viejas --`00000001.jpg`, de
             # cuando no existia la tira-- se PINTA pero no cuenta como cache
@@ -2784,6 +2804,31 @@ class MainWindow(QWidget):
             # miniatura alcanza, y esperar a la validacion --3.4 s de ffprobe
             # en 128 clips-- retrasaria justo lo que se quiere acelerar.
             fuente = self._proxy_candidatos.get(index, clip.ruta)
+            corriendo = self._miniaturas_en_vuelo.get(index)
+            if corriendo is not None:
+                # Ya se le esta sacando la tira a este clip. Encolar otro
+                # trabajo no lo acelera: los dos comparten carpeta de salida
+                # y socket IPC, y el que arranca segundo le BORRA el socket
+                # al primero --`extract_thumbnail_strip` lo hace a
+                # proposito, para no heredar uno viejo--. El primer mpv
+                # muere a media tira, el trabajo revienta con «el socket se
+                # cerro antes de responder», y esa tarjeta se queda con un
+                # solo cuadro: sin escrubeo. Bruno lo vio como «sigue sin
+                # funcionar el scrubbing en los videos de Sony».
+                #
+                # Pasa porque `_schedule_thumbnails` se llama varias veces
+                # por sesion --al cargar, al terminar la revision de media,
+                # al enganchar proxies-- y hasta ahora los clips ya
+                # cacheados salian antes por el `continue` del cache hit.
+                if corriendo != fuente:
+                    # ...pero si la FUENTE cambio --acaban de engancharse los
+                    # proxies-- hay que rehacerla: del proxy cuesta 5 veces
+                    # menos y es el camino que se quiere. Se anota y se
+                    # vuelve a pedir cuando el trabajo de ahora termine, que
+                    # es lo unico que evita los dos mpv a la vez.
+                    self._miniaturas_a_rehacer.add(index)
+                continue
+            self._miniaturas_en_vuelo[index] = fuente
             self._miniaturas_pendientes += 1
             self._thread_pool.start(
                 _ThumbnailJob(generation, index, fuente, cache_dir, duration_seconds,
@@ -2794,8 +2839,13 @@ class MainWindow(QWidget):
     def _on_thumbnail_ready(self, generation: int, index: int, frames: list[Path] | None) -> None:
         if generation != self._thumb_generation:
             return  # senal de una importacion ya descartada
+        self._miniaturas_en_vuelo.pop(index, None)
         self._miniaturas_pendientes = max(0, self._miniaturas_pendientes - 1)
         self._refrescar_progreso()
+        if index in self._miniaturas_a_rehacer:
+            self._miniaturas_a_rehacer.discard(index)
+            # ahora si, con la fuente nueva y sin nadie mas usando ese socket
+            self._schedule_thumbnails([index])
         if not frames or index >= self.clip_sheet.count():
             return
         pixmaps = [QPixmap(str(f)) for f in frames]

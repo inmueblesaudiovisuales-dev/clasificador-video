@@ -379,7 +379,10 @@ def test_cache_hit_no_relanza_mpv(qtbot, monkeypatch, tmp_path):
     from clasificador_video.thumbnails import cache_dir_for
     cache_dir = cache_dir_for(clip_path, cache_root)
     cache_dir.mkdir(parents=True)
-    (cache_dir / "strip_00.jpg").write_bytes(b"fake-jpeg")
+    # una tira ENTERA, no un solo cuadro: desde que las tiras cortadas se
+    # vuelven a extraer, un `strip_00.jpg` solo ya no es un cache hit
+    for i in range(12):
+        (cache_dir / f"strip_{i:02d}.jpg").write_bytes(b"fake-jpeg")
 
     called = []
     monkeypatch.setattr(
@@ -3484,6 +3487,13 @@ def test_las_miniaturas_salen_del_proxy_cuando_hay(qtbot, monkeypatch, tmp_path)
     monkeypatch.setattr(window, "_probe_clip", _ProbeConProxy())
     _importar_con_proxy(window, monkeypatch, tmp_path, parchear_miniaturas=False)
     window._thread_pool.waitForDone(5000)
+    # Pedir la tira DEL PROXY cuando ya hay una extraccion corriendo para ese
+    # clip no encola un segundo mpv --se pisarian el socket-- sino que la
+    # difiere hasta que la primera termina. Esa segunda vuelta llega por
+    # señal, asi que hay que dejar correr el ciclo de eventos.
+    QApplication.processEvents()
+    window._thread_pool.waitForDone(5000)
+    QApplication.processEvents()
 
     # la primera pasada sale del original --al importar todavia no hay
     # proxies-- y al engancharlos a mano se vuelven a pedir desde el proxy
@@ -3515,9 +3525,14 @@ def test_la_barra_avisa_mientras_se_generan_las_miniaturas(qtbot, monkeypatch, t
 
     assert "miniatura" in window.status_bar.progress_label.text().lower()
 
-    window._thread_pool.waitForDone(5000)
+    # Dos vueltas: al enganchar los proxies se vuelve a pedir la tira desde
+    # el proxy, y esa segunda pasada se difiere hasta que termina la primera
+    # --dos mpv sobre el mismo clip se pisan el socket--, asi que llega por
+    # señal y necesita otro giro del ciclo de eventos.
     from PySide6.QtWidgets import QApplication
-    QApplication.processEvents()
+    for _ in range(2):
+        window._thread_pool.waitForDone(5000)
+        QApplication.processEvents()
     assert window.status_bar.progress_label.isHidden()
 
 
@@ -4171,3 +4186,87 @@ def test_engancha_aunque_elijas_el_proxy_de_otro_clip_del_bin(qtbot, monkeypatch
     assert [c.ruta_proxy.name for c in window.clips] == [
         "C0000S03.MP4", "C0001S03.MP4", "C0002S03.MP4"
     ]
+
+
+def test_no_se_encolan_dos_extracciones_para_el_mismo_clip(qtbot, monkeypatch, tmp_path):
+    """Bruno: «sigue sin funcionar el scrubbing en los videos de sony».
+
+    `_schedule_thumbnails` se llama varias veces por sesion --al cargar, al
+    terminar la revision de media, al enganchar proxies--. Con dos trabajos
+    vivos para el mismo clip, los dos comparten carpeta de salida y socket
+    IPC, y el segundo le BORRA el socket al primero (lo hace a proposito,
+    para no heredar uno viejo). El primer mpv muere a media tira y esa
+    tarjeta se queda con UN cuadro, o sea sin escrubeo.
+
+    Se vio en su cache real: carpetas con `strip_00.jpg` y nada mas.
+    """
+    cache_root = tmp_path / "cache"
+    clip_path = tmp_path / "a.MP4"
+    clip_path.write_bytes(b"contenido de prueba")
+    window = _window_with_video(qtbot, cache_root=cache_root)
+
+    arrancadas = []
+    monkeypatch.setattr(
+        "clasificador_video.ui.main_window.extract_thumbnail_strip",
+        lambda *a, **k: arrancadas.append(1) or [],
+    )
+    window.load_clips([Clip(orden=1, ruta=clip_path, categoria_path=[], fps=30.0)])
+    window._clip_durations[0] = 4.0
+
+    window._schedule_thumbnails([0])
+    window._schedule_thumbnails([0])   # la segunda no debe encolar nada
+    window._thread_pool.waitForDone(3000)
+
+    assert arrancadas == [1]
+
+
+def test_cuando_termina_se_puede_volver_a_pedir(qtbot, monkeypatch, tmp_path):
+    """La guarda es «hay uno corriendo», no «ya se pidio una vez»: si no,
+    reconectar la media de un bin nunca volveria a pedir sus portadas."""
+    cache_root = tmp_path / "cache"
+    clip_path = tmp_path / "a.MP4"
+    clip_path.write_bytes(b"contenido de prueba")
+    window = _window_with_video(qtbot, cache_root=cache_root)
+
+    arrancadas = []
+    monkeypatch.setattr(
+        "clasificador_video.ui.main_window.extract_thumbnail_strip",
+        lambda *a, **k: arrancadas.append(1) or [],
+    )
+    window.load_clips([Clip(orden=1, ruta=clip_path, categoria_path=[], fps=30.0)])
+    window._clip_durations[0] = 4.0
+
+    window._schedule_thumbnails([0])
+    window._thread_pool.waitForDone(3000)
+    QApplication.processEvents()       # llega la señal y lo saca de «en vuelo»
+    window._schedule_thumbnails([0])
+    window._thread_pool.waitForDone(3000)
+
+    assert arrancadas == [1, 1]
+
+
+def test_una_tira_cortada_a_la_mitad_se_vuelve_a_extraer(qtbot, monkeypatch, tmp_path):
+    """Quedaron asi los clips a los que dos extracciones se les pisaron el
+    socket: `strip_00.jpg` y nada mas. Con una sola foto no hay escrubeo, y
+    darla por buena los dejaba en el mismo callejon sin salida del que se
+    acaba de salir con la portada suelta."""
+    cache_root = tmp_path / "cache"
+    clip_path = tmp_path / "a.MP4"
+    clip_path.write_bytes(b"contenido de prueba")
+    window = _window_with_video(qtbot, cache_root=cache_root)
+    from clasificador_video.thumbnails import cache_dir_for
+    cache_dir = cache_dir_for(clip_path, cache_root)
+    cache_dir.mkdir(parents=True)
+    (cache_dir / "strip_00.jpg").write_bytes(b"la unica que alcanzo a salir")
+
+    pedidos = []
+    monkeypatch.setattr(
+        "clasificador_video.ui.main_window.extract_thumbnail_strip",
+        lambda *a, **k: pedidos.append(1) or [],
+    )
+    window.load_clips([Clip(orden=1, ruta=clip_path, categoria_path=[], fps=30.0)])
+    window._clip_durations[0] = 4.0
+    window._schedule_thumbnails()
+    window._thread_pool.waitForDone(3000)
+
+    assert pedidos == [1]
