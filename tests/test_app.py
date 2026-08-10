@@ -43,9 +43,10 @@ class _FakeMpv:
         self.init_kwargs = kwargs
         self.pause = True
         self.time_pos = 0.0
+        self.loaded_path = None
 
     def play(self, path):
-        pass
+        self.loaded_path = path
 
     def command(self, *args):
         pass
@@ -406,6 +407,31 @@ def test_abrir_desde_la_pantalla_esconde_la_pantalla(qtbot, tmp_path):
     assert len(coord.ventanas) == 1
     assert not coord.inicio.isVisible()
     coord.ventanas[0].close()
+
+
+def test_abrir_desde_la_pantalla_no_pierde_el_proxy(qtbot, tmp_path):
+    """El clip donde aterrizas al abrir un proyecto tiene que abrirse por su
+    PROXY, como cualquier otro.
+
+    Abrirlo otra vez «por si acaso» lo abre con la ruta en crudo y borra en
+    silencio una fase entera de trabajo: un cuadro atras pasa de 22 ms a
+    530 ms justo en el clip donde caes cada vez que abres el proyecto, y no
+    hay ninguna señal de por que.
+    """
+    proxy = tmp_path / "C0001S03.MP4"
+    proxy.write_bytes(b"x")
+    ruta = _proyecto_en(tmp_path, {
+        "clips": [dict(_clip_crudo(), ruta_proxy=str(proxy))],
+    })
+    coord = _coordinador(tmp_path)
+    qtbot.addWidget(coord.inicio)
+    coord.mostrar_inicio()
+
+    coord.inicio.abrir_pedido.emit(ruta)
+
+    ventana = coord.ventanas[0]
+    assert ventana.video_widget.player._mpv.loaded_path == str(proxy)
+    ventana.close()
 
 
 def test_al_cerrarse_la_ventana_vuelve_la_pantalla(qtbot, tmp_path):

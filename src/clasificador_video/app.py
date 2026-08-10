@@ -320,8 +320,13 @@ class Coordinador(QObject):
         ventana.cerrada.connect(lambda: self._al_cerrarse(ventana))
         self.inicio.hide()
         ventana.show()
-        if ventana.clips:
-            ventana.video_widget.open_clip(ventana.clips[0].ruta)
+        # Y NADA de abrir el primer clip aqui. `load_clips` ya lo abrio, y lo
+        # abrio bien: por `ruta_de_reproduccion` --o sea con su proxy si
+        # valido-- y arrancando al 25%. Volver a abrirlo con la ruta en crudo
+        # borra las dos cosas en silencio, y deja al clip donde aterrizas
+        # cada vez que abres un proyecto a 530 ms por cuadro atras en vez de
+        # 22. Era herencia del `main()` viejo, que armaba la ventana sin
+        # pasar por aqui.
 
     def _al_cerrarse(self, ventana: MainWindow) -> None:
         if ventana in self.ventanas:

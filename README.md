@@ -117,7 +117,7 @@ El primer intento de este proyecto generaba un XML `xmeml` (Final Cut Pro 7)
 para importar a Premiere. Se abandonó: Premiere arma el clip solo con lo
 declarado en el XML sin abrir el archivo de video, y ese formato no tiene
 forma de declarar rotación — un clip vertical (cámara rotada, el caso normal
-acá con la Sony FX30) siempre queda acostado. La vía real es el plugin UXP en
+aquí con la Sony FX30) siempre queda acostado. La vía real es el plugin UXP en
 `uxp-plugin/`, que usa `project.importFiles()` (el mismo camino que usa
 Premiere al arrastrar un archivo a mano) y sí respeta la rotación. Detalle
 completo en `docs/superpowers/archive/HALLAZGOS-2026-08-05-rotacion-vertical.md`.
