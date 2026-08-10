@@ -2742,15 +2742,29 @@ class MainWindow(QWidget):
             clip = self.clips[index]
             cache_dir = cache_dir_for(clip.ruta, cache_root)
             cached_frames = sorted(cache_dir.glob("strip_*.jpg")) if cache_dir.exists() else []
-            if not cached_frames and cache_dir.exists():
-                single = cache_dir / "00000001.jpg"
-                if single.exists():
-                    cached_frames = [single]
             if cached_frames:
                 # cache hit: mismo clip ya procesado en una sesion anterior.
                 self._on_thumbnail_ready(generation, index, cached_frames)
                 continue
             duration_seconds = self._clip_durations.get(index)
+            # La portada suelta de las versiones viejas --`00000001.jpg`, de
+            # cuando no existia la tira-- se PINTA pero no cuenta como cache
+            # hit. Tratarla como hit dejaba esos clips sin escrubeo PARA
+            # SIEMPRE: la unica forma de recuperarlos era borrar el cache a
+            # mano, y nadie sabia que hubiera que hacerlo. Bruno lo reporto
+            # asi: «¿por que no puedo escrubear en los de la FX30 pero si en
+            # los del dron?» -- los del dron se importaron despues, con la
+            # tira ya existiendo.
+            #
+            # Se pinta igual para que la tarjeta no quede gris mientras se
+            # extrae la tira, que es justo lo que esa portada ya servia.
+            suelta = cache_dir / "00000001.jpg"
+            if suelta.exists():
+                self._on_thumbnail_ready(generation, index, [suelta])
+                if not duration_seconds:
+                    # sin duracion no hay tira posible, y volver a pedirla
+                    # cada sesion seria extraer de nuevo la misma portada
+                    continue
             # del PROXY si lo hay: sacar 12 cuadros de HEVC 10-bit a 268 Mbps
             # es lo que ponia los ventiladores a trabajar con 109 clips. El
             # proxy da la misma imagen ~20 veces mas barato.

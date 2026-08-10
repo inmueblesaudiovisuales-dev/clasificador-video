@@ -4105,3 +4105,65 @@ def test_no_se_encima_una_segunda_tanda(qtbot, monkeypatch, tmp_path):
     _esperar_generacion(window)
 
     assert hechos == []
+
+
+def test_una_portada_vieja_no_impide_sacar_la_tira_de_escrubeo(qtbot, monkeypatch, tmp_path):
+    """El bug que Bruno reporto con su material: «¿por que no puedo
+    escrubear en los de la FX30 pero si en los del dron?».
+
+    Los clips importados ANTES de que existiera la tira dejaron en el cache
+    una sola portada, `00000001.jpg`. El codigo la tomaba como cache hit, o
+    sea que esos clips se quedaban con un solo cuadro PARA SIEMPRE --el
+    escrubeo necesita mas de uno-- y la unica forma de recuperarlos era
+    borrar el cache a mano, que nadie sabia que hubiera que hacer. Los del
+    dron se importaron despues y por eso si tenian tira.
+
+    La portada vieja se sigue pintando (para que la tarjeta no quede gris
+    mientras se extrae), pero ya no cancela la extraccion.
+    """
+    cache_root = tmp_path / "cache"
+    clip_path = tmp_path / "a.MP4"
+    clip_path.write_bytes(b"contenido de prueba")
+    window = _window_with_video(qtbot, cache_root=cache_root)
+    from clasificador_video.thumbnails import cache_dir_for
+    cache_dir = cache_dir_for(clip_path, cache_root)
+    cache_dir.mkdir(parents=True)
+    (cache_dir / "00000001.jpg").write_bytes(b"portada vieja")
+
+    pedidos = []
+    monkeypatch.setattr(
+        "clasificador_video.ui.main_window.extract_thumbnail_strip",
+        lambda *a, **k: pedidos.append(1) or [],
+    )
+    window.load_clips([Clip(orden=1, ruta=clip_path, categoria_path=[], fps=30.0)])
+    window._clip_durations[0] = 4.0
+    window._schedule_thumbnails()
+    window._thread_pool.waitForDone(3000)
+
+    assert pedidos == [1]
+
+
+def test_sin_duracion_la_portada_vieja_no_se_re_extrae_cada_sesion(qtbot, monkeypatch, tmp_path):
+    """Sin duracion no hay tira posible, asi que volver a pedirla seria
+    extraer otra vez la misma portada suelta en cada arranque."""
+    cache_root = tmp_path / "cache"
+    clip_path = tmp_path / "a.MP4"
+    clip_path.write_bytes(b"contenido de prueba")
+    window = _window_with_video(qtbot, cache_root=cache_root)
+    from clasificador_video.thumbnails import cache_dir_for
+    cache_dir = cache_dir_for(clip_path, cache_root)
+    cache_dir.mkdir(parents=True)
+    (cache_dir / "00000001.jpg").write_bytes(b"portada vieja")
+
+    pedidos = []
+    for nombre in ("extract_thumbnail_strip", "extract_thumbnail"):
+        monkeypatch.setattr(
+            f"clasificador_video.ui.main_window.{nombre}",
+            lambda *a, **k: pedidos.append(1) or [],
+        )
+    window.load_clips([Clip(orden=1, ruta=clip_path, categoria_path=[], fps=30.0)])
+    window._clip_durations.pop(0, None)
+    window._schedule_thumbnails()
+    window._thread_pool.waitForDone(3000)
+
+    assert pedidos == []
