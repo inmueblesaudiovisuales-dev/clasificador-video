@@ -4,7 +4,13 @@ import pytest
 
 from clasificador_video.bins import BinTree
 from clasificador_video.manifest import Clip
-from clasificador_video.proyecto import a_dict, abrir, guardar, rutas_relativas
+from clasificador_video.proyecto import (
+    a_dict,
+    abrir,
+    con_pesos_medidos,
+    guardar,
+    rutas_relativas,
+)
 
 
 def _clip(i, ruta):
@@ -120,7 +126,7 @@ def test_abrir_uno_que_no_existe_devuelve_None(tmp_path):
 
 
 def test_guardar_es_atomico(tmp_path):
-    """Mismo criterio que `autosave.save_session`: temporal + rename. Si la
+    """Temporal + rename, como cualquier escritura que no se puede partir. Si la
     app muere a medio escribir, el archivo queda con lo viejo completo o
     con lo nuevo completo, nunca a medias."""
     ruta = tmp_path / "p.cvproj"
@@ -150,6 +156,25 @@ def test_una_escritura_fallida_no_deja_basura_en_la_carpeta(tmp_path, monkeypatc
     assert list(tmp_path.iterdir()) == []
 
 
+def test_armar_el_documento_no_toca_el_disco(tmp_path):
+    """`a_dict` es puro: no mide nada.
+
+    El medido vive en `con_pesos_medidos`, que corre en el hilo del guardado.
+    En el de la interfaz un `stat` por clip se traba hasta el timeout si el
+    volumen esta montado pero incomunicado --109 en serie-- y la app se
+    congela. Esa es justo la razon por la que el guardado se saco de ahi.
+    """
+    archivo = tmp_path / "C0001.MP4"
+    archivo.write_bytes(b"x" * 700)
+    bins = BinTree()
+    bins.agregar("Sony", tmp_path, [0])
+
+    data = a_dict(proyecto="P", rooms=[], clips=[_clip(0, str(archivo))],
+                  bins=bins, tamanos={}, duraciones={}, rotaciones={})
+
+    assert data["bytes"] == {}
+
+
 def test_el_proyecto_guarda_el_tamano_de_cada_archivo(tmp_path):
     """Sin esto no hay como confirmar que un archivo reencontrado es el que
     era: el nombre lo repiten las camaras y la duracion sola no distingue
@@ -159,8 +184,10 @@ def test_el_proyecto_guarda_el_tamano_de_cada_archivo(tmp_path):
     bins = BinTree()
     bins.agregar("Sony", tmp_path, [0])
 
-    data = a_dict(proyecto="P", rooms=[], clips=[_clip(0, str(archivo))],
-                  bins=bins, tamanos={}, duraciones={}, rotaciones={})
+    data = con_pesos_medidos(
+        a_dict(proyecto="P", rooms=[], clips=[_clip(0, str(archivo))],
+               bins=bins, tamanos={}, duraciones={}, rotaciones={})
+    )
 
     assert data["bytes"] == {"0": 700}
 
@@ -171,8 +198,10 @@ def test_un_archivo_que_ya_no_esta_no_impide_guardar(tmp_path):
     bins = BinTree()
     bins.agregar("Sony", Path("/no/existe"), [0])
 
-    data = a_dict(proyecto="P", rooms=[], clips=[_clip(0, "/no/existe/X.MP4")],
-                  bins=bins, tamanos={}, duraciones={}, rotaciones={})
+    data = con_pesos_medidos(
+        a_dict(proyecto="P", rooms=[], clips=[_clip(0, "/no/existe/X.MP4")],
+               bins=bins, tamanos={}, duraciones={}, rotaciones={})
+    )
 
     assert data["bytes"] == {}
 
@@ -186,9 +215,11 @@ def test_guardar_sin_la_media_conserva_los_bytes_que_ya_se_sabian(tmp_path):
     bins = BinTree()
     bins.agregar("Sony", Path("/no/existe"), [0])
 
-    data = a_dict(proyecto="P", rooms=[], clips=[_clip(0, "/no/existe/X.MP4")],
-                  bins=bins, tamanos={}, duraciones={}, rotaciones={},
-                  bytes_conocidos={0: 700})
+    data = con_pesos_medidos(
+        a_dict(proyecto="P", rooms=[], clips=[_clip(0, "/no/existe/X.MP4")],
+               bins=bins, tamanos={}, duraciones={}, rotaciones={},
+               bytes_conocidos={0: 700})
+    )
 
     assert data["bytes"] == {"0": 700}
 
@@ -200,9 +231,11 @@ def test_los_bytes_conocidos_llegan_con_la_llave_en_texto(tmp_path):
     bins = BinTree()
     bins.agregar("Sony", Path("/no/existe"), [0])
 
-    data = a_dict(proyecto="P", rooms=[], clips=[_clip(0, "/no/existe/X.MP4")],
-                  bins=bins, tamanos={}, duraciones={}, rotaciones={},
-                  bytes_conocidos={"0": 700})
+    data = con_pesos_medidos(
+        a_dict(proyecto="P", rooms=[], clips=[_clip(0, "/no/existe/X.MP4")],
+               bins=bins, tamanos={}, duraciones={}, rotaciones={},
+               bytes_conocidos={"0": 700})
+    )
 
     assert data["bytes"] == {"0": 700}
 
@@ -216,8 +249,39 @@ def test_el_disco_manda_cuando_el_archivo_si_se_puede_medir(tmp_path):
     bins = BinTree()
     bins.agregar("Sony", tmp_path, [0])
 
-    data = a_dict(proyecto="P", rooms=[], clips=[_clip(0, str(archivo))],
-                  bins=bins, tamanos={}, duraciones={}, rotaciones={},
-                  bytes_conocidos={0: 111})
+    data = con_pesos_medidos(
+        a_dict(proyecto="P", rooms=[], clips=[_clip(0, str(archivo))],
+               bins=bins, tamanos={}, duraciones={}, rotaciones={},
+               bytes_conocidos={0: 111})
+    )
 
     assert data["bytes"] == {"0": 700}
+
+
+def test_los_pesos_de_antes_se_arrastran_aunque_la_ventana_no_los_sepa(tmp_path):
+    """El archivo es el que acumula.
+
+    Mides un clip con la tarjeta puesta, la desconectas y sigues trabajando:
+    la ventana nunca supo ese peso --lo midio el hilo del guardado-- asi que
+    si el guardado de despues no mirara lo que ya habia en el archivo, ese
+    peso se perderia igual que antes.
+    """
+    bins = BinTree()
+    bins.agregar("Sony", Path("/no/existe"), [0])
+    documento = a_dict(proyecto="P", rooms=[], clips=[_clip(0, "/no/existe/X.MP4")],
+                       bins=bins, tamanos={}, duraciones={}, rotaciones={})
+
+    data = con_pesos_medidos(documento, previos={"0": 700})
+
+    assert data["bytes"] == {"0": 700}
+
+
+def test_medir_no_ensucia_el_documento_original(tmp_path):
+    """Se devuelve una copia: el que llama sigue siendo dueño del suyo."""
+    bins = BinTree()
+    documento = a_dict(proyecto="P", rooms=[], clips=[], bins=bins,
+                       tamanos={}, duraciones={}, rotaciones={})
+
+    con_pesos_medidos(documento, previos={"0": 700})
+
+    assert documento["bytes"] == {}

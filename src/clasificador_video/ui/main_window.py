@@ -20,7 +20,6 @@ from PySide6.QtWidgets import (
 )
 
 from clasificador_video import proyecto
-from clasificador_video.autosave import save_session
 from clasificador_video.bins import BinTree, raiz_comun_de
 from clasificador_video.filters import FilterState, cola, contar
 from clasificador_video.history import History, HistoryEntry
@@ -88,20 +87,40 @@ def _copiar(valor):
 
 
 class _AutosaveWriteJob(QRunnable):
-    """Escribe la sesion a disco fuera del hilo de la UI -- antes
+    """Escribe el proyecto a disco fuera del hilo de la UI -- antes
     `_autosave` escribia sincronicamente en cada tecla, lo que con muchas
-    sesiones/clips se sentia como lag real al clasificar rapido."""
+    sesiones/clips se sentia como lag real al clasificar rapido.
 
-    def __init__(self, path: Path, data: dict):
+    Aqui adentro tambien se MIDE el peso de cada archivo, por lo mismo: un
+    `stat` sobre un volumen montado pero incomunicado se traba hasta el
+    timeout, y son uno por clip en serie.
+
+    Y aqui se avisa cuando la escritura falla. Antes se tragaba el error, lo
+    que en la sesion escondida --un archivo en la carpeta del usuario,
+    siempre escribible-- casi nunca pasaba; ahora el archivo lo elige Bruno
+    y puede estar en un disco externo que se desconecta a media tarde.
+    """
+
+    def __init__(self, path: Path, data: dict, señales: "SeñalesDeTrabajos"):
         super().__init__()
         self.path = path
         self.data = data
+        self._señales = señales
 
     def run(self) -> None:
         try:
-            save_session(self.path, self.data)
-        except OSError:
-            pass
+            # el archivo es el que ACUMULA los pesos: la ventana no se entera
+            # de los que se midieron aqui, asi que sin releer lo que ya habia
+            # se perderia el peso de un clip medido con la tarjeta puesta en
+            # cuanto se desconectara.
+            previos = (proyecto.abrir(self.path) or {}).get("bytes")
+            proyecto.guardar(
+                self.path, proyecto.con_pesos_medidos(self.data, previos)
+            )
+        except OSError as error:
+            self._señales.guardado_fallo.emit(str(error))
+            return
+        self._señales.guardado_listo.emit()
 
 
 class SeñalesDeTrabajos(QObject):
@@ -139,6 +158,8 @@ class SeñalesDeTrabajos(QObject):
 
     miniatura_lista = Signal(int, int, object)  # generation, indice, list[Path] | None
     proxy_sondeado = Signal(int, int, object)   # generation, indice, info | None
+    guardado_listo = Signal()
+    guardado_fallo = Signal(str)                # el motivo, tal como lo dio el SO
 
 
 class _ThumbnailJob(QRunnable):
@@ -322,6 +343,8 @@ class MainWindow(QWidget):
         self._señales_de_trabajos = SeñalesDeTrabajos()
         self._señales_de_trabajos.miniatura_lista.connect(self._on_thumbnail_ready)
         self._señales_de_trabajos.proxy_sondeado.connect(self._on_proxy_sondeado)
+        self._señales_de_trabajos.guardado_listo.connect(self._on_guardado_listo)
+        self._señales_de_trabajos.guardado_fallo.connect(self._on_guardado_fallo)
         # hijo de la ventana A PROPOSITO: su destructor espera a los trabajos
         # en vuelo, y esa espera es lo que impide que una señal llegue
         # cuando la ventana ya no puede atenderla.
@@ -1359,15 +1382,29 @@ class MainWindow(QWidget):
             rotaciones=self._clip_rotations,
             bytes_conocidos=self._bytes_guardados,
         )
-        # lo recien medido pasa a ser «lo conocido»: el guardado de despues
-        # puede ser ya sin la media, y ahi este dato es lo unico que queda.
-        self._bytes_guardados = {
-            int(i): int(b) for i, b in data["bytes"].items()
-        }
         self._relativas = {int(i): str(r) for i, r in data["relativas"].items()}
-        self._autosave_pool.start(_AutosaveWriteJob(self.session_path, data))
+        # El indicador NO se toca aqui. Antes decia «guardado» apenas se
+        # encolaba el trabajo, o sea antes de que nadie hubiera escrito nada:
+        # con el disco desconectado seguia contando segundos toda la sesion
+        # mientras el archivo no se tocaba. Ahora lo mueve el resultado real
+        # (`_on_guardado_listo` / `_on_guardado_fallo`).
+        self._autosave_pool.start(
+            _AutosaveWriteJob(self.session_path, data, self._señales_de_trabajos)
+        )
+
+    def _on_guardado_listo(self) -> None:
         self._last_saved_at = time.monotonic()
         self._tick_saved_indicator()
+
+    def _on_guardado_fallo(self, motivo: str) -> None:
+        """El proyecto no se pudo escribir. Se dice y se deja de contar.
+
+        No hay reintento ni cartel: el autoguardado vuelve a intentarlo a la
+        siguiente edicion, y para entonces el disco puede estar de vuelta. Lo
+        que no puede pasar es que el indicador siga prometiendo que guardo.
+        """
+        self._last_saved_at = None
+        self.title_bar.set_no_guardado(motivo)
 
     def _flush_autosave(self) -> None:
         """Fuerza el guardado pendiente ya mismo -- al cerrar la ventana,

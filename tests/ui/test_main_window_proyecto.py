@@ -92,17 +92,24 @@ def test_el_autoguardado_no_borra_los_pesos_cuando_la_media_no_esta(ventana, tmp
     assert _guardado(ventana)["bytes"] == {"0": 700}
 
 
-def test_los_pesos_recien_medidos_quedan_como_conocidos(ventana, tmp_path):
-    """Guardar con la media puesta tiene que dejar el dato listo para el
-    guardado de después, que puede ser ya sin ella."""
+def test_el_peso_se_mide_al_guardar_y_se_arrastra_solo(ventana, tmp_path):
+    """Guardar con la media puesta deja el dato listo para el guardado de
+    después, que puede ser ya sin ella.
+
+    Lo acumula el ARCHIVO y no la ventana: el peso lo mide el hilo del
+    guardado —en el de la interfaz un `stat` por clip congela la app sobre un
+    volumen montado e incomunicado— así que la ventana nunca se entera. Por
+    eso el guardado relee lo que ya había antes de escribir.
+    """
     archivo = tmp_path / "C0001.MP4"
     archivo.write_bytes(b"x" * 500)
     ventana.session_path = tmp_path / "P.cvproj"
     ventana.load_clips([_clip(0, str(archivo))])
+    assert _guardado(ventana)["bytes"] == {"0": 500}
 
-    _guardado(ventana)
+    archivo.unlink()                       # se desconectó la tarjeta
 
-    assert ventana._bytes_guardados == {0: 500}
+    assert _guardado(ventana)["bytes"] == {"0": 500}
 
 
 def test_material_nuevo_no_hereda_los_pesos_del_anterior(ventana, tmp_path):
@@ -145,3 +152,55 @@ def test_la_ventana_avisa_cuando_se_cierra(ventana, qtbot):
     ventana.closeEvent(QCloseEvent())
 
     assert avisos == [1]
+
+
+def test_armar_el_documento_no_toca_el_disco_en_el_hilo_de_la_interfaz(ventana, tmp_path, monkeypatch):
+    """El `stat` de cada clip vive en el hilo del guardado.
+
+    En el de la interfaz se traba hasta el timeout con un volumen montado
+    pero incomunicado, y son uno por clip en serie: la app se congela. Sacar
+    la escritura de ese hilo fue justo lo que arregló el lag al clasificar
+    rápido, y medir ahí es volver a meterlo.
+    """
+    from pathlib import Path as _Path
+
+    tocados = []
+    stat_real = _Path.stat
+    monkeypatch.setattr(_Path, "stat",
+                        lambda self, *a, **k: (tocados.append(self),
+                                               stat_real(self, *a, **k))[1])
+    ventana.session_path = tmp_path / "P.cvproj"
+    ventana.clips = [_clip(0, "/cam/A.MP4")]
+
+    ventana._write_autosave_now()          # sin esperar al hilo: solo lo de aquí
+
+    assert [t for t in tocados if str(t).startswith("/cam")] == []
+
+
+def test_si_el_guardado_falla_la_barra_lo_dice(ventana, qtbot, tmp_path):
+    """El `except OSError: pass` se tragaba el error y el indicador seguía
+    contando «guardado hace 3 s» toda la sesión. Con el proyecto en un disco
+    externo que se desconecta a media tarde, eso es prometer lo que no pasó."""
+    estorbo = tmp_path / "estorbo"
+    estorbo.write_text("no soy una carpeta")
+    ventana.session_path = estorbo / "P.cvproj"
+    ventana.load_clips([_clip(0, "/cam/A.MP4")])
+
+    with qtbot.waitSignal(ventana._señales_de_trabajos.guardado_fallo, timeout=2000):
+        ventana._write_autosave_now()
+
+    assert ventana.title_bar.saved_label.text() == "No se pudo guardar"
+    assert ventana._last_saved_at is None
+
+
+def test_el_indicador_solo_cuenta_cuando_de_verdad_se_escribio(ventana, qtbot, tmp_path):
+    ventana.session_path = tmp_path / "P.cvproj"
+    ventana.load_clips([_clip(0, "/cam/A.MP4")])
+
+    ventana._write_autosave_now()
+    assert ventana._last_saved_at is None          # todavía nadie escribió nada
+
+    ventana._autosave_pool.waitForDone(2000)
+    qtbot.waitUntil(lambda: ventana._last_saved_at is not None, timeout=2000)
+
+    assert "Guardado hace" in ventana.title_bar.saved_label.text()

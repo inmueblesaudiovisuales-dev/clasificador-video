@@ -490,6 +490,12 @@ def build_stylesheet() -> str:
         background-color: {PICK_COLOR};
         border-radius: 3px;
     }}
+    /* el mismo punto, en rojo, cuando el proyecto NO se pudo escribir: verde
+       y rojo en el mismo lugar se comparan de un vistazo, que es justo lo
+       que hace falta para notar que algo dejo de guardarse */
+    QLabel#savedLed[falla="true"] {{
+        background-color: {REJECT_COLOR};
+    }}
     QPushButton#railButton {{
         background-color: {BG_SURFACE_2};
         border: 1px solid {LINE};

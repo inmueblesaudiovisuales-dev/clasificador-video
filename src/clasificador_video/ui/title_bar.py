@@ -163,5 +163,32 @@ class TitleBar(QWidget):
             self.mode_toggled.emit()
 
     def set_saved_seconds(self, segundos: int | None) -> None:
+        self._marcar_falla(False)
+        self.saved_label.setToolTip("")
         self.saved_label.setText("" if segundos is None else f"Guardado hace {segundos} s")
         self.saved_led.setVisible(segundos is not None)
+
+    def set_no_guardado(self, motivo: str) -> None:
+        """El proyecto no se pudo escribir.
+
+        Antes esto no existia y el error se tragaba entero: el indicador
+        seguia diciendo «Guardado hace 3 s» toda la sesion mientras nada se
+        guardaba. Con la sesion escondida --un archivo en la carpeta del
+        usuario, siempre escribible-- casi nunca pasaba; ahora el archivo lo
+        elige Bruno y puede estar en un disco externo que se desconecta.
+
+        El motivo va en el tooltip y no en la barra: «Read-only file system»
+        no le dice nada a un editor de video, pero es lo primero que hace
+        falta si algun dia hay que averiguar por que.
+        """
+        self.saved_label.setText("No se pudo guardar")
+        self.saved_label.setToolTip(motivo)
+        self.saved_led.setVisible(True)
+        self._marcar_falla(True)
+
+    def _marcar_falla(self, falla: bool) -> None:
+        # por propiedad + repolish: es como el resto de la app cambia un
+        # color desde QSS sin volver a aplicar la hoja entera
+        self.saved_led.setProperty("falla", "true" if falla else "false")
+        self.saved_led.style().unpolish(self.saved_led)
+        self.saved_led.style().polish(self.saved_led)

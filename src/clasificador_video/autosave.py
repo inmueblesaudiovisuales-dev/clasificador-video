@@ -1,22 +1,19 @@
 # src/clasificador_video/autosave.py
+"""Leer la sesión escondida de la versión anterior.
+
+Aquí vivía también `save_session`, la escritura atómica. Murió cuando el
+proyecto pasó a ser un archivo con nombre: quien escribe ahora es
+`proyecto.guardar`, que hace lo mismo y además limpia su temporal si la
+escritura falla a medias. Dos escritores para el mismo archivo eran dos
+cuidados que había que acordarse de aplicar en los dos lados —y el que se
+usaba el 99% del tiempo era justo el que no los tenía—.
+
+Lo que queda es la lectura, y solo la usa la migración de la sesión vieja.
+"""
 from __future__ import annotations
 
 import json
-import os
 from pathlib import Path
-
-
-def save_session(path: Path, data: dict) -> None:
-    """Escribe `data` como JSON de forma atomica: archivo temporal + rename.
-
-    Si la app se cierra a medio escribir, el rename atomico de POSIX
-    garantiza que `path` siempre queda o con el contenido viejo completo,
-    o con el nuevo completo -- nunca a medias.
-    """
-    path.parent.mkdir(parents=True, exist_ok=True)
-    tmp_path = path.with_suffix(path.suffix + ".tmp")
-    tmp_path.write_text(json.dumps(data, indent=2, ensure_ascii=False))
-    os.replace(tmp_path, path)
 
 
 def load_session(path: Path) -> dict | None:

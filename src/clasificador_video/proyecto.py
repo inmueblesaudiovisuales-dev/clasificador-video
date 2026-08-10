@@ -66,38 +66,55 @@ def por_indice_de_clip(mapa: dict | None) -> dict[int, object]:
     return normalizado
 
 
-def _tamanos_en_disco(clips: list, conocidos: dict | None) -> dict[int, int]:
-    """El peso de cada archivo, para poder confirmarlo al reencontrarlo.
+def _pesos_validos(mapa: dict | None) -> dict[int, int]:
+    """Solo lo que de verdad es un peso. `True` es un `int` para Python y no
+    es un peso: colarlo dejaria un `bytes` con el que nada puede calzar."""
+    return {i: v for i, v in por_indice_de_clip(mapa).items()
+            if isinstance(v, int) and not isinstance(v, bool)}
 
-    Lo que no se puede medir **conserva** el valor que el proyecto ya traia,
-    y solo se omite si tampoco habia uno. Antes se omitia siempre, y eso
-    borraba el dato justo cuando hacia falta: al abrir el proyecto sin la
-    media conectada, el autoguardado se dispara solo a los pocos segundos y
-    reescribia el archivo sin un solo peso. Despues de eso ya no hay con que
-    distinguir una tarjeta de otra.
 
-    Guardar tiene que seguir funcionando con el disco desconectado, o se
-    pierde trabajo justo cuando mas duele: por eso no revienta.
+def con_pesos_medidos(data: dict, previos: dict | None = None) -> dict:
+    """El documento con el peso real de cada archivo, medido del disco.
+
+    **Esto toca disco, asi que corre en el hilo del guardado y no en el de la
+    interfaz.** Un `stat` cuesta menos de un milisegundo en local, pero sobre
+    un volumen montado e incomunicado se traba hasta el timeout, y son uno
+    por clip en serie: con 109 clips la app se congela. Sacar la escritura de
+    ese hilo fue justo lo que arreglo el lag al clasificar rapido, y medir
+    ahi seria volver a meterlo.
+
+    El peso de cada archivo es lo unico con que se puede confirmar que un
+    archivo reencontrado es el que era: el nombre lo repiten las camaras y la
+    duracion sola no distingue dos tomas iguales.
+
+    Se combinan tres fuentes, en este orden: lo que ya estaba en el archivo
+    (`previos`), lo que trae el documento, y lo que se pudo medir ahora. Lo
+    que no se puede medir **conserva** lo de antes en vez de borrarse -- ese
+    borrado, que pasaba solo a los pocos segundos de abrir el proyecto sin la
+    media, dejaba a Bruno sin con que confirmar nada.
     """
-    previos = por_indice_de_clip(conocidos)
-    tamanos: dict[int, int] = {}
-    for indice, clip in enumerate(clips):
+    pesos = _pesos_validos(previos)
+    pesos.update(_pesos_validos(data.get("bytes")))
+    for indice, clip in enumerate(data.get("clips") or []):
         try:
-            tamanos[indice] = Path(clip.ruta).stat().st_size
+            pesos[indice] = Path(str(clip["ruta"])).stat().st_size
+        except (OSError, KeyError, TypeError):
+            # guardar tiene que funcionar con el disco desconectado, o se
+            # pierde trabajo justo cuando mas duele
             continue
-        except OSError:
-            pass
-        viejo = previos.get(indice)
-        if isinstance(viejo, int) and not isinstance(viejo, bool):
-            tamanos[indice] = viejo
-    return tamanos
+    # una copia: el que llama sigue siendo dueño del suyo
+    return {**data, "bytes": {str(i): t for i, t in sorted(pesos.items())}}
 
 
 def a_dict(proyecto: str, rooms: list[str], clips: list, bins,
            tamanos: dict, duraciones: dict, rotaciones: dict,
            bytes_conocidos: dict | None = None) -> dict:
-    """`bytes_conocidos` son los pesos que el proyecto ya traia --tal cual
-    salen de `abrir`--, para no perderlos al guardar sin la media."""
+    """La forma del documento. **Puro: no toca disco.**
+
+    Los pesos que salen de aqui son los que ya se sabian (`bytes_conocidos`,
+    tal cual vienen de `abrir`). Medirlos de verdad es trabajo de
+    `con_pesos_medidos`, que corre donde el disco no estorba.
+    """
     return {
         "version": VERSION,
         "proyecto": proyecto,
@@ -114,16 +131,18 @@ def a_dict(proyecto: str, rooms: list[str], clips: list, bins,
         # archivo reencontrado es el que era: el nombre lo repiten las
         # camaras y la duracion sola no distingue dos tomas iguales.
         "bytes": {str(i): t
-                  for i, t in _tamanos_en_disco(clips, bytes_conocidos).items()},
+                  for i, t in sorted(_pesos_validos(bytes_conocidos).items())},
     }
 
 
 def guardar(ruta: Path, data: dict) -> None:
-    """Escritura atomica, igual que `autosave.save_session`.
+    """Escritura atomica: temporal + rename.
 
-    No se reusa aquella funcion a proposito: son dos cosas distintas que hoy
-    se escriben igual --el autosave de la sesion y el documento de Bruno-- y
-    atarlas obligaria a que cambien juntas.
+    El UNICO escritor del documento. Hubo dos --este y `save_session`-- y era
+    un cuidado que habia que acordarse de aplicar en los dos lados: el que
+    escribia el archivo de Bruno el 99% del tiempo era justo el que NO
+    limpiaba su temporal si fallaba, y eso dejaba un `Casa Lomas.cvproj.tmp`
+    al lado del proyecto que nadie sabe que es.
     """
     ruta.parent.mkdir(parents=True, exist_ok=True)
     tmp = ruta.with_suffix(ruta.suffix + ".tmp")

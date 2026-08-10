@@ -152,3 +152,30 @@ def test_el_icono_de_la_app_lleva_el_triangulo_de_play(qtbot):
     pixmap = bar.mark.pixmap()
     assert pixmap is not None and not pixmap.isNull()
     assert pixmap.deviceIndependentSize().toSize() == bar.mark.size()
+
+
+def test_la_barra_dice_cuando_no_se_pudo_guardar(qtbot):
+    """El indicador decia «Guardado hace 3 s» toda la sesión aunque la
+    escritura estuviera fallando. Con la sesión escondida —un archivo en la
+    carpeta del usuario, siempre escribible— casi nunca pasaba; ahora el
+    archivo lo elige Bruno y puede estar en un disco que se desconecta."""
+    barra = TitleBar()
+    qtbot.addWidget(barra)
+    barra.set_saved_seconds(3)
+
+    barra.set_no_guardado("Read-only file system")
+
+    assert barra.saved_label.text() == "No se pudo guardar"
+    assert not barra.saved_led.isHidden()
+    assert "Read-only file system" in barra.saved_label.toolTip()
+
+
+def test_un_guardado_bueno_borra_el_aviso_de_falla(qtbot):
+    barra = TitleBar()
+    qtbot.addWidget(barra)
+    barra.set_no_guardado("se desconectó")
+
+    barra.set_saved_seconds(0)
+
+    assert barra.saved_label.text() == "Guardado hace 0 s"
+    assert barra.saved_label.toolTip() == ""
