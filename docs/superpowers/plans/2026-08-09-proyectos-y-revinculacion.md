@@ -1324,10 +1324,44 @@ recientes.
 >   pisaría el trabajo del día con el de antes.
 > - `proyecto.es_proyecto` exige `version` **o** `clips`, no las dos: los
 >   proyectos convertidos de la sesión vieja no traen `version`.
-> - Costo aceptado: `a_dict` hace un `stat()` por clip en el hilo de la UI en
->   cada autoguardado. Con 109 clips en disco local no se nota; sobre un
->   volumen de red desconectado podría trabarse. Si aparece, el arreglo es
->   mover el medido al hilo del `_AutosaveWriteJob`, no volver a las dos formas.
+> **Segunda ronda, misma fecha, tras la revisión.** 1288 tests, **0 fallos
+> sobre 40 corridas**. Ocho arreglos, uno por commit:
+>
+> - **El peor**: `_tomar` volvía a abrir el primer clip después de que
+>   `load_clips` ya lo había abierto por `ruta_de_reproduccion` —con su proxy y
+>   arrancando al 25%—. La segunda apertura iba con la ruta en crudo: el clip
+>   donde aterrizas **cada vez** que abres un proyecto quedaba a 530 ms por
+>   cuadro atrás en vez de 22. Una fase entera de trabajo borrada en silencio
+>   por una línea heredada del `main()` viejo.
+> - **mpv no se apagaba.** Hasta ahora la ventana vivía hasta que moría el
+>   proceso; con el `Coordinador` se destruye en caliente y nadie liberaba el
+>   contexto de render ni terminaba mpv. Las 40 corridas verdes no decían nada
+>   al respecto: todos los tests usan un mpv falso. Verificado a mano con mpv y
+>   OpenGL reales sobre `sample-media/clips`, tres proyectos seguidos con el
+>   visor a la vista: contexto de render creado y liberado las tres veces, y
+>   los hilos vuelven a 1 tras cada cierre.
+> - **El autoguardado fallaba en silencio** y la barra seguía diciendo
+>   «Guardado hace 3 s». Antes el archivo era de la carpeta del usuario,
+>   siempre escribible; ahora lo elige Bruno y puede estar en un disco que se
+>   desconecta. Y `crear_proyecto` prometía «ya guardado» sin comprobarlo.
+> - **La migración corría sin red**, antes de que existiera una ventana: un
+>   `~/Documents` bloqueado por TCC dejaba a Bruno sin poder entrar.
+> - **Un `.cvproj` con clips malformados abortaba el proceso** —la excepción
+>   salía dentro de un slot de Qt— con solo hacerle clic.
+> - **El escritor era doble**: `proyecto.guardar` y `autosave.save_session`, y
+>   el que escribía el archivo de Bruno el 99% del tiempo era el que no
+>   limpiaba su temporal. `save_session` murió.
+> - **El `stat()` volvió al hilo del guardado** (`proyecto.con_pesos_medidos`).
+>   El caso que duele no es el volumen desmontado sino el **montado e
+>   incomunicado**: 109 stats en serie, cada uno hasta el timeout. Como la
+>   ventana ya no mide, el que acumula los pesos es el archivo: el guardado
+>   relee lo que había antes de escribir.
+> - **El modal se fue**: el aviso vive en la pantalla de inicio, como pedía el
+>   spec. Mirado en pixel.
+> - Y cuatro baratas: las relativas se calculan al migrar (son léxicas, no
+>   necesitan la media), la sesión apartada no pisa una anterior, la sesión se
+>   lee una sola vez, y la fecha de un reciente es la de la última vez que
+>   trabajaste y no la de abrir —que es por la que se ordena la lista—.
 
 ---
 
