@@ -230,6 +230,39 @@ def arrancar_inicio(recientes_path: Path | None = None) -> PantallaInicio:
     return pantalla
 
 
+def _migrar_datos(data: dict | None, destino: Path) -> bool:
+    """Escribe como proyecto una sesion **ya leida**. `False` si no habia
+    nada que migrar, o si sus clips no se pueden leer.
+
+    Existe aparte de `migrar_sesion` para que quien ya tiene el dict no
+    tenga que volver a leer el archivo.
+    """
+    if not data or not data.get("clips"):
+        return False
+    clips = _clips_de(data)
+    if not clips:
+        # una sesion cuyos clips no se entienden daria un .cvproj que
+        # tampoco se puede abrir: mejor no crearlo y dejar la sesion donde
+        # esta, que es donde Bruno la puede rescatar a mano.
+        return False
+    documento = dict(data)
+    documento.setdefault("version", proyecto.VERSION)
+    # Las relativas SI se calculan aqui: `rutas_relativas` es lexica, no
+    # toca disco, y la sesion vieja trae las rutas y los origenes de sus
+    # bins. Dejarlas para «el primer autoguardado con la media conectada»
+    # era regalar lo unico que permite reencontrar el material en otra
+    # computadora, por un dato que ya estaba ahi.
+    bins = BinTree.desde_sesion(data.get("bins"), rutas=[c.ruta for c in clips])
+    documento.setdefault("relativas", {
+        str(i): r for i, r in proyecto.rutas_relativas(clips, bins).items()
+    })
+    # Los pesos no: esos si necesitan la media conectada, y los pone el
+    # primer autoguardado que la encuentre.
+    documento.setdefault("bytes", {})
+    proyecto.guardar(destino, documento)
+    return True
+
+
 def migrar_sesion(sesion: Path, destino: Path) -> bool:
     """Convierte la sesion escondida en un proyecto de verdad.
 
@@ -239,17 +272,7 @@ def migrar_sesion(sesion: Path, destino: Path) -> bool:
 
     Devuelve False si no habia nada que migrar.
     """
-    data = load_session(sesion)
-    if not data or not data.get("clips"):
-        return False
-    data.setdefault("version", proyecto.VERSION)
-    # Sin relativas ni pesos: la sesion vieja no los tenia. Los pone el
-    # primer autoguardado con la media conectada, que es cuando se pueden
-    # medir de verdad.
-    data.setdefault("relativas", {})
-    data.setdefault("bytes", {})
-    proyecto.guardar(destino, data)
-    return True
+    return _migrar_datos(load_session(sesion), destino)
 
 
 def _destino_libre(carpeta: Path, nombre: str) -> Path:
@@ -258,6 +281,34 @@ def _destino_libre(carpeta: Path, nombre: str) -> Path:
     intento = 2
     while candidato.exists():
         candidato = carpeta / f"{nombre} ({intento}){proyecto.EXTENSION}"
+        intento += 1
+    return candidato
+
+
+def _hay_sesion_que_migrar(sesion: Path) -> bool:
+    """¿Queda material de la version anterior sin convertir?
+
+    Sirve para distinguir «no habia nada» de «habia y no se pudo», que es lo
+    unico que decide si hay algo que avisarle a Bruno.
+    """
+    try:
+        data = load_session(sesion)
+    except OSError:
+        return False
+    return bool(data and data.get("clips"))
+
+
+def _apartado_libre(sesion: Path) -> Path:
+    """Donde se guarda la sesion vieja despues de migrarla.
+
+    Sin pisar una anterior: la apartada **es** la copia de respaldo, y hoy
+    solo puede haber una, pero eso es una invariante que no esta escrita en
+    ningun lado. Si alguna vez hay dos, pisarla borraria la primera.
+    """
+    candidato = sesion.with_name("sesion.migrada.json")
+    intento = 2
+    while candidato.exists():
+        candidato = sesion.with_name(f"sesion.migrada.{intento}.json")
         intento += 1
     return candidato
 
@@ -276,16 +327,32 @@ def migrar_sesion_vieja(sesion: Path | None = None, carpeta: Path | None = None,
     """
     sesion = sesion or SESSION_PATH
     carpeta = carpeta or CARPETA_DE_MIGRACION
-    data = load_session(sesion)
+    try:
+        data = load_session(sesion)
+    except OSError:
+        return None
     if not data or not data.get("clips"):
         return None
     nombre = str(data.get("proyecto") or "Proyecto recuperado")
     destino = _destino_libre(carpeta, nombre)
-    if not migrar_sesion(sesion, destino):
+    # TODO ESTO va protegido, y no por prolijidad: corre al arrancar, ANTES
+    # de que exista una ventana. Un traceback aqui --`~/Documents` bloqueada
+    # por TCC o por iCloud, el disco lleno-- deja a Bruno sin poder entrar a
+    # la app, que es infinitamente peor que quedarse sin migrar.
+    try:
+        if not _migrar_datos(data, destino):
+            return None
+        # recien ahora, con lo nuevo escrito en disco
+        os.replace(sesion, _apartado_libre(sesion))
+    except OSError:
+        # Si el proyecto se escribio pero la sesion no se pudo apartar, lo
+        # escrito se deshace. Sin la marca, cada arranque volveria a
+        # convertirla y se acumularian «(2)», «(3)», «(4)»... Deshacerlo no
+        # pierde nada --la sesion sigue entera-- y el siguiente arranque lo
+        # vuelve a intentar limpio.
+        destino.unlink(missing_ok=True)
         return None
     Recientes(recientes_path or RECIENTES_PATH).registrar(destino, nombre)
-    # recien ahora, con lo nuevo escrito en disco
-    os.replace(sesion, sesion.with_name("sesion.migrada.json"))
     return destino
 
 
@@ -322,6 +389,27 @@ class Coordinador(QObject):
         self._refrescar()
         self.inicio.show()
         self.inicio.raise_()
+
+    def migrar_lo_viejo(self, sesion: Path | None = None,
+                        carpeta: Path | None = None) -> Path | None:
+        """Convierte la sesion escondida en proyecto, y lo dice si no pudo.
+
+        Va aqui y no suelto en `main()` porque el aviso necesita una pantalla
+        donde ponerse. Que falle no puede impedir entrar a la app: lo peor
+        que pasa es que Bruno siga sin migrar, y eso se arregla despues.
+        """
+        sesion = sesion or SESSION_PATH
+        if not _hay_sesion_que_migrar(sesion):
+            return None
+        destino = migrar_sesion_vieja(sesion=sesion, carpeta=carpeta,
+                                      recientes_path=self._recientes_path)
+        if destino is None:
+            self.inicio.avisar(
+                "Tenías material clasificado de la versión anterior y no se "
+                "pudo convertir en proyecto. No se perdió nada: sigue "
+                f"guardado en {sesion}."
+            )
+        return destino
 
     # --- los tres caminos -------------------------------------------------
 
@@ -398,11 +486,13 @@ def main() -> None:
         configure_gl_surface_format()
     app = QApplication.instance() or QApplication(sys.argv)
     app.setStyleSheet(build_stylesheet())
+    coordinador = Coordinador()
     # antes de mostrar nada: si Bruno viene de la version anterior, su
     # material clasificado esta en la sesion escondida y tiene que aparecer
-    # en la lista como un proyecto mas.
-    migrar_sesion_vieja()
-    coordinador = Coordinador()
+    # en la lista como un proyecto mas. Va DESPUES de construir el
+    # coordinador porque si falla, el aviso necesita una pantalla donde
+    # ponerse -- y porque un fallo aqui no puede impedir entrar.
+    coordinador.migrar_lo_viejo()
     coordinador.mostrar_inicio()
     sys.exit(app.exec())
 

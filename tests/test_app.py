@@ -592,10 +592,12 @@ def test_main_aplica_el_stylesheet_global(qtbot, monkeypatch):
         def __init__(self, **kwargs):
             pass
 
+        def migrar_lo_viejo(self):
+            pass
+
         def mostrar_inicio(self):
             pass
 
-    monkeypatch.setattr(app_module, "migrar_sesion_vieja", lambda: None)
     monkeypatch.setattr(app_module, "Coordinador", _CoordinadorFalso)
     monkeypatch.setattr(app_module.QApplication, "exec", lambda self: 0)
     monkeypatch.setattr(app_module.sys, "exit", lambda code=0: None)
@@ -630,3 +632,153 @@ def test_un_tamano_ilegible_no_impide_abrir_el_proyecto(qtbot, tmp_path):
     assert window._clip_durations == {}
     assert window._bytes_guardados == {}
     assert window.room_selection.active_rooms() == []
+
+
+def test_la_migracion_le_calcula_las_relativas_a_la_sesion_vieja(tmp_path):
+    """`rutas_relativas` es léxica: no toca disco. La sesión vieja trae las
+    rutas y los orígenes de sus bins, así que la relativa —lo único que
+    permite reencontrar el material en otra computadora— se puede calcular
+    ahí mismo, sin esperar a que la media esté conectada."""
+    sesion = _sesion_vieja(tmp_path, {
+        "bins": [{"nombre": "Sony", "origen": "/cam", "clips": [0]}],
+    })
+    destino = tmp_path / "convertido.cvproj"
+
+    migrar_sesion(sesion, destino)
+
+    assert abrir(destino)["relativas"] == {"0": "C0001.MP4"}
+
+
+def test_una_sesion_con_clips_rotos_no_se_migra_a_medias(tmp_path):
+    """Si no se pueden leer sus clips, el .cvproj que saliera de ahí tampoco
+    se podría abrir. Mejor no crearlo y dejar la sesión donde está."""
+    sesion = _sesion_vieja(tmp_path, {"clips": [{"orden": 1}]})
+
+    assert migrar_sesion(sesion, tmp_path / "x.cvproj") is False
+    assert not (tmp_path / "x.cvproj").exists()
+
+
+def test_si_no_se_puede_escribir_el_proyecto_la_app_abre_igual(tmp_path, monkeypatch):
+    """Migrar corre ANTES de que exista una ventana. Un traceback aquí deja a
+    Bruno sin poder entrar a la app —por una carpeta que no era escribible,
+    iCloud, TCC o el disco lleno—."""
+    def no_se_puede(*a, **k):
+        raise OSError("read-only file system")
+
+    monkeypatch.setattr(app_module.proyecto, "guardar", no_se_puede)
+    sesion = _sesion_vieja(tmp_path)
+
+    resultado = migrar_sesion_vieja(sesion=sesion, carpeta=tmp_path / "docs",
+                                    recientes_path=tmp_path / "r.json")
+
+    assert resultado is None
+    assert sesion.exists()          # y no se apartó: no hay nada a salvo
+
+
+def test_si_falla_apartar_la_vieja_no_se_acumulan_copias(tmp_path, monkeypatch):
+    """Si el `replace` falla después de escribir, no queda marca —y sin marca
+    cada arranque volvería a convertirla: «(2)», «(3)», «(4)»…—. Así que lo
+    recién escrito se deshace: la sesión sigue intacta, no se pierde nada y
+    el siguiente arranque lo vuelve a intentar limpio."""
+    real = app_module.os.replace
+    monkeypatch.setattr(app_module.os, "replace",
+                        _que_falla_al_apartar(real, tmp_path))
+    sesion = _sesion_vieja(tmp_path)
+    docs = tmp_path / "docs"
+
+    primero = migrar_sesion_vieja(sesion=sesion, carpeta=docs,
+                                  recientes_path=tmp_path / "r.json")
+    monkeypatch.setattr(app_module.os, "replace", real)
+    segundo = migrar_sesion_vieja(sesion=sesion, carpeta=docs,
+                                  recientes_path=tmp_path / "r.json")
+
+    assert primero is None
+    assert segundo is not None
+    assert sesion.exists() is False          # ya se apartó en el segundo
+    assert len(list(docs.glob("*.cvproj"))) == 1
+
+
+def _que_falla_al_apartar(real, tmp_path):
+    """`os.replace` que solo revienta al apartar la sesión.
+
+    No puede fallar siempre: `proyecto.guardar` también usa `os.replace` para
+    su escritura atómica, y romper esa haría fallar el paso anterior en vez
+    del que se quiere probar.
+    """
+    def falso(origen, destino):
+        if str(origen).endswith("sesion.json"):
+            raise OSError("no se pudo renombrar")
+        return real(origen, destino)
+
+    return falso
+
+
+def test_apartar_la_vieja_no_pisa_una_anterior(tmp_path):
+    """Hoy es inalcanzable, pero por una invariante que no está escrita: la
+    sesión apartada es la copia de respaldo, y pisarla la borraría."""
+    ya_estaba = tmp_path / "sesion.migrada.json"
+    ya_estaba.write_text('{"lo": "de mucho antes"}')
+    sesion = _sesion_vieja(tmp_path)
+
+    migrar_sesion_vieja(sesion=sesion, carpeta=tmp_path / "docs",
+                        recientes_path=tmp_path / "r.json")
+
+    assert ya_estaba.read_text() == '{"lo": "de mucho antes"}'
+    assert (tmp_path / "sesion.migrada.2.json").exists()
+
+
+def test_la_migracion_lee_la_sesion_una_sola_vez(tmp_path, monkeypatch):
+    lecturas = []
+    real = app_module.load_session
+
+    def contando(ruta):
+        lecturas.append(ruta)
+        return real(ruta)
+
+    monkeypatch.setattr(app_module, "load_session", contando)
+    sesion = _sesion_vieja(tmp_path)
+
+    migrar_sesion_vieja(sesion=sesion, carpeta=tmp_path / "docs",
+                        recientes_path=tmp_path / "r.json")
+
+    assert len(lecturas) == 1
+
+
+def test_migrar_al_arrancar_lo_deja_en_la_lista(qtbot, tmp_path):
+    coord = _coordinador(tmp_path)
+    qtbot.addWidget(coord.inicio)
+    sesion = _sesion_vieja(tmp_path)
+
+    coord.migrar_lo_viejo(sesion=sesion, carpeta=tmp_path / "docs")
+    coord.mostrar_inicio()
+
+    assert coord.inicio.nombres_visibles() == ["Lo de antes"]
+    assert coord.inicio.aviso.isHidden()
+
+
+def test_si_la_migracion_falla_la_app_abre_y_lo_dice(qtbot, tmp_path, monkeypatch):
+    def no_se_puede(*a, **k):
+        raise OSError("read-only file system")
+
+    monkeypatch.setattr(app_module.proyecto, "guardar", no_se_puede)
+    coord = _coordinador(tmp_path)
+    qtbot.addWidget(coord.inicio)
+    sesion = _sesion_vieja(tmp_path)
+
+    coord.migrar_lo_viejo(sesion=sesion, carpeta=tmp_path / "docs")
+    coord.mostrar_inicio()
+
+    assert coord.inicio.isVisible()          # abrió igual, que es lo que importa
+    assert coord.inicio.aviso.isVisible()
+    assert sesion.exists()
+
+
+def test_sin_sesion_vieja_el_arranque_no_dice_nada(qtbot, tmp_path):
+    coord = _coordinador(tmp_path)
+    qtbot.addWidget(coord.inicio)
+
+    coord.migrar_lo_viejo(sesion=tmp_path / "no-esta.json",
+                          carpeta=tmp_path / "docs")
+    coord.mostrar_inicio()
+
+    assert coord.inicio.aviso.isHidden()
