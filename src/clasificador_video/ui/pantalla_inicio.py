@@ -143,6 +143,16 @@ class PantallaInicio(QWidget):
         self.titulo.setObjectName("inicioTitulo")
         raiz.addWidget(self.titulo)
 
+        # Un renglon aqui adentro y no un `QMessageBox`: los modales bloquean
+        # con `exec` por dentro y esta pantalla es justo donde Bruno esta
+        # decidiendo que abrir. Que el aviso viva al lado de la lista le deja
+        # seguir eligiendo mientras lo lee.
+        self.aviso = QLabel()
+        self.aviso.setObjectName("inicioAviso")
+        self.aviso.setWordWrap(True)
+        self.aviso.hide()
+        raiz.addWidget(self.aviso)
+
         self.lista_host = QWidget()
         self.lista = QVBoxLayout(self.lista_host)
         self.lista.setContentsMargins(0, 0, 0, 0)
@@ -201,6 +211,18 @@ class PantallaInicio(QWidget):
             self.filas.append(fila)
         self.lista_host.setVisible(bool(entradas))
         self.vacio.setVisible(not entradas)
+
+    def avisar(self, texto: str) -> None:
+        """Dice algo que salió mal, sin tapar la pantalla."""
+        self.aviso.setText(texto)
+        self.aviso.show()
+
+    def callar(self) -> None:
+        """Quita el aviso. Se llama al intentar otra cosa: dejarlo puesto
+        haria que el error de hace tres clics siguiera ahi contradiciendo lo
+        que acaba de pasar."""
+        self.aviso.hide()
+        self.aviso.clear()
 
     def nombres_visibles(self) -> list[str]:
         return [f.entrada.nombre for f in self.filas]

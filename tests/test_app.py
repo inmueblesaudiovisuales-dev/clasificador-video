@@ -449,13 +449,9 @@ def test_al_cerrarse_la_ventana_vuelve_la_pantalla(qtbot, tmp_path):
     assert coord.inicio.nombres_visibles() == ["P"]
 
 
-def test_un_proyecto_que_no_abre_deja_la_pantalla_puesta(qtbot, tmp_path, monkeypatch):
-    """Y lo dice, en vez de dejar a Bruno mirando la lista sin entender."""
-    from PySide6.QtWidgets import QMessageBox
-
-    avisos = []
-    monkeypatch.setattr(QMessageBox, "warning",
-                        lambda *a, **k: avisos.append(a[2]))
+def test_un_proyecto_que_no_abre_deja_la_pantalla_puesta(qtbot, tmp_path):
+    """Y lo dice EN la pantalla, en vez de dejar a Bruno mirando la lista sin
+    entender -- y sin un modal, que bloquea justo donde está decidiendo."""
     coord = _coordinador(tmp_path)
     qtbot.addWidget(coord.inicio)
     coord.mostrar_inicio()
@@ -466,7 +462,22 @@ def test_un_proyecto_que_no_abre_deja_la_pantalla_puesta(qtbot, tmp_path, monkey
 
     assert coord.ventanas == []
     assert coord.inicio.isVisible()
-    assert len(avisos) == 1
+    assert coord.inicio.aviso.isVisible()
+    assert "roto.cvproj" in coord.inicio.aviso.text()
+
+
+def test_el_aviso_no_sobrevive_al_siguiente_intento(qtbot, tmp_path):
+    coord = _coordinador(tmp_path)
+    qtbot.addWidget(coord.inicio)
+    coord.mostrar_inicio()
+    malo = tmp_path / "roto.cvproj"
+    malo.write_text("no es json {")
+    coord.inicio.abrir_pedido.emit(malo)
+
+    coord.inicio.abrir_pedido.emit(_proyecto_en(tmp_path))
+
+    assert coord.inicio.aviso.isHidden()
+    coord.ventanas[0].close()
 
 
 def test_proyecto_nuevo_pide_donde_guardarlo(qtbot, tmp_path, monkeypatch):

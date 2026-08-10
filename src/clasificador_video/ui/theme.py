@@ -1159,6 +1159,20 @@ def build_stylesheet() -> str:
     QLabel#recienteNombre[apagado="true"] {{
         color: {TEXT_3};
     }}
+    /* El aviso de «no se pudo». Usa REJECT_COLOR, que es un color de ESTADO
+       de clip, y aqui eso no confunde: en la pantalla de inicio no hay una
+       sola tarjeta a la vista, asi que los dos significados nunca comparten
+       pantalla. Inventar un color nuevo para un renglon que aparece de vez
+       en cuando seria peor. */
+    QLabel#inicioAviso {{
+        background-color: {BG_SURFACE_1};
+        border: 1px solid {REJECT_COLOR};
+        border-radius: {RADIUS_MD}px;
+        color: {TEXT};
+        font-size: {FONT_SMALL}px;
+        padding: 8px 12px;
+    }}
+
     QWidget#inicioVacio {{
         background-color: transparent;
     }}

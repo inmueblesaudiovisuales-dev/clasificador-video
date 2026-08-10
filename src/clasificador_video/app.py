@@ -272,20 +272,20 @@ class Coordinador(QObject):
     # --- los tres caminos -------------------------------------------------
 
     def _abrir(self, ruta: Path) -> None:
+        self.inicio.callar()
         ventana = abrir_proyecto(Path(ruta), video_factory=self._video_factory,
                                  recientes_path=self._recientes_path)
         if ventana is None:
-            QMessageBox.warning(
-                self.inicio, "No se pudo abrir",
-                f"No se pudo abrir «{Path(ruta).name}».\n\n"
-                "Puede que el archivo no sea un proyecto del clasificador, "
-                "o que esté dañado.",
+            self.inicio.avisar(
+                f"No se pudo abrir «{Path(ruta).name}». Puede que el archivo "
+                "no sea un proyecto del clasificador, o que esté dañado."
             )
             self._refrescar()
             return
         self._tomar(ventana)
 
     def _nuevo(self) -> None:
+        self.inicio.callar()
         elegido, _ = QFileDialog.getSaveFileName(
             self.inicio, "Proyecto nuevo", str(Path.home() / "Sin título"),
             f"Proyecto del clasificador (*{proyecto.EXTENSION})",

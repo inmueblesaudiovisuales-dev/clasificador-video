@@ -164,3 +164,66 @@ def test_una_ruta_larga_no_empuja_el_ancho(qtbot):
     detalle = pantalla.filas[0].detalle
     assert detalle.text() != detalle.full_text()
     assert pantalla.minimumSizeHint().width() < 420
+
+
+# --- el aviso, en la pantalla y no en un modal ------------------------------
+
+
+def test_sin_nada_que_decir_no_hay_aviso(qtbot):
+    pantalla = PantallaInicio()
+    qtbot.addWidget(pantalla)
+
+    assert pantalla.aviso.isHidden()
+
+
+def test_el_aviso_se_muestra_en_la_pantalla(qtbot):
+    """Un renglón en la propia pantalla, no un `QMessageBox`: los modales
+    bloquean con `exec` por dentro —tanto que la suite tiene que parchearlos
+    para no colgarse— y el spec de esta fase los descarta fuera de los
+    selectores de archivo del sistema."""
+    pantalla = PantallaInicio()
+    qtbot.addWidget(pantalla)
+    pantalla.show()
+
+    pantalla.avisar("No se pudo abrir «Casa Lomas.cvproj».")
+
+    assert pantalla.aviso.isVisible()
+    assert "Casa Lomas" in pantalla.aviso.text()
+
+
+def test_el_aviso_se_va_al_intentar_otra_cosa(qtbot):
+    """Si se quedara puesto, el error de hace tres clics seguiría ahí
+    contradiciendo lo que acaba de pasar."""
+    pantalla = PantallaInicio()
+    qtbot.addWidget(pantalla)
+    pantalla.show()
+    pantalla.avisar("algo salió mal")
+
+    pantalla.callar()
+
+    assert pantalla.aviso.isHidden()
+
+
+def test_la_pantalla_no_abre_ningun_modal(qtbot):
+    """Guardarraíl del acuerdo, no del código de hoy.
+
+    Se mira lo que el módulo IMPORTA y lo que LLAMA, no el texto suelto: los
+    comentarios de aquí nombran a `QMessageBox` justo para explicar por qué
+    no se usa, y un test que grepea el archivo entero se caería con ellos.
+    """
+    import ast
+    import inspect
+
+    from clasificador_video.ui import pantalla_inicio
+
+    arbol = ast.parse(inspect.getsource(pantalla_inicio))
+    importado = {
+        alias.name for nodo in ast.walk(arbol)
+        if isinstance(nodo, ast.ImportFrom) for alias in nodo.names
+    }
+    llamado = {
+        nodo.func.attr for nodo in ast.walk(arbol)
+        if isinstance(nodo, ast.Call) and isinstance(nodo.func, ast.Attribute)
+    }
+    assert "QMessageBox" not in importado
+    assert "exec" not in llamado
