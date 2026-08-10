@@ -758,6 +758,8 @@ class _BinHeader(QWidget):
     rename_requested = Signal(str, str)   # nombre viejo, nombre nuevo
     proxies_requested = Signal(str)
     proxies_cleared = Signal(str)
+    proxies_generate_requested = Signal(str)
+    proxies_generate_cancelled = Signal(str)
     select_all_requested = Signal(str)
     remove_requested = Signal(str)
 
@@ -779,6 +781,14 @@ class _BinHeader(QWidget):
         self._colapsado = False
         self._cuantos = 0
         self._renombrando = False
+        # `(hechos, total)` mientras se estan generando proxies para este
+        # bin, o `None`. Vive en el encabezado y no en la ventana porque la
+        # insignia se rehace en cada reagrupada: si el avance viviera afuera,
+        # el primer refresco de la hoja lo borraria a media generacion.
+        self._generando: tuple[int, int] | None = None
+        # lo enchufa la hoja al crear el encabezado: es `_aplicar_meta`, la
+        # unica que sabe cuantos proxies enganchados tiene este bin.
+        self._pedir_refresco_de_insignia = None
         # el menu se guarda como atributo porque `popup()` NO bloquea: si el
         # QMenu fuera local, Python lo recolectaria antes de que se dibuje.
         # `exec()` si bloquearia, y esta app no abre nada modal desde la F3.
@@ -910,6 +920,9 @@ class _BinHeader(QWidget):
         # el flotante arma su PROPIO menu: sin copiar esto, el menu recortado
         # de «Sin bin» volvia completo apenas te desplazabas un pixel.
         self.es_bin = otro.es_bin
+        # sin esto el menu del flotante ofrece «Crear proxies» mientras la
+        # generacion corre, y darle encolaria una segunda tanda
+        self._generando = otro._generando
         self.name_label.setText(otro.nombre)
         self.source_label.setText(otro.source_label.text())
         self.count_label.setText(otro.count_label.text())
@@ -948,6 +961,14 @@ class _BinHeader(QWidget):
         criterio que `_resumen_de_proxies`--: decir una de las dos seria
         mentir sobre la otra mitad.
         """
+        if self._generando is not None:
+            # mientras corre manda el avance: la insignia es el unico lugar
+            # del encabezado donde se habla de proxies, y decir «sin
+            # proxies» durante los minutos que tarda seria cierto y aun asi
+            # el peor renglon posible -- parece que no esta pasando nada.
+            hechos, total = self._generando
+            self._pintar_insignia(f"creando proxies · {hechos}/{total}", "generando")
+            return
         marca = f"proxy {resolucion}" if resolucion else "proxy"
         if not enganchados:
             texto, estado = "sin proxies", "ninguno"
@@ -955,11 +976,25 @@ class _BinHeader(QWidget):
             texto, estado = f"{marca} · {enganchados}/{total}", "parcial"
         else:
             texto, estado = f"{marca} · {enganchados}/{total}", "completo"
+        self._pintar_insignia(texto, estado)
+
+    def _pintar_insignia(self, texto: str, estado: str) -> None:
         self.proxy_badge.setText(texto)
         if self.proxy_badge.property("estado") != estado:
             self.proxy_badge.setProperty("estado", estado)
             self.proxy_badge.style().unpolish(self.proxy_badge)
             self.proxy_badge.style().polish(self.proxy_badge)
+
+    def set_generando(self, hechos: int | None, total: int = 0) -> None:
+        """`None` para decir que ya no se esta generando nada.
+
+        No pinta directo: pide un refresco de la insignia, para que al
+        terminar vuelva sola al conteo real de proxies enganchados sin que
+        quien llama tenga que acordarse de cual era.
+        """
+        self._generando = None if hechos is None else (hechos, total)
+        if self._pedir_refresco_de_insignia is not None:
+            self._pedir_refresco_de_insignia(self)
 
     def set_soltando(self, activo: bool, cuantos: int = 0,
                      moviendo: bool = False) -> None:
@@ -1093,6 +1128,23 @@ class _BinHeader(QWidget):
         enlazar = QAction("Enlazar proxies…", menu)
         enlazar.triggered.connect(lambda: self.proxies_requested.emit(self.nombre))
         menu.addAction(enlazar)
+
+        # Crear y cancelar son el mismo renglon en dos momentos: mientras
+        # corre, «Crear proxies» no tendria nada que hacer --los que faltan
+        # ya estan encolados-- y cancelar es lo unico que uno quiere del
+        # menu. Dos renglones, uno siempre inutil, es peor.
+        if self._generando is not None:
+            cancelar = QAction("Cancelar la creación de proxies", menu)
+            cancelar.triggered.connect(
+                lambda: self.proxies_generate_cancelled.emit(self.nombre)
+            )
+            menu.addAction(cancelar)
+        else:
+            crear = QAction("Crear proxies del bin…", menu)
+            crear.triggered.connect(
+                lambda: self.proxies_generate_requested.emit(self.nombre)
+            )
+            menu.addAction(crear)
 
         quitar_proxies = QAction("Quitar proxies de este bin", menu)
         quitar_proxies.triggered.connect(lambda: self.proxies_cleared.emit(self.nombre))
@@ -1740,6 +1792,7 @@ class ClipSheet(QWidget):
                 "rename_requested", viejo, nuevo)
         )
         for senal in ("proxies_requested", "proxies_cleared",
+                      "proxies_generate_requested", "proxies_generate_cancelled",
                       "select_all_requested", "remove_requested"):
             getattr(self._pegado, senal).connect(
                 lambda nombre, s=senal: self._reenviar_del_pegado(s, nombre)
@@ -1990,10 +2043,26 @@ class ClipSheet(QWidget):
             self._aplicar_meta(cabecera)
 
     def _aplicar_meta(self, cabecera: _BinHeader) -> None:
+        cabecera._pedir_refresco_de_insignia = self._aplicar_meta
         meta = self._bin_meta.get(cabecera.nombre, {})
         cabecera.set_source(meta.get("origen", ""))
         enganchados, total = meta.get("proxies", (0, 0))
         cabecera.set_proxies(enganchados, total, meta.get("resolucion", ""))
+
+    def set_bin_generando(self, nombre: str, hechos: int | None,
+                          total: int = 0) -> None:
+        """El avance de «creando proxies · 7/23» en la insignia del bin.
+
+        `hechos=None` apaga el aviso y la insignia vuelve sola al conteo de
+        proxies enganchados.
+        """
+        cabecera = self._bin_headers.get(nombre)
+        if cabecera is not None:
+            cabecera.set_generando(hechos, total)
+        # el encabezado pegado es una COPIA: sin volver a copiarlo, se queda
+        # anunciando el estado de hace un minuto justo en el renglon que se
+        # esta viendo.
+        self._actualizar_encabezado_pegado()
 
     def bin_headers(self) -> list[str]:
         """Los bins que hoy tienen encabezado, en el orden en que se ven."""

@@ -926,6 +926,15 @@ def build_stylesheet() -> str:
         border: 1px solid {CURRENT_COLOR};
         color: {aclarar(CURRENT_COLOR, 0.35)};
     }}
+    /* Mientras se generan. Va con el ambar de «esto esta pasando ahora»
+       --el mismo canal que el clip actual-- y no con el verde de pick: el
+       verde dice «listo», y aqui todavia no. Se distingue de «parcial»
+       por el texto, que dice «creando proxies · 7/23». */
+    QLabel#binProxyBadge[estado="generando"] {{
+        border: 1px solid {CURRENT_COLOR};
+        background-color: {BG_SURFACE_2};
+        color: {aclarar(CURRENT_COLOR, 0.45)};
+    }}
     QPushButton#binMore {{
         background-color: {BG_SURFACE_2};
         border: 1px solid {LINE};

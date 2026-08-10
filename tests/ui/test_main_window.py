@@ -5,7 +5,9 @@ from pathlib import Path
 import pytest
 
 from PySide6.QtCore import QObject, QThreadPool
-from PySide6.QtWidgets import QWidget
+from PySide6.QtWidgets import QApplication, QMessageBox, QWidget
+
+from clasificador_video import proxy_gen
 
 from clasificador_video.manifest import Clip
 from clasificador_video.player import QUALITY_PROFILES
@@ -3961,3 +3963,145 @@ def test_si_pausaste_a_mano_cruzar_a_la_hoja_y_volver_no_lo_reanuda(qtbot):
     window.alternar_modo_hoja()
 
     assert window.video_widget.player.is_paused
+
+
+# --- crear los proxies (F11) -------------------------------------------
+#
+# Nace por el dron: la Sony escribe sus proxies sola y el `.LRF` del DJI no
+# sirve (contenido corrido entre 0 y 5 cuadros, variable por toma), asi que
+# la unica via es generarlos del original.
+
+
+def _bin_para_generar(qtbot, monkeypatch, tmp_path, cuantos=3):
+    """Un bin con `cuantos` clips y ningun proxy, listo para generar."""
+    window, clips, _ = _ventana_con_material(
+        qtbot, monkeypatch, tmp_path, cuantos=cuantos, con_proxy=()
+    )
+    _sin_avisos(monkeypatch)
+    monkeypatch.setattr(
+        "clasificador_video.ui.main_window.QMessageBox.question",
+        lambda *a, **k: QMessageBox.StandardButton.Yes,
+    )
+    return window, clips
+
+
+def _generados(window, monkeypatch, falla_en=()):
+    """Sustituye ffmpeg: anota a quien le tocaba y escribe el archivo."""
+    hechos = []
+
+    def falso_generar(original, carpeta, ffmpeg=None):
+        if original.name in falla_en:
+            raise RuntimeError("ffmpeg no pudo con " + original.name)
+        carpeta.mkdir(parents=True, exist_ok=True)
+        destino = proxy_gen.ruta_de_proxy(original, carpeta)
+        destino.write_bytes(b"proxy")
+        hechos.append(original.name)
+        return destino
+
+    monkeypatch.setattr(proxy_gen, "generar", falso_generar)
+    return hechos
+
+
+def _esperar_generacion(window):
+    window._generacion_pool.waitForDone(5000)
+    QApplication.processEvents()
+    window._thread_pool.waitForDone(5000)
+    QApplication.processEvents()
+
+
+def test_crear_proxies_los_genera_y_los_engancha_solos(qtbot, monkeypatch, tmp_path):
+    """Se enganchan apenas terminan, no al final de la tanda: con 23 tomas
+    son varios minutos, y ver el material aligerarse conforme avanza es lo
+    que hace que la espera no se sienta muerta."""
+    window, _ = _bin_para_generar(qtbot, monkeypatch, tmp_path)
+    hechos = _generados(window, monkeypatch)
+    nombre = window.bins.to_list()[0]["nombre"]
+
+    window.generar_proxies_de_bin(nombre)
+    _esperar_generacion(window)
+
+    assert hechos == ["C0000.MP4", "C0001.MP4", "C0002.MP4"]
+    assert [c.ruta_proxy.name for c in window.clips] == [
+        "C0000S03.mp4", "C0001S03.mp4", "C0002S03.mp4"
+    ]
+
+
+def test_los_proxies_van_a_la_carpeta_de_al_lado(qtbot, monkeypatch, tmp_path):
+    """Adentro ensuciaria la copia de la tarjeta. Bruno lo eligio asi."""
+    window, clips = _bin_para_generar(qtbot, monkeypatch, tmp_path)
+    _generados(window, monkeypatch)
+    nombre = window.bins.to_list()[0]["nombre"]
+
+    window.generar_proxies_de_bin(nombre)
+    _esperar_generacion(window)
+
+    assert (clips.parent / "Proxies" / "C0000S03.mp4").exists()
+    assert not (clips / "Proxies").exists()
+
+
+def test_volver_a_darle_no_rehace_los_que_ya_estan(qtbot, monkeypatch, tmp_path):
+    """Es el caso normal despues de cancelar a la mitad. Con 23 tomas,
+    rehacerlas son minutos tirados."""
+    window, _ = _bin_para_generar(qtbot, monkeypatch, tmp_path)
+    hechos = _generados(window, monkeypatch)
+    nombre = window.bins.to_list()[0]["nombre"]
+    window.generar_proxies_de_bin(nombre)
+    _esperar_generacion(window)
+    hechos.clear()
+
+    window.generar_proxies_de_bin(nombre)
+    _esperar_generacion(window)
+
+    assert hechos == []
+
+
+def test_cancelar_deja_lo_hecho_y_no_hace_lo_que_faltaba(qtbot, monkeypatch, tmp_path):
+    window, _ = _bin_para_generar(qtbot, monkeypatch, tmp_path, cuantos=3)
+    hechos = []
+
+    def generar_y_cancelar(original, carpeta, ffmpeg=None):
+        # cancela DURANTE el primero, con los otros dos ya encolados: es el
+        # caso que importa, porque el trabajo lee la bandera al empezar
+        window.cancelar_generacion_de_proxies()
+        carpeta.mkdir(parents=True, exist_ok=True)
+        destino = proxy_gen.ruta_de_proxy(original, carpeta)
+        destino.write_bytes(b"proxy")
+        hechos.append(original.name)
+        return destino
+
+    monkeypatch.setattr(proxy_gen, "generar", generar_y_cancelar)
+    nombre = window.bins.to_list()[0]["nombre"]
+
+    window.generar_proxies_de_bin(nombre)
+    _esperar_generacion(window)
+
+    assert hechos == ["C0000.MP4"]           # el que ya corria termina
+    assert window._generando_proxies is None  # y la tanda se cierra sola
+
+
+def test_un_proxy_que_falla_no_tumba_los_demas(qtbot, monkeypatch, tmp_path):
+    window, _ = _bin_para_generar(qtbot, monkeypatch, tmp_path)
+    hechos = _generados(window, monkeypatch, falla_en=("C0001.MP4",))
+    nombre = window.bins.to_list()[0]["nombre"]
+
+    window.generar_proxies_de_bin(nombre)
+    _esperar_generacion(window)
+
+    assert hechos == ["C0000.MP4", "C0002.MP4"]
+    assert window._generando_proxies is None
+
+
+def test_no_se_encima_una_segunda_tanda(qtbot, monkeypatch, tmp_path):
+    """Dos tandas a la vez pelearian por el codificador del chip y ademas
+    dejarian el contador del encabezado diciendo cualquier cosa."""
+    window, _ = _bin_para_generar(qtbot, monkeypatch, tmp_path)
+    hechos = _generados(window, monkeypatch)
+    nombre = window.bins.to_list()[0]["nombre"]
+    window._generando_proxies = {"bin": "otro", "generacion": 99, "total": 5,
+                                 "hechos": 0, "fallidos": [], "cancelado": False,
+                                 "carpeta": tmp_path}
+
+    window.generar_proxies_de_bin(nombre)
+    _esperar_generacion(window)
+
+    assert hechos == []

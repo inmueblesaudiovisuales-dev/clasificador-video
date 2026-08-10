@@ -1569,11 +1569,51 @@ def test_el_menu_del_bin_trae_lo_que_dibujo_el_mockup(qtbot):
     assert textos == [
         "Renombrar bin…",
         "Enlazar proxies…",
+        "Crear proxies del bin…",
         "Quitar proxies de este bin",
         "Seleccionar los 3 clips",
         "Colapsar",
         "Quitar del proyecto",
     ]
+
+
+def test_mientras_se_generan_el_menu_ofrece_cancelar_y_no_crear_otra_vez(qtbot):
+    """Con la generacion corriendo, «Crear proxies» no tendria nada que
+    hacer --los que faltan ya estan encolados-- y darle encolaria una
+    segunda tanda encima. Cancelar es lo unico que uno quiere del menu."""
+    hoja = ClipSheet()
+    qtbot.addWidget(hoja)
+    hoja.set_bin_order(["Dron"])
+    hoja.set_clips([_thumb(i, bin_nombre="Dron") for i in range(3)])
+
+    hoja.set_bin_generando("Dron", 1, 3)
+    # el menu se guarda en una variable a proposito: sus QAction son hijos
+    # suyos, y sin nadie que lo sostenga Python lo recolecta antes de que se
+    # lean
+    menu = hoja.bin_header_widget("Dron").construir_menu()
+    textos = [a.text() for a in menu.actions()]
+
+    assert "Cancelar la creación de proxies" in textos
+    assert "Crear proxies del bin…" not in textos
+
+
+def test_la_insignia_del_bin_muestra_el_avance_y_despues_vuelve_al_conteo(qtbot):
+    """Durante los minutos que tarda, decir «sin proxies» seria cierto y aun
+    asi el peor renglon posible: parece que no esta pasando nada."""
+    hoja = ClipSheet()
+    qtbot.addWidget(hoja)
+    hoja.set_bin_order(["Dron"])
+    hoja.set_clips([_thumb(i, bin_nombre="Dron") for i in range(3)])
+    hoja.set_bin_meta("Dron", proxies=(0, 3))
+    cabecera = hoja.bin_header_widget("Dron")
+
+    hoja.set_bin_generando("Dron", 1, 3)
+    assert cabecera.proxy_badge.text() == "creando proxies · 1/3"
+
+    # al apagarlo vuelve sola al conteo real, sin que nadie se lo recuerde
+    hoja.set_bin_meta("Dron", proxies=(3, 3), resolucion="720p")
+    hoja.set_bin_generando("Dron", None)
+    assert cabecera.proxy_badge.text() == "proxy 720p · 3/3"
 
 
 @pytest.mark.parametrize("titulo, senal", [

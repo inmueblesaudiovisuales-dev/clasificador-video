@@ -20,7 +20,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from clasificador_video import proyecto, revinculo
+from clasificador_video import proxy_gen, proyecto, revinculo
 from clasificador_video.bins import BinTree, raiz_comun_de
 from clasificador_video.filters import FilterState, cola, contar
 from clasificador_video.history import History, HistoryEntry
@@ -255,6 +255,8 @@ class SeñalesDeTrabajos(QObject):
     # sobre un volumen montado e incomunicado cada uno se traba hasta el
     # timeout -- justo lo que pasa al abrir en otra computadora.
     media_revisada = Signal(int, object, object)  # generacion, faltantes, proxies
+    # generacion, indice, ruta del proxy generado (o None), motivo del fallo
+    proxy_generado = Signal(int, int, object, str)
 
 
 class _RevisionDeMediaJob(QRunnable):
@@ -408,6 +410,44 @@ class _ProxyProbeJob(QRunnable):
         self.signals.proxy_sondeado.emit(self._generation, self.index, info)
 
 
+class _GeneracionDeProxyJob(QRunnable):
+    """Genera UN proxy con ffmpeg, fuera del hilo de la UI.
+
+    Cuesta unos 10 s por cada 6 s de video, o sea que con las 23 tomas del
+    dron son varios minutos: hacerlo en el hilo de la ventana la congelaria
+    todo ese rato. Bruno sigue clasificando mientras corre.
+
+    `cancelado` es un invocable, no un booleano: el valor se lee al empezar
+    ESTE clip, ya encolado. Un booleano se copiaria al construir el trabajo
+    --o sea, siempre False-- y cancelar no cortaria nada de lo pendiente,
+    que es justo para lo que sirve.
+    """
+
+    def __init__(self, generacion: int, index: int, original: Path,
+                 carpeta: Path, cancelado, señales: SeñalesDeTrabajos):
+        super().__init__()
+        self._generacion = generacion
+        self.index = index
+        self._original = original
+        self._carpeta = carpeta
+        self._cancelado = cancelado
+        self.signals = señales
+
+    def run(self) -> None:
+        if self._cancelado():
+            # se avisa igual, con las manos vacias: quien lleva la cuenta
+            # necesita saber que este ya no viene, o el «7 de 23» se queda
+            # clavado para siempre
+            self.signals.proxy_generado.emit(self._generacion, self.index, None, "")
+            return
+        try:
+            destino = proxy_gen.generar(self._original, self._carpeta)
+        except Exception as e:  # ffmpeg fallo, o el disco se lleno
+            self.signals.proxy_generado.emit(self._generacion, self.index, None, str(e))
+            return
+        self.signals.proxy_generado.emit(self._generacion, self.index, destino, "")
+
+
 class MainWindow(QWidget):
     """Ventana del clasificador, con la estructura del mockup.
 
@@ -474,6 +514,7 @@ class MainWindow(QWidget):
         self._señales_de_trabajos.guardado_fallo.connect(self._on_guardado_fallo)
         self._señales_de_trabajos.pesos_medidos.connect(self._on_pesos_medidos)
         self._señales_de_trabajos.media_revisada.connect(self._on_media_revisada)
+        self._señales_de_trabajos.proxy_generado.connect(self._on_proxy_generado)
         # hijo de la ventana A PROPOSITO: su destructor espera a los trabajos
         # en vuelo, y esa espera es lo que impide que una señal llegue
         # cuando la ventana ya no puede atenderla.
@@ -487,6 +528,19 @@ class MainWindow(QWidget):
         # lo que impide que una señal llegue cuando ya no hay quien la atienda.
         self._revision_pool = QThreadPool(self)
         self._revision_pool.setMaxThreadCount(1)
+        # Y la generación de proxies tiene el suyo, de UN hilo. Uno solo a
+        # propósito: `h264_videotoolbox` usa el codificador del chip, que es
+        # una pieza de hardware — dos a la vez no terminan en la mitad del
+        # tiempo, se pelean, y además compiten con el reproductor embebido,
+        # que usa el MISMO chip para decodificar lo que Bruno está viendo
+        # mientras corre.
+        self._generacion_pool = QThreadPool(self)
+        self._generacion_pool.setMaxThreadCount(1)
+        # Estado de la tanda que corre, o None. Lleva su propia generación
+        # por la misma razón que los proxies: quitar el bin a media tanda
+        # deja trabajos en vuelo cuyos resultados ya no aplican a nada.
+        self._generando_proxies: dict | None = None
+        self._generacion_de_proxies = 0
         # las miniaturas se extraen en software (--hwdec=no, ver
         # thumbnails.py) -- no tocan VideoToolbox, asi que un par en
         # paralelo no compite con el reproductor embebido.
@@ -2179,6 +2233,147 @@ class MainWindow(QWidget):
         )
         self._sondear_proxies(emparejados, indices=indices)
 
+    # --- crear los proxies (F11) ------------------------------------------
+
+    def generar_proxies_de_bin(self, nombre_de_bin: str,
+                               preguntar: bool = True) -> None:
+        """El «Crear proxies del bin…» del menu.
+
+        Nace por el dron: la Sony escribe sus proxies sola y el DJI escribe
+        un `.LRF` que NO sirve --contenido corrido entre 0 y 5 cuadros,
+        variable por toma-- asi que la unica via es generarlos del original.
+
+        Se generan uno por uno, en segundo plano, y **cada uno se engancha
+        apenas termina** en vez de esperar a que acabe la tanda: con 23
+        tomas son varios minutos, y ver el material aligerarse conforme
+        avanza es lo que hace que la espera no se sienta muerta.
+        """
+        if self._generando_proxies is not None:
+            QMessageBox.information(
+                self, "Ya se están creando",
+                f"Se están creando los proxies de «{self._generando_proxies['bin']}». "
+                "Espera a que termine, o cancélalo desde el menú de ese bin.",
+            )
+            return
+        indices = [i for i in self.bins.clips_de(nombre_de_bin)
+                   if 0 <= i < len(self.clips)]
+        if not indices:
+            return
+        carpeta = proxy_gen.carpeta_de_proxies(self.clips[indices[0]].ruta.parent)
+        # solo los que no tienen proxy YA ENGANCHADO y no tienen archivo en
+        # la carpeta de proxies: volver a darle no rehace lo hecho.
+        candidatos = [i for i in indices if self.clips[i].ruta_proxy is None]
+        pendientes = [
+            i for i in candidatos
+            if not proxy_gen.ruta_de_proxy(self.clips[i].ruta, carpeta).exists()
+        ]
+        if not pendientes:
+            QMessageBox.information(
+                self, "Ya están",
+                f"Todos los clips de «{nombre_de_bin}» ya tienen proxy.",
+            )
+            return
+        if preguntar:
+            # el tiempo va en el aviso porque es lo unico que uno quiere
+            # saber antes de decir que si, y son minutos, no segundos
+            minutos = max(1, round(self._segundos_estimados(pendientes) / 60))
+            respuesta = QMessageBox.question(
+                self, "Crear proxies",
+                f"Se van a crear {len(pendientes)} proxies de «{nombre_de_bin}».\n\n"
+                f"Tarda unos {minutos} min y se guardan en «{carpeta.name}», "
+                f"al lado de tus clips. Puedes seguir clasificando mientras "
+                f"corre, y cancelarlo desde el menú del bin.",
+            )
+            if respuesta != QMessageBox.StandardButton.Yes:
+                return
+
+        self._generacion_de_proxies += 1
+        self._generando_proxies = {
+            "bin": nombre_de_bin,
+            "generacion": self._generacion_de_proxies,
+            "total": len(pendientes),
+            "hechos": 0,
+            "fallidos": [],
+            "cancelado": False,
+            "carpeta": carpeta,
+        }
+        self._pintar_avance_de_proxies()
+        estado = self._generando_proxies
+        for i in pendientes:
+            self._generacion_pool.start(_GeneracionDeProxyJob(
+                estado["generacion"], i, self.clips[i].ruta, carpeta,
+                # se lee al empezar ESE clip, no al encolarlo
+                lambda e=estado: e["cancelado"],
+                self._señales_de_trabajos,
+            ))
+
+    def cancelar_generacion_de_proxies(self, nombre_de_bin: str = "") -> None:
+        """Lo que ya se generó se queda enganchado; lo que faltaba, no se
+        hace. El que esté a medias termina —cortar ffmpeg a la mitad deja un
+        archivo truncado— pero es uno solo, no los veintitrés."""
+        if self._generando_proxies is None:
+            return
+        self._generando_proxies["cancelado"] = True
+
+    def _segundos_estimados(self, indices: list[int]) -> float:
+        """~10 s de proceso por cada 6 s de video, medido con el material
+        real. De los clips sin duracion conocida se supone medio minuto:
+        equivocarse por unos segundos en un aviso no le cuesta nada a nadie.
+        """
+        total = sum(self._clip_durations.get(i, 30.0) for i in indices)
+        return total * (10.0 / 6.0)
+
+    def _pintar_avance_de_proxies(self) -> None:
+        estado = self._generando_proxies
+        if estado is None:
+            return
+        self.clip_sheet.set_bin_generando(
+            estado["bin"], estado["hechos"], estado["total"]
+        )
+
+    def _on_proxy_generado(self, generacion: int, index: int,
+                           destino, motivo: str) -> None:
+        estado = self._generando_proxies
+        if estado is None or generacion != estado["generacion"]:
+            return  # tanda ya descartada: quitaron el bin, o abriste otro proyecto
+        estado["hechos"] += 1
+        if motivo:
+            estado["fallidos"].append((index, motivo))
+        elif destino is not None and index < len(self.clips):
+            # engancharlo AHORA, no al final. Pasa por la validacion de
+            # siempre: si no calza cuadro a cuadro no se engancha, aunque lo
+            # hayamos generado nosotros -- la regla existe para que el in/out
+            # no caiga en el cuadro equivocado, y de quien vino el archivo no
+            # la cambia.
+            self._sondear_proxies({self.clips[index].ruta: Path(destino)},
+                                  indices=[index])
+        if estado["hechos"] < estado["total"] and not estado["cancelado"]:
+            self._pintar_avance_de_proxies()
+            return
+        if estado["cancelado"] and estado["hechos"] < estado["total"]:
+            # los cancelados siguen llegando (cada trabajo avisa con las
+            # manos vacias), asi que solo se cierra cuando llegaron todos
+            self._pintar_avance_de_proxies()
+            return
+        self._terminar_generacion_de_proxies()
+
+    def _terminar_generacion_de_proxies(self) -> None:
+        estado = self._generando_proxies
+        if estado is None:
+            return
+        self._generando_proxies = None
+        # apagar el aviso: la insignia vuelve sola al conteo real
+        self.clip_sheet.set_bin_generando(estado["bin"], None)
+        if estado["cancelado"]:
+            return  # cancelar fue decision suya: no hace falta un cartel
+        if estado["fallidos"]:
+            cuantos = len(estado["fallidos"])
+            primero = estado["fallidos"][0][1]
+            QMessageBox.warning(
+                self, "Algunos no se pudieron crear",
+                f"{cuantos} de {estado['total']} fallaron.\n\n{primero}",
+            )
+
     def quitar_proxies_de_bin(self, nombre_de_bin: str) -> None:
         """Desengancha los de ESE bin. Las portadas se vuelven a pedir del
         original, que es lo que hace `_sondear_proxies` al final."""
@@ -2195,6 +2390,8 @@ class MainWindow(QWidget):
         cabecera.rename_requested.connect(self._on_bin_renombrado)
         cabecera.proxies_requested.connect(self.adjuntar_proxies_de_bin)
         cabecera.proxies_cleared.connect(self.quitar_proxies_de_bin)
+        cabecera.proxies_generate_requested.connect(self.generar_proxies_de_bin)
+        cabecera.proxies_generate_cancelled.connect(self.cancelar_generacion_de_proxies)
         cabecera.select_all_requested.connect(self._on_bin_seleccionado)
         cabecera.remove_requested.connect(self._on_bin_quitado)
 

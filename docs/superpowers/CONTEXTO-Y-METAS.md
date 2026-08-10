@@ -77,12 +77,29 @@ renumeran desde cero en cada tarjeta.
 
 ## Lo que falta
 
-### 1. Generar los proxies del dron — **listo para escribirse**
+### 1. Generar los proxies del dron — **hecho, 2026-08-10**
 
-Es lo más maduro de la lista: **ya está medido, decidido y aprobado por Bruno**
-(«haz la función de crear proxies»). Solo falta escribirlo.
+Clic derecho en el bin → «Crear proxies del bin…». Los genera del original
+uno por uno, en segundo plano, y **cada uno se engancha apenas termina**: se
+ve el material aligerarse conforme avanza en vez de esperar a que acabe todo.
+La insignia del bin dice «creando proxies · 7/23», y desde el mismo menú se
+cancela — lo hecho se queda, lo que faltaba no se hace, y volver a darle no
+rehace nada.
 
-Lo que ya se sabe, con su evidencia en el handoff §4.b:
+**Las decisiones, que fueron de Bruno:** los proxies van a una carpeta
+`Proxies` **al lado** de la del material, no adentro (adentro ensuciaría la
+copia de la tarjeta, y al lado la app los reencuentra sola después, porque ya
+busca en las carpetas hermanas). Terminan en `S03` como los de la Sony, así
+que si alguien arrastra esa carpeta como material, el ingest los descarta.
+
+**Comprobado con material real**, no solo con tests: 67 MB → 1.6 MB, mismos
+120 cuadros, mismo fps, y 720x1280 — o sea que escala por el **lado corto** y
+un clip vertical no sale al revés. Idéntico al proxy que escribe la cámara.
+
+Pasan por la validación de siempre: el que no calce cuadro a cuadro no se
+engancha, aunque lo hayamos generado nosotros.
+
+Lo que se sabía de antes, con su evidencia en el handoff §4.b:
 
 - El `.LRF` que escribe el DJI **no sirve como proxy** aunque se le cambie la
   extensión. Es un MP4 por dentro y se reproduce bien, pero **el contenido está
@@ -96,11 +113,10 @@ Lo que ya se sabe, con su evidencia en el handoff §4.b:
   segunda pista de video. Sin `-map 0:v:0`, ffmpeg transcodifica *esa* y sale
   un proxy de 406 px de ancho.
 
-**Lo que hay que decidir antes de escribirlo** —esto sí es brainstorm con
-Bruno, no se asume—: dónde se guardan los proxies generados, si el gesto vive
-en el menú del bin, qué se ve mientras corre (son minutos con 23 clips) y si se
-puede cancelar. El resto ya está resuelto: enganchado, validación y
-reproducción son maquinaria que ya existe.
+**Lo único que quedó sin probar contra el material de verdad:** una tanda
+completa de las 23 tomas del dron, de punta a punta. Se midió un clip y se
+probó la mecánica entera con ffmpeg sustituido; falta la corrida larga con el
+disco del dron conectado.
 
 ### 2. LUT hacia Premiere — **parado por decisión de Bruno, 2026-08-10**
 
