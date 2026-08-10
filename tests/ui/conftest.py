@@ -27,3 +27,29 @@ def hoja_de_estilos(qapp):
     # pasaba de 8 s a mas de dos minutos.
     qapp.setStyleSheet(build_stylesheet())
     yield
+
+@pytest.fixture(autouse=True)
+def sin_dialogos_que_bloqueen(monkeypatch):
+    """Ningun `QMessageBox` modal detiene la suite.
+
+    Hizo falta cuando la app empezo a preguntar «este bin no tiene proxies,
+    ¿te los creo primero?» al importar: `QMessageBox.question` abre un
+    dialogo modal y espera una respuesta que en una corrida sin pantalla no
+    llega nunca. La suite se colgaba a la mitad, sin decir en que test.
+
+    La respuesta por defecto es **No**: es la que deja el comportamiento de
+    siempre --las portadas se piden al importar-- para los ~300 tests que no
+    vienen a probar esto. El que SI lo prueba vuelve a parchear `question`
+    con un `Yes`.
+
+    `information` y `warning` tambien: varios tests ya los parcheaban uno por
+    uno, y el que se olvidaba colgaba la suite igual.
+    """
+    from PySide6.QtWidgets import QMessageBox
+    monkeypatch.setattr(QMessageBox, "question",
+                        staticmethod(lambda *a, **k: QMessageBox.StandardButton.No))
+    monkeypatch.setattr(QMessageBox, "information",
+                        staticmethod(lambda *a, **k: QMessageBox.StandardButton.Ok))
+    monkeypatch.setattr(QMessageBox, "warning",
+                        staticmethod(lambda *a, **k: QMessageBox.StandardButton.Ok))
+    yield

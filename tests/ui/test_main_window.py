@@ -4270,3 +4270,68 @@ def test_una_tira_cortada_a_la_mitad_se_vuelve_a_extraer(qtbot, monkeypatch, tmp
     window._thread_pool.waitForDone(3000)
 
     assert pedidos == [1]
+
+
+def _diciendo_que_si(monkeypatch):
+    monkeypatch.setattr(
+        "clasificador_video.ui.main_window.QMessageBox.question",
+        lambda *a, **k: QMessageBox.StandardButton.Yes,
+    )
+
+
+def test_si_aceptas_crear_proxies_las_portadas_esperan(qtbot, monkeypatch, tmp_path):
+    """Del proxy la portada cuesta 5 veces menos --5.8 s contra 1.2 s por
+    clip, medido con material real--, asi que sacarlas del original justo
+    antes de generar los proxies es pagar el precio caro por nada. Con 132
+    clips son 4 minutos contra 1."""
+    window = _window_with_video(qtbot, cache_root=tmp_path / "cache")
+    monkeypatch.setattr(window, "_probe_clip", _ProbeConProxy())
+    monkeypatch.setattr(
+        "clasificador_video.ui.main_window.extract_thumbnail_strip", lambda *a, **k: []
+    )
+    pedidas = []
+    monkeypatch.setattr(window, "_schedule_thumbnails",
+                        lambda indices=None: pedidas.append(indices))
+    monkeypatch.setattr(proxy_gen, "generar", lambda *a, **k: Path("/p/x.mp4"))
+    _diciendo_que_si(monkeypatch)
+    clips, _ = _material_con_proxies(tmp_path, con_proxy=())
+
+    window.importar_rutas([clips])
+
+    assert pedidas == []                        # no se pidio ni una portada
+    assert window._generando_proxies is not None  # y los proxies ya corren
+
+
+def test_si_dices_que_no_las_portadas_salen_como_siempre(qtbot, monkeypatch, tmp_path):
+    """El `question` por defecto de la suite responde No."""
+    window = _window_with_video(qtbot, cache_root=tmp_path / "cache")
+    monkeypatch.setattr(window, "_probe_clip", _ProbeConProxy())
+    monkeypatch.setattr(
+        "clasificador_video.ui.main_window.extract_thumbnail_strip", lambda *a, **k: []
+    )
+    pedidas = []
+    monkeypatch.setattr(window, "_schedule_thumbnails",
+                        lambda indices=None: pedidas.append(indices))
+    clips, _ = _material_con_proxies(tmp_path, con_proxy=())
+
+    window.importar_rutas([clips])
+
+    assert pedidas == [[0, 1, 2]]
+    assert window._generando_proxies is None
+
+
+def test_al_terminar_los_proxies_se_piden_las_portadas_que_falten(qtbot, monkeypatch, tmp_path):
+    """Salga como salga la generacion. Si cancelas a la mitad, o si algun
+    proxy falla, esos clips se quedarian en gris para siempre esperando algo
+    que ya no va a llegar."""
+    window, _ = _bin_para_generar(qtbot, monkeypatch, tmp_path)
+    _generados(window, monkeypatch)
+    nombre = window.bins.to_list()[0]["nombre"]
+    pedidas = []
+    window.generar_proxies_de_bin(nombre)
+    monkeypatch.setattr(window, "_schedule_thumbnails",
+                        lambda indices=None: pedidas.append(indices))
+    window.cancelar_generacion_de_proxies()
+    _esperar_generacion(window)
+
+    assert pedidas and pedidas[-1] == [0, 1, 2]

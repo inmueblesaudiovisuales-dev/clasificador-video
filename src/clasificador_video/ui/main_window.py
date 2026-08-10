@@ -1623,8 +1623,13 @@ class MainWindow(QWidget):
             else:
                 self.bins.agregar(nombre_de_bin, origen, indices)
         self._refresh_sheet()
-        # solo las portadas de los nuevos: las que ya estan no se rehacen
-        self._schedule_thumbnails(indices)
+        # solo las portadas de los nuevos: las que ya estan no se rehacen.
+        # Y si Bruno acepta crear los proxies primero, no se piden todavia:
+        # del proxy cuestan 5 veces menos (medido: 5.8 s contra 1.2 s por
+        # clip) y hacerlas ahora seria pagar el precio caro justo antes de
+        # que exista el barato.
+        if not self._ofrecer_proxies_antes(nombre_de_bin, indices):
+            self._schedule_thumbnails(indices)
         if estaba_vacio:
             self.current_index = 0
             # por `_abrir_clip_actual` y no abriendo a mano: es el unico
@@ -1632,6 +1637,41 @@ class MainWindow(QWidget):
             self._abrir_clip_actual()
             self._resize_video_stage()
         self._autosave()
+
+    def _ofrecer_proxies_antes(self, nombre_de_bin: str | None,
+                               indices: list[int]) -> bool:
+        """«Este bin no tiene proxies, ¿te los creo primero?»
+
+        Devuelve True si se aceptó, y entonces las portadas de esos clips NO
+        se piden ahora: cada una sale sola en cuanto su proxy se engancha
+        (`_sondear_proxies` las vuelve a pedir con la fuente nueva).
+
+        Se pregunta en vez de decidirlo la app porque las dos respuestas son
+        razonables: generar son minutos, y a veces uno solo quiere ver qué
+        trajo la tarjeta. Bruno lo eligió así el 2026-08-10.
+        """
+        if nombre_de_bin is None or not indices:
+            return False
+        if self._generando_proxies is not None:
+            return False        # ya hay una tanda corriendo; no encimar otra
+        if any(self.clips[i].ruta_proxy is not None for i in indices):
+            return False        # este bin ya tiene proxies enganchados
+        carpeta = proxy_gen.carpeta_de_proxies(self.clips[indices[0]].ruta.parent)
+        if not proxy_gen.faltantes([self.clips[i].ruta for i in indices], carpeta):
+            return False        # ya estan generados; se enganchan solos
+        minutos = max(1, round(self._segundos_estimados(indices) / 60))
+        respuesta = QMessageBox.question(
+            self, "Crear los proxies primero",
+            f"«{nombre_de_bin}» no tiene proxies.\n\nSi los creo ahora "
+            f"(unos {minutos} min) el material se navega fluido y las "
+            f"portadas salen cinco veces más rápido.\n\n¿Los creo?",
+        )
+        if respuesta != QMessageBox.StandardButton.Yes:
+            return False
+        self.generar_proxies_de_bin(nombre_de_bin, preguntar=False)
+        # si por lo que sea no arrancó, las portadas no se pueden quedar
+        # esperando a algo que no va a pasar
+        return self._generando_proxies is not None
 
     def _autosave(self) -> None:
         if self.session_path is None:
@@ -2384,6 +2424,11 @@ class MainWindow(QWidget):
         self._generando_proxies = None
         # apagar el aviso: la insignia vuelve sola al conteo real
         self.clip_sheet.set_bin_generando(estado["bin"], None)
+        # Las portadas que quedaron esperando se piden ahora, salga como
+        # salga la generación: al cancelar a la mitad, o si algún proxy
+        # falló, esos clips se quedarían en gris para siempre esperando algo
+        # que ya no va a llegar.
+        self._schedule_thumbnails(self.bins.clips_de(estado["bin"]))
         if estado["cancelado"]:
             return  # cancelar fue decision suya: no hace falta un cartel
         if estado["fallidos"]:
