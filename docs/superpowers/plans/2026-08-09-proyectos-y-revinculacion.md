@@ -1480,8 +1480,52 @@ descuido:
 6. **Los clips sueltos no se avisan.** El aviso recorre bins, y un clip sin
    bin no tiene raíz contra la cual ser relativo (spec §3). Si a Bruno le
    falta un suelto, hoy no se entera por esta barra.
-7. **El proxy no se reencuentra.** El spec §5 dice que también debería, con
-   su propia carpeta. La tarea 11 no lo pedía y no se hizo.
+7. ~~**El proxy no se reencuentra.**~~ Resuelto en la segunda vuelta, abajo.
+
+#### Segunda vuelta: lo que encontró la revisión
+
+La revisión confirmó lo importante —**no hay camino por el que un clip quede
+apuntando a un archivo ajeno**— y encontró nueve cosas. Todas arregladas,
+esta vez con el rojo visto primero:
+
+1. **`revisar_media` hacía 132 `stat` en el hilo de la interfaz, al abrir.**
+   La lección ya estaba escrita en `proyecto.con_pesos_medidos` y se volvió
+   a romper, encima en el peor momento: abrir un proyecto cuyo material
+   puede colgar de un disco de red que ya no responde. Ahora corre en
+   `_RevisionDeMediaJob`, y `_refrescar_aviso` usa lo que esa revisión
+   encontró en vez de volver a barrer todos los bins en cada renombrado.
+2. **En la sesión donde Bruno importa, la defensa principal estaba
+   apagada.** `_bytes_guardados` solo se llenaba al abrir un `.cvproj`, así
+   que reconectar en la misma sesión de la importación confirmaba **solo por
+   duración** — y dos tomas del mismo largo de dos tarjetas de la Sony pasan
+   ese filtro. Ahora el hilo del guardado le devuelve los pesos a la
+   ventana, con guarda de generación de índices.
+3. **`_proxy_candidatos` quedaba apuntando a rutas muertas** tras
+   reconectar: la portada se intentaba extraer del proxy viejo, fallaba, y
+   la tarjeta se quedaba en blanco sin explicación.
+4. **El proxy ahora se reconecta** (el desvío 7 de arriba). Sin esto todo el
+   proyecto navegaba sobre el 4K HEVC: 530 ms por cuadro contra 22, y nada
+   se lo decía a Bruno porque el aviso solo miraba `clip.ruta`. Si no
+   aparece bajo la carpeta que señaló, se dice, y hay un «Buscar proxies…»
+   aparte — el proxy vive en su propia carpeta.
+5. **Dos textos afirmaban cosas que no eran ciertas.** «No apareció en esa
+   carpeta» se le decía también a los clips sin ruta relativa, que **no se
+   buscaron** porque no hay con qué; y «no es el mismo video» se decía en
+   tres casos y solo uno era verdad. Ahora hay cinco finales, cada uno con
+   sus palabras.
+6. **Dos «Buscar…» idénticos en un mismo bin.** Uno solo, el del primer
+   renglón al que le sirva.
+7. **El renglón verde no se iba nunca.** Se va a los 8 segundos.
+8. **`test_poner_de_nuevo_no_deja_los_renglones_viejos` no probaba lo que
+   decía** — afirmaba sobre el texto acumulado, no sobre los widgets. Ahora
+   cuenta los hijos, y se comprobó rompiendo `_limpiar` a propósito.
+9. **La regla de visibilidad vivía partida en dos** y solo una mitad sabía
+   del modo solo video. Ahora la tiene entera la ventana.
+
+Lo que **sigue** en el hilo de la interfaz: `reconectar_bin`, que recorre el
+árbol de la carpeta señalada (`rglob`) y corre un `ffprobe` por candidato.
+Es una acción que Bruno pide con un clic y donde una espera se entiende,
+pero sobre una tarjeta de 128 GB no es gratis. Queda anotado, no resuelto.
 
 ---
 
