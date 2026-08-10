@@ -1,3 +1,5 @@
+import logging
+
 from clasificador_video.revinculo import (
     buscar_bajo,
     calza,
@@ -16,6 +18,52 @@ def test_NO_calza_un_tocayo_de_otro_tamano(tmp_path):
 
     assert calza(archivo, tamano_esperado=500, cuadros_esperados=300,
                  medir=lambda p: {"duration_frames": 300}) is False
+
+
+def test_sin_ningun_dato_con_que_comparar_NO_confirma(tmp_path):
+    """«Confirmado por falta de evidencia» es exactamente al reves de lo que
+    este modulo promete. Un proyecto sin peso ni duracion guardados para ese
+    clip no puede decir que el archivo sea el que era."""
+    archivo = tmp_path / "C0001.MP4"
+    archivo.write_bytes(b"x" * 500)
+
+    assert calza(archivo, tamano_esperado=None, cuadros_esperados=None,
+                 medir=lambda p: {"duration_frames": 300}) is False
+
+
+def test_un_archivo_que_no_existe_no_calza(tmp_path):
+    """Sin peso guardado no se llegaba a tocar el disco, y un archivo que ni
+    siquiera esta ahi salia «confirmado»."""
+    assert calza(tmp_path / "no-esta.MP4", tamano_esperado=None,
+                 cuadros_esperados=300,
+                 medir=lambda p: {"duration_frames": 300}) is False
+
+
+def test_si_medir_no_trae_la_duracion_no_calza(tmp_path):
+    """«No se pudo medir» y «dura cero cuadros» son cosas distintas, y
+    colapsarlas en el numero 0 hacia que un clip de cero o un cuadro lo
+    confirmara cualquier archivo ilegible."""
+    archivo = tmp_path / "C0001.MP4"
+    archivo.write_bytes(b"x" * 500)
+
+    assert calza(archivo, tamano_esperado=500, cuadros_esperados=0,
+                 medir=lambda p: {}) is False
+    assert calza(archivo, tamano_esperado=500, cuadros_esperados=0,
+                 medir=lambda p: None) is False
+
+
+def test_un_error_de_cableado_deja_rastro(tmp_path, caplog):
+    """Un `medir` mal conectado se veia igual que un archivo roto: nada se
+    reconecta y ni una pista de por que. El archivo ilegible es esperado y
+    va callado; el error de programacion no."""
+    archivo = tmp_path / "C0001.MP4"
+    archivo.write_bytes(b"x" * 500)
+
+    with caplog.at_level(logging.WARNING):
+        assert calza(archivo, tamano_esperado=500, cuadros_esperados=300,
+                     medir=lambda p, y: None) is False
+
+    assert caplog.records
 
 
 def test_calza_cuando_coinciden_tamano_y_cuadros(tmp_path):

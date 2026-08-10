@@ -10,8 +10,11 @@ Sin Qt.
 """
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from pathlib import Path
+
+_log = logging.getLogger(__name__)
 
 # cuantos cuadros de diferencia se toleran al confirmar. El mismo margen
 # que usa `_el_proxy_calza`: ffprobe redondea distinto segun el contenedor.
@@ -46,7 +49,14 @@ def calza(archivo: Path, tamano_esperado: int | None,
     comprueban ADEMAS cuando el proyecto los sabia, porque dos tomas de la
     misma duracion pesan distinto pero dos archivos del mismo peso podrian
     ser el mismo material recodificado.
+
+    Sin ningun dato guardado **no confirma**: dar por bueno lo que no se
+    pudo comprobar es al reves de lo que este modulo promete.
     """
+    if tamano_esperado is None and cuadros_esperados is None:
+        return False
+    if not archivo.is_file():
+        return False
     if tamano_esperado is not None:
         try:
             if archivo.stat().st_size != tamano_esperado:
@@ -57,11 +67,24 @@ def calza(archivo: Path, tamano_esperado: int | None,
         return True
     try:
         info = medir(archivo)
-    except Exception:
+    except OSError:
         # Un archivo que ffprobe no puede leer no es «el que era»: es un
-        # archivo roto con el nombre correcto.
+        # archivo roto con el nombre correcto. Es esperado, y va callado.
         return False
-    cuadros = int((info or {}).get("duration_frames") or 0)
+    except Exception:
+        # Esto ya no es un archivo roto sino un `medir` mal conectado, y sin
+        # rastro se ve identico: nada se reconecta y ni una pista de por que.
+        _log.warning("`medir` fallo al confirmar %s", archivo, exc_info=True)
+        return False
+    crudo = (info or {}).get("duration_frames")
+    if crudo is None:
+        # «No se pudo medir» no es «dura cero cuadros». Colapsarlos hacia que
+        # un clip de cero o un cuadro lo confirmara cualquier archivo ilegible.
+        return False
+    try:
+        cuadros = int(crudo)
+    except (TypeError, ValueError):
+        return False
     return abs(cuadros - cuadros_esperados) <= TOLERANCIA_DE_CUADROS
 
 
