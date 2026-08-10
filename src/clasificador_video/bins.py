@@ -271,9 +271,9 @@ class BinTree:
 
         Se blinda igual que `load_session` en autosave.py: lo que no se
         entiende se descarta en silencio, en vez de reventar
-        `_restore_session` y dejar la app sin poder abrir. Un bin cuyos
-        `clips` no se pueden leer como enteros se descarta entero -- es
-        mas facil de razonar que adivinar cuales de sus indices salvar.
+        `app._poblar_ventana` y dejar a Bruno sin poder abrir su proyecto.
+        Un bin cuyos `clips` no se pueden leer como enteros se descarta
+        entero -- es mas facil de razonar que adivinar cuales salvar.
         """
         arbol = cls()
         if not isinstance(datos, list):

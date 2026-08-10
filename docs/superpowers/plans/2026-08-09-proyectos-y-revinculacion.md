@@ -1053,7 +1053,7 @@ largas se eliden y no empujen el ancho, y que los botones no queden perdidos.
 - Modificar: `src/clasificador_video/ui/main_window.py`
 - Test: `tests/test_app.py`
 
-- [ ] **Paso 1: tests**
+- [x] **Paso 1: tests**
 
 ```python
 def test_arranca_mostrando_los_recientes(qtbot, tmp_path):
@@ -1087,7 +1087,7 @@ def test_abrir_lo_registra_en_recientes(qtbot, tmp_path):
     ...
 ```
 
-- [ ] **Paso 2: correr y ver que fallan**
+- [x] **Paso 2: correr y ver que fallan**
 
 Esperado: `ImportError: cannot import name 'abrir_proyecto'`
 
@@ -1096,7 +1096,7 @@ Esperado: `ImportError: cannot import name 'abrir_proyecto'`
 > abriría un «proyecto» vacío sin decir que no lo era. Aquí hay que exigirle
 > al menos `version` o `clips`, y avisar cuando no los trae.
 
-- [ ] **Paso 3: implementar en `app.py`**
+- [x] **Paso 3: implementar en `app.py`**
 
 **Primero el refactor**, porque sin él se duplica lógica: `_restore_session`
 hace hoy dos cosas —preguntar si recuperar, y armar la ventana desde el dict—.
@@ -1175,13 +1175,13 @@ def arrancar_inicio(recientes_path: Path | None = None) -> PantallaInicio:
 `_write_autosave_now` pasa a construir el dict con `proyecto.a_dict(...)` en
 vez de armarlo a mano — **una sola forma del documento**, no dos.
 
-- [ ] **Paso 4: correr la suite completa**
+- [x] **Paso 4: correr la suite completa**
 
 Los tests que hoy llaman a `_restore_session` siguen valiendo; si alguno se
 apoyaba en que esa función armara la ventana **y** preguntara, ajústalo y deja
 el comentario de por qué.
 
-- [ ] **Paso 5: commit**
+- [x] **Paso 5: commit**
 
 ```bash
 git add -A
@@ -1201,7 +1201,7 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 - Modificar: `src/clasificador_video/app.py`
 - Test: `tests/test_app.py`
 
-- [ ] **Paso 1: tests**
+- [x] **Paso 1: tests**
 
 ```python
 def test_proyecto_nuevo_crea_el_archivo_de_una_vez(qtbot, tmp_path):
@@ -1239,9 +1239,9 @@ def test_la_sesion_vieja_se_convierte_en_proyecto(qtbot, tmp_path):
     assert sesion.exists()
 ```
 
-- [ ] **Paso 2: correr y ver que fallan**
+- [x] **Paso 2: correr y ver que fallan**
 
-- [ ] **Paso 3: implementar en `app.py`**
+- [x] **Paso 3: implementar en `app.py`**
 
 ```python
 def crear_proyecto(ruta: Path, nombre: str, video_factory=None,
@@ -1287,7 +1287,7 @@ def migrar_sesion(sesion: Path, destino: Path) -> bool:
 > **La sesión vieja no se borra**, y eso es parte del diseño, no un olvido.
 > Ponle su test: después de migrar, el archivo original sigue existiendo.
 
-- [ ] **Paso 4: cablear la pantalla de inicio con los tres caminos**
+- [x] **Paso 4: cablear la pantalla de inicio con los tres caminos**
 
 `main()` construye la `PantallaInicio`, y sus tres señales llevan a
 `abrir_proyecto`, a `crear_proyecto` (con un `QFileDialog.getSaveFileName`
@@ -1299,7 +1299,35 @@ Y al arrancar, **antes** de mostrar la pantalla: si existe la sesión vieja con
 clips y todavía no se migró, `migrar_sesion` la convierte y la registra en
 recientes.
 
-- [ ] **Paso 5: correr la suite completa y commitear**
+- [x] **Paso 5: correr la suite completa y commitear**
+
+> **Cerrada el 2026-08-09.** 1255 tests, **0 fallos sobre 40 corridas** con el
+> árbol quieto. Sobre lo que el plan pedía:
+>
+> - **El pendiente de `bytes_conocidos` quedó cerrado con dos tests**: uno de
+>   ventana (`_write_autosave_now` con la media ausente conserva los pesos) y
+>   uno de punta a punta en `test_app.py` —abrir un `.cvproj` cuya media no
+>   existe, dejar que el debounce de 400 ms del autoguardado se cumpla solo, y
+>   comprobar que `bytes` y `relativas` siguen en el archivo—.
+> - `_write_autosave_now` construye el dict con `proyecto.a_dict(...)`: una
+>   sola forma del documento. `MainWindow` ganó `_relativas` y
+>   `_bytes_guardados`, que van por índice de clip y por eso se limpian en
+>   `load_clips` y se corren en `_on_bin_quitado`, como los otros seis.
+> - **`arrancar` y `_restore_session` se borraron**, no se conservaron: con
+>   `main()` arrancando en la pantalla de inicio y la sesión vieja migrando
+>   sola, quedaban sin un solo llamador. Sus tests se apuntaron a
+>   `abrir_proyecto`/`_poblar_ventana`. Con ellos murió el cartel de
+>   «¿Recuperar la sesión sin terminar?», que la migración reemplaza.
+> - La marca de «ya se migró» es que la sesión vieja se **aparta** como
+>   `sesion.migrada.json` —no se borra, y se aparta recién después de que el
+>   `.cvproj` está escrito—. Sin marca, cada arranque volvería a convertirla y
+>   pisaría el trabajo del día con el de antes.
+> - `proyecto.es_proyecto` exige `version` **o** `clips`, no las dos: los
+>   proyectos convertidos de la sesión vieja no traen `version`.
+> - Costo aceptado: `a_dict` hace un `stat()` por clip en el hilo de la UI en
+>   cada autoguardado. Con 109 clips en disco local no se nota; sobre un
+>   volumen de red desconectado podría trabarse. Si aparece, el arreglo es
+>   mover el medido al hilo del `_AutosaveWriteJob`, no volver a las dos formas.
 
 ---
 

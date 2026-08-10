@@ -158,8 +158,8 @@ def test_bins_vacios_a_proposito_no_inventan_uno_con_las_rutas():
 def test_from_list_con_basura_no_revienta():
     """`load_session` en autosave.py ya se blinda contra JSON malformado;
     `from_list` sigue la misma simetria -- lo que no se entiende se
-    descarta, no revienta `_restore_session` y deja la app sin poder
-    abrir."""
+    descarta, no revienta `app._poblar_ventana` y deja a Bruno sin poder
+    abrir su proyecto."""
     assert BinTree.from_list("esto no es una lista").nombres() == []
     assert BinTree.from_list(["tampoco esto es un bin"]).nombres() == []
     assert BinTree.from_list([{"nombre": "Dron", "origen": "/d", "clips": ["a"]}]).nombres() == []
