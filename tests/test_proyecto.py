@@ -97,6 +97,51 @@ def test_el_dict_del_proyecto_lleva_todo_lo_de_la_sesion_mas_las_relativas():
     assert data["version"] == 1
 
 
+def test_una_relativa_que_ya_no_se_puede_calcular_no_se_tira():
+    """Reconectar a medias deja al bin colgando de la carpeta NUEVA y al
+    clip que sigue perdido apuntando a la vieja, así que `relative_to`
+    falla. Si esa relativa desapareciera del documento, ese clip se quedaría
+    sin con qué reencontrarse nunca más — y es lo único que no se puede
+    volver a deducir cuando el archivo no está en disco."""
+    bins = BinTree()
+    bins.agregar("Sony", Path("/nueva"), [0, 1])
+    clips = [_clip(0, "/nueva/C0001.MP4"), _clip(1, "/vieja/C0002.MP4")]
+
+    data = a_dict(proyecto="P", rooms=[], clips=clips, bins=bins,
+                  tamanos={}, duraciones={}, rotaciones={},
+                  relativas_conocidas={0: "C0001.MP4", 1: "C0002.MP4"})
+
+    assert data["relativas"] == {"0": "C0001.MP4", "1": "C0002.MP4"}
+
+
+def test_lo_calculado_le_gana_a_la_relativa_vieja():
+    """La calculada dice dónde está el archivo AHORA. La guardada es un
+    respaldo, no una fuente que compita."""
+    bins = BinTree()
+    bins.agregar("Sony", Path("/cam"), [0])
+    clips = [_clip(0, "/cam/sub/C0001.MP4")]
+
+    data = a_dict(proyecto="P", rooms=[], clips=clips, bins=bins,
+                  tamanos={}, duraciones={}, rotaciones={},
+                  relativas_conocidas={0: "C0001.MP4"})
+
+    assert data["relativas"] == {"0": "sub/C0001.MP4"}
+
+
+def test_la_relativa_de_un_clip_que_ya_no_esta_no_sobrevive():
+    """El respaldo puede venir de un proyecto con más clips de los que hay
+    ahora — quitar un bin es exactamente ese caso."""
+    bins = BinTree()
+    bins.agregar("Sony", Path("/cam"), [0])
+    clips = [_clip(0, "/cam/C0001.MP4")]
+
+    data = a_dict(proyecto="P", rooms=[], clips=clips, bins=bins,
+                  tamanos={}, duraciones={}, rotaciones={},
+                  relativas_conocidas={0: "C0001.MP4", 7: "C0008.MP4"})
+
+    assert data["relativas"] == {"0": "C0001.MP4"}
+
+
 def test_ida_y_vuelta_a_disco(tmp_path):
     bins = BinTree()
     bins.agregar("Sony", Path("/cam"), [0])

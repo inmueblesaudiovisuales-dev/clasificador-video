@@ -106,9 +106,29 @@ def con_pesos_medidos(data: dict, previos: dict | None = None) -> dict:
     return {**data, "bytes": {str(i): t for i, t in sorted(pesos.items())}}
 
 
+def _relativas_con_respaldo(clips: list, bins,
+                            conocidas: dict | None) -> dict[int, str]:
+    """Las relativas que se pueden calcular, mas las que ya se sabian.
+
+    Calcular gana siempre: describe donde esta el archivo AHORA. Pero lo que
+    no se puede calcular no se tira, y eso importa justo al reconectar a
+    medias: el bin pasa a colgar de la carpeta nueva y el clip que sigue
+    perdido apunta a la vieja, asi que `relative_to` falla y su relativa
+    desapareceria del documento -- dejandolo sin con que reencontrarse
+    nunca mas. Es la unica pieza que no se puede volver a deducir cuando el
+    archivo no esta en disco.
+    """
+    respaldo = {i: str(r) for i, r in por_indice_de_clip(conocidas).items()}
+    respaldo.update(rutas_relativas(clips, bins))
+    # un clip que ya no existe no deja rastro: el respaldo puede venir de un
+    # proyecto con mas clips de los que hay ahora.
+    return {i: r for i, r in sorted(respaldo.items()) if 0 <= i < len(clips)}
+
+
 def a_dict(proyecto: str, rooms: list[str], clips: list, bins,
            tamanos: dict, duraciones: dict, rotaciones: dict,
-           bytes_conocidos: dict | None = None) -> dict:
+           bytes_conocidos: dict | None = None,
+           relativas_conocidas: dict | None = None) -> dict:
     """La forma del documento. **Puro: no toca disco.**
 
     Los pesos que salen de aqui son los que ya se sabian (`bytes_conocidos`,
@@ -126,7 +146,10 @@ def a_dict(proyecto: str, rooms: list[str], clips: list, bins,
         "duraciones": {str(i): s for i, s in duraciones.items()},
         "rotaciones": {str(i): r for i, r in rotaciones.items()},
         "bins": bins.to_list(),
-        "relativas": {str(i): r for i, r in rutas_relativas(clips, bins).items()},
+        "relativas": {
+            str(i): r for i, r in
+            _relativas_con_respaldo(clips, bins, relativas_conocidas).items()
+        },
         # El peso en bytes es lo unico con que se puede confirmar que un
         # archivo reencontrado es el que era: el nombre lo repiten las
         # camaras y la duracion sola no distingue dos tomas iguales.
