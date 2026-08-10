@@ -19,6 +19,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from clasificador_video import proyecto
 from clasificador_video.autosave import save_session
 from clasificador_video.bins import BinTree, raiz_comun_de
 from clasificador_video.filters import FilterState, cola, contar
@@ -215,9 +216,10 @@ def _corrido(mapa: dict, fuera: set[int]) -> dict:
     """Reindexa un diccionario que va por indice de clip, despues de quitar
     los indices de `fuera`.
 
-    La app tiene SEIS diccionarios asi --duraciones, tamaños, rotaciones,
-    tamaños de proxy, candidatos a proxy y generaciones de sondeo-- y todos
-    tienen que correrse en la misma operacion. Cualquiera que se quede
+    La app tiene OCHO diccionarios asi --duraciones, tamaños, rotaciones,
+    tamaños de proxy, candidatos a proxy, generaciones de sondeo, rutas
+    relativas y pesos guardados-- y todos tienen que correrse en la misma
+    operacion. Cualquiera que se quede
     atras describe a otro clip y no da ningun sintoma hasta que un video se
     dibuja acostado o un proxy ajeno se engancha como bueno.
     """
@@ -269,6 +271,13 @@ class MainWindow(QWidget):
     El ancho del video lo dicta la relacion de aspecto del clip y los
     paneles absorben el resto: asi no queda ni una franja negra.
     """
+
+    # La pantalla de inicio se esconde mientras hay una ventana abierta y
+    # vuelve cuando se cierra. Se avisa con una señal y no mirando
+    # `destroyed`: para eso habria que marcar la ventana con
+    # `WA_DeleteOnClose`, y destruirla desde el aviso de su propia
+    # destruccion es de donde salieron varios segfaults de este proyecto.
+    cerrada = Signal()
 
     def __init__(
         self,
@@ -330,6 +339,13 @@ class MainWindow(QWidget):
         # to_dict() y con eso el contrato del manifest con el plugin de Premiere.
         self._clip_sizes: dict[int, tuple[int, int]] = {}
         self._clip_rotations: dict[int, int] = {}
+        # Lo que hace falta para reencontrar el material si el proyecto se
+        # abre en otra computadora: la ruta de cada clip relativa a la
+        # carpeta de su bin, y su peso en bytes. Los pesos se CONSERVAN
+        # aunque la media no este conectada -- son lo unico que distingue
+        # una tarjeta de otra cuando dos archivos se llaman igual.
+        self._relativas: dict[int, str] = {}
+        self._bytes_guardados: dict[int, int] = {}
         # indice -> tamaño del PROXY, solo de los que ya validaron. El que
         # manda el layout sigue siendo `_clip_sizes`, que es del original:
         # esto es nada mas para escribir «720p» sin inventarlo.
@@ -714,6 +730,10 @@ class MainWindow(QWidget):
     def closeEvent(self, event) -> None:  # noqa: N802 -- override de Qt
         self._flush_autosave()
         self._thread_pool.waitForDone(5000)
+        # despues de guardar y de esperar a los trabajos: quien escucha esto
+        # devuelve la pantalla de inicio, y tiene que hacerlo con el proyecto
+        # ya a salvo en disco.
+        self.cerrada.emit()
         super().closeEvent(event)
 
     @property
@@ -1235,6 +1255,12 @@ class MainWindow(QWidget):
         self._proxy_sizes = {}
         self._proxy_candidatos = {}
         self._proxy_generacion_de = {}
+        # y lo que sirve para reencontrar la media, por lo mismo: el peso y
+        # la ruta relativa del clip 0 de ANTES describirian al clip 0 de
+        # ahora, que es otro archivo. Abrir un proyecto los vuelve a poner
+        # despues de llamar aca (ver `app._poblar_ventana`).
+        self._relativas = {}
+        self._bytes_guardados = {}
         # y los bins: van por INDICE de clip, igual que el historial y los
         # proxies de arriba. Dejarlos vivos aca era el bug real -- una
         # sesion restaurada de 109 clips mas una carpeta importada quedaba
@@ -1314,29 +1340,31 @@ class MainWindow(QWidget):
     def _write_autosave_now(self) -> None:
         if self.session_path is None:
             return
-        # sin `category_tree`: los subcuartos murieron en la F3. Una sesion
-        # vieja que lo traiga se ignora al cargar (ver app.py).
-        data = {
-            "proyecto": self.project_name,
-            "rooms": self.room_selection.active_rooms(),
-            "clips": [c.to_dict() for c in self.clips],
-            # Tamaño, duracion y rotacion van APARTE de los clips, no dentro
-            # de `to_dict()`: esa forma es el contrato con el plugin de
-            # Premiere y no se toca.
-            #
-            # Y van, aunque cuesten unas lineas: sin ellos, recuperar una
-            # sesion dejaba a la app sin saber la forma de nada --no se
-            # vuelve a correr ffprobe-- y TODAS las tarjetas caian en 16:9.
-            # Bruno lo vio con material vertical dibujado en cajas
-            # horizontales.
-            "tamanos": {str(i): [a, h] for i, (a, h) in self._clip_sizes.items()},
-            "duraciones": {str(i): s for i, s in self._clip_durations.items()},
-            "rotaciones": {str(i): r for i, r in self._clip_rotations.items()},
-            # los bins van aparte de los clips por la misma razon que los
-            # tamaños: `Clip.to_dict()` es el contrato con el plugin de
-            # Premiere y no se toca.
-            "bins": self.bins.to_list(),
+        # La forma del documento la arma `proyecto.a_dict` y no esta funcion:
+        # antes habia dos --la de aqui y la del modulo-- y dos formas del
+        # mismo documento terminan desincronizandose, con la mitad de las
+        # llaves escribiendose desde un lado y leyendose desde el otro.
+        #
+        # `bytes_conocidos` NO es opcional en la practica: sin el, guardar
+        # con la media desconectada reescribe el archivo sin un solo peso, y
+        # despues ya no hay con que confirmar que un archivo reencontrado es
+        # el que era. Pasa solo, a los pocos segundos de abrir el proyecto.
+        data = proyecto.a_dict(
+            proyecto=self.project_name,
+            rooms=self.room_selection.active_rooms(),
+            clips=self.clips,
+            bins=self.bins,
+            tamanos=self._clip_sizes,
+            duraciones=self._clip_durations,
+            rotaciones=self._clip_rotations,
+            bytes_conocidos=self._bytes_guardados,
+        )
+        # lo recien medido pasa a ser «lo conocido»: el guardado de despues
+        # puede ser ya sin la media, y ahi este dato es lo unico que queda.
+        self._bytes_guardados = {
+            int(i): int(b) for i, b in data["bytes"].items()
         }
+        self._relativas = {int(i): str(r) for i, r in data["relativas"].items()}
         self._autosave_pool.start(_AutosaveWriteJob(self.session_path, data))
         self._last_saved_at = time.monotonic()
         self._tick_saved_indicator()
@@ -1651,6 +1679,8 @@ class MainWindow(QWidget):
         self._clip_rotations = _corrido(self._clip_rotations, fuera)
         self._proxy_sizes = _corrido(self._proxy_sizes, fuera)
         self._proxy_candidatos = _corrido(self._proxy_candidatos, fuera)
+        self._relativas = _corrido(self._relativas, fuera)
+        self._bytes_guardados = _corrido(self._bytes_guardados, fuera)
         # Los sondeos en vuelo NO se corren: se tiran enteros.
         #
         # Correr `_proxy_generacion_de` conserva el VALOR, y todos los clips
