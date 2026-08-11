@@ -4419,3 +4419,61 @@ def test_quitar_los_proxies_apaga_la_marca(qtbot, monkeypatch, tmp_path):
     QApplication.processEvents()
 
     assert not any(w.plan_de_pintado()["proxy"] for w in window.clip_sheet.item_widgets)
+
+
+def test_una_tira_a_medias_sin_marca_se_vuelve_a_extraer(qtbot, monkeypatch, tmp_path):
+    """El caso de Bruno: «a veces no jala el escrubeo en los primeros
+    clips». Eran los que estaban corriendo al cerrar la app -- medido en su
+    cache: 6 de 133, cortados de tres en tres, que es cuantos se extraen a
+    la vez. Contar fotos no alcanza para distinguirlos: una tira de 2 se ve
+    igual de «cacheada» que una entera, y con dos posiciones el escrubeo se
+    siente roto."""
+    cache_root = tmp_path / "cache"
+    clip_path = tmp_path / "a.MP4"
+    clip_path.write_bytes(b"contenido de prueba")
+    window = _window_with_video(qtbot, cache_root=cache_root)
+    from clasificador_video.thumbnails import cache_dir_for
+    cache_dir = cache_dir_for(clip_path, cache_root)
+    cache_dir.mkdir(parents=True)
+    for i in range(2):                       # se corto en la segunda foto
+        (cache_dir / f"strip_{i:02d}.jpg").write_bytes(b"fake-jpeg")
+
+    pedidos = []
+    monkeypatch.setattr(
+        "clasificador_video.ui.main_window.extract_thumbnail_strip",
+        lambda *a, **k: pedidos.append(1) or [],
+    )
+    window.load_clips([Clip(orden=1, ruta=clip_path, categoria_path=[], fps=30.0)])
+    window._clip_durations[0] = 4.0
+    window._schedule_thumbnails()
+    window._thread_pool.waitForDone(3000)
+
+    assert pedidos == [1]
+
+
+def test_una_tira_con_marca_no_se_rehace_aunque_tenga_pocas_fotos(qtbot, monkeypatch, tmp_path):
+    """La marca dice «esto TERMINO», no «esto tiene doce». Un clip que solo
+    dio 9 cuadros es valido, y rehacerlo cada sesion seria pagar la
+    extraccion completa para siempre."""
+    from clasificador_video.thumbnails import cache_dir_for, MARCA_DE_COMPLETA
+    cache_root = tmp_path / "cache"
+    clip_path = tmp_path / "a.MP4"
+    clip_path.write_bytes(b"contenido de prueba")
+    window = _window_with_video(qtbot, cache_root=cache_root)
+    cache_dir = cache_dir_for(clip_path, cache_root)
+    cache_dir.mkdir(parents=True)
+    for i in range(9):
+        (cache_dir / f"strip_{i:02d}.jpg").write_bytes(b"fake-jpeg")
+    (cache_dir / MARCA_DE_COMPLETA).write_text("9")
+
+    pedidos = []
+    monkeypatch.setattr(
+        "clasificador_video.ui.main_window.extract_thumbnail_strip",
+        lambda *a, **k: pedidos.append(1) or [],
+    )
+    window.load_clips([Clip(orden=1, ruta=clip_path, categoria_path=[], fps=30.0)])
+    window._clip_durations[0] = 4.0
+    window._schedule_thumbnails()
+    window._thread_pool.waitForDone(3000)
+
+    assert pedidos == []

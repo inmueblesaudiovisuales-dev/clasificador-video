@@ -26,6 +26,15 @@ def _mpv() -> str:
     return str(ruta_de("mpv"))
 
 
+# El archivo que dice «esta tira se termino de extraer». Sin el, lo unico que
+# se puede mirar es cuantas fotos hay, y eso no distingue una tira corta de
+# una tira CORTADA: si la app se cierra a media extraccion, quedan 2 de 12 y
+# la sesion siguiente las da por buenas. Bruno lo vio como «a veces no jala
+# el escrubeo en los primeros clips» -- eran justo los que estaban corriendo
+# al momento de cerrar.
+MARCA_DE_COMPLETA = "completa"
+
+
 def default_cache_root() -> Path:
     return Path.home() / ".cache" / "clasificador_video" / "thumbnails"
 
@@ -259,4 +268,9 @@ def extract_thumbnail_strip(
             proc.wait(timeout=2)
         except subprocess.TimeoutExpired:
             proc.kill()
+    # La marca se escribe al FINAL y solo si el bucle llego hasta aqui: si
+    # algo revento a la mitad, la excepcion sube y este renglon no corre, que
+    # es exactamente lo que se quiere -- la tira queda sin marca y la proxima
+    # sesion la rehace.
+    (outdir / MARCA_DE_COMPLETA).write_text(str(len(frames)))
     return frames

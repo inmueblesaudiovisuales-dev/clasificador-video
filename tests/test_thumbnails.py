@@ -1,7 +1,10 @@
 # tests/test_thumbnails.py
 from pathlib import Path
 
+import pytest
+
 from clasificador_video.thumbnails import (
+    MARCA_DE_COMPLETA,
     ruta_del_socket,
     build_strip_ipc_args,
     build_thumbnail_command,
@@ -201,3 +204,46 @@ def test_dos_extracciones_a_la_vez_no_comparten_socket(tmp_path):
     b = ruta_del_socket(tmp_path / "clipB")
 
     assert a != b
+
+
+def test_la_tira_deja_marca_cuando_termina(tmp_path):
+    """Sin la marca, lo unico que se puede mirar es cuantas fotos hay -- y
+    eso no distingue una tira corta de una tira CORTADA."""
+    def on_command(command):
+        if command[0] == "screenshot-to-file":
+            Path(command[1]).write_bytes(b"fake-jpeg")
+
+    salida = tmp_path / "strip"
+    extract_thumbnail_strip(
+        video=tmp_path / "C0012.MP4", duration_seconds=6.0, count=4, outdir=salida,
+        popen=lambda cmd: _FakeProc(),
+        connect=lambda socket_path: _FakeConnection(on_command),
+    )
+
+    assert (salida / MARCA_DE_COMPLETA).exists()
+
+
+def test_si_se_corta_a_la_mitad_no_deja_marca(tmp_path):
+    """Es el caso real: la app se cierra con la extraccion corriendo. La tira
+    queda incompleta, y la sesion siguiente tiene que rehacerla en vez de
+    darla por buena -- que es lo que dejaba a los primeros clips sin
+    escrubeo para siempre."""
+    sacadas = []
+
+    def on_command(command):
+        if command[0] == "screenshot-to-file":
+            if len(sacadas) >= 2:
+                raise RuntimeError("el socket IPC de mpv se cerro antes de responder")
+            Path(command[1]).write_bytes(b"fake-jpeg")
+            sacadas.append(command[1])
+
+    salida = tmp_path / "strip"
+    with pytest.raises(RuntimeError):
+        extract_thumbnail_strip(
+            video=tmp_path / "C0012.MP4", duration_seconds=6.0, count=12, outdir=salida,
+            popen=lambda cmd: _FakeProc(),
+            connect=lambda socket_path: _FakeConnection(on_command),
+        )
+
+    assert list(salida.glob("strip_*.jpg"))            # alcanzo a sacar algunas
+    assert not (salida / MARCA_DE_COMPLETA).exists()   # pero no dice que acabo

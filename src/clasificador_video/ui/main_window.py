@@ -41,6 +41,7 @@ from clasificador_video.proxy_match import (
 )
 from clasificador_video.rooms import RoomSelection
 from clasificador_video.thumbnails import (
+    MARCA_DE_COMPLETA,
     cache_dir_for,
     default_cache_root,
     extract_thumbnail,
@@ -2866,15 +2867,24 @@ class MainWindow(QWidget):
             clip = self.clips[index]
             cache_dir = cache_dir_for(clip.ruta, cache_root)
             cached_frames = sorted(cache_dir.glob("strip_*.jpg")) if cache_dir.exists() else []
-            if len(cached_frames) > 1:
+            # Cache hit solo si la extraccion TERMINO. Contar fotos no
+            # alcanza: no distingue una tira corta de una tira CORTADA, y con
+            # 2 de 12 el escrubeo tiene dos posiciones y se siente roto.
+            # Quedan asi los clips que estaban corriendo cuando se cerro la
+            # app --medido en el cache de Bruno: 6 de 133, cortados de tres
+            # en tres, que es cuantos se extraen a la vez--. Sin esto se
+            # quedaban a medias para siempre.
+            #
+            # `>= CUADROS_DE_LA_TIRA` es por los caches de antes de que la
+            # marca existiera: una tira de 12 ya estaba completa y no hay por
+            # que rehacerla.
+            completa = (cache_dir / MARCA_DE_COMPLETA).exists() if cache_dir.exists() else False
+            if cached_frames and (completa or len(cached_frames) >= _ThumbnailJob.STRIP_COUNT):
                 # cache hit: mismo clip ya procesado en una sesion anterior.
                 self._on_thumbnail_ready(generation, index, cached_frames)
                 continue
-            # Con UNA sola foto no es un cache hit: es una tira que se corto a
-            # la mitad. Quedaron asi los clips a los que dos extracciones se
-            # les pisaron el socket, y darlas por buenas los dejaba sin
-            # escrubeo para siempre --el mismo callejon del que se acaba de
-            # salir con la portada suelta--. Se pinta y se vuelve a extraer.
+            # Lo que haya se PINTA igual --mejor una foto que una tarjeta
+            # gris mientras se rehace-- pero no cancela la extraccion.
             if cached_frames:
                 self._on_thumbnail_ready(generation, index, cached_frames)
             duration_seconds = self._clip_durations.get(index)
