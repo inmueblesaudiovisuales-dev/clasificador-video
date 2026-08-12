@@ -9,3 +9,6 @@ __pycache__/
 /empaque/dist/
 /luts/
 .pytest_cache/
+
+# manifests exportados a mano durante pruebas
+/*.json

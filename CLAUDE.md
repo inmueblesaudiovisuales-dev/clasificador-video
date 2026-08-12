@@ -167,9 +167,13 @@ tarea aparte — es un criterio a aplicar **cada vez que se crea algo nuevo**:
 
 ## Contexto del producto
 
-Ver `README.md` para qué es la app y cómo correrla, y
-`docs/superpowers/CONTEXTO-Y-METAS.md` para el estado actual del proyecto y
-hacia dónde va.
+- `README.md` — qué es la app, cómo se instala y cómo se usa. Es la puerta de
+  entrada y está escrita para quien la usa, no para quien la programa: los
+  detalles de desarrollo NO van ahí.
+- `docs/DESARROLLO.md` — correr desde el código, tests, empaquetar el `.dmg`
+  y el plugin, y cómo está organizado el repo.
+- `docs/superpowers/CONTEXTO-Y-METAS.md` — estado del proyecto, qué falta y
+  qué se descartó con su razón.
 
 ## Dirección de diseño de la UI
 
