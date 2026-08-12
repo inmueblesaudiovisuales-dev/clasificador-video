@@ -85,8 +85,8 @@ clips).
 
 | Tecla | Qué hace |
 |---|---|
-| `1`…`9` | asigna el cuarto de esa posición en el rail |
-| `S` | repite el cuarto del clip anterior |
+| `1`…`9` | asigna el cuarto de esa posición en el rail **y avanza** |
+| `S` | repite el cuarto del clip anterior **y avanza** |
 | `P` · `X` · `⇧P` | pick · reject · destacado |
 | `↑` `↓` | sube o baja un escalón de estado |
 | `I` `O` · `U` | marca in / out · los quita |
@@ -102,6 +102,11 @@ clips).
 | `⌘A` | selecciona el grupo donde estás |
 | `⌘E` | exportar a Premiere |
 | `esc` | sale una capa (video → clip → hoja) |
+
+Asignar un cuarto **avanza solo al siguiente clip**: la idea es recorrer el
+shooting sin tocar las flechas, tecleando un número por clip. Marcar
+pick/reject o poner in/out **no** avanza — esos se hacen sobre el clip que
+estás mirando.
 
 Los filtros no cambian solo lo que ves: **cambian por dónde te llevan las
 flechas**. Con «solo picks» puesto, `→` salta al siguiente pick.
@@ -155,7 +160,7 @@ la copia de la tarjeta.
 con 132 clips.
 
 Cada tarjeta lleva una marca **PROXY** abajo a la izquierda, y la barra de
-estado el total: `proxies 720p · 118/128`.
+estado el total: `proxies 720p · 118/128`, o `sin proxies` si no hay ninguno.
 
 ---
 
