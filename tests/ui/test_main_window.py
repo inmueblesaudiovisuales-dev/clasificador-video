@@ -4639,3 +4639,48 @@ def test_cerrar_la_ventana_corta_la_generacion_en_vez_de_esperarla(qtbot, monkey
 
     assert window._generando_proxies is None or window._generando_proxies["cancelado"]
     assert len(arrancadas) == 1          # los otros dos ni empezaron
+
+
+def test_deshacer_todo_devuelve_el_proyecto_a_como_estaba(qtbot):
+    """De la auditoria del 2026-08-10: 40 secuencias al azar de clasificar,
+    marcar estado y poner in/out, deshechas hasta el fondo.
+
+    `HistoryEntry` guarda solo los CAMPOS que cada accion toco, y esa
+    decision es la que hace que revertir «Cocina → 6 clips» no se lleve
+    puesto el pick que se marco despues. Una regresion ahi no se nota
+    clip por clip: se nota cuando `⌘Z` deja el proyecto en un estado que
+    nunca existio.
+    """
+    import random
+    aleatorio = random.Random(11)
+
+    def foto(ventana):
+        return [(list(c.categoria_path), c.flag, c.in_frame, c.out_frame)
+                for c in ventana.clips]
+
+    for _ in range(40):
+        window = _window_with_video(qtbot, rooms=("Sala", "Cocina", "Bano"))
+        window.load_clips([
+            Clip(orden=i + 1, ruta=Path(f"/m/C{i}.MP4"), categoria_path=[], fps=30.0)
+            for i in range(6)
+        ])
+        inicial = foto(window)
+
+        for _ in range(aleatorio.randint(1, 12)):
+            window.current_index = aleatorio.randrange(len(window.clips))
+            accion = aleatorio.choice(["cuarto", "estado", "inout", "escalera"])
+            if accion == "cuarto":
+                window._apply_categoria_to_targets(
+                    [aleatorio.choice(["Sala", "Cocina", "Bano"])]
+                )
+            elif accion == "estado":
+                window.handle_key_press(aleatorio.choice(["p", "x", "s"]))
+            elif accion == "inout":
+                window.handle_key_press(aleatorio.choice(["i", "o", "u"]))
+            else:
+                window._mover_en_la_escalera(aleatorio.choice([1, -1]))
+
+        while window.history.can_undo():
+            window.undo()
+
+        assert foto(window) == inicial

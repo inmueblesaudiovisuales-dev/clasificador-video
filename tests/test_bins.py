@@ -437,3 +437,54 @@ def test_la_raiz_comun_no_sube_a_la_raiz_del_disco():
         Path("/Volumes/CARD_A/CAM"),
         Path("/Volumes/CARD_B/CAM"),
     ]) == Path("/Volumes/CARD_A/CAM")
+
+
+# --- invariantes bajo secuencias al azar -------------------------------
+#
+# Salieron de la auditoria del 2026-08-10. No encontraron nada ese dia: se
+# quedan porque un bug de bins no se ve --un clip en dos bins, o un indice
+# que sobrevive a su clip-- hasta que algo mucho despues muestra el video
+# equivocado.
+
+
+def test_ninguna_secuencia_de_operaciones_rompe_los_invariantes():
+    """400 secuencias al azar de mover / quitar / crear / renombrar.
+
+    Los tres invariantes: ningun clip en dos bins a la vez, ningun indice
+    apuntando fuera de la lista de clips, y `mapa_por_clip` diciendo lo
+    mismo que los bins.
+    """
+    import random
+    aleatorio = random.Random(7)
+
+    for _ in range(400):
+        arbol = BinTree()
+        cuantos = aleatorio.randint(1, 12)
+        nombres = [f"bin{i}" for i in range(aleatorio.randint(1, 4))]
+        for n in nombres:
+            arbol.agregar(n, Path(f"/m/{n}"), [])
+        for c in range(cuantos):
+            arbol.sumar(aleatorio.choice(nombres), [c], Path("/m"))
+
+        for paso in range(20):
+            vivos = arbol.nombres()
+            accion = aleatorio.choice(["mover", "quitar", "crear", "renombrar"])
+            if accion == "mover" and vivos:
+                cuales = aleatorio.sample(range(cuantos), k=aleatorio.randint(0, cuantos))
+                arbol.mover(cuales, aleatorio.choice(vivos))
+            elif accion == "quitar" and len(vivos) > 1:
+                fuera = arbol.quitar(aleatorio.choice(vivos))
+                arbol.reindexar_tras_quitar(fuera)
+                cuantos -= len(fuera)
+            elif accion == "crear":
+                arbol.crear_vacio(f"nuevo{paso}")
+            elif accion == "renombrar" and vivos:
+                arbol.renombrar(aleatorio.choice(vivos), f"r{paso}")
+
+            de_quien = {}
+            for nombre in arbol.nombres():
+                for c in arbol.clips_de(nombre):
+                    assert c not in de_quien, f"{c} está en {de_quien.get(c)} y en {nombre}"
+                    assert 0 <= c < cuantos, f"{c} apunta fuera de {cuantos} clips"
+                    de_quien[c] = nombre
+            assert arbol.mapa_por_clip() == de_quien

@@ -380,3 +380,48 @@ def test_las_llaves_pueden_venir_del_json_en_texto():
     salen de los clips en memoria, donde son enteros. Si no se cruzan, esto
     devuelve vacio en silencio y nada se confirma nunca por duracion."""
     assert cuadros_esperados_de({"0": 10.0}, {0: 30.0}) == {0: 300}
+
+
+def test_nunca_engancha_el_archivo_equivocado_aunque_la_carpeta_se_reorganice(tmp_path):
+    """De la auditoria del 2026-08-10. Es LA propiedad de este modulo:
+    enganchar el archivo equivocado es peor que no encontrarlo, porque nadie
+    se entera -- verias el proyecto completo con las marcas puestas sobre
+    material que no es.
+
+    El escenario duro: la carpeta se reorganizo (las rutas relativas ya no
+    valen) y hay tocayos, porque cada tarjeta de la Sony vuelve a numerar
+    desde `C0000.MP4`.
+    """
+    import random
+    aleatorio = random.Random(9)
+
+    for corrida in range(60):
+        nueva = tmp_path / f"destino{corrida}"
+        nueva.mkdir()
+        verdad, relativas, pesos, cuadros = {}, {}, {}, {}
+        clip = 0
+        for tarjeta in ("A", "B"):
+            carpeta = nueva / f"copia_{tarjeta}"     # NO es el nombre viejo
+            carpeta.mkdir()
+            for i in range(aleatorio.randint(1, 3)):
+                nombre = f"C{i:04d}.MP4"
+                peso = aleatorio.choice([1000, 2000])   # colisiones a proposito
+                cuadros_del_clip = aleatorio.choice([100, 200])
+                (carpeta / nombre).write_bytes(b"x" * peso)
+                verdad[clip] = carpeta / nombre
+                relativas[clip] = f"{tarjeta}/{nombre}"  # la ruta VIEJA
+                pesos[clip] = peso
+                cuadros[clip] = cuadros_del_clip
+                clip += 1
+
+        por_ruta = {r: cuadros[c] for c, r in verdad.items()}
+        resultado = reencontrar_bin(
+            nueva, relativas, pesos, cuadros,
+            lambda ruta: {"duration_frames": por_ruta.get(ruta)},
+        )
+
+        for c, ruta in resultado.reconectados.items():
+            assert ruta == verdad[c], (
+                f"engancho {ruta.name} de {ruta.parent.name} "
+                f"cuando el clip {c} era el de {verdad[c].parent.name}"
+            )
