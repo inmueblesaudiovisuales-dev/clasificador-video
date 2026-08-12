@@ -70,7 +70,7 @@ coll = COLLECT(exe, a.binaries, a.datas, strip=False, upx=False, name="Clasifica
 # lo que se ve en «Obtener informacion» y en el nombre del `.dmg`; si la app
 # y el instalador dijeran versiones distintas, nadie sabria cual tiene
 # instalada.
-VERSION = "1.0"
+VERSION = "1.1"
 
 app = BUNDLE(coll, name="Clasificador.app",
              bundle_identifier="com.brunogutierrez.clasificador",
