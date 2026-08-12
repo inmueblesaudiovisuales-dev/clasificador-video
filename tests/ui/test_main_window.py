@@ -1,5 +1,6 @@
 # tests/ui/test_main_window.py
 import threading
+import time
 from pathlib import Path
 
 import pytest
@@ -4684,3 +4685,51 @@ def test_deshacer_todo_devuelve_el_proyecto_a_como_estaba(qtbot):
             window.undo()
 
         assert foto(window) == inicial
+
+
+def test_los_clips_conservan_su_orden_aunque_se_sondeen_en_paralelo(qtbot, monkeypatch, tmp_path):
+    """`ffprobe` corre en varios hilos para no congelar la ventana al
+    importar, pero el orden de los clips es el que se ve en la hoja y el que
+    viaja al manifest: si llegaran en el orden en que terminan, el clip 001
+    seria cualquiera."""
+    window = _window_with_video(qtbot, cache_root=tmp_path / "cache")
+    import random as _random
+
+    def sondeo_desordenado(video):
+        # los ultimos terminan primero, que es el peor caso para el orden
+        time.sleep(0.02 * (1 - int(video.stem[-2:]) / 20))
+        return {"fps": 30.0, "duration_frames": 60, "width": 1920, "height": 1080,
+                "rotation": 0, "has_audio": True}
+
+    monkeypatch.setattr(window, "_probe_clip", sondeo_desordenado)
+    archivos = [tmp_path / f"C{i:04d}.MP4" for i in range(20)]
+    for a in archivos:
+        a.write_bytes(b"x")
+
+    clips, _ = window._medir(archivos)
+
+    assert [c.ruta.name for c in clips] == [a.name for a in archivos]
+    assert [c.orden for c in clips] == list(range(1, 21))
+
+
+def test_un_archivo_ilegible_no_corta_la_tanda_ni_corre_los_indices(qtbot, monkeypatch, tmp_path):
+    """Con el sondeo en paralelo, una excepcion adentro del pool cortaria
+    TODA la importacion. Se atrapa por archivo."""
+    window = _window_with_video(qtbot, cache_root=tmp_path / "cache")
+
+    def a_veces_revienta(video):
+        if video.stem.endswith("1"):
+            raise RuntimeError("este no se puede leer")
+        return {"fps": 30.0, "duration_frames": 60, "width": 1920, "height": 1080,
+                "rotation": 0, "has_audio": True}
+
+    monkeypatch.setattr(window, "_probe_clip", a_veces_revienta)
+    archivos = [tmp_path / f"C{i:04d}.MP4" for i in range(4)]
+    for a in archivos:
+        a.write_bytes(b"x")
+
+    clips, medidas = window._medir(archivos)
+
+    assert [c.ruta.name for c in clips] == ["C0000.MP4", "C0002.MP4", "C0003.MP4"]
+    # y las medidas van por el indice NUEVO, sin huecos del que se salto
+    assert sorted(medidas["duraciones"]) == [0, 1, 2]

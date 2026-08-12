@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import shutil
 import time
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 from dataclasses import replace
 from pathlib import Path
@@ -212,6 +213,13 @@ class _AutosaveWriteJob(QRunnable):
             self._generacion, proyecto.por_indice_de_clip(documento.get("bytes"))
         )
         self._señales.guardado_listo.emit()
+
+
+# Cuantos `ffprobe` a la vez al importar. Ocho porque es donde la medicion
+# se aplana: con 40 clips reales de la FX30, en serie 1.06 s, con 4 en
+# paralelo 0.26 s y con 8 en paralelo 0.14 s. Son procesos aparte esperando
+# al disco, no CPU nuestra.
+SONDEOS_EN_PARALELO = 8
 
 
 class SeñalesDeTrabajos(QObject):
@@ -2185,10 +2193,20 @@ class MainWindow(QWidget):
         duraciones: dict[int, float] = {}
         tamanos: dict[int, tuple[int, int]] = {}
         rotaciones: dict[int, int] = {}
-        for video in archivos:
-            try:
-                info = self._probe_clip(video)
-            except Exception:
+        # En paralelo, y NO por gusto: `ffprobe` cuesta 25.5 ms por clip y
+        # esto corre en el hilo de la interfaz, asi que con los 132 clips de
+        # Bruno eran 3.4 s de ventana congelada al importar. Medido sobre 40
+        # clips reales suyos: en serie 1.06 s, con 8 en paralelo 0.14 s --
+        # siete veces y media--. Cada `ffprobe` es un proceso aparte, o sea
+        # que el GIL no estorba: el hilo se pasa la vida esperando.
+        #
+        # El resultado se recoge EN ORDEN (`map` lo garantiza) porque el
+        # orden de los clips es el orden en que se ven y el que viaja al
+        # manifest.
+        with ThreadPoolExecutor(SONDEOS_EN_PARALELO) as sondeadores:
+            infos = list(sondeadores.map(self._sondear_sin_reventar, archivos))
+        for video, info in zip(archivos, infos):
+            if info is None:
                 continue
             index = desde + len(clips)
             clips.append(Clip(orden=index + 1, ruta=video, categoria_path=[],
@@ -2209,6 +2227,15 @@ class MainWindow(QWidget):
             rotaciones[index] = int(info.get("rotation") or 0)
         return clips, {"duraciones": duraciones, "tamanos": tamanos,
                        "rotaciones": rotaciones}
+
+    def _sondear_sin_reventar(self, video: Path) -> dict | None:
+        """`None` en vez de excepcion: un archivo ilegible se salta, no
+        corta la tanda. Y va aparte para poder mandarlo al pool de hilos --
+        una excepcion adentro de `map` si cortaria todo."""
+        try:
+            return self._probe_clip(video)
+        except Exception:
+            return None
 
     def _avisar_que_no_se_pudo_leer_nada(self, cuantos: int) -> None:
         """Si NINGUNO se pudo leer, no es un archivo corrupto: es que falta

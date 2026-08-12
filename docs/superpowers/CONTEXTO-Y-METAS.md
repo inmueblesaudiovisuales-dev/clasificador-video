@@ -211,11 +211,33 @@ abajo). Los bins —crear, borrar, renombrar, arrastrar clips— no pasan por el
 historial que ya existe. Y el buscador de la hoja ya filtra por nombre, cuarto,
 estado y bin; lo único que no cubre de lo que se ofreció es la duración.
 
-### 5. Escala
+### 5. Escala y velocidad — **medido el 2026-08-10, con su material**
 
-Medido y cómodo con 128 clips. Lo que se degrada primero al crecer es la
-generación de portadas — ahora que salen del proxy, cinco veces más barata. Sin
-medición por encima de eso.
+La interfaz no es el problema: con 132 clips, cargar el proyecto toma 0.15 s,
+reconstruir la hoja 0.07 s, pintar un cuarto a los 132 seleccionados 0.002 s y
+avanzar de clip 3.6 ms. Nada de eso se siente.
+
+**Todo el tiempo está en la primera importación**, y ahí lo que manda es de
+dónde salen las portadas:
+
+| | 132 clips |
+|---|---|
+| portadas desde el original | **7.7 min** |
+| portadas desde el proxy | **0.6 min** |
+
+Trece veces, no cinco: la cifra de «cinco veces» venía de medir un clip
+aislado, y con la app corriendo de verdad la diferencia es mayor. Por eso la
+app ofrece los proxies al importar.
+
+**Lo que se probó y NO sirve:** sacar más portadas a la vez. Con 3, 6 o 9 en
+paralelo el tiempo es el mismo (~21 s por cada 6 clips) — mpv decodificando
+por software ya satura la máquina. Queda medido para no volver a intentarlo.
+
+**Lo que sí sirvió:** `ffprobe` al importar, que corría en serie y en el hilo
+de la interfaz. Ahora va de a ocho: **111 clips reales pasaron de 2.8 s a
+0.42 s** de ventana congelada.
+
+Sin medición por encima de los 132 clips.
 
 ---
 
