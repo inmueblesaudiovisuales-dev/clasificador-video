@@ -1,20 +1,58 @@
 # Instalar / actualizar el plugin
 
-> **Aviso del 2026-08-10:** el CLI de UXP que arma el `.ccx` **hoy no se
-> puede instalar**. Su biblioteca nativa no trae compilado para Node 24
-> (`No native build was found for platform=darwin arch=x64 ... abi=137`), y
-> con `--ignore-scripts` el `plugin package` falla por lo mismo. Es un
-> problema del CLI de Adobe, no del plugin.
->
-> **Mientras tanto**, en una máquina donde el plugin YA está instalado se
-> actualiza copiando los archivos encima:
-> `~/Library/Application Support/Adobe/UXP/Plugins/External/com.iav.clasificadorvideo_1.0.0/`.
-> Ojo: eso **no sirve para instalar por primera vez** —Premiere no registra
-> un plugin que aparece solo en esa carpeta, ver abajo— y **no sirve para
-> repartirlo** a otra computadora. Para eso hay que resolver lo del `.ccx`.
->
-> Y Premiere **no recoge archivos nuevos con Premiere abierto**: cerrar y
-> abrir el panel no basta, hay que cerrar Premiere entero.
+## Repartirlo a otra computadora
+
+```bash
+./uxp-plugin/empaquetar.sh
+```
+
+Sale un `.ccx` en `/tmp/uxp-package-output/`. **Eso es lo que se manda.** En
+la otra computadora, con Creative Cloud instalado:
+
+1. Cerrar Premiere.
+2. Doble clic al `.ccx` — Creative Cloud lo instala solo.
+3. Abrir Premiere: `Ventana > Plugins UXP > Clasificador de Video`.
+
+No hace falta terminal ni instalar nada más del lado de quien lo recibe.
+
+### Por qué hay un script y no tres comandos
+
+Porque son cinco pasos y **cuatro fallan con un mensaje que no dice la
+verdad**. Quedó escrito adentro del script, y en resumen:
+
+- El CLI de UXP hay que instalarlo con `--ignore-scripts`, o su postinstall
+  revienta con «Cannot find module 'tar'»: el script que arma la biblioteca
+  nativa corre antes de que npm instale sus propias dependencias.
+- Y por eso hay que correr ese script **a mano** después. Sin ese paso,
+  empaquetar falla con «No native build was found for platform=darwin
+  arch=x64 ... abi=137». **Eso parece un problema de versión de Node y no lo
+  es** — se creyó eso el 2026-08-10 y se dio por bloqueada la distribución
+  del plugin. El módulo que trae Adobe es N-API, o sea que sirve con
+  cualquier Node; lo único que pasaba es que nadie lo había extraído.
+- El servicio de UXP tiene que estar corriendo, o falla con «Could not
+  connect to the UXP Developer Service».
+- La carpeta de salida tiene que existir, o falla con un `ENOENT` sobre el
+  `.ccx` que todavía no escribió.
+- Y todo bajo `arch -x86_64`, porque el CLI de Adobe es x64.
+
+El script comprobado de cero el 2026-08-12: borrando la instalación del CLI
+y matando el servicio, `./uxp-plugin/empaquetar.sh` deja el `.ccx` listo.
+
+## Actualizar el plugin en ESTA computadora
+
+Con el plugin ya instalado, para iterar sin repetir el `.ccx` basta copiar
+los archivos encima:
+
+```bash
+cp -R uxp-plugin/index.html uxp-plugin/manifest.json uxp-plugin/js "$HOME/Library/Application Support/Adobe/UXP/Plugins/External/com.iav.clasificadorvideo_1.0.0/"
+```
+
+Ojo: eso **no sirve para instalar por primera vez** —Premiere no registra un
+plugin que aparece solo en esa carpeta, ver abajo— y Premiere **no recoge
+archivos nuevos con Premiere abierto**: cerrar y abrir el panel no basta, hay
+que cerrar Premiere entero.
+
+---
 
 **Actualizado 2026-08-06.** El método de copiar la carpeta a mano a
 `.../UXP/Plugins/External/<id>_<version>` **no funciona** como instalación de

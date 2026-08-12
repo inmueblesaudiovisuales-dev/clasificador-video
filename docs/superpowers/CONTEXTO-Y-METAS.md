@@ -191,11 +191,13 @@ Eso es cómo funciona macOS según la documentación de Apple, **no comprobado**
 La única prueba válida es abrirla en otra computadora. Va junto con probar ahí
 un `.cvproj` de verdad, que tampoco se ha hecho.
 
-**Y hay un bloqueo nuevo, del lado del plugin:** el CLI de UXP que arma el
-`.ccx` ya no instala — su biblioteca nativa no trae compilado para Node 24
-(`abi=137`). Mientras eso no se resuelva, el plugin se puede actualizar en la
-máquina de Bruno copiando archivos sobre la instalación existente, pero **no
-se puede repartir a otra computadora**.
+**El plugin ya se puede repartir** (resuelto el 2026-08-12):
+`./uxp-plugin/empaquetar.sh` deja un `.ccx` y quien lo recibe le da doble
+clic. El «bloqueo» del 2026-08-10 —«el CLI no compila para Node 24,
+`abi=137`»— **era un diagnóstico equivocado**: el módulo que trae Adobe es
+N-API y sirve con cualquier Node; lo único que pasaba es que su instalador se
+salta el paso que lo extrae. Vale la pena recordarlo: un mensaje de error que
+nombra una versión invita a creer que el problema es la versión.
 
 ### 3. Crear muchos cuartos de un jalón — **tiene spec, falta plan**
 
