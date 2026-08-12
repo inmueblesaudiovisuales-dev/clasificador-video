@@ -3989,7 +3989,7 @@ def _generados(window, monkeypatch, falla_en=()):
     """Sustituye ffmpeg: anota a quien le tocaba y escribe el archivo."""
     hechos = []
 
-    def falso_generar(original, carpeta, ffmpeg=None):
+    def falso_generar(original, carpeta, **kwargs):
         if original.name in falla_en:
             raise RuntimeError("ffmpeg no pudo con " + original.name)
         carpeta.mkdir(parents=True, exist_ok=True)
@@ -4059,7 +4059,7 @@ def test_cancelar_deja_lo_hecho_y_no_hace_lo_que_faltaba(qtbot, monkeypatch, tmp
     window, _ = _bin_para_generar(qtbot, monkeypatch, tmp_path, cuantos=3)
     hechos = []
 
-    def generar_y_cancelar(original, carpeta, ffmpeg=None):
+    def generar_y_cancelar(original, carpeta, **kwargs):
         # cancela DURANTE el primero, con los otros dos ya encolados: es el
         # caso que importa, porque el trabajo lee la bandera al empezar
         window.cancelar_generacion_de_proxies()
@@ -4548,3 +4548,94 @@ def test_una_senal_vencida_no_deja_al_clip_marcado_como_corriendo(qtbot, monkeyp
     window._on_thumbnail_ready(window._thumb_generation - 1, 0, None)
 
     assert 0 not in window._miniaturas_en_vuelo
+
+
+# --- lo que se corre (o se tira) al quitar un bin ----------------------
+
+
+def test_quitar_un_bin_tira_la_generacion_de_proxies_en_curso(qtbot, monkeypatch, tmp_path):
+    """`_on_proxy_generado` engancha con `self.clips[index]`, y quitar un bin
+    corre los indices. Sin tirar la tanda, un proxy recien generado se
+    enganchaba al clip EQUIVOCADO -- y entre dos tomas de la misma camara la
+    validacion cuadro a cuadro calza, asi que pasaba en silencio. Es el mismo
+    modo de fallo que ya estaba documentado para `_proxy_generacion_de`."""
+    window, _ = _bin_para_generar(qtbot, monkeypatch, tmp_path)
+    # ffmpeg se queda trabado a proposito: sin esto los tres trabajos
+    # terminan antes de que se quite el bin, la tanda se cierra sola y el
+    # test pasa con o sin el arreglo. (Paso: la primera version de este test
+    # no probaba nada.)
+    suelta = threading.Event()
+
+    def generar_lento(original, carpeta, **kwargs):
+        suelta.wait(5)
+        carpeta.mkdir(parents=True, exist_ok=True)
+        destino = proxy_gen.ruta_de_proxy(original, carpeta)
+        destino.write_bytes(b"proxy")
+        return destino
+
+    monkeypatch.setattr(proxy_gen, "generar", generar_lento)
+    nombre = window.bins.to_list()[0]["nombre"]
+    window.generar_proxies_de_bin(nombre)
+    assert window._generando_proxies is not None
+    generacion_vieja = window._generacion_de_proxies
+
+    monkeypatch.setattr(
+        "clasificador_video.ui.main_window.QMessageBox.question",
+        lambda *a, **k: QMessageBox.StandardButton.Yes,
+    )
+    try:
+        window._on_bin_quitado(nombre)
+
+        assert window._generando_proxies is None
+        assert window._generacion_de_proxies != generacion_vieja
+    finally:
+        suelta.set()
+        _esperar_generacion(window)
+
+
+def test_quitar_un_bin_corre_las_portadas_en_vuelo(qtbot, monkeypatch, tmp_path):
+    """Van por indice igual que todo lo demas. Sin correrlas, el clip que
+    hereda un indice «ocupado» se salta su extraccion: la app cree que ya se
+    le esta sacando la tira."""
+    window, _ = _bin_para_generar(qtbot, monkeypatch, tmp_path, cuantos=3)
+    nombre = window.bins.to_list()[0]["nombre"]
+    # se quita el bin entero, asi que lo que quede tiene que quedar limpio
+    window._miniaturas_en_vuelo = {0: Path("/a.MP4"), 2: Path("/c.MP4")}
+    window._miniaturas_a_rehacer = {2}
+    monkeypatch.setattr(
+        "clasificador_video.ui.main_window.QMessageBox.question",
+        lambda *a, **k: QMessageBox.StandardButton.Yes,
+    )
+
+    window._on_bin_quitado(nombre)
+
+    assert window._miniaturas_en_vuelo == {}
+    assert window._miniaturas_a_rehacer == set()
+
+
+def test_cerrar_la_ventana_corta_la_generacion_en_vez_de_esperarla(qtbot, monkeypatch, tmp_path):
+    """El pool es hijo de la ventana, asi que su destructor espera a que
+    termine TODO lo encolado. Con 23 clips por delante eso son minutos de app
+    congelada al cerrar, sin decir por que."""
+    from PySide6.QtGui import QCloseEvent
+    window, _ = _bin_para_generar(qtbot, monkeypatch, tmp_path, cuantos=3)
+    arrancadas = []
+    suelta = threading.Event()
+
+    def generar_lento(original, carpeta, cancelado=None, **kwargs):
+        arrancadas.append(original.name)
+        while not suelta.wait(0.01):
+            if cancelado is not None and cancelado():
+                raise proxy_gen.Interrumpido("cancelado")
+        return proxy_gen.ruta_de_proxy(original, carpeta)
+
+    monkeypatch.setattr(proxy_gen, "generar", generar_lento)
+    nombre = window.bins.to_list()[0]["nombre"]
+    window.generar_proxies_de_bin(nombre)
+    qtbot.waitUntil(lambda: bool(arrancadas), timeout=3000)
+
+    window.closeEvent(QCloseEvent())     # no se debe quedar colgado aqui
+    suelta.set()
+
+    assert window._generando_proxies is None or window._generando_proxies["cancelado"]
+    assert len(arrancadas) == 1          # los otros dos ni empezaron

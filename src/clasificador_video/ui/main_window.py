@@ -364,6 +364,16 @@ def _gigas_del_volumen(ruta: Path) -> int | None:
         return None
 
 
+def _corrido_set(indices: set[int], fuera: set[int]) -> set[int]:
+    """`_corrido` para los conjuntos de indices de clip. Mismo motivo: un
+    indice que se queda atras deja de hablar del clip que describia."""
+    return {
+        i - sum(1 for q in fuera if q < i)
+        for i in indices
+        if i not in fuera
+    }
+
+
 def _corrido(mapa: dict, fuera: set[int]) -> dict:
     """Reindexa un diccionario que va por indice de clip, despues de quitar
     los indices de `fuera`.
@@ -443,7 +453,15 @@ class _GeneracionDeProxyJob(QRunnable):
             self.signals.proxy_generado.emit(self._generacion, self.index, None, "")
             return
         try:
-            destino = proxy_gen.generar(self._original, self._carpeta)
+            # la bandera va TAMBIEN adentro: sin esto, cancelar solo evitaba
+            # los que no habian empezado, y el que ya corria seguia hasta el
+            # final -- con una toma de dron de tres minutos y medio, eso es
+            # una app congelada varios minutos al cerrarla
+            destino = proxy_gen.generar(self._original, self._carpeta,
+                                        cancelado=self._cancelado)
+        except proxy_gen.Interrumpido:
+            self.signals.proxy_generado.emit(self._generacion, self.index, None, "")
+            return
         except Exception as e:  # ffmpeg fallo, o el disco se lleno
             self.signals.proxy_generado.emit(self._generacion, self.index, None, str(e))
             return
@@ -1020,6 +1038,14 @@ class MainWindow(QWidget):
         self._playhead_timer.stop()
         self._saved_timer.stop()
         self._flush_autosave()
+        # La tanda de proxies PRIMERO, y cancelandola: el pool es hijo de la
+        # ventana, asi que su destructor espera a que termine todo lo
+        # encolado. Con 23 clips por delante eso son minutos de app
+        # congelada al cerrar, sin decir por que. `clear()` tira lo que no
+        # arranco y la bandera corta el que si.
+        self.cancelar_generacion_de_proxies()
+        self._generacion_pool.clear()
+        self._generacion_pool.waitForDone(5000)
         self._thread_pool.waitForDone(5000)
         self.video_widget.apagar()
         # al final: quien escucha esto devuelve la pantalla de inicio, y
@@ -1547,6 +1573,15 @@ class MainWindow(QWidget):
         self._proxy_sizes = {}
         self._proxy_candidatos = {}
         self._proxy_generacion_de = {}
+        # Y la tanda de proxies que estuviera corriendo: engancha con
+        # `self.clips[index]` sobre el material que acaba de irse. Abrir otro
+        # proyecto con una generacion en curso enganchaba proxies del
+        # proyecto viejo a los clips del nuevo.
+        self._descartar_generacion_de_proxies()
+        # las portadas en vuelo, por lo mismo: sus indices son de otro
+        # material y bloquearian la extraccion de los clips nuevos
+        self._miniaturas_en_vuelo = {}
+        self._miniaturas_a_rehacer = set()
         # y lo que sirve para reencontrar la media, por lo mismo: el peso y
         # la ruta relativa del clip 0 de ANTES describirian al clip 0 de
         # ahora, que es otro archivo. Abrir un proyecto los vuelve a poner
@@ -2410,6 +2445,31 @@ class MainWindow(QWidget):
                 self._señales_de_trabajos,
             ))
 
+    def _descartar_generacion_de_proxies(self) -> None:
+        """Tira la tanda que corre, sin avisos ni resúmenes.
+
+        Es distinto de cancelar: cancelar es una decisión de Bruno sobre un
+        bin que sigue existiendo. Esto es para cuando el bin —o el proyecto
+        entero— dejó de ser lo que era, y lo que llegue de esa tanda ya no
+        describe a nadie.
+
+        **Por qué hace falta:** `_on_proxy_generado` engancha el proxy con
+        `self.clips[index]`, y al quitar un bin los índices se corren. Sin
+        esto, un proxy recién generado se enganchaba al clip EQUIVOCADO — y
+        entre dos tomas de la misma cámara la validación cuadro a cuadro
+        calza, así que pasaba en silencio. Es el mismo modo de fallo que ya
+        está documentado para `_proxy_generacion_de`.
+        """
+        estado = self._generando_proxies
+        if estado is None:
+            return
+        # la bandera corta lo que sigue encolado; la generacion nueva hace
+        # que lo que ya venia en camino se ignore al llegar
+        estado["cancelado"] = True
+        self._generacion_de_proxies += 1
+        self._generando_proxies = None
+        self.clip_sheet.set_bin_generando(estado["bin"], None)
+
     def cancelar_generacion_de_proxies(self, nombre_de_bin: str = "") -> None:
         """Lo que ya se generó se queda enganchado; lo que faltaba, no se
         hace. El que esté a medias termina —cortar ffmpeg a la mitad deja un
@@ -2608,6 +2668,17 @@ class MainWindow(QWidget):
         self._proxy_candidatos = _corrido(self._proxy_candidatos, fuera)
         self._relativas = _corrido(self._relativas, fuera)
         self._bytes_guardados = _corrido(self._bytes_guardados, fuera)
+        # Las portadas en vuelo tambien van por indice. Sin correrlas, un
+        # clip que hereda un indice «ocupado» se salta su extraccion porque
+        # la app cree que ya se le esta sacando.
+        self._miniaturas_en_vuelo = _corrido(self._miniaturas_en_vuelo, fuera)
+        self._miniaturas_a_rehacer = _corrido_set(self._miniaturas_a_rehacer, fuera)
+        # y el conjunto de «este clip no tiene donde buscarse», que arrastra
+        # indices de una revision a la siguiente
+        self._sin_donde_buscar = _corrido_set(self._sin_donde_buscar, fuera)
+        # La tanda de proxies que estuviera corriendo se tira entera: engancha
+        # con `self.clips[index]` y esos indices acaban de correrse.
+        self._descartar_generacion_de_proxies()
         # el reencuentro guarda INDICES de clip, y correrlos aqui no alcanza:
         # tambien habla de un bin que acaba de dejar de existir. Se tira
         # entero y la revision se rehace sobre lo que quedo.

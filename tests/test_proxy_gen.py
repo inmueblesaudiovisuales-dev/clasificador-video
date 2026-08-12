@@ -1,4 +1,5 @@
 # tests/test_proxy_gen.py
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -63,6 +64,39 @@ def test_faltantes_deja_fuera_los_que_ya_tienen_proxy(tmp_path):
     assert proxy_gen.faltantes(originales, proxies) == [Path("/m/DJI_0002.MP4")]
 
 
+class _FfmpegFalso:
+    """Un `Popen` de mentira: escribe el archivo de salida y termina.
+
+    `vueltas_colgado` simula un ffmpeg que tarda: `communicate` levanta
+    `TimeoutExpired` esas veces antes de devolver, que es cuando la funcion
+    consulta si la cancelaron.
+    """
+
+    def __init__(self, args, vueltas_colgado=0, returncode=0, stderr="", **kwargs):
+        self._destino = Path(args[-1])
+        self._faltan = vueltas_colgado
+        self.returncode = returncode
+        self._stderr = stderr
+        self.terminado = False
+
+    def communicate(self, timeout=None):
+        if self._faltan > 0:
+            self._faltan -= 1
+            raise subprocess.TimeoutExpired(cmd="ffmpeg", timeout=timeout)
+        if self.returncode == 0:
+            self._destino.write_bytes(b"video")
+        return "", self._stderr
+
+    def terminate(self):
+        self.terminado = True
+
+    def wait(self, timeout=None):
+        return self.returncode
+
+    def kill(self):
+        self.terminado = True
+
+
 def test_generar_escribe_a_un_parcial_y_renombra_al_final(tmp_path, monkeypatch):
     """Sin el temporal, cancelar o quedarse sin disco a la mitad deja un mp4
     truncado CON EL NOMBRE BUENO -- y la corrida siguiente lo da por hecho y
@@ -70,17 +104,11 @@ def test_generar_escribe_a_un_parcial_y_renombra_al_final(tmp_path, monkeypatch)
     donde termina el clip."""
     vistos = []
 
-    class Resultado:
-        returncode = 0
-        stderr = ""
+    def falso_popen(args, **kwargs):
+        vistos.append(Path(args[-1]).name)
+        return _FfmpegFalso(args)
 
-    def falso_run(args, **kwargs):
-        destino = Path(args[-1])
-        vistos.append(destino.name)
-        destino.write_bytes(b"video")
-        return Resultado()
-
-    monkeypatch.setattr(proxy_gen.subprocess, "run", falso_run)
+    monkeypatch.setattr(proxy_gen.subprocess, "Popen", falso_popen)
 
     destino = proxy_gen.generar(Path("/m/DJI_0001.MP4"), tmp_path / "Proxies",
                                 ffmpeg="ffmpeg")
@@ -91,18 +119,37 @@ def test_generar_escribe_a_un_parcial_y_renombra_al_final(tmp_path, monkeypatch)
 
 
 def test_si_ffmpeg_falla_no_queda_basura_ni_se_dice_que_si(tmp_path, monkeypatch):
-    class Resultado:
-        returncode = 1
-        stderr = "Invalid data found when processing input"
-
-    def falso_run(args, **kwargs):
-        Path(args[-1]).write_bytes(b"a medias")
-        return Resultado()
-
-    monkeypatch.setattr(proxy_gen.subprocess, "run", falso_run)
+    monkeypatch.setattr(
+        proxy_gen.subprocess, "Popen",
+        lambda args, **k: _FfmpegFalso(
+            args, returncode=1, stderr="Invalid data found when processing input"),
+    )
     carpeta = tmp_path / "Proxies"
 
     with pytest.raises(RuntimeError, match="Invalid data"):
         proxy_gen.generar(Path("/m/DJI_0001.MP4"), carpeta, ffmpeg="ffmpeg")
 
     assert list(carpeta.iterdir()) == []
+
+
+def test_cancelar_corta_ffmpeg_en_vez_de_esperarlo(tmp_path, monkeypatch):
+    """Antes esto era una llamada que no se podia interrumpir: al cerrar la
+    app durante una tanda, la ventana se quedaba congelada hasta que
+    terminara el clip en curso -- y con una toma de dron de tres minutos y
+    medio, eso son varios minutos mirando una app muerta."""
+    procesos = []
+
+    def falso_popen(args, **kwargs):
+        proceso = _FfmpegFalso(args, vueltas_colgado=10)
+        procesos.append(proceso)
+        return proceso
+
+    monkeypatch.setattr(proxy_gen.subprocess, "Popen", falso_popen)
+    carpeta = tmp_path / "Proxies"
+
+    with pytest.raises(proxy_gen.Interrumpido):
+        proxy_gen.generar(Path("/m/DJI_0001.MP4"), carpeta, ffmpeg="ffmpeg",
+                          cancelado=lambda: True, latido=0.001)
+
+    assert procesos[0].terminado                 # se le corto, no se espero
+    assert list(carpeta.iterdir()) == []         # y no quedo el .parcial

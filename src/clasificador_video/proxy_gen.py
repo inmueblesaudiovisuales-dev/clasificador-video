@@ -104,7 +104,12 @@ def faltantes(originales: list[Path], carpeta: Path) -> list[Path]:
     return [o for o in originales if not ruta_de_proxy(o, carpeta).exists()]
 
 
-def generar(original: Path, carpeta: Path, ffmpeg: str | None = None) -> Path:
+class Interrumpido(RuntimeError):
+    """Se corto a mitad de camino porque alguien lo pidio, no porque fallara."""
+
+
+def generar(original: Path, carpeta: Path, ffmpeg: str | None = None,
+            cancelado=None, latido: float = 0.25) -> Path:
     """Genera UN proxy y devuelve su ruta. Levanta si ffmpeg falla.
 
     Escribe a un nombre temporal y renombra al final. Sin eso, cancelar o
@@ -112,20 +117,39 @@ def generar(original: Path, carpeta: Path, ffmpeg: str | None = None) -> Path:
     bueno -- y la proxima corrida lo daria por hecho y lo engancharia. Un
     proxy a medias es peor que ninguno: se ve, y miente sobre donde termina
     el clip.
+
+    `cancelado` es un invocable que se consulta cada `latido` segundos
+    MIENTRAS ffmpeg corre. Sin el, esto era una llamada que no se podia
+    interrumpir: al cerrar la app durante una tanda, la ventana se quedaba
+    congelada hasta que terminara el clip en curso -- y con una toma de dron
+    de tres minutos y medio eso son varios minutos mirando una app muerta.
     """
     carpeta.mkdir(parents=True, exist_ok=True)
     destino = ruta_de_proxy(original, carpeta)
     parcial = destino.with_name(destino.name + ".parcial")
-    resultado = subprocess.run(
+    proceso = subprocess.Popen(
         comando(original, parcial, ffmpeg),
-        capture_output=True, text=True,
+        stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
     )
-    if resultado.returncode != 0 or not parcial.exists():
+    while True:
+        try:
+            _, error = proceso.communicate(timeout=latido)
+            break
+        except subprocess.TimeoutExpired:
+            if cancelado is not None and cancelado():
+                proceso.terminate()
+                try:
+                    proceso.wait(timeout=2)
+                except subprocess.TimeoutExpired:
+                    proceso.kill()
+                parcial.unlink(missing_ok=True)
+                raise Interrumpido(f"se canceló el proxy de {original.name}") from None
+    if proceso.returncode != 0 or not parcial.exists():
         parcial.unlink(missing_ok=True)
-        cola = (resultado.stderr or "").strip().splitlines()
+        cola = (error or "").strip().splitlines()
         raise RuntimeError(
             f"ffmpeg no pudo generar el proxy de {original.name}: "
-            + (cola[-1] if cola else f"código {resultado.returncode}")
+            + (cola[-1] if cola else f"código {proceso.returncode}")
         )
     parcial.replace(destino)
     return destino
