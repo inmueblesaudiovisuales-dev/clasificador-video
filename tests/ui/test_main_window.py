@@ -4477,3 +4477,74 @@ def test_una_tira_con_marca_no_se_rehace_aunque_tenga_pocas_fotos(qtbot, monkeyp
     window._thread_pool.waitForDone(3000)
 
     assert pedidos == []
+
+
+def test_las_fotos_a_medias_de_una_extraccion_viva_no_encolan_otra(qtbot, monkeypatch, tmp_path):
+    """La trampa: las fotos incompletas que se ven en el cache son, muchas
+    veces, las que esta escribiendo AHORA MISMO la extraccion de ese clip.
+    Pintarlas pasando por `_on_thumbnail_ready` la daba por terminada --ese
+    metodo lleva la contabilidad-- y el barrido encolaba un segundo mpv
+    sobre el mismo socket. Es el bug que dejaba las tiras cortadas."""
+    cache_root = tmp_path / "cache"
+    clip_path = tmp_path / "a.MP4"
+    clip_path.write_bytes(b"contenido de prueba")
+    window = _window_with_video(qtbot, cache_root=cache_root)
+    from clasificador_video.thumbnails import cache_dir_for
+    cache_dir = cache_dir_for(clip_path, cache_root)
+
+    arrancadas = []
+    monkeypatch.setattr(
+        "clasificador_video.ui.main_window.extract_thumbnail_strip",
+        lambda *a, **k: arrancadas.append(1) or [],
+    )
+    window.load_clips([Clip(orden=1, ruta=clip_path, categoria_path=[], fps=30.0)])
+    window._clip_durations[0] = 4.0
+    window._schedule_thumbnails([0])
+    # el mpv de esa extraccion ya escribio dos fotos y sigue trabajando
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    for i in range(2):
+        (cache_dir / f"strip_{i:02d}.jpg").write_bytes(b"a medias")
+
+    window._schedule_thumbnails([0])
+    window._thread_pool.waitForDone(3000)
+
+    assert arrancadas == [1]
+
+
+def test_una_tanda_nueva_no_encima_mpv_sobre_los_que_siguen_corriendo(qtbot, monkeypatch, tmp_path):
+    """Quitar un bin --o cualquier cosa que pida las portadas de cero--
+    sube la generacion. Vaciar ahi el registro de «en vuelo» era decir que
+    no hay nada corriendo con tres extracciones vivas, y encolarles un
+    segundo mpv encima. Ahora se anotan para rehacerse cuando terminen."""
+    cache_root = tmp_path / "cache"
+    clip_path = tmp_path / "a.MP4"
+    clip_path.write_bytes(b"contenido de prueba")
+    window = _window_with_video(qtbot, cache_root=cache_root)
+
+    arrancadas = []
+    monkeypatch.setattr(
+        "clasificador_video.ui.main_window.extract_thumbnail_strip",
+        lambda *a, **k: arrancadas.append(1) or [],
+    )
+    window.load_clips([Clip(orden=1, ruta=clip_path, categoria_path=[], fps=30.0)])
+    window._clip_durations[0] = 4.0
+    window._schedule_thumbnails([0])
+    window._miniaturas_en_vuelo[0] = clip_path      # sigue corriendo
+
+    window._schedule_thumbnails()                   # tanda nueva, generacion nueva
+
+    assert len(arrancadas) == 1                     # no se encimo un segundo
+    assert 0 in window._miniaturas_a_rehacer        # pero queda anotado
+
+
+def test_una_senal_vencida_no_deja_al_clip_marcado_como_corriendo(qtbot, monkeypatch, tmp_path):
+    """Si el registro se limpiara solo con las señales vigentes, un clip
+    cuya tanda quedo vieja se quedaria marcado como «en vuelo» para
+    siempre, y no se le volveria a pedir la tira nunca."""
+    window = _window_with_video(qtbot, cache_root=tmp_path / "cache")
+    window.load_clips([Clip(orden=1, ruta=tmp_path / "a.MP4", categoria_path=[], fps=30.0)])
+    window._miniaturas_en_vuelo[0] = tmp_path / "a.MP4"
+
+    window._on_thumbnail_ready(window._thumb_generation - 1, 0, None)
+
+    assert 0 not in window._miniaturas_en_vuelo

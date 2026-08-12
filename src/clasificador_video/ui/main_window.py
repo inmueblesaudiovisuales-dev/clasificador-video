@@ -2832,10 +2832,12 @@ class MainWindow(QWidget):
             # material nuevo: invalida las señales stale de la tanda anterior
             self._thumb_generation += 1
             self._miniaturas_pendientes = 0
-            # los de la tanda anterior ya no cuentan: sus señales se
-            # descartan por generacion, asi que nadie los va a sacar de aqui
-            self._miniaturas_en_vuelo.clear()
-            self._miniaturas_a_rehacer.clear()
+            # Lo que sigue corriendo NO se olvida: su resultado se va a
+            # descartar por generacion, asi que hay que rehacerlo -- pero
+            # DESPUES, cuando su mpv termine. Vaciar el registro aqui era
+            # decir «no hay nada corriendo» con tres extracciones vivas, y
+            # el barrido de abajo les encolaba un segundo mpv encima.
+            self._miniaturas_a_rehacer |= set(self._miniaturas_en_vuelo)
             self._miniaturas_totales = len(self.clips)
             alcance = list(range(len(self.clips)))
         else:
@@ -2885,8 +2887,17 @@ class MainWindow(QWidget):
                 continue
             # Lo que haya se PINTA igual --mejor una foto que una tarjeta
             # gris mientras se rehace-- pero no cancela la extraccion.
+            #
+            # Pintar directo y NO por `_on_thumbnail_ready`: ese ademas lleva
+            # la contabilidad, y una de las cosas que hace es sacar al clip
+            # de «en vuelo». Como las fotos a medias que se ven aqui son
+            # justo las que esta escribiendo su propia extraccion mientras
+            # corre, pasar por ahi la daba por terminada, la guarda de dos
+            # renglones mas abajo no la veia, y se encolaba un segundo mpv
+            # sobre el mismo socket. Es exactamente el bug que dejaba las
+            # tiras cortadas.
             if cached_frames:
-                self._on_thumbnail_ready(generation, index, cached_frames)
+                self._pintar_miniatura(index, cached_frames)
             duration_seconds = self._clip_durations.get(index)
             # La portada suelta de las versiones viejas --`00000001.jpg`, de
             # cuando no existia la tira-- se PINTA pero no cuenta como cache
@@ -2947,15 +2958,27 @@ class MainWindow(QWidget):
         self._refrescar_progreso()
 
     def _on_thumbnail_ready(self, generation: int, index: int, frames: list[Path] | None) -> None:
-        if generation != self._thumb_generation:
-            return  # senal de una importacion ya descartada
+        # El registro de «en vuelo» se limpia ANTES de mirar la generacion, y
+        # no despues: una señal vencida tambien significa que ese mpv
+        # termino. Saliendo antes, el clip se quedaba marcado como corriendo
+        # para siempre y no se le volvia a pedir la tira nunca.
+        vencida = generation != self._thumb_generation
         self._miniaturas_en_vuelo.pop(index, None)
-        self._miniaturas_pendientes = max(0, self._miniaturas_pendientes - 1)
-        self._refrescar_progreso()
         if index in self._miniaturas_a_rehacer:
             self._miniaturas_a_rehacer.discard(index)
-            # ahora si, con la fuente nueva y sin nadie mas usando ese socket
+            # ahora si: con la fuente nueva, o con la tanda nueva, y sin
+            # nadie mas usando ese socket
             self._schedule_thumbnails([index])
+        if vencida:
+            return  # senal de una importacion ya descartada
+        self._miniaturas_pendientes = max(0, self._miniaturas_pendientes - 1)
+        self._refrescar_progreso()
+        self._pintar_miniatura(index, frames)
+
+    def _pintar_miniatura(self, index: int, frames: list[Path] | None) -> None:
+        """Solo pinta. Sin contabilidad: hay un camino --las fotos a medias
+        que se encuentran en el cache-- que necesita mostrar algo sin decir
+        que la extraccion termino."""
         if not frames or index >= self.clip_sheet.count():
             return
         pixmaps = [QPixmap(str(f)) for f in frames]
