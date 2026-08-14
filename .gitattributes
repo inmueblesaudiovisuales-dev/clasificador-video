@@ -1,0 +1,28 @@
+# Finales de linea normalizados, porque este repo se edita desde una Mac y
+# desde una Windows.
+#
+# Sin esto, Windows guarda los archivos con un caracter invisible de mas al
+# final de cada renglon (CRLF) y la Mac sin el (LF). El resultado no es un
+# error: es peor, es ruido. Cada vez que una de las dos guarda un archivo,
+# git lo reporta como si hubieran cambiado sus 4000 renglones, los cambios
+# de verdad se pierden entre ellos, y dos maquinas tocando el mismo archivo
+# chocan por lineas que nadie escribio.
+#
+# `text=auto eol=lf` guarda todo con LF en el repositorio, sin importar
+# desde donde se escribio.
+* text=auto eol=lf
+
+# Los scripts de shell TIENEN que ir con LF aunque se editen en Windows: con
+# CRLF, macOS no los ejecuta -- falla con «bad interpreter», porque el
+# retorno de carro se le pega al nombre del interprete.
+*.sh text eol=lf
+*.command text eol=lf
+
+# Binarios: que git no intente convertir nada adentro.
+*.png binary
+*.jpg binary
+*.mp4 binary
+*.mov binary
+*.cube binary
+*.ccx binary
+*.dmg binary
