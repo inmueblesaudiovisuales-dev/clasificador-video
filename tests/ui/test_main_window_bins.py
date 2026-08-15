@@ -1098,6 +1098,46 @@ def test_renombrar_desde_la_ventana_conserva_el_bin_colapsado(qtbot, ventana):
     assert ventana.clip_sheet.bin_collapsed("Dron DJI")
 
 
+def test_renombrar_a_media_generacion_de_proxies_no_pierde_la_tanda(
+        qtbot, ventana, monkeypatch):
+    """La tanda se acuerda del bin POR NOMBRE.
+
+    Sin mover la llave le seguia hablando a un bin que ya no existe: la
+    insignia dejaba de moverse, el menu volvia a ofrecer «Crear proxies» en
+    vez de cancelar, y al cerrar la tanda nadie le pedia las portadas a esos
+    clips -- que se quedaban grises esperando algo que ya no iba a llegar.
+    """
+    from clasificador_video.ui.main_window import _ThumbnailJob
+
+    ventana.load_clips([_clip(0, "/dron/A.MP4"), _clip(1, "/dron/B.MP4")])
+    ventana.bins.agregar("Dron", Path("/dron"), [0, 1])
+    ventana._clip_durations = {0: 1.0, 1: 1.0}
+    ventana._refresh_sheet()
+    # nada de ffmpeg de verdad: solo interesa que la tanda quede armada
+    monkeypatch.setattr(ventana._generacion_pool, "start", lambda *a, **k: None)
+    ventana.generar_proxies_de_bin("Dron", preguntar=False)
+    generacion = ventana._generando_proxies["generacion"]
+
+    ventana._on_bin_renombrado("Dron", "DJI Mini")
+
+    assert ventana._generando_proxies["bin"] == "DJI Mini"
+    # y el encabezado nuevo nace ya diciendo lo que esta pasando
+    assert ventana.clip_sheet.bin_header_widget("DJI Mini").proxy_badge.text() \
+        == "creando proxies · 0/2"
+
+    pedidas = []
+    monkeypatch.setattr(
+        ventana._thread_pool, "start",
+        lambda job, *a, **k: pedidas.append(job.index)
+        if isinstance(job, _ThumbnailJob) else None,
+    )
+    ventana._on_proxy_generado(generacion, 0, None, "")
+    ventana._on_proxy_generado(generacion, 1, None, "")
+
+    assert ventana._generando_proxies is None
+    assert sorted(pedidas) == [0, 1]
+
+
 # --- el encabezado pegado y la ventana ---------------------------------------
 
 

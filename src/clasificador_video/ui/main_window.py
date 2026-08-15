@@ -2601,10 +2601,23 @@ class MainWindow(QWidget):
             # llave, el renglon seguiria hablando de un bin que ya no existe
             if viejo in self._ultimo_reencuentro:
                 self._ultimo_reencuentro[nuevo] = self._ultimo_reencuentro.pop(viejo)
+            # y la tanda de proxies que estuviera corriendo, que se acuerda del
+            # bin POR NOMBRE. Sin mover la llave le seguia hablando a un bin
+            # que ya no existe: el «creando proxies · 7/23» dejaba de moverse,
+            # el menu volvia a ofrecer «Crear proxies» en vez de cancelar --y
+            # al darle contestaba que ya se estaban creando los de un nombre
+            # viejo-- y al terminar nadie le pedia las portadas a esos clips,
+            # que se quedaban grises.
+            if (self._generando_proxies is not None
+                    and self._generando_proxies["bin"] == viejo):
+                self._generando_proxies["bin"] = nuevo
             self._refrescar_aviso()
         # `force_rebuild` no: reconstruir la hoja tiraria las portadas ya
         # cargadas, y aqui no cambio ni un clip -- solo como se llama su bin.
         self._refresh_sheet()
+        # DESPUES del refresco: el encabezado con el nombre nuevo nace ahi, y
+        # nace sin saber que su bin esta generando proxies.
+        self._pintar_avance_de_proxies()
         self._autosave()
 
     def _on_bin_nuevo_pedido(self) -> None:
