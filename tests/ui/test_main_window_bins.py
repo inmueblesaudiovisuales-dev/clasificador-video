@@ -737,6 +737,42 @@ def test_quitar_un_bin_corre_todo_lo_que_va_por_indice(qtbot, ventana):
     assert ventana._proxy_candidatos == {0: Path("/dron/D_px.MP4")}
 
 
+def test_quitar_un_bin_corre_lo_que_dijo_la_ultima_revision(qtbot, ventana,
+                                                            monkeypatch):
+    """`_faltantes` va por indice igual que todo lo demas, y quien lo lee no
+    puede esperar a la revision nueva.
+
+    `_schedule_thumbnails` corre en el acto --dentro de `_on_bin_quitado`-- y
+    se salta los clips cuyo archivo no esta. Con los indices sin correr, el
+    clip que hereda un indice «faltante» se saltaba su extraccion, y la
+    revision que se pide al final llega despues y no pide portadas: la
+    tarjeta se quedaba gris hasta cerrar y reabrir el proyecto.
+    """
+    from clasificador_video.ui.main_window import _ThumbnailJob
+
+    ventana.load_clips([_clip(0, "/cam/A.MP4"), _clip(1, "/cam/B.MP4"),
+                        _clip(2, "/dron/D.MP4")])
+    ventana.bins.agregar("Sony", Path("/cam"), [0, 1])
+    ventana.bins.agregar("Dron", Path("/dron"), [2])
+    ventana._clip_durations = {0: 1.0, 1: 2.0, 2: 3.0}
+    # la ultima revision dijo: los dos de la Sony no estan en disco
+    ventana._faltantes = {0, 1}
+    ventana._proxies_perdidos = {1: "BS03.MP4"}
+
+    pedidas = []
+    monkeypatch.setattr(
+        ventana._thread_pool, "start",
+        lambda job, *a, **k: pedidas.append(job.index)
+        if isinstance(job, _ThumbnailJob) else None,
+    )
+    ventana._on_bin_quitado("Sony")
+
+    assert ventana._faltantes == set()
+    assert ventana._proxies_perdidos == {}
+    # el del dron ahora es el 0, su archivo si estaba: se le pide su portada
+    assert pedidas == [0]
+
+
 def test_quitar_un_bin_renumera_los_clips_que_quedan(qtbot, ventana):
     """`orden` es el numero que se ve en la tarjeta y el que viaja al
     manifest: dejar un proyecto que empieza en el clip 3 seria mentira."""

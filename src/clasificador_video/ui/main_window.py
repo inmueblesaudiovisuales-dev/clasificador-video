@@ -2703,6 +2703,16 @@ class MainWindow(QWidget):
         # y el conjunto de «este clip no tiene donde buscarse», que arrastra
         # indices de una revision a la siguiente
         self._sin_donde_buscar = _corrido_set(self._sin_donde_buscar, fuera)
+        # Lo que dijo la ULTIMA revision, que tambien va por indice. Se corre
+        # aqui aunque mas abajo se pida una revision nueva: esa corre en otro
+        # hilo y tarda, y mientras tanto `_schedule_thumbnails` --que se llama
+        # unas lineas mas abajo, en el acto-- lee `_faltantes` para saltarse
+        # los clips cuyo archivo no esta. Sin correrlo, un clip que hereda un
+        # indice «faltante» se queda sin portada y nadie se la vuelve a pedir:
+        # la revision nueva llega despues y no pide portadas. Gris hasta
+        # cerrar y reabrir el proyecto.
+        self._faltantes = _corrido_set(self._faltantes, fuera)
+        self._proxies_perdidos = _corrido(self._proxies_perdidos, fuera)
         # La tanda de proxies que estuviera corriendo se tira entera: engancha
         # con `self.clips[index]` y esos indices acaban de correrse.
         self._descartar_generacion_de_proxies()
@@ -2711,9 +2721,8 @@ class MainWindow(QWidget):
         # entero y la revision se rehace sobre lo que quedo.
         self._ultimo_reencuentro = {}
         self._exitos = {}
-        # `_faltantes` y `_proxies_perdidos` van por índice igual que todo lo
-        # de arriba, pero no se corren a mano: se vuelven a revisar al final,
-        # que ahora es barato para la ventana porque corre en otro hilo.
+        # (`_faltantes` y `_proxies_perdidos` ya se corrieron arriba: la
+        # revisión que se pide al final llega tarde para quien los lee ya.)
         self._indices_generation += 1
         # Los sondeos en vuelo NO se corren: se tiran enteros.
         #
