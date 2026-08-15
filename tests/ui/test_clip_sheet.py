@@ -176,6 +176,57 @@ def test_shift_click_selecciona_el_rango(qtbot):
     assert sheet.selected_indices() == [0, 1, 2]
 
 
+def test_shift_click_cuenta_el_rango_COMO_SE_VE_no_por_numero_de_clip(qtbot):
+    """La hoja dibuja agrupado por cuarto, no por numero de clip.
+
+    El rango salia de `range(desde, hasta)` sobre el indice, asi que marcar
+    la primera y la ultima tarjeta de «Cocina» se llevaba tambien los clips
+    de otros cuartos que quedaran numerados en medio -- y esos SI se ven, o
+    sea que una tecla de cuarto los repintaba sin que los hubieras señalado.
+    """
+    sheet = _sheet(qtbot, [_clip(0, "Cocina"), _clip(1, "Sala"),
+                           _clip(2, "Cocina"), _clip(3, "Sala")])
+
+    sheet.item_widgets[0].clicked.emit(Qt.KeyboardModifier.NoModifier)
+    sheet.item_widgets[2].clicked.emit(Qt.KeyboardModifier.ShiftModifier)
+
+    assert sheet.selected_indices() == [0, 2]
+
+
+def test_shift_click_no_se_lleva_lo_que_el_filtro_esconde(qtbot):
+    """Misma regla que `select_current_group` e `indices_a_arrastrar`: lo que
+    no estas viendo no entra a la seleccion."""
+    sheet = _sheet(qtbot, [_clip(i, "Sala") for i in range(4)])
+    sheet.set_visible_indices({0, 3})
+
+    sheet.item_widgets[0].clicked.emit(Qt.KeyboardModifier.NoModifier)
+    sheet.item_widgets[3].clicked.emit(Qt.KeyboardModifier.ShiftModifier)
+
+    assert sheet.selected_indices() == [0, 3]
+
+
+def test_shift_click_dentro_de_un_grupo_sigue_tomando_lo_de_en_medio(qtbot):
+    """El caso normal no cambia: dentro de un mismo cuarto, el rango es
+    todo lo que hay entre las dos tarjetas."""
+    sheet = _sheet(qtbot, [_clip(i, "Sala") for i in range(4)])
+
+    sheet.item_widgets[0].clicked.emit(Qt.KeyboardModifier.NoModifier)
+    sheet.item_widgets[2].clicked.emit(Qt.KeyboardModifier.ShiftModifier)
+
+    assert sheet.selected_indices() == [0, 1, 2]
+
+
+def test_el_rango_visual_cruza_grupos_por_lo_que_se_ve(qtbot):
+    """De la ultima de «Sin clasificar» a la primera de «Sala»: el rango es
+    lo que hay en medio EN PANTALLA, y «Sin clasificar» se dibuja arriba."""
+    sheet = _sheet(qtbot, [_clip(0, "Sala"), _clip(1), _clip(2, "Sala"),
+                           _clip(3)])
+
+    # en pantalla: [Sin clasificar: 1, 3] y luego [Sala: 0, 2]
+    assert sheet.indices_en_orden_visual() == [1, 3, 0, 2]
+    assert sheet.rango_visual(3, 0) == [3, 0]
+
+
 def test_ctrl_click_alterna(qtbot):
     """El click que QUITA una tarjeta de la seleccion se resuelve al SOLTAR,
     no al apretar: mientras el boton sigue abajo, el gesto todavia puede

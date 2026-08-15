@@ -2250,19 +2250,23 @@ class ClipSheet(QWidget):
     def _es_visible(self, indice: int) -> bool:
         return self._visible is None or indice in self._visible
 
-    def _aplicar_visibilidad(self) -> None:
+    def _se_dibuja(self, indice: int) -> bool:
         """Una tarjeta se ve si la deja pasar el filtro Y su bin no esta
         colapsado. Son dos cosas distintas sobre la misma tarjeta, y por eso
         se deciden juntas y en un solo lugar: puestas en dos lados, la
         segunda le devuelve la vida a lo que escondio la primera."""
+        if not 0 <= indice < len(self.item_widgets):
+            return False
+        # por SECCION y no por `clip.bin_nombre` crudo: los sueltos traen el
+        # nombre vacio, y con el crudo colapsar «Sin bin» no escondia ninguna
+        # de sus tarjetas.
+        return (self._es_visible(indice)
+                and self._group_of(self.item_widgets[indice].clip)[0]
+                not in self._colapsados)
+
+    def _aplicar_visibilidad(self) -> None:
         for i, card in enumerate(self.item_widgets):
-            # por SECCION y no por `clip.bin_nombre` crudo: los sueltos traen
-            # el nombre vacio, y con el crudo colapsar «Sin bin» no escondia
-            # ninguna de sus tarjetas.
-            card.setVisible(
-                self._es_visible(i)
-                and self._group_of(card.clip)[0] not in self._colapsados
-            )
+            card.setVisible(self._se_dibuja(i))
 
     def _group_of(self, clip: ClipThumbnail) -> tuple[str, str]:
         """La seccion en la que cae la tarjeta.
@@ -3260,8 +3264,7 @@ class ClipSheet(QWidget):
         ctrl = bool(modifiers & (Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.MetaModifier))
         ancla = self._anchor
         if shift and self._anchor is not None:
-            lo, hi = sorted((self._anchor, index))
-            nueva = set(range(lo, hi + 1))
+            nueva = set(self.rango_visual(self._anchor, index))
         elif ctrl:
             nueva = set(self._selected)
             nueva.discard(index) if index in nueva else nueva.add(index)
@@ -3285,6 +3288,44 @@ class ClipSheet(QWidget):
         nueva, ancla = pendiente
         self._anchor = ancla
         self.set_selected(nueva)
+
+    def indices_en_orden_visual(self) -> list[int]:
+        """Los indices de clip EN EL ORDEN EN QUE SE VEN, solo los dibujados.
+
+        No se leen de la grilla sino que se derivan de `_orden_de_grupo`, que
+        es la misma regla con la que `_acomodar_de_verdad` coloca las
+        tarjetas. Leer la grilla daria lo mismo cuando ya corrio un acomodo y
+        NADA cuando no --con la hoja recien poblada, o congelada por el
+        pincel--, y de eso depende que un rango salga bien o salga vacio.
+        """
+        return sorted(
+            (i for i in range(len(self.item_widgets)) if self._se_dibuja(i)),
+            key=lambda i: (
+                self._orden_de_grupo(self._group_of(self.item_widgets[i].clip)), i
+            ),
+        )
+
+    def rango_visual(self, desde: int, hasta: int) -> list[int]:
+        """Lo que hay ENTRE dos tarjetas, contado como se ve.
+
+        El rango de `⇧`+clic se calculaba con `range(desde, hasta)` sobre el
+        numero de clip, y la hoja no dibuja por numero de clip: dibuja
+        agrupado por bin y por cuarto. Marcar la primera y la ultima tarjeta
+        de «Cocina» se llevaba tambien los clips de otros cuartos que
+        quedaran numerados en medio --y estan a la vista, asi que una tecla
+        de cuarto los repintaba-- ademas de lo que el filtro escondia. Es la
+        misma regla que ya cuidan `select_current_group` e
+        `indices_a_arrastrar`, que por eso miran lo visible.
+        """
+        orden = self.indices_en_orden_visual()
+        if desde not in orden:
+            # el ancla dejo de verse (la escondio un filtro puesto despues):
+            # no hay rango que contar, queda la tarjeta que acabas de tocar
+            return [hasta] if hasta in orden else []
+        if hasta not in orden:
+            return [desde]
+        primero, ultimo = sorted((orden.index(desde), orden.index(hasta)))
+        return orden[primero:ultimo + 1]
 
     def select_current_group(self) -> None:
         """Selecciona todos los clips del grupo del clip actual.
