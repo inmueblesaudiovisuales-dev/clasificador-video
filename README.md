@@ -92,7 +92,7 @@ clips).
 | `I` `O` · `U` | marca in / out · los quita |
 | `←` `→` | clip anterior / siguiente **dentro de lo que estás viendo** |
 | `Espacio` | reproduce o pausa |
-| `J` `K` `L` | reversa / pausa / adelante, como en Premiere |
+| `K` `L` | pausa / adelante (1× → 2× → 4×), como en Premiere |
 | `,` `.` | un cuadro atrás / adelante |
 | `R` | vuelve al inicio del clip |
 | `F` | pantalla completa |

@@ -8,13 +8,20 @@ from clasificador_video.probe import orientacion_de
 from clasificador_video.ui import theme
 
 # Lo que hay que saber para que los proxies funcionen, en el lugar donde
-# uno se pregunta por ellos. No hay nada que configurar: la app los busca.
+# uno se pregunta por ellos.
+#
+# Este texto describía una búsqueda automática --«se encuentran solos», «se
+# buscan en las carpetas hermanas»-- que ya no existe: la quitó Bruno («los
+# proxies los pongo manualmente siempre», ver proxy_match.py) y hoy nada en
+# la app recorre carpetas buscándolos. O sea que el tooltip que uno lee
+# justo cuando se pregunta CÓMO poner proxies le decía que no hiciera nada.
 EXPLICACION_DE_PROXIES = (
-    "Los proxies se encuentran solos: mismo nombre del clip terminado en "
-    "S03 (C0001.MP4 → C0001S03.MP4).\n"
-    "Se buscan en la carpeta que importaste, en sus subcarpetas y en las "
-    "carpetas hermanas — así que la de proxies puede ir al lado de la de "
-    "clips.\n"
+    "Los proxies se enganchan a mano: clic derecho en el encabezado del bin "
+    "→ «Enlazar proxies…».\n"
+    "Eliges cualquier proxy de ese bin y la app deduce el nombre de los "
+    "demás y los busca EN ESA CARPETA (C0001.MP4 → C0001S03.MP4).\n"
+    "Si la cámara no los graba, el mismo menú los crea desde los "
+    "originales.\n"
     "Un proxy que no coincida cuadro a cuadro con el original se descarta."
 )
 
