@@ -29,6 +29,40 @@ def test_deshacer_con_el_historial_vacio_no_revienta():
     assert History().undo_last() is None
 
 
+def test_renombrar_un_cuarto_lo_renombra_tambien_en_lo_ya_registrado():
+    """Renombrar no crea un cuarto nuevo: es el mismo con otro nombre.
+
+    El «antes» de cada entrada guarda el NOMBRE, asi que sin mover esto,
+    deshacer una accion anterior al renombrado devolvia un cuarto que ya no
+    existe en el rail.
+    """
+    h = History()
+    h.push(_entrada("Sala", antes={0: {"categoria_path": ["Cocina"]},
+                                   1: {"categoria_path": []}}))
+    h.push(_entrada("Cocina", antes={2: {"flag": "none"}}))
+
+    h.renombrar_cuarto("Cocina", "Cocina principal")
+
+    entradas = h.entries()
+    # la etiqueta de la fila, que es como se llama la accion en el rail
+    assert entradas[0].etiqueta == "Cocina principal"
+    assert entradas[1].etiqueta == "Sala"
+    # y el estado guardado de cada clip
+    assert entradas[1].antes[0]["categoria_path"] == ["Cocina principal"]
+    assert entradas[1].antes[1]["categoria_path"] == []
+    # lo que no es un cuarto no se toca
+    assert entradas[0].antes[2] == {"flag": "none"}
+
+
+def test_renombrar_un_cuarto_que_no_esta_en_el_historial_no_hace_nada():
+    h = History()
+    h.push(_entrada("Sala", antes={0: {"categoria_path": ["Sala"]}}))
+
+    h.renombrar_cuarto("Cocina", "Cocina principal")
+
+    assert h.entries()[0].antes[0]["categoria_path"] == ["Sala"]
+
+
 def test_revertir_una_entrada_del_medio_la_saca_y_deja_el_resto():
     """DECISIONES.md: el resto se revierte con un click, no solo la de arriba."""
     h = History()

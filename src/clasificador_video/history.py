@@ -73,6 +73,29 @@ class History:
                 return self._entries.pop(i)
         return None
 
+    def renombrar_cuarto(self, viejo: str, nuevo: str) -> None:
+        """Le cambia el nombre a un cuarto DENTRO de lo ya registrado.
+
+        El historial guarda el `categoria_path` que cada clip tenia antes, o
+        sea el NOMBRE del cuarto -- y renombrar no crea un cuarto nuevo, es
+        el mismo con otro nombre. Sin esto, deshacer una accion anterior al
+        renombrado devolvia el nombre viejo, que ya no existe en el rail: el
+        clip quedaba clasificado en un cuarto fantasma, contando como
+        clasificado en el progreso pero sin aparecer en ningun renglon, y
+        viajando asi a Premiere.
+
+        Tambien se mueve la `etiqueta`, que es como se llama la fila del
+        historial: la fila diria «Cocina» de un cuarto que ahora se llama
+        de otra forma, y su boton `↺` promete devolverte algo que no existe.
+        """
+        for entrada in self._entries:
+            if entrada.etiqueta == viejo:
+                entrada.etiqueta = nuevo
+            for campos in entrada.antes.values():
+                camino = campos.get("categoria_path")
+                if isinstance(camino, list) and camino and camino[0] == viejo:
+                    campos["categoria_path"] = [nuevo, *camino[1:]]
+
     def entries(self) -> list[HistoryEntry]:
         return list(self._entries)
 

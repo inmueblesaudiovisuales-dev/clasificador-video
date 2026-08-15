@@ -1449,6 +1449,11 @@ class MainWindow(QWidget):
         for clip in self.clips:
             if clip.categoria_path and clip.categoria_path[0] == viejo:
                 clip.categoria_path = [nuevo]
+        # y el historial, que guarda el `categoria_path` ANTERIOR de cada
+        # clip: ahi tambien vive el nombre viejo. Sin esto, deshacer una
+        # accion previa al renombrado devolvia un cuarto que ya no existe.
+        self.history.renombrar_cuarto(viejo, nuevo)
+        self._refresh_history()
         self._sync_rooms()
 
     def _on_room_moved(self, nombre: str, delta: int) -> None:

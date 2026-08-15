@@ -1064,6 +1064,29 @@ def test_renombrar_un_cuarto_renombra_los_clips_ya_clasificados(qtbot):
     assert window.room_selection.active_rooms() == ["Cocina chica"]
 
 
+def test_deshacer_despues_de_renombrar_no_resucita_el_nombre_viejo(qtbot):
+    """El historial guarda el `categoria_path` ANTERIOR, o sea el NOMBRE del
+    cuarto. Renombrar no crea un cuarto nuevo -- es el mismo con otro
+    nombre-- asi que el nombre tiene que moverse tambien ahi dentro.
+
+    Sin esto, deshacer una accion anterior al renombrado dejaba al clip
+    clasificado en un cuarto que ya no existe: contaba como clasificado en
+    el progreso del rail, no aparecia en ningun renglon, la hoja le dibujaba
+    un grupo fantasma con el nombre viejo, y asi viajaba a Premiere.
+    """
+    window = _window(qtbot, rooms=("Cocina", "Sala"))
+    window.load_clips([_clip()])
+    window.handle_key_press("1")            # → Cocina
+    window.select_clip(0)
+    window.handle_key_press("2")            # te corriges: → Sala
+
+    window.room_rail.room_renamed.emit("Cocina", "Cocina principal")
+    window.undo()                           # deshaces lo ultimo
+
+    assert window.clips[0].categoria_path == ["Cocina principal"]
+    assert window.clips[0].categoria_path[0] in window.room_selection.active_rooms()
+
+
 def test_renombrar_no_le_cambia_la_tecla_al_cuarto(qtbot):
     window = _window(qtbot, rooms=("Cocina", "Sala"))
     window.load_clips([_clip()])
