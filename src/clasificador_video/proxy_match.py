@@ -72,6 +72,16 @@ def emparejar_con_patron(
     for original in originales:
         buscado = f"{prefijo}{original.stem}{sufijo}"
         candidato = por_stem.get(buscado)
+        # Un clip NO puede ser su propio proxy. Es alcanzable desde que se
+        # admite el proxy con el nombre identico al del clip: ahi el patron
+        # es «sin prefijo y sin sufijo», y el dialogo abre en la carpeta del
+        # material -- asi que elegir por equivocacion un original emparejaba
+        # a cada clip consigo mismo. La validacion cuadro a cuadro lo daba
+        # por bueno (es el mismo archivo, claro), y quedaba un proyecto
+        # entero diciendo PROXY sobre los 4K, guardado en el .cvproj.
+        if candidato is not None and _es_el_mismo_archivo(candidato, original):
+            resultado[original] = None
+            continue
         # el `extension` no filtra, ORDENA: si hay dos con el mismo nombre
         # y distinta extension, gana la del proxy que se eligio
         if candidato is not None and candidato.suffix.lower() != extension.lower():
@@ -80,6 +90,21 @@ def emparejar_con_patron(
                 candidato = mismo
         resultado[original] = candidato
     return resultado
+
+
+def _es_el_mismo_archivo(uno: Path, otro: Path) -> bool:
+    """Por inodo si se puede, y por texto si no.
+
+    Mismo criterio que `revinculo._identidad`: la misma copia puede llegar
+    escrita de dos formas --una absoluta y otra por otro camino, y en APFS
+    con otras mayusculas-- y como texto se verian distintas. El respaldo por
+    texto existe para las rutas inventadas de los tests, que no tienen
+    archivo detras.
+    """
+    try:
+        return uno.samefile(otro)
+    except OSError:
+        return str(uno) == str(otro)
 
 
 def etiqueta_de_resolucion(ancho: int, alto: int) -> str:

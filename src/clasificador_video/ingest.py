@@ -23,9 +23,26 @@ VIDEO_EXTENSIONS = {".mp4", ".mov", ".mxf"}
 # otro problema y vive en `proxy_match.py`, que importa de aca.
 SUFIJO_PROXY = "S03"
 
+# Y el otro nombre que se ve en la practica, pedido por Bruno: un proxy que
+# se llama igual que su clip con `_proxy` pegado atras. No lo escribe ninguna
+# camara -- lo escriben las herramientas que uno usa para generarlos-- pero
+# entra por la misma puerta y, sobre todo, tiene que quedar FUERA del
+# material: junto a los originales, `C0001_proxy.MP4` se importaba como un
+# clip mas y cada toma quedaba duplicada, igual que pasaba con los `.LRF`.
+#
+# Enganchar un proxy NO depende de esta lista: para eso sirve el patron que
+# se deduce del par que elijas (`proxy_match.patron_de_proxy`), que acepta
+# cualquier terminacion --y tambien el nombre identico, sin terminacion--.
+# Esto es solo «que NO es material».
+SUFIJOS_DE_PROXY = (SUFIJO_PROXY, "_proxy")
+
 
 def es_archivo_de_proxy(ruta: Path) -> bool:
-    return ruta.stem.endswith(SUFIJO_PROXY)
+    """Se compara en minusculas por `_proxy`: quien lo escribe a mano lo
+    manda igual como `_PROXY` o `_Proxy`, y el sufijo de la Sony es de la
+    camara y siempre viene igual."""
+    nombre = ruta.stem
+    return nombre.endswith(SUFIJO_PROXY) or nombre.lower().endswith("_proxy")
 
 
 def archivos_de_video(rutas: list[Path]) -> list[Path]:

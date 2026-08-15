@@ -16,6 +16,24 @@ def test_archivos_de_video_acepta_carpetas_y_sueltos_mezclados(tmp_path):
     assert archivos_de_video([carpeta, suelto]) == [carpeta / "A.MP4", suelto]
 
 
+def test_un_proxy_terminado_en_proxy_no_entra_como_material(tmp_path):
+    """`C0001_proxy.MP4` junto a su original duplicaba la toma, igual que
+    pasaba con los `S03` de la Sony y con los `.LRF` del dron."""
+    (tmp_path / "C0001.MP4").touch()
+    (tmp_path / "C0001_proxy.MP4").touch()
+    (tmp_path / "C0002_PROXY.MOV").touch()      # tambien en mayusculas
+
+    assert archivos_de_video([tmp_path]) == [tmp_path / "C0001.MP4"]
+
+
+def test_un_clip_que_solo_dice_proxy_en_medio_si_es_material(tmp_path):
+    """Se mira el FINAL del nombre, no si la palabra aparece: un recorrido
+    llamado `proxy_casa.MP4` es material."""
+    (tmp_path / "proxy_casa.MP4").touch()
+
+    assert archivos_de_video([tmp_path]) == [tmp_path / "proxy_casa.MP4"]
+
+
 def test_archivos_de_video_no_repite(tmp_path):
     (tmp_path / "A.MP4").touch()
 

@@ -63,6 +63,66 @@ def test_acepta_otra_extension_de_video(tmp_path):
     assert r[originales[0]].name == "C0001S03.MOV"
 
 
+def test_engancha_proxies_con_el_nombre_identico_en_otra_carpeta(tmp_path):
+    """Lo que pidio Bruno: que no tengan que terminar como los de la Sony.
+    Con el nombre identico el patron es «sin prefijo y sin sufijo»."""
+    clips = tmp_path / "clips"
+    clips.mkdir()
+    proxies = tmp_path / "Proxies"
+    proxies.mkdir()
+    originales = []
+    for n in ("C0001", "C0002"):
+        (clips / f"{n}.MP4").touch()
+        (proxies / f"{n}.MP4").touch()
+        originales.append(clips / f"{n}.MP4")
+
+    elegido = proxies / "C0002.MP4"
+    referencia = clip_del_proxy(originales, elegido)
+    prefijo, sufijo = patron_de_proxy(referencia, elegido)
+    r = emparejar_con_patron(originales, proxies, prefijo, sufijo, ".MP4")
+
+    assert r[originales[0]] == proxies / "C0001.MP4"
+    assert r[originales[1]] == proxies / "C0002.MP4"
+
+
+def test_engancha_proxies_terminados_en_proxy(tmp_path):
+    clips = tmp_path / "clips"
+    clips.mkdir()
+    proxies = tmp_path / "Proxies"
+    proxies.mkdir()
+    originales = []
+    for n in ("C0001", "C0002"):
+        (clips / f"{n}.MP4").touch()
+        (proxies / f"{n}_proxy.MP4").touch()
+        originales.append(clips / f"{n}.MP4")
+
+    elegido = proxies / "C0001_proxy.MP4"
+    prefijo, sufijo = patron_de_proxy(clip_del_proxy(originales, elegido), elegido)
+    assert (prefijo, sufijo) == ("", "_proxy")
+    r = emparejar_con_patron(originales, proxies, prefijo, sufijo, ".MP4")
+
+    assert r[originales[1]] == proxies / "C0002_proxy.MP4"
+
+
+def test_un_clip_nunca_es_su_propio_proxy(tmp_path):
+    """Alcanzable desde que se admite el nombre identico: ahi el patron es
+    «sin prefijo y sin sufijo», y el dialogo abre en la carpeta del material.
+    Elegir por equivocacion un original emparejaba a cada clip consigo mismo,
+    la validacion cuadro a cuadro lo daba por bueno --es el mismo archivo-- y
+    quedaba el proyecto entero diciendo PROXY sobre los 4K.
+    """
+    clips = tmp_path / "clips"
+    clips.mkdir()
+    originales = []
+    for n in ("C0001", "C0002"):
+        (clips / f"{n}.MP4").touch()
+        originales.append(clips / f"{n}.MP4")
+
+    r = emparejar_con_patron(originales, clips, "", "", ".MP4")
+
+    assert r == {originales[0]: None, originales[1]: None}
+
+
 def test_una_carpeta_que_ya_no_esta_no_revienta(tmp_path):
     r = emparejar_con_patron([Path("/cam/C0001.MP4")], tmp_path / "no-existe", "", "S03", ".MP4")
     assert r == {Path("/cam/C0001.MP4"): None}
