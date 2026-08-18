@@ -2784,3 +2784,19 @@ def test_el_interruptor_no_avisa_cuando_lo_sincroniza_el_estado(qtbot):
 
     assert avisos == []
     assert hoja.chip_de_agrupado(AGRUPADO_POR_RODAJE).isChecked()
+
+
+def test_el_orden_visual_sigue_al_dibujado_y_no_al_de_creacion(qtbot):
+    """`orden_visual` salia de recorrer `self._blocks`, que esta en orden de
+    CREACION -- y los bloques sobreviven a las reagrupadas.
+
+    Clasificas «Sala» y despues «Cocina»: el bloque de Sala nacio primero,
+    pero Cocina se DIBUJA arriba (los cuartos van por abecedario dentro del
+    bin). El orden reportado salia al reves del real, y de el cuelga la
+    comprobacion de que el pincel no reacomoda la hoja bajo el cursor.
+    """
+    hoja = _sheet(qtbot, [_clip(1, "Sala"), _clip(2, "Sala")])
+    hoja.update_clips([_clip(1, "Sala"), _clip(2, "Cocina")])
+
+    assert hoja.group_titles() == [(SIN_BIN, "Cocina"), (SIN_BIN, "Sala")]
+    assert hoja.orden_visual() == [2, 1]
