@@ -660,6 +660,11 @@ class MainWindow(QWidget):
         self._autosave_pool.setMaxThreadCount(1)
 
         self.bins = BinTree()
+        # ¿la hoja agrupa por cuarto, o deja el orden de rodaje? Vive aqui y
+        # no solo en la hoja porque se guarda en el proyecto. `True` es como
+        # se comporta desde la F4, asi que un proyecto viejo abre igual. Ver
+        # `docs/superpowers/specs/2026-08-15-agrupar-o-solo-etiquetar-design.md`.
+        self._agrupar_por_cuarto = True
         # guarda de reentrada de `_refresh_sheet` (ver ahi el porque)
         self._refrescando_hoja = False
 
@@ -720,6 +725,8 @@ class MainWindow(QWidget):
         self.clip_sheet.bin_nuevo_pedido.connect(self._on_bin_nuevo_pedido)
         # arrastrar clips que YA estan en la hoja de un bin a otro (F9)
         self.clip_sheet.clips_movidos.connect(self._on_clips_movidos)
+        # el interruptor de agrupado: la hoja lo aplica, la ventana lo guarda
+        self.clip_sheet.agrupado_cambiado.connect(self._on_agrupado_cambiado)
 
         self.status_bar = StatusBar()
         self.status_bar.unclassified_clicked.connect(self._filtrar_sin_clasificar)
@@ -1792,6 +1799,7 @@ class MainWindow(QWidget):
             # apuntando a la vieja, y ahi la relativa ya no se puede
             # calcular. Tirarla lo dejaria sin con que reencontrarse.
             relativas_conocidas=self._relativas,
+            agrupar_por_cuarto=self._agrupar_por_cuarto,
         )
         self._relativas = {int(i): str(r) for i, r in data["relativas"].items()}
         # El indicador NO se toca aqui. Antes decia «guardado» apenas se
@@ -2640,6 +2648,28 @@ class MainWindow(QWidget):
         cabecera = self.clip_sheet.bin_header_widget(nombre)
         if cabecera is not None:
             cabecera.empezar_a_renombrar()
+        self._autosave()
+
+    def set_agrupar_por_cuarto(self, por_cuarto: bool) -> None:
+        """Lo pone quien restaura el proyecto (`app._poblar_ventana`).
+
+        Pasa por aqui y no tocando la hoja directo para que el estado de la
+        ventana --que es el que se guarda-- y el de la hoja no puedan
+        contradecirse. La hoja NO avisa de vuelta: `set_agrupar_por_cuarto`
+        no emite, justamente para que restaurar no dispare un guardado.
+        """
+        self._agrupar_por_cuarto = bool(por_cuarto)
+        self.clip_sheet.set_agrupar_por_cuarto(self._agrupar_por_cuarto)
+
+    def _on_agrupado_cambiado(self, por_cuarto: bool) -> None:
+        """Cambiaste el interruptor de la hoja.
+
+        La hoja ya se reagrupo sola; aqui solo se guarda, porque vive en el
+        `.cvproj` como todo lo que sobrevive a cerrar la app. Nada de
+        `_refresh_sheet`: no cambio ni un clip, y reconstruir tiraria las
+        portadas ya cargadas.
+        """
+        self._agrupar_por_cuarto = bool(por_cuarto)
         self._autosave()
 
     def _on_clips_movidos(self, indices: list[int], destino: str | None) -> None:

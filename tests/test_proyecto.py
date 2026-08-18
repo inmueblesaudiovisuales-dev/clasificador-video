@@ -330,3 +330,17 @@ def test_medir_no_ensucia_el_documento_original(tmp_path):
     con_pesos_medidos(documento, previos={"0": 700})
 
     assert documento["bytes"] == {}
+
+
+def test_el_documento_guarda_como_se_ve_la_hoja():
+    """Lo unico de VISTA que viaja en el `.cvproj`: agrupada por cuarto, o
+    en orden de rodaje. Se guarda porque volver a ponerlo en cada sesion
+    seria un paso previo antes de trabajar -- justo lo que este proyecto no
+    quiere-- y porque la respuesta depende del shooting, no del dia."""
+    def documento(**extra):
+        return a_dict(proyecto="P", rooms=[], clips=[], bins=BinTree(),
+                      tamanos={}, duraciones={}, rotaciones={}, **extra)
+
+    # por omision, como se comporta desde la F4
+    assert documento()["agrupar_por_cuarto"] is True
+    assert documento(agrupar_por_cuarto=False)["agrupar_por_cuarto"] is False

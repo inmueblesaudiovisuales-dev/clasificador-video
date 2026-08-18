@@ -173,6 +173,11 @@ def _poblar_ventana(window: MainWindow, data: dict, clips: list[Clip]) -> None:
     # debounce y no corre hasta que esta funcion devuelve.
     window._relativas = _mapa_por_clip(data.get("relativas"), str)
     window._bytes_guardados = _mapa_por_clip(data.get("bytes"), int)
+    # Como se veia la hoja. Falta en los proyectos de antes de que existiera,
+    # y ahi el default es `True`: agrupado por cuarto, que es como se
+    # comportaba. `is not False` y no `bool(...)`: un `null` o una cadena
+    # rara en el archivo no pueden desagrupar la hoja sin que nadie lo pida.
+    window.set_agrupar_por_cuarto(data.get("agrupar_por_cuarto") is not False)
     window._refresh_sheet(force_rebuild=True)
     window._resize_video_stage()
     # Revisar PRIMERO y pedir las portadas cuando se sepa qué hay (spec §5).

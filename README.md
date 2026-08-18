@@ -121,6 +121,18 @@ Arrastra clips de un bin a otro. **Arrastrar cambia el bin y nada más** — el
 cuarto sigue siendo cosa del teclado, para que un gesto mal soltado no
 reclasifique.
 
+El renglón **AGRUPAR** decide si los clips se juntan por cuarto o se quedan
+como salieron de la cámara:
+
+- **Por cuarto** — al asignarle un cuarto a un clip, su tarjeta se va con las
+  de ese cuarto. Es lo bueno cuando estás acomodando el shooting entero.
+- **Orden de rodaje** — nada se mueve nunca. El cuarto se le pone igual y se
+  ve en la tarjeta, pero como etiqueta: recorres el material en el orden en
+  que lo grabaste sin perder por dónde ibas.
+
+Los bins no se tocan en ninguno de los dos, y las flechas recorren lo mismo.
+Se guarda con el proyecto.
+
 Clic derecho en el encabezado de un bin: renombrar, enlazar o crear proxies,
 seleccionar sus clips, quitarlo del proyecto.
 

@@ -1153,7 +1153,20 @@ def _pegar_encabezado(qtbot, ventana, nombre):
     hoja = ventana.clip_sheet
     barra = hoja._scroll.verticalScrollBar()
     qtbot.waitUntil(lambda: barra.maximum() > 0, timeout=2000)
-    barra.setValue(barra.maximum())
+    # Se espera a que la geometria DEJE de moverse. El area de scroll acomoda
+    # su contenido en varias vueltas encadenadas, asi que `maximum() > 0`
+    # solo dice que empezo: desplazarse ahi es desplazarse sobre un contenido
+    # que todavia va por la mitad. Es la misma espera que usa la hoja de
+    # verdad antes de medir donde cayo una tarjeta (`_asentar_geometria`), y
+    # por eso se usa ESA y no una copia -- una copia se queda vieja.
+    hoja._asentar_geometria()
+    # Justo despues del encabezado que se quiere pegar, no hasta el fondo:
+    # abajo del todo estas en el ULTIMO bin, asi que pedir «Sony» con un
+    # «Dron» debajo devolvia Dron. Funcionaba de casualidad, mientras el bin
+    # pedido fuera el ultimo o el contenido no llegara tan abajo.
+    cabecera = hoja.bin_header_widget(nombre)
+    assert cabecera is not None, f"no hay encabezado de «{nombre}»"
+    barra.setValue(cabecera.y() + 1)
     assert hoja._pegado.nombre == nombre
     return hoja._pegado
 

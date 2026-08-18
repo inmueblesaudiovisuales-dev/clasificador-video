@@ -52,6 +52,14 @@ SIN_CLASIFICAR = "Sin clasificar"
 # siempre arriba de todo, que es donde va la cola de trabajo (igual que
 # «Sin clasificar» dentro de un bin), y se esconde cuando no hay sueltos.
 SIN_BIN = "Sin bin"
+# El «cuarto» de un grupo cuando la hoja NO agrupa por cuarto: uno solo por
+# bin. Es cadena vacia a proposito -- asi el bloque no escribe ningun titulo
+# de cuarto, que es justo lo que significa este modo. Ver el spec
+# `2026-08-15-agrupar-o-solo-etiquetar-design.md`.
+SIN_AGRUPAR = ""
+# Las dos posiciones del interruptor, tal como se leen.
+AGRUPADO_POR_CUARTO = "Cuarto"
+AGRUPADO_POR_RODAJE = "Rodaje"
 # El mime del arrastre INTERNO: clips que ya estan en la hoja y se mueven de
 # bin. Tiene que ser distinto del de archivos (`text/uri-list`) porque los dos
 # viajan por los mismos eventos de drop y significan cosas opuestas -- uno
@@ -1464,6 +1472,11 @@ class _GroupBlock(QWidget):
         self.title_label = ElidedLabel(self.cuarto.upper())
         self.title_label.setObjectName("groupTitle")
         theme.apply_letter_spacing(self.title_label)
+        # En orden de rodaje el grupo es el bin entero y su cuarto llega
+        # vacio: sin esconder la etiqueta quedaria un hueco con su
+        # espaciado, como si al encabezado le faltara el nombre. El bin ya
+        # se llama arriba, en SU encabezado.
+        self.title_label.setVisible(bool(self.cuarto))
         self.count_label = QLabel("0")
         self.count_label.setObjectName("groupCount")
         # la linea fina que ocupa el ancho sobrante, como en el mockup: sin
@@ -1628,6 +1641,10 @@ class ClipSheet(QWidget):
     # el boton «+ Bin nuevo» de la barra (F8). La hoja no crea el bin: el dato
     # vive en `BinTree`, que es de la ventana.
     bin_nuevo_pedido = Signal()
+    # el interruptor de agrupado. La hoja lo dibuja y lo aplica, pero quien lo
+    # GUARDA es la ventana: vive en el `.cvproj`, como todo lo que sobrevive
+    # a cerrar la app.
+    agrupado_cambiado = Signal(bool)   # True = agrupar por cuarto
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -1658,6 +1675,10 @@ class ClipSheet(QWidget):
         # reagrupada, y este dato no.
         self._bin_meta: dict[str, dict] = {}
         self._colapsados: set[str] = set()
+        # `True` por omision: es como se comporta la hoja desde la F4, asi
+        # que un proyecto de antes de esto abre igual que siempre. Va ANTES
+        # de armar el encabezado, que ya lo lee.
+        self._agrupar_por_cuarto = True
         self._current = -1
         # el ultimo clip al que se desplazo la hoja: de el depende que
         # llegar a un bin cerrado lo abra solo cuando de verdad LLEGASTE
@@ -1905,6 +1926,35 @@ class ClipSheet(QWidget):
 
         self.chips["todos"].setChecked(True)
         self.chips["todos_estado"].setChecked(True)
+
+        # AGRUPAR no es un filtro: no esconde ni un clip ni cambia la cola de
+        # las flechas, solo cambia como se dibuja. Va igual en una fila de
+        # chips, y por una razon medida: puesto arriba, junto al buscador,
+        # su ancho se volvia el minimo de la hoja y le quitaba **155 px al
+        # video** (405 -> 560 px de minimo). Las filas de chips ENVUELVEN, o
+        # sea que cuestan alto, y el alto de la hoja no le cuesta nada al
+        # video -- la hoja es una columna.
+        #
+        # Sus chips viven aparte de `self.chips` a proposito: ese diccionario
+        # es de los filtros, y `_marcar_chips_de_cola` tiñe de ambar todo lo
+        # que hay ahi prendido para decir «por aqui van las flechas». Estos
+        # dos no las mueven, y teñirlos seria decir que si.
+        self._grupo_de_agrupado = QButtonGroup(self)
+        self._grupo_de_agrupado.setExclusive(True)
+        self._chips_de_agrupado: list[_Chip] = []
+        for clave, texto in ((AGRUPADO_POR_CUARTO, "Por cuarto"),
+                             (AGRUPADO_POR_RODAJE, "Orden de rodaje")):
+            chip = _Chip(clave, texto)
+            chip.clicked.connect(self._al_elegir_agrupado)
+            self._grupo_de_agrupado.addButton(chip)
+            self._chips_de_agrupado.append(chip)
+        self._chips_de_agrupado[0].setChecked(True)
+        self._chips_de_agrupado[1].setToolTip(
+            "Los clips se quedan en el orden en que los grabaste. El cuarto "
+            "se les sigue poniendo igual, pero como etiqueta: la tarjeta no "
+            "se mueve de lugar."
+        )
+        filas.append(_FilaDeChips("AGRUPAR", list(self._chips_de_agrupado)))
 
         # La fila de bins nace VACIA y escondida: sus chips son los bins que
         # hay, y al construir la hoja todavia no hay ninguno. Se llena en
@@ -2277,8 +2327,60 @@ class ClipSheet(QWidget):
         solo lugar a proposito: el colapso, los conteos y el orden van todos
         por nombre de seccion, y cada uno leyendo el dato crudo por su cuenta
         se desincroniza.
+
+        **En orden de rodaje el cuarto no participa del grupo**, y de ahi
+        sale todo lo demas sin tocar una linea mas: un bloque por bin, las
+        tarjetas en el orden de `item_widgets` --que es el de rodaje-- y
+        `⌘A` seleccionando el bin entero, porque «el grupo donde estas» pasa
+        a ser el bin.
         """
-        return (clip.bin_nombre or SIN_BIN, clip.room_label or SIN_CLASIFICAR)
+        cuarto = (clip.room_label or SIN_CLASIFICAR) if self._agrupar_por_cuarto \
+            else SIN_AGRUPAR
+        return (clip.bin_nombre or SIN_BIN, cuarto)
+
+    def agrupar_por_cuarto(self) -> bool:
+        return self._agrupar_por_cuarto
+
+    def set_agrupar_por_cuarto(self, agrupar: bool) -> None:
+        """Lo pone la VENTANA, que es quien lo guarda en el proyecto.
+
+        NO emite `agrupado_cambiado`: el interruptor es una vista del estado,
+        no una segunda copia -- si emitiera, restaurar un proyecto dispararia
+        el handler que lo guarda, en bucle. Mismo criterio que
+        `TitleBar.set_modo_hoja`.
+        """
+        agrupar = bool(agrupar)
+        # el chip se marca SIEMPRE, aunque el valor no cambie: es la unica
+        # forma de que la vista converja cuando quien llama esta
+        # restaurando un proyecto sobre una hoja recien construida.
+        self._chips_de_agrupado[0 if agrupar else 1].setChecked(True)
+        if agrupar == self._agrupar_por_cuarto:
+            return
+        self._agrupar_por_cuarto = agrupar
+        # cambian los grupos, o sea donde va cada tarjeta: la firma anterior
+        # ya no describe este acomodo
+        self._firma = None
+        self._regroup()
+
+    def _al_elegir_agrupado(self) -> None:
+        """Lo clickeaste tu. Volver a clickear el que ya esta prendido no lo
+        apaga --asi son los chips de un grupo exclusivo-- asi que aqui llega
+        el mismo valor bastante seguido: sin el corte, cada clic repetido
+        reagruparia las 132 tarjetas para dejarlas igual."""
+        elegido = next(
+            (c.clave for c in self._chips_de_agrupado if c.isChecked()),
+            AGRUPADO_POR_CUARTO,
+        )
+        agrupar = elegido == AGRUPADO_POR_CUARTO
+        if agrupar == self._agrupar_por_cuarto:
+            return
+        self.set_agrupar_por_cuarto(agrupar)
+        self.agrupado_cambiado.emit(agrupar)
+
+    def chip_de_agrupado(self, clave: str) -> _Chip | None:
+        """El chip de una de las dos posiciones, para poder apretarlo desde
+        un test sin buscar en la fila."""
+        return next((c for c in self._chips_de_agrupado if c.clave == clave), None)
 
     def _widgets_del_contenido(self) -> list[QWidget]:
         """Todo lo que hay en la columna, encabezados de bin incluidos y en

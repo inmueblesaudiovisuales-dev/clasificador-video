@@ -128,7 +128,8 @@ def _relativas_con_respaldo(clips: list, bins,
 def a_dict(proyecto: str, rooms: list[str], clips: list, bins,
            tamanos: dict, duraciones: dict, rotaciones: dict,
            bytes_conocidos: dict | None = None,
-           relativas_conocidas: dict | None = None) -> dict:
+           relativas_conocidas: dict | None = None,
+           agrupar_por_cuarto: bool = True) -> dict:
     """La forma del documento. **Puro: no toca disco.**
 
     Los pesos que salen de aqui son los que ya se sabian (`bytes_conocidos`,
@@ -155,6 +156,12 @@ def a_dict(proyecto: str, rooms: list[str], clips: list, bins,
         # camaras y la duracion sola no distingue dos tomas iguales.
         "bytes": {str(i): t
                   for i, t in sorted(_pesos_validos(bytes_conocidos).items())},
+        # Como se ve la hoja: agrupada por cuarto, o en orden de rodaje. Es
+        # lo unico de VISTA que se guarda, y se guarda porque cambiarlo en
+        # cada sesion seria un paso previo antes de trabajar --justo lo que
+        # este proyecto no quiere-- y porque la respuesta depende del
+        # shooting, no del dia.
+        "agrupar_por_cuarto": bool(agrupar_por_cuarto),
     }
 
 

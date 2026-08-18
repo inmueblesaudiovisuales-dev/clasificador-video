@@ -14,6 +14,7 @@ import pytest
 
 from clasificador_video.manifest import Clip
 from clasificador_video.rooms import RoomSelection
+from clasificador_video.ui.clip_sheet import AGRUPADO_POR_RODAJE
 from clasificador_video.ui.main_window import MainWindow
 
 
@@ -263,3 +264,51 @@ def test_el_playhead_se_detiene_antes_de_apagar(ventana, qtbot):
 
     assert not ventana._playhead_timer.isActive()
     assert not ventana._saved_timer.isActive()
+
+
+# --- agrupar por cuarto, o dejar el orden de rodaje -----------------------
+
+
+def test_el_agrupado_se_guarda_en_el_proyecto(qtbot, tmp_path, ventana):
+    ventana.session_path = tmp_path / "p.cvproj"
+    ventana.load_clips([_clip(0, "/cam/A.MP4")])
+
+    ventana.clip_sheet.chip_de_agrupado(AGRUPADO_POR_RODAJE).click()
+
+    ventana._write_autosave_now()
+    assert ventana._autosave_pool.waitForDone(2000)
+    assert json.loads((tmp_path / "p.cvproj").read_text())[
+        "agrupar_por_cuarto"] is False
+
+
+def test_al_abrir_se_restaura_el_agrupado_sin_volver_a_guardarlo(
+        qtbot, tmp_path, ventana):
+    """Restaurar es la ventana diciendole a la hoja lo que ya sabe. Si la
+    hoja avisara de vuelta, abrir un proyecto dispararia el guardado que lo
+    puso -- y con eso, un `.cvproj` reescrito por el solo hecho de abrirlo."""
+    ventana.session_path = tmp_path / "p.cvproj"
+    ventana.load_clips([_clip(0, "/cam/A.MP4")])
+    avisos = []
+    ventana.clip_sheet.agrupado_cambiado.connect(avisos.append)
+
+    ventana.set_agrupar_por_cuarto(False)
+
+    assert avisos == []
+    assert ventana._agrupar_por_cuarto is False
+    assert ventana.clip_sheet.agrupar_por_cuarto() is False
+
+
+def test_un_proyecto_de_antes_de_esto_abre_agrupado(qtbot, tmp_path):
+    """Sin la llave, el default es como se comportaba desde la F4."""
+    from clasificador_video.app import abrir_proyecto
+    from clasificador_video.proyecto import guardar
+
+    ruta = tmp_path / "viejo.cvproj"
+    guardar(ruta, {"version": 1, "proyecto": "Viejo", "rooms": [], "clips": []})
+
+    ventana = abrir_proyecto(ruta, video_factory=FakeMpv,
+                             recientes_path=tmp_path / "r.json")
+    qtbot.addWidget(ventana)
+
+    assert ventana._agrupar_por_cuarto is True
+    assert ventana.clip_sheet.agrupar_por_cuarto() is True

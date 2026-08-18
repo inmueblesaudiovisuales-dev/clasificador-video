@@ -7,6 +7,7 @@ from PySide6.QtGui import QPixmap
 
 from clasificador_video.ui import theme
 from clasificador_video.ui.clip_sheet import (
+    AGRUPADO_POR_RODAJE,
     MIN_TILE_WIDTH,
     GAP,
     SIN_BIN,
@@ -1781,7 +1782,18 @@ def test_el_encabezado_pegado_sigue_al_bin_en_el_que_estas(qtbot):
     # el area de scroll acomoda su contenido en el ciclo de eventos: hasta
     # que no corre, la barra no tiene recorrido y `setValue` se recorta a 0.
     barra = hoja._scroll.verticalScrollBar()
-    qtbot.waitUntil(lambda: barra.maximum() > 0, timeout=2000)
+    # Hasta que el RECORRIDO alcanza al encabezado del segundo bin, no hay
+    # nada que probar: el area de scroll acomoda su contenido en varias
+    # vueltas del ciclo de eventos, y con `maximum() > 0` a secas se entraba
+    # en la primera --con el contenido a medio armar-- donde el encabezado
+    # de «Dron» todavia estaba en y=84 y la barra solo llegaba a 12. El
+    # `setValue` se recortaba y el flotante seguia siendo el de «Sony».
+    # Salio al agregarle una fila al encabezado de la hoja: el test no
+    # comprobaba el encabezado pegado, comprobaba quien ganaba la carrera.
+    qtbot.waitUntil(
+        lambda: barra.maximum() >= hoja.bin_header_widget("Dron").y() > 0,
+        timeout=2000,
+    )
 
     barra.setValue(hoja.bin_header_widget("Sony").y() + 1)
     assert hoja._pegado.nombre == "Sony"
@@ -2663,3 +2675,112 @@ def test_la_marca_de_proxy_no_se_encima_con_la_palomita(qtbot):
 
     plan = tarjeta.plan_de_pintado()
     assert plan["proxy"] and plan["palomita"]
+
+
+# --- agrupar por cuarto, o solo etiquetar --------------------------------
+#
+# Ver `docs/superpowers/specs/2026-08-15-agrupar-o-solo-etiquetar-design.md`.
+
+
+def test_por_omision_la_hoja_agrupa_por_cuarto(qtbot):
+    """Es como estaba desde la F4: un proyecto viejo abre igual."""
+    hoja = _sheet(qtbot, [_clip(0, "Cocina"), _clip(1, "Sala")])
+
+    assert hoja.agrupar_por_cuarto() is True
+    assert hoja.group_titles() == [("Sin bin", "Cocina"), ("Sin bin", "Sala")]
+
+
+def test_sin_agrupar_queda_una_sola_grilla_por_bin(qtbot):
+    hoja = _sheet(qtbot, [_clip(0, "Cocina"), _clip(1, "Sala"),
+                          _clip(2, "Cocina")])
+
+    hoja.set_agrupar_por_cuarto(False)
+
+    assert [b for b, _ in hoja.group_titles()] == ["Sin bin"]
+    assert len(hoja.group_titles()) == 1
+
+
+def test_sin_agrupar_los_clips_se_ven_en_el_orden_de_rodaje(qtbot):
+    """Lo que Bruno pidio: que asignar un cuarto no mueva la tarjeta.
+
+    Agrupado, los dos de «Cocina» se juntan y el de «Sala» queda aparte;
+    sin agrupar, el orden es el de la camara.
+    """
+    hoja = _sheet(qtbot, [_clip(0, "Cocina"), _clip(1, "Sala"),
+                          _clip(2, "Cocina")])
+    assert hoja.indices_en_orden_visual() == [0, 2, 1]
+
+    hoja.set_agrupar_por_cuarto(False)
+
+    assert hoja.indices_en_orden_visual() == [0, 1, 2]
+
+
+def test_asignarle_un_cuarto_sin_agrupar_no_mueve_la_tarjeta(qtbot):
+    hoja = _sheet(qtbot, [_clip(0), _clip(1), _clip(2)])
+    hoja.set_agrupar_por_cuarto(False)
+    antes = hoja.indices_en_orden_visual()
+
+    # el clip de en medio pasa a ser de la cocina
+    hoja.update_clips([_clip(0), _clip(1, "Cocina"), _clip(2)])
+
+    assert hoja.indices_en_orden_visual() == antes
+
+
+def test_sin_agrupar_el_bin_sigue_partiendo_la_hoja(qtbot):
+    """Los bins son el otro eje --de que camara salio-- y se quedan."""
+    uno = _clip(0, "Cocina")
+    uno.bin_nombre = "Sony"
+    dos = _clip(1, "Sala")
+    dos.bin_nombre = "Dron"
+    hoja = _sheet(qtbot, [uno, dos])
+
+    hoja.set_agrupar_por_cuarto(False)
+
+    assert sorted(b for b, _ in hoja.group_titles()) == ["Dron", "Sony"]
+
+
+def test_sin_agrupar_cmd_a_selecciona_el_bin_entero(qtbot):
+    """Sin agrupar por cuarto, «el grupo donde estas» ES el bin."""
+    hoja = _sheet(qtbot, [_clip(0, "Cocina"), _clip(1, "Sala"),
+                          _clip(2, "Cocina")])
+    hoja.set_agrupar_por_cuarto(False)
+    hoja.set_current(0)
+
+    hoja.select_current_group()
+
+    assert hoja.selected_indices() == [0, 1, 2]
+
+
+def test_agrupado_cmd_a_sigue_seleccionando_solo_el_cuarto(qtbot):
+    hoja = _sheet(qtbot, [_clip(0, "Cocina"), _clip(1, "Sala"),
+                          _clip(2, "Cocina")])
+    hoja.set_current(0)
+
+    hoja.select_current_group()
+
+    assert hoja.selected_indices() == [0, 2]
+
+
+def test_el_interruptor_avisa_del_cambio(qtbot):
+    hoja = _sheet(qtbot, [_clip(0, "Cocina")])
+    avisos = []
+    hoja.agrupado_cambiado.connect(avisos.append)
+
+    hoja.chip_de_agrupado(AGRUPADO_POR_RODAJE).click()
+
+    assert avisos == [False]
+    assert hoja.agrupar_por_cuarto() is False
+
+
+def test_el_interruptor_no_avisa_cuando_lo_sincroniza_el_estado(qtbot):
+    """`set_agrupar_por_cuarto` es como la ventana le dice a la hoja lo que
+    ya decidio -- si emitiera, restaurar un proyecto dispararia el handler
+    que lo guarda, en bucle. Mismo criterio que `TitleBar.set_modo_hoja`."""
+    hoja = _sheet(qtbot, [_clip(0, "Cocina")])
+    avisos = []
+    hoja.agrupado_cambiado.connect(avisos.append)
+
+    hoja.set_agrupar_por_cuarto(False)
+
+    assert avisos == []
+    assert hoja.chip_de_agrupado(AGRUPADO_POR_RODAJE).isChecked()
