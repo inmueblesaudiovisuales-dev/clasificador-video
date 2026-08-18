@@ -665,6 +665,10 @@ class MainWindow(QWidget):
         # se comporta desde la F4, asi que un proyecto viejo abre igual. Ver
         # `docs/superpowers/specs/2026-08-15-agrupar-o-solo-etiquetar-design.md`.
         self._agrupar_por_cuarto = True
+        # modo horizontal: en modo CLIP la hoja se esconde y el video se
+        # lleva su ancho. Nace apagado y se guarda en el proyecto. Ver
+        # `docs/superpowers/specs/2026-08-15-modo-horizontal-design.md`.
+        self._modo_horizontal = False
         # guarda de reentrada de `_refresh_sheet` (ver ahi el porque)
         self._refrescando_hoja = False
 
@@ -673,6 +677,8 @@ class MainWindow(QWidget):
         self.title_bar.set_project(project_name, 0)
         self.title_bar.export_requested.connect(self._on_export_manifest)
         self.title_bar.mode_toggled.connect(self.alternar_modo_hoja)
+        self.title_bar.modo_horizontal_cambiado.connect(
+            self._on_modo_horizontal_cambiado)
 
         self.room_rail = RoomRail()
         self.room_rail.import_requested.connect(self._on_import_folders)
@@ -817,6 +823,20 @@ class MainWindow(QWidget):
             # sin paneles no hay nada que restarle: el video se lleva la
             # ventana entera
             maximo = self.width()
+        elif self._modo_horizontal and not self._modo_hoja:
+            # modo horizontal: la hoja no esta, asi que su minimo tampoco se
+            # reserva. De aqui sale todo el modo -- un clip 16:9 pasa de
+            # 939 a 1344 px de ancho en una ventana de 1600.
+            #
+            # Se pregunta por el MODO y no por `clip_sheet.isHidden()`, que
+            # es lo obvio y esta mal: al volver de solo video hay un instante
+            # en que `_solo_video` ya es False y la hoja todavia no se
+            # mostro, y ahi la version por visibilidad le daba al visor un
+            # ancho que no le tocaba. Como `setFixedWidth` tambien fija el
+            # MINIMO, ese ancho se volvia piso de la ventana y la inflaba de
+            # 1600 a 2154 px sin vuelta atras. El modo es la intencion; la
+            # visibilidad es un transitorio.
+            maximo = self.width() - theme.RAIL_WIDTH - theme.TOOLCOL_WIDTH
         else:
             minimo_hoja = max(
                 theme.SHEET_MIN_WIDTH, self.clip_sheet.minimumSizeHint().width()
@@ -1800,6 +1820,7 @@ class MainWindow(QWidget):
             # calcular. Tirarla lo dejaria sin con que reencontrarse.
             relativas_conocidas=self._relativas,
             agrupar_por_cuarto=self._agrupar_por_cuarto,
+            modo_horizontal=self._modo_horizontal,
         )
         self._relativas = {int(i): str(r) for i, r in data["relativas"].items()}
         # El indicador NO se toca aqui. Antes decia «guardado» apenas se
@@ -3176,6 +3197,49 @@ class MainWindow(QWidget):
         self._aplicar_velocidad(SPEED_PROFILES[0])
         self.video_widget.player.pause()
 
+    def _mostrar_paneles(self) -> None:
+        """La ÚNICA regla de si la hoja se ve. Tres modos la tocan.
+
+        Vivía repartida entre `alternar_modo_hoja` y `alternar_solo_video`, y
+        con un tercero en la mezcla repartida se contradice sola: entrar y
+        salir de solo video con el modo horizontal puesto devolvía la hoja
+        que el modo horizontal acababa de esconder. Es el mismo tropiezo que
+        ya tuvo la barra de media faltante, y por eso se resuelve igual --una
+        sola función que lo decide, y los tres modos la llaman.
+
+        - **Solo video** (`F`) esconde todo: gana sobre los otros dos.
+        - **Modo hoja** (`⇥`) la muestra siempre: sin hoja no hay modo hoja,
+          y el modo horizontal solo habla de lo que pasa en modo clip.
+        - **Modo horizontal** la esconde, que es de lo que se trata.
+        """
+        self.clip_sheet.setVisible(
+            not self._solo_video
+            and (self._modo_hoja or not self._modo_horizontal)
+        )
+
+    def modo_horizontal(self) -> bool:
+        return self._modo_horizontal
+
+    def set_modo_horizontal(self, activo: bool) -> None:
+        """El interruptor de la barra de título, y lo que restaura el
+        proyecto. NO guarda: guardar es de `_on_modo_horizontal_cambiado`,
+        que es el camino del usuario -- restaurar no puede disparar un
+        guardado (ver el mismo criterio en `set_agrupar_por_cuarto`)."""
+        self._modo_horizontal = bool(activo)
+        self.title_bar.set_modo_horizontal(self._modo_horizontal)
+        self._mostrar_paneles()
+        # el ancho del video sale de lo que los paneles dejen libre: esconder
+        # la hoja sin recalcular deja el video del tamaño de antes, que es
+        # justo el desperdicio que este modo existe para quitar. Va SOLO
+        # aqui: `alternar_modo_hoja` y `alternar_solo_video` ya recalculan
+        # donde siempre lo hicieron, y meterles una llamada de mas les
+        # cambia el orden -- con eso empeoraba el trinquete que ya tienen.
+        self._resize_video_stage()
+
+    def _on_modo_horizontal_cambiado(self, activo: bool) -> None:
+        self.set_modo_horizontal(activo)
+        self._autosave()
+
     def alternar_solo_video(self) -> None:
         """`F`: esconde todo menos el video, y lo vuelve a traer.
 
@@ -3194,8 +3258,11 @@ class MainWindow(QWidget):
         if self._solo_video:
             self.transicion.cancelar()  # una tarjeta volando sobre nada
         for panel in (self.title_bar, self.room_rail, self.tool_column,
-                      self.clip_sheet, self.status_bar):
+                      self.status_bar):
             panel.setVisible(not self._solo_video)
+        # la hoja NO va en esa lista: son tres modos los que deciden si se
+        # ve, y la regla vive entera en un solo lugar (ver `_mostrar_paneles`)
+        self._mostrar_paneles()
         # el aviso va aparte, por la MISMA regla que usa `_refrescar_aviso`:
         # una barra vacía no puede reaparecer con su relleno y su borde, y
         # una llena no puede reaparecer encima del video a pantalla completa.
@@ -3324,6 +3391,7 @@ class MainWindow(QWidget):
         self._modo_hoja = not self._modo_hoja
         for panel in (self.video_stage, self.tool_column):
             panel.setVisible(not self._modo_hoja)
+        self._mostrar_paneles()
         self.clip_sheet.set_modo_hoja(self._modo_hoja)
         # El sonido sigue a la imagen. Entrar a la hoja calla lo que estaba
         # corriendo solo --si no, el audio se queda sonando sobre una hoja

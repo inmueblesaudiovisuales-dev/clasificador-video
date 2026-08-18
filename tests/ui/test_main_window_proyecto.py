@@ -312,3 +312,30 @@ def test_un_proyecto_de_antes_de_esto_abre_agrupado(qtbot, tmp_path):
 
     assert ventana._agrupar_por_cuarto is True
     assert ventana.clip_sheet.agrupar_por_cuarto() is True
+
+
+def test_el_modo_horizontal_se_guarda_y_se_restaura(qtbot, tmp_path, ventana):
+    ventana.session_path = tmp_path / "p.cvproj"
+    ventana.load_clips([_clip(0, "/cam/A.MP4")])
+
+    ventana.set_modo_horizontal(True)
+    ventana._autosave()
+    ventana._write_autosave_now()
+    assert ventana._autosave_pool.waitForDone(2000)
+
+    assert json.loads((tmp_path / "p.cvproj").read_text())["modo_horizontal"] is True
+
+
+def test_un_proyecto_de_antes_abre_con_el_visor_normal(qtbot, tmp_path):
+    """Sin la llave, apagado: es como se comportaba antes de que existiera."""
+    from clasificador_video.app import abrir_proyecto
+    from clasificador_video.proyecto import guardar
+
+    ruta = tmp_path / "viejo.cvproj"
+    guardar(ruta, {"version": 1, "proyecto": "Viejo", "rooms": [], "clips": []})
+
+    ventana = abrir_proyecto(ruta, video_factory=FakeMpv,
+                             recientes_path=tmp_path / "r.json")
+    qtbot.addWidget(ventana)
+
+    assert ventana.modo_horizontal() is False

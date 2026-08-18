@@ -11,6 +11,11 @@ from clasificador_video.ui.segmented import SegmentedControl
 MODO_CLIP = "Clip"
 MODO_HOJA = "Hoja"
 TECLA_MODO = "⇥"
+# El boton del visor ancho. NO se llama «horizontal» aunque el modo nazca
+# del material horizontal: no describe la forma del clip --que la app ya
+# sabe sola-- sino cuanto ancho se le da al video. Con el otro nombre, ver
+# un clip vertical con el boton hundido se leeria como un error.
+VISOR_ANCHO = "Ancho"
 
 
 def _marca_de_play(tamano: QSize) -> QPixmap:
@@ -65,6 +70,9 @@ class TitleBar(QWidget):
     export_requested = Signal()
     proxies_requested = Signal()
     mode_toggled = Signal()
+    # el visor ancho: la hoja se esconde en modo clip y el video se lleva su
+    # ancho. La barra solo avisa; quien lo aplica y lo guarda es la ventana.
+    modo_horizontal_cambiado = Signal(bool)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -101,6 +109,27 @@ class TitleBar(QWidget):
         )
         self.mode_switch.selected.connect(self._al_elegir_modo)
 
+        # El ancho del visor. Va pegado al switch de modo porque son la misma
+        # familia: las dos deciden que paneles se ven.
+        #
+        # Es un boton que se queda hundido y NO un control segmentado, y eso
+        # se midio: el segmentado dejaba el minimo de esta barra en 1168 px
+        # contra los 1150 que el test de la F7 defiende, y ese minimo se
+        # propaga hasta la ventana -- o sea que un control para darle ancho
+        # al video terminaba quitandoselo. Un boton cuesta la mitad.
+        self._modo_horizontal = False
+        self.visor_button = QPushButton(VISOR_ANCHO)
+        self.visor_button.setObjectName("railButton")
+        self.visor_button.setCheckable(True)
+        self.visor_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self.visor_button.setToolTip(
+            "Ancho: esconde la hoja de contactos en modo clip y le da su "
+            "espacio al video. El rail y el estado del clip se quedan.\n"
+            "Sirve para material horizontal, donde el video no alcanza a "
+            "usar el alto de la ventana."
+        )
+        self.visor_button.toggled.connect(self._al_elegir_visor)
+
         # Aca vivia un boton «Cuartos ⌘R» que solo movia el foco a la
         # primera fila del rail: desde afuera no pasaba nada, y Bruno lo
         # reporto como «no hace nada». El atajo ⌘R sigue existiendo para
@@ -115,6 +144,7 @@ class TitleBar(QWidget):
         layout.addWidget(self.project_label)
         layout.addWidget(self.subtitle_label)
         layout.addWidget(self.mode_switch)
+        layout.addWidget(self.visor_button)
         layout.addStretch(1)
         layout.addWidget(self.saved_led)
         layout.addWidget(self.saved_label)
@@ -154,6 +184,21 @@ class TitleBar(QWidget):
         for boton, etiqueta in zip(self.mode_switch.buttons, etiquetas):
             boton.setText(etiqueta)
         self.mode_switch.set_current(etiquetas[1 if en_hoja else 0])
+
+    def set_modo_horizontal(self, activo: bool) -> None:
+        """Sincroniza el interruptor con el estado. NO emite: es una vista
+        del dato, y emitiendo, restaurar un proyecto dispararia el guardado
+        que lo puso. Mismo criterio que `set_modo_hoja`."""
+        self._modo_horizontal = bool(activo)
+        bloqueado = self.visor_button.blockSignals(True)
+        self.visor_button.setChecked(self._modo_horizontal)
+        self.visor_button.blockSignals(bloqueado)
+
+    def _al_elegir_visor(self, activo: bool) -> None:
+        if activo == self._modo_horizontal:
+            return
+        self._modo_horizontal = activo
+        self.modo_horizontal_cambiado.emit(activo)
 
     def _al_elegir_modo(self, etiqueta: str) -> None:
         # clickear el modo en el que ya estas no hace nada: si emitiera, el

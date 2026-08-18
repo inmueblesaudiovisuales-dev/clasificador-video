@@ -178,6 +178,7 @@ def _poblar_ventana(window: MainWindow, data: dict, clips: list[Clip]) -> None:
     # comportaba. `is not False` y no `bool(...)`: un `null` o una cadena
     # rara en el archivo no pueden desagrupar la hoja sin que nadie lo pida.
     window.set_agrupar_por_cuarto(data.get("agrupar_por_cuarto") is not False)
+    window.set_modo_horizontal(data.get("modo_horizontal") is True)
     window._refresh_sheet(force_rebuild=True)
     window._resize_video_stage()
     # Revisar PRIMERO y pedir las portadas cuando se sepa qué hay (spec §5).

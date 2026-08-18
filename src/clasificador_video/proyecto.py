@@ -129,7 +129,8 @@ def a_dict(proyecto: str, rooms: list[str], clips: list, bins,
            tamanos: dict, duraciones: dict, rotaciones: dict,
            bytes_conocidos: dict | None = None,
            relativas_conocidas: dict | None = None,
-           agrupar_por_cuarto: bool = True) -> dict:
+           agrupar_por_cuarto: bool = True,
+           modo_horizontal: bool = False) -> dict:
     """La forma del documento. **Puro: no toca disco.**
 
     Los pesos que salen de aqui son los que ya se sabian (`bytes_conocidos`,
@@ -162,6 +163,10 @@ def a_dict(proyecto: str, rooms: list[str], clips: list, bins,
         # este proyecto no quiere-- y porque la respuesta depende del
         # shooting, no del dia.
         "agrupar_por_cuarto": bool(agrupar_por_cuarto),
+        # Y si el visor va ancho --la hoja escondida en modo clip--, que
+        # depende de si el shooting es del dron o de la Sony. Apagado por
+        # omision: es como se comportaba antes de que existiera.
+        "modo_horizontal": bool(modo_horizontal),
     }
 
 
