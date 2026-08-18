@@ -777,6 +777,38 @@ def test_exportar_escribe_manifest_con_formato_del_plugin(qtbot, monkeypatch, tm
     assert saved["clips"][1]["categoria_path"] == []
     assert saved["clips"][0]["flag"] == "pick"
     assert saved["clips"][0]["in_frame"] == 30
+    # el estado viaja como subcarpeta DENTRO del cuarto: en Premiere el bin
+    # «Sala» tiene adentro «Picks», y ahi cae este clip
+    assert saved["clips"][0]["categoria_path"] == ["Sala", "Picks"]
+
+
+def test_exportar_no_le_cambia_el_cuarto_a_los_clips_de_la_sesion(
+        qtbot, monkeypatch, tmp_path):
+    """La subcarpeta se agrega SOLO en el archivo que se exporta.
+
+    Si tocara a los clips vivos, marcar un pick se veria en la app como un
+    cambio de cuarto: el historial, la hoja, el rail y el autoguardado van
+    todos por `categoria_path[0]`. Y exportar dos veces anidaria dos veces.
+    """
+    from PySide6.QtWidgets import QMessageBox
+    window = _window_with_video(qtbot)
+    out = tmp_path / "manifest.json"
+    window.load_clips([
+        Clip(orden=1, ruta=Path("/a.MP4"), categoria_path=["Sala"], fps=30.0,
+             flag="pick"),
+    ])
+    monkeypatch.setattr("clasificador_video.ui.main_window.QFileDialog.getSaveFileName",
+                        lambda *a, **k: (str(out), ""))
+    monkeypatch.setattr("clasificador_video.ui.main_window.QMessageBox.warning",
+                        lambda *a, **k: QMessageBox.Ok)
+
+    window.title_bar.export_button.click()
+    window.title_bar.export_button.click()      # y otra vez
+
+    assert window.clips[0].categoria_path == ["Sala"]
+    import json
+    assert json.loads(out.read_text())["clips"][0]["categoria_path"] == [
+        "Sala", "Picks"]
 
 
 def test_exportar_avisa_si_hay_clips_sin_clasificar_sin_bloquear(qtbot, monkeypatch, tmp_path):
@@ -4553,6 +4585,12 @@ def test_una_tanda_nueva_no_encima_mpv_sobre_los_que_siguen_corriendo(qtbot, mon
     window.load_clips([Clip(orden=1, ruta=clip_path, categoria_path=[], fps=30.0)])
     window._clip_durations[0] = 4.0
     window._schedule_thumbnails([0])
+    # La extraccion corre en el pool de hilos, asi que `arrancadas` se llena
+    # cuando ESE hilo llegue, no al volver de la llamada. Sin esta espera el
+    # test es una carrera: contaba 0 corriendo el archivo solo y 1 en la suite
+    # completa, donde lo de antes le habia dado tiempo al pool. Un test que
+    # depende del orden no dice la verdad (ver tests/ui/conftest.py).
+    assert window._thread_pool.waitForDone(2000)
     window._miniaturas_en_vuelo[0] = clip_path      # sigue corriendo
 
     window._schedule_thumbnails()                   # tanda nueva, generacion nueva
