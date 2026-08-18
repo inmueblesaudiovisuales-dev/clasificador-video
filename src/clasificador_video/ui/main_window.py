@@ -27,7 +27,7 @@ from clasificador_video.filters import FilterState, cola, contar
 from clasificador_video.history import History, HistoryEntry
 from clasificador_video.ingest import archivos_de_video
 from clasificador_video.keyboard import KeyboardRouter
-from clasificador_video.manifest import Clip, Manifest
+from clasificador_video.manifest import Clip, Manifest, con_subcarpeta_de_estado
 from clasificador_video.player import SPEED_PROFILES
 from clasificador_video.probe import (
     orientacion_de,
@@ -3618,7 +3618,11 @@ class MainWindow(QWidget):
         manifest = Manifest(
             proyecto=self.project_name,
             orientacion=self.orientacion_del_proyecto(),
-            clips=[_con_el_rango_en_orden(c) for c in self.clips],
+            # las dos transformaciones de exportacion, en fila: el rango en
+            # orden y la subcarpeta del estado. Las dos viven aqui y no en la
+            # sesion, que guarda lo que el editor marco.
+            clips=[con_subcarpeta_de_estado(_con_el_rango_en_orden(c))
+                   for c in self.clips],
         )
         manifest.write_json(Path(path))
 

@@ -2,7 +2,7 @@
 import json
 from pathlib import Path
 
-from clasificador_video.manifest import Clip, Manifest
+from clasificador_video.manifest import Clip, Manifest, con_subcarpeta_de_estado
 
 
 def _clip(**overrides) -> Clip:
@@ -75,3 +75,57 @@ def test_destacado_viaja_en_el_manifest_sin_cambiar_el_contrato():
     clip.flag = "destacado"
     assert clip.to_dict()["flag"] == "destacado"
     assert clip.to_dict()["categoria_path"] == ["Cocina"]
+
+
+# --- la subcarpeta de estado dentro del bin del cuarto ---------------------
+
+
+def test_un_pick_cae_en_la_subcarpeta_picks_de_su_cuarto():
+    clip = Clip(orden=1, ruta=Path("/c/A.MP4"), categoria_path=["Cocina"],
+                fps=30.0, flag="pick")
+
+    assert con_subcarpeta_de_estado(clip).categoria_path == ["Cocina", "Picks"]
+
+
+def test_cada_estado_tiene_su_subcarpeta():
+    def camino(flag):
+        return con_subcarpeta_de_estado(
+            Clip(orden=1, ruta=Path("/c/A.MP4"), categoria_path=["Cocina"],
+                 fps=30.0, flag=flag)
+        ).categoria_path[-1]
+
+    assert camino("destacado") == "Destacados"
+    assert camino("pick") == "Picks"
+    assert camino("reject") == "Rejects"
+    assert camino("none") == "Sin marcar"
+
+
+def test_un_clip_sin_cuarto_se_deja_tal_cual():
+    """Su camino vacio es lo que hace que el plugin lo mande a «Sin
+    clasificar», y esa cadena vive alla: escribirla tambien aqui serian dos
+    lugares diciendo el nombre del mismo bin."""
+    clip = Clip(orden=1, ruta=Path("/c/A.MP4"), categoria_path=[], fps=30.0,
+                flag="pick")
+
+    assert con_subcarpeta_de_estado(clip).categoria_path == []
+
+
+def test_no_le_toca_el_camino_al_clip_original():
+    """Devuelve una COPIA: el `categoria_path` que se exporta no es el que la
+    sesion guarda -- si lo mutara, marcar un pick se veria en la app como un
+    cambio de cuarto, y el historial, la hoja y el rail van todos por ahi."""
+    clip = Clip(orden=1, ruta=Path("/c/A.MP4"), categoria_path=["Cocina"],
+                fps=30.0, flag="pick")
+
+    con_subcarpeta_de_estado(clip)
+
+    assert clip.categoria_path == ["Cocina"]
+
+
+def test_un_estado_desconocido_no_inventa_subcarpeta():
+    """Una sesion tocada a mano puede traer cualquier cosa en `flag`. Un bin
+    llamado «None» en el proyecto de Bruno seria peor que no anidar."""
+    clip = Clip(orden=1, ruta=Path("/c/A.MP4"), categoria_path=["Cocina"],
+                fps=30.0, flag="lo-que-sea")
+
+    assert con_subcarpeta_de_estado(clip).categoria_path == ["Cocina"]

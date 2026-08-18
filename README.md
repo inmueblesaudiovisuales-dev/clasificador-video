@@ -130,6 +130,20 @@ seleccionar sus clips, quitarlo del proyecto.
 a **Importar clasificación…**: arma los bins por cuarto, pone las etiquetas de
 color, aplica los in/out y engancha los proxies.
 
+Dentro de cada cuarto los clips quedan repartidos por cómo los marcaste:
+
+```
+Cocina
+  ├── Destacados
+  ├── Picks
+  ├── Rejects
+  └── Sin marcar
+```
+
+Solo aparecen las que tienen algo: un cuarto sin rejects no estrena esa
+carpeta. Los clips a los que nunca les pusiste cuarto siguen cayendo juntos
+en **Sin clasificar**.
+
 ---
 
 ## Proxies, en detalle
