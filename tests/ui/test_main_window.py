@@ -4913,3 +4913,36 @@ def test_el_interruptor_de_la_barra_avisa_y_restaurar_no(qtbot):
     window.title_bar.visor_button.click()              # como el usuario
     assert avisos == [False]
     assert window.modo_horizontal() is False
+
+
+def test_solo_video_y_volver_no_infla_la_ventana(qtbot):
+    """El trinquete: `setFixedWidth` fija tambien el MINIMO.
+
+    Saliendo de `F`, el visor venia anclado al ancho de la ventana entera y
+    apenas volvian el rail y la columna ese ancho se sumaba al minimo de
+    ellos: la ventana crecia de 1600 a 1800 px y no encogia nunca. Cada `F`
+    le comia un pedazo mas.
+
+    Con material VERTICAL no se veia --el visor ya es angosto y nunca llega
+    a ser el piso-- asi que solo aparece con material horizontal, que es
+    justo donde el ancho ya escaseaba.
+    """
+    window = _ventana_con_clip_horizontal(qtbot)
+    antes = window.width()
+
+    window.alternar_solo_video()          # F
+    window.alternar_solo_video()          # y de vuelta
+
+    assert window.width() == antes
+
+
+def test_el_trinquete_tampoco_aparece_con_un_clip_vertical(qtbot):
+    window = _ventana_con_clip_horizontal(qtbot)
+    window._clip_sizes = {0: (2160, 3840)}
+    window._resize_video_stage()
+    antes = window.width()
+
+    window.alternar_solo_video()
+    window.alternar_solo_video()
+
+    assert window.width() == antes

@@ -3257,6 +3257,23 @@ class MainWindow(QWidget):
         self._solo_video = not self._solo_video
         if self._solo_video:
             self.transicion.cancelar()  # una tarjeta volando sobre nada
+        else:
+            # Se suelta el ancho de pantalla completa ANTES de que los
+            # paneles vuelvan, y el orden es todo el arreglo.
+            #
+            # `setFixedWidth` fija el minimo tambien. Saliendo de solo video
+            # el visor venia anclado al ancho de la ventana entera (1600), y
+            # apenas reaparecian el rail y la columna ese ancho se sumaba al
+            # minimo de ellos: el minimo de la VENTANA pasaba a 1856 y Qt la
+            # crecia a 1800 px. No encogia nunca -- un trinquete, el mismo
+            # que ya documentan la hoja y su area de scroll, y que le come
+            # ancho al video en cada `F` con material horizontal (con
+            # material vertical no se notaba: ahi el visor ya era angosto).
+            #
+            # Con `1` no hay piso que sumar, y `_resize_video_stage` --que
+            # corre unas lineas mas abajo, via `_mostrar_aviso_si_toca`--
+            # pone el ancho de verdad antes de que se dibuje nada.
+            self.video_stage.setFixedWidth(1)
         for panel in (self.title_bar, self.room_rail, self.tool_column,
                       self.status_bar):
             panel.setVisible(not self._solo_video)
