@@ -1151,8 +1151,15 @@ def build_stylesheet() -> str:
         border-color: {CURRENT_COLOR};
     }}
     /* el que ya no esta en su lugar: se hunde al fondo de la app y pierde
-       el borde visible, para que se lea como «esta, pero no se puede» */
-    QPushButton#filaReciente:disabled {{
+       el borde visible, para que se lea como «esta, pero no se puede».
+       Va por PROPIEDAD y no por `:disabled` -- la fila ya no se apaga con
+       `setEnabled(False)`, porque un widget apagado tampoco recibe el clic
+       DERECHO y ahi vive el unico «Quitar de la lista» que tiene. */
+    QPushButton#filaReciente[perdido="true"] {{
+        background-color: {BG_SURFACE_0};
+        border: 1px solid {LINE_SOFT};
+    }}
+    QPushButton#filaReciente[perdido="true"]:hover {{
         background-color: {BG_SURFACE_0};
         border: 1px solid {LINE_SOFT};
     }}

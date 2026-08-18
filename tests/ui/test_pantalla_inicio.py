@@ -1,6 +1,8 @@
 # tests/ui/test_pantalla_inicio.py
 from pathlib import Path
 
+from PySide6.QtWidgets import QMenu
+
 from clasificador_video.recientes import Reciente
 from clasificador_video.ui.pantalla_inicio import PantallaInicio
 
@@ -18,7 +20,13 @@ def test_lista_los_recientes_con_el_mas_nuevo_arriba(qtbot):
 
 def test_un_proyecto_que_no_esta_se_ve_apagado_y_no_abre(qtbot, tmp_path):
     """Se muestra en vez de podarse: Bruno tiene que ver que el proyecto
-    existio y que el disco no esta conectado, no que desaparecio."""
+    existio y que el disco no esta conectado, no que desaparecio.
+
+    Se comprueba lo que PASA --se ve apagado y no abre-- y no `isEnabled()`,
+    que era el mecanismo: apagar el widget tambien le quitaba el clic
+    derecho, o sea el unico «Quitar de la lista» que tiene la pantalla. El
+    test amarrado al mecanismo habria dado verde con ese bug puesto.
+    """
     pantalla = PantallaInicio()
     qtbot.addWidget(pantalla)
     pantalla.set_recientes([Reciente(tmp_path / "no-esta.cvproj", "Fantasma", "")])
@@ -26,7 +34,9 @@ def test_un_proyecto_que_no_esta_se_ve_apagado_y_no_abre(qtbot, tmp_path):
     pantalla.abrir_pedido.connect(abiertos.append)
 
     fila = pantalla.filas[0]
-    assert not fila.isEnabled()
+    assert fila.property("perdido") == "true"
+    assert fila.nombre.property("apagado") == "true"
+    assert "No se encuentra" in fila.detalle.full_text()
     fila.click()
     assert abiertos == []
 
@@ -227,3 +237,74 @@ def test_la_pantalla_no_abre_ningun_modal(qtbot):
     }
     assert "QMessageBox" not in importado
     assert "exec" not in llamado
+
+
+# --- el proyecto que ya no esta se puede quitar ---------------------------
+
+
+def _fila_perdida(qtbot, tmp_path):
+    pantalla = PantallaInicio()
+    qtbot.addWidget(pantalla)
+    pantalla.set_recientes([
+        Reciente(tmp_path / "no-esta.cvproj", "Perdido", "2026-08-01 10:00"),
+    ])
+    return pantalla, pantalla.filas[0]
+
+
+def test_el_renglon_de_un_proyecto_perdido_recibe_el_clic_derecho(qtbot, tmp_path):
+    """Un widget apagado con `setEnabled(False)` NO recibe eventos de mouse,
+    y eso incluye el clic derecho: Qt los descarta antes de entregarlos. Con
+    la fila apagada, el unico «Quitar de la lista» que tiene la pantalla
+    quedaba fuera de alcance -- justo en los renglones que uno quiere quitar,
+    que son los que ya no estan.
+    """
+    from PySide6.QtCore import QPoint
+    from PySide6.QtGui import QContextMenuEvent
+    from PySide6.QtWidgets import QApplication
+
+    pantalla, fila = _fila_perdida(qtbot, tmp_path)
+    assert fila.disponible is False
+
+    llamadas = []
+    fila.menu_de_contexto = lambda: llamadas.append(1) or QMenu()
+    evento = QContextMenuEvent(QContextMenuEvent.Reason.Mouse, QPoint(10, 10),
+                               fila.mapToGlobal(QPoint(10, 10)))
+    QApplication.instance().notify(fila, evento)
+
+    assert llamadas == [1]
+
+
+def test_quitar_de_la_lista_un_proyecto_perdido_llega_a_la_pantalla(qtbot, tmp_path):
+    pantalla, fila = _fila_perdida(qtbot, tmp_path)
+    quitados = []
+    pantalla.quitar_pedido.connect(quitados.append)
+
+    fila.menu_de_contexto().actions()[0].trigger()
+
+    assert quitados == [tmp_path / "no-esta.cvproj"]
+
+
+def test_clickear_un_proyecto_perdido_no_lo_intenta_abrir(qtbot, tmp_path):
+    """Se ve gris y no se abre. Lo que cambio es COMO se apaga, no que se
+    pueda abrir: prometerlo seria peor que verlo gris."""
+    pantalla, fila = _fila_perdida(qtbot, tmp_path)
+    intentos = []
+    pantalla.abrir_pedido.connect(intentos.append)
+
+    fila.click()
+
+    assert intentos == []
+
+
+def test_clickear_uno_que_si_esta_lo_abre(qtbot, tmp_path):
+    proyecto = tmp_path / "vivo.cvproj"
+    proyecto.write_text("{}")
+    pantalla = PantallaInicio()
+    qtbot.addWidget(pantalla)
+    pantalla.set_recientes([Reciente(proyecto, "Vivo", "2026-08-02 10:00")])
+    abiertos = []
+    pantalla.abrir_pedido.connect(abiertos.append)
+
+    pantalla.filas[0].click()
+
+    assert abiertos == [proyecto]

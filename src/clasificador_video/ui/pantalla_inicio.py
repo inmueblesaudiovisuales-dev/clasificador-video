@@ -62,15 +62,29 @@ class _FilaReciente(QPushButton):
     """
 
     quitar_pedido = Signal(Path)
+    # el clic que SI abre. La fila no emite `clicked` a secas hacia afuera:
+    # un proyecto que no esta no se abre, y prometerlo seria peor que verlo
+    # gris.
+    abrir_pedido = Signal(Path)
 
     def __init__(self, entrada, parent=None):
         super().__init__(parent)
         self.setObjectName("filaReciente")
         self.entrada = entrada
         disponible = bool(entrada.disponible)
-        self.setEnabled(disponible)
+        self.disponible = disponible
+        # NO se apaga con `setEnabled(False)`, aunque sea lo obvio: un widget
+        # apagado no recibe eventos de mouse, y eso incluye el clic DERECHO
+        # -- Qt los descarta antes de entregarlos--. O sea que el unico
+        # «Quitar de la lista» que existe quedaba fuera de alcance justo en
+        # los renglones que uno quiere quitar: los que ya no estan. Se
+        # apaga por PROPIEDAD, que es como esta fila ya pintaba su texto
+        # (ver `_etiqueta`), y lo que no se puede hacer --abrirlo-- se corta
+        # donde de verdad pasa, en `_al_hacer_click`.
+        self.setProperty("perdido", "true" if not disponible else "false")
         self.setFixedHeight(FILA_ALTO)
-        self.setCursor(Qt.PointingHandCursor)
+        self.setCursor(Qt.PointingHandCursor if disponible
+                       else Qt.ArrowCursor)
 
         caja = QVBoxLayout(self)
         caja.setContentsMargins(12, 8, 12, 8)
@@ -88,6 +102,18 @@ class _FilaReciente(QPushButton):
         caja.addWidget(self.detalle)
         # la ruta completa, para cuando la elidida no alcanza
         self.setToolTip(str(entrada.ruta))
+        self.clicked.connect(self._al_hacer_click)
+
+    def _al_hacer_click(self) -> None:
+        """Un proyecto que no esta no se abre.
+
+        El corte vive AQUI y no en `setEnabled(False)`: apagar el widget
+        tambien apaga el clic derecho, y con el se iba el unico «Quitar de
+        la lista» que tiene la pantalla -- justo en los renglones que uno
+        quiere quitar.
+        """
+        if self.disponible:
+            self.abrir_pedido.emit(self.entrada.ruta)
 
     @staticmethod
     def _detalle(entrada, disponible: bool) -> str:
@@ -203,9 +229,10 @@ class PantallaInicio(QWidget):
         self.filas = []
         for entrada in entradas:
             fila = _FilaReciente(entrada, self.lista_host)
-            fila.clicked.connect(
-                lambda _=False, e=entrada: self.abrir_pedido.emit(e.ruta)
-            )
+            # `abrir_pedido` de la fila y no su `clicked`: la fila decide si
+            # se puede abrir (ver `_al_hacer_click`), y esa decision no se
+            # copia aqui -- dos lugares diciendo lo mismo se desincronizan.
+            fila.abrir_pedido.connect(self.abrir_pedido.emit)
             fila.quitar_pedido.connect(self.quitar_pedido.emit)
             self.lista.addWidget(fila)
             self.filas.append(fila)
