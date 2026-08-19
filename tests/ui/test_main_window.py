@@ -4946,3 +4946,97 @@ def test_el_trinquete_tampoco_aparece_con_un_clip_vertical(qtbot):
     window.alternar_solo_video()
 
     assert window.width() == antes
+
+
+def test_apagar_el_modo_ancho_no_infla_la_ventana(qtbot):
+    """El MISMO trinquete de `F`, en el camino que se quedó sin el arreglo.
+
+    Con el modo ancho puesto el visor queda anclado a 1344 px, y ese ancho
+    es tambien su MINIMO. Al apagarlo la hoja vuelve ANTES de que se
+    recalcule, asi que por un instante el minimo de la ventana es
+    `rail + columna + 1344 + minimo de la hoja` -- y Qt la crece hasta ahi y
+    no la vuelve a encoger. Cada vuelta la crece otro tanto: medido en Mac,
+    1512 -> 1878 -> 1982 px, o sea mas ancha que la pantalla.
+    """
+    window = _ventana_con_clip_horizontal(qtbot)
+    antes = window.width()
+
+    window.set_modo_horizontal(True)
+    window.set_modo_horizontal(False)
+
+    assert window.width() == antes
+
+
+def test_el_modo_ancho_no_infla_ni_dando_varias_vueltas(qtbot):
+    """El trinquete se acumula: una vuelta sola podria pasar por casualidad."""
+    window = _ventana_con_clip_horizontal(qtbot)
+    antes = window.width()
+
+    for _ in range(3):
+        window.set_modo_horizontal(True)
+        window.set_modo_horizontal(False)
+
+    assert window.width() == antes
+
+
+def test_apagar_el_modo_ancho_sin_clips_tampoco_infla(qtbot):
+    """Sin material el aspecto se supone 16:9, o sea que el visor pide igual
+    de ancho -- y la app abre sin clips."""
+    window = _window_with_video(qtbot)
+    window.resize(1600, 900)
+    window.show()
+    qtbot.waitExposed(window)
+    if window._modo_hoja:
+        window.alternar_modo_hoja()
+    window._resize_video_stage()
+    antes = window.width()
+
+    window.set_modo_horizontal(True)
+    window.set_modo_horizontal(False)
+
+    assert window.width() == antes
+
+
+def test_la_ventana_se_puede_achicar_con_material_horizontal(qtbot):
+    """Agrandar la ventana no puede ser de un solo sentido.
+
+    `setFixedWidth` fija el minimo del visor, y con material horizontal ese
+    minimo es casi toda la ventana: agrandabas a 1500 y ya no podias volver
+    a 1200 -- el minimo de la ventana se habia quedado en el ancho de antes.
+    Con material vertical no pasaba, porque ahi el visor nunca es el piso, y
+    por eso el bug vivio sin que nadie lo viera.
+    """
+    window = _ventana_con_clip_horizontal(qtbot, ancho=1200)
+
+    window.resize(1500, 900)
+    window.resize(1000, 900)
+
+    assert window.width() == 1000
+
+
+def test_la_ventana_se_puede_achicar_con_el_modo_ancho_puesto(qtbot):
+    window = _ventana_con_clip_horizontal(qtbot, ancho=1200)
+    window.set_modo_horizontal(True)
+
+    window.resize(1500, 900)
+    window.resize(1000, 900)
+
+    assert window.width() == 1000
+
+
+def test_el_boton_ancho_no_se_ofrece_en_la_hoja(qtbot):
+    """Un control que no puede hacer nada no se deja apretable.
+
+    El modo ancho solo habla de lo que pasa en modo CLIP (spec §3), y la app
+    ABRE en la hoja: apretarlo ahi no movia un pixel. Y como el boton
+    tampoco se veia hundido, dos clics lo dejaban apagado mientras Bruno
+    creia haberlo prendido.
+    """
+    window = _ventana_con_clip_horizontal(qtbot)
+    assert window.title_bar.visor_button.isEnabled()
+
+    window.alternar_modo_hoja()          # ⇥, a la hoja
+    assert not window.title_bar.visor_button.isEnabled()
+
+    window.alternar_modo_hoja()          # y de vuelta al visor
+    assert window.title_bar.visor_button.isEnabled()

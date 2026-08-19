@@ -98,6 +98,10 @@ STATUSBAR_HEIGHT = 24
 RAIL_WIDTH = 200
 TOOLCOL_WIDTH = 56
 SHEET_MIN_WIDTH = 340
+# El visor mas angosto con el que la ventana todavia sirve. NO es un limite
+# del visor --su ancho lo manda la forma del clip-- sino el sumando que le
+# toca dentro del ancho MINIMO de la ventana (ver `MainWindow.__init__`).
+VIDEO_MIN_WIDTH = 260
 OVERLAY_MARGIN = 13       # margen de los controles flotantes sobre el video
 SCRUB_HEIGHT = 26
 # El segmento activo de VELOCIDAD va en ambar, no en el gris del resto de los

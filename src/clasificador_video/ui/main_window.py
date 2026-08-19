@@ -659,6 +659,23 @@ class MainWindow(QWidget):
         self._autosave_pool = QThreadPool(self)
         self._autosave_pool.setMaxThreadCount(1)
 
+        # El ancho MINIMO de la ventana se declara, no se deduce del layout.
+        #
+        # Sin esta linea Qt lo saca sumando los minimos de los hijos, y uno
+        # de esos hijos es el visor -- que lleva `setFixedWidth`, o sea que
+        # su ancho de AHORITA es tambien su minimo. Con material horizontal
+        # ese ancho es casi toda la ventana: agrandabas de 1200 a 1500 y ya
+        # no podias volver, porque el minimo se habia quedado en 1500.
+        # Agrandar era de un solo sentido. Con material vertical no pasaba
+        # --ahi el visor nunca es el piso-- y por eso vivio sin que nadie lo
+        # viera: casi todo el material de Bruno es vertical.
+        #
+        # Declarado a mano, el minimo deja de depender del clip que estes
+        # viendo, y `_resize_video_stage` --que corre en cada `resizeEvent`--
+        # achica el visor mientras la ventana encoge.
+        self.setMinimumWidth(theme.RAIL_WIDTH + theme.TOOLCOL_WIDTH
+                             + theme.SHEET_MIN_WIDTH + theme.VIDEO_MIN_WIDTH)
+
         self.bins = BinTree()
         # ¿la hoja agrupa por cuarto, o deja el orden de rodaje? Vive aqui y
         # no solo en la hoja porque se guarda en el proyecto. `True` es como
@@ -3227,6 +3244,15 @@ class MainWindow(QWidget):
         guardado (ver el mismo criterio en `set_agrupar_por_cuarto`)."""
         self._modo_horizontal = bool(activo)
         self.title_bar.set_modo_horizontal(self._modo_horizontal)
+        # Se suelta el ancho ANTES de que los paneles cambien, por la misma
+        # razon --y con el mismo gesto-- que al salir de solo video: el ancho
+        # que `setFixedWidth` dejo puesto es tambien el MINIMO del visor, y
+        # apenas la hoja reaparece ese minimo se suma al de ella. Apagando el
+        # modo ancho la ventana se inflaba de 1512 a 1878 px, y cada vuelta
+        # otro tanto (1982 a la segunda), o sea mas ancha que la pantalla y
+        # sin vuelta atras. Con `1` no hay piso que sumar y el ancho de
+        # verdad lo pone `_resize_video_stage` unas lineas mas abajo.
+        self.video_stage.setFixedWidth(1)
         self._mostrar_paneles()
         # el ancho del video sale de lo que los paneles dejen libre: esconder
         # la hoja sin recalcular deja el video del tamaño de antes, que es
