@@ -113,11 +113,12 @@ flechas**. Con «solo picks» puesto, `→` salta al siguiente pick.
 
 **Material horizontal.** Un clip vertical usa toda la altura de la ventana;
 uno horizontal no alcanza, porque el ancho se lo reparten el rail y la hoja.
-El interruptor **Normal / Ancho** de la barra de arriba esconde la hoja
-mientras ves clip por clip y le da su espacio al video —el rail y el estado
-del clip se quedan—. En una ventana de 1600×900 la imagen pasa de 939×528 a
-1344×756. Con `F` va todavía más grande, pero ahí se esconde todo. Se guarda
-con el proyecto.
+El botón **Ancho** de la barra de arriba esconde la hoja mientras ves clip
+por clip y le da su espacio al video —el rail y el estado del clip se
+quedan—. Se queda hundido mientras está puesto, y solo se deja apretar en
+modo clip: en la hoja no hay video al que darle espacio. En una ventana de
+1600×900 la imagen pasa de 939×528 a 1344×756. Con `F` va todavía más
+grande, pero ahí se esconde todo. Se guarda con el proyecto.
 
 ### 4. En la hoja
 

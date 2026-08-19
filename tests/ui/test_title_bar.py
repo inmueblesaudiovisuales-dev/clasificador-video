@@ -179,3 +179,41 @@ def test_un_guardado_bueno_borra_el_aviso_de_falla(qtbot):
 
     assert barra.saved_label.text() == "Guardado hace 0 s"
     assert barra.saved_label.toolTip() == ""
+
+
+def test_el_boton_ancho_se_VE_prendido(qtbot):
+    """Un interruptor que funciona pero no se nota es un control que miente.
+
+    Con una hoja de estilos puesta, Qt deja de dibujar el hundido nativo del
+    sistema: `setCheckable(True)` seguia guardando el estado, pero el boton
+    se veia identico prendido que apagado. Medido pixel a pixel el
+    2026-08-18, los dos daban el mismo `#1d2128`.
+
+    Se comparan los PIXELES y no la hoja de estilos: lo que hay que
+    defender es que se vea distinto, no como se escribio.
+    """
+    from PySide6.QtWidgets import QApplication
+
+    QApplication.instance().setStyleSheet(theme.build_stylesheet())
+    bar = _bar(qtbot)
+    bar.resize(900, theme.TITLEBAR_HEIGHT)
+    bar.show()
+    qtbot.waitExposed(bar)
+
+    apagado = bar.visor_button.grab().toImage()
+    bar.set_modo_horizontal(True)
+    prendido = bar.visor_button.grab().toImage()
+
+    assert prendido != apagado
+
+
+def test_el_boton_ancho_no_se_deja_apretar_en_la_hoja(qtbot):
+    """El modo ancho solo habla de lo que pasa en modo clip (spec §3), y la
+    app abre en la hoja: ahi apretarlo no movia un pixel."""
+    bar = _bar(qtbot)
+
+    bar.set_modo_hoja(True)
+    assert not bar.visor_button.isEnabled()
+
+    bar.set_modo_hoja(False)
+    assert bar.visor_button.isEnabled()

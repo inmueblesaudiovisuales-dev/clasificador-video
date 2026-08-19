@@ -126,7 +126,8 @@ class TitleBar(QWidget):
             "Ancho: esconde la hoja de contactos en modo clip y le da su "
             "espacio al video. El rail y el estado del clip se quedan.\n"
             "Sirve para material horizontal, donde el video no alcanza a "
-            "usar el alto de la ventana."
+            "usar el alto de la ventana.\n"
+            "En la hoja no se puede: ahí no hay video al que darle espacio."
         )
         self.visor_button.toggled.connect(self._al_elegir_visor)
 
@@ -184,6 +185,14 @@ class TitleBar(QWidget):
         for boton, etiqueta in zip(self.mode_switch.buttons, etiquetas):
             boton.setText(etiqueta)
         self.mode_switch.set_current(etiquetas[1 if en_hoja else 0])
+        # El «Ancho» solo habla de lo que pasa en modo CLIP (spec §3): en la
+        # hoja no puede mover un pixel, asi que en la hoja no se deja
+        # apretar. Se apaga en vez de esconderse para que no baile la barra
+        # --y para que se siga viendo hundido si quedo prendido--, y sobre
+        # todo porque la app ABRE en la hoja: ahi apretarlo no hacia nada, y
+        # como tampoco se veia hundido, dos clics lo dejaban apagado
+        # mientras uno creia haberlo prendido.
+        self.visor_button.setEnabled(not en_hoja)
 
     def set_modo_horizontal(self, activo: bool) -> None:
         """Sincroniza el interruptor con el estado. NO emite: es una vista

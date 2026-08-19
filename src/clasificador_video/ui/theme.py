@@ -512,6 +512,32 @@ def build_stylesheet() -> str:
     QPushButton#railButton:hover {{
         background-color: {BG_SURFACE_1};
     }}
+    /* El que se queda HUNDIDO (el «Ancho» de la barra de titulo). Sin esta
+       regla el boton se ve identico prendido que apagado: con una hoja de
+       estilos puesta, Qt ya no dibuja el hundido nativo del sistema, asi que
+       `setCheckable(True)` funciona pero no se nota. Comprobado pixel a
+       pixel el 2026-08-18: los dos estados daban el mismo gris de
+       `BG_SURFACE_2`.
+       Se aclara la superficie y se sube el borde, que es como ya se
+       distingue el chip elegido de una fila de filtros. NO lleva el ambar
+       de `CURRENT_COLOR`: ese color significa «por aqui van las flechas» y
+       «este es el clip actual», y este boton no habla de eso. */
+    QPushButton#railButton:checked {{
+        background-color: {LINE};
+        border-color: {TEXT_3};
+        color: {TEXT};
+    }}
+    QPushButton#railButton:checked:hover {{
+        background-color: {LINE};
+    }}
+    /* Y el que no se puede apretar ahora mismo: el «Ancho» en modo hoja, que
+       solo habla de lo que pasa en modo clip. Apagado se lee «existe, pero
+       no aqui», que es la verdad -- antes se veia normal y no hacia nada. */
+    QPushButton#railButton:disabled {{
+        background-color: {BG_SURFACE_0};
+        border-color: {LINE_SOFT};
+        color: {TEXT_3};
+    }}
 
     QWidget#statusBar {{
         background-color: {BG_SURFACE_0};
