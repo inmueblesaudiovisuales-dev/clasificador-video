@@ -3303,9 +3303,23 @@ class ClipSheet(QWidget):
         Ojo: NO es el orden de `item_widgets`, que va por indice de clip. Este
         sirve para probar que una pincelada no reacomoda la hoja bajo el
         cursor mientras pintas.
+
+        Lee la GRILLA de verdad, no el orden que los datos implican. La
+        diferencia importa justo aqui: mientras el pincel esta cargado la
+        hoja se congela (`congelar_acomodo`), asi que el cuarto de un clip ya
+        cambio pero su tarjeta NO se movio -- y esta funcion tiene que decir
+        que no se movio. Por eso NO sale de `indices_en_orden_visual`, que
+        contesta la otra pregunta: donde IRIA cada tarjeta. Las dos existen y
+        no son la misma; lo que no puede pasar es que se calculen igual.
+
+        Los bloques se recorren con `_ordered_blocks()`, que los lee del
+        layout. Antes se recorria `self._blocks`, que esta en orden de
+        CREACION: los bloques sobreviven a las reagrupadas, asi que un cuarto
+        que aparece despues pero va antes por abecedario --clasificas «Sala»
+        y luego «Cocina»-- se dibuja arriba y aqui salia abajo.
         """
         numeros = []
-        for block in self._blocks.values():
+        for block in self._ordered_blocks():
             if block.isHidden():
                 continue
             for posicion in range(block.grid.count()):

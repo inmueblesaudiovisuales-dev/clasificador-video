@@ -95,7 +95,7 @@ clips).
 | `K` `L` | pausa / adelante (1× → 2× → 4×), como en Premiere |
 | `,` `.` | un cuadro atrás / adelante |
 | `R` | vuelve al inicio del clip |
-| `F` | pantalla completa |
+| `F` | pantalla completa (esconde todo menos el video) |
 | `⇥` | cambia entre clip y hoja de contactos |
 | `+` `-` | miniaturas más grandes o más chicas |
 | `⌘Z` | deshacer |
@@ -110,6 +110,14 @@ estás mirando.
 
 Los filtros no cambian solo lo que ves: **cambian por dónde te llevan las
 flechas**. Con «solo picks» puesto, `→` salta al siguiente pick.
+
+**Material horizontal.** Un clip vertical usa toda la altura de la ventana;
+uno horizontal no alcanza, porque el ancho se lo reparten el rail y la hoja.
+El interruptor **Normal / Ancho** de la barra de arriba esconde la hoja
+mientras ves clip por clip y le da su espacio al video —el rail y el estado
+del clip se quedan—. En una ventana de 1600×900 la imagen pasa de 939×528 a
+1344×756. Con `F` va todavía más grande, pero ahí se esconde todo. Se guarda
+con el proyecto.
 
 ### 4. En la hoja
 

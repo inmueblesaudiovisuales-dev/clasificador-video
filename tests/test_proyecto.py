@@ -344,3 +344,12 @@ def test_el_documento_guarda_como_se_ve_la_hoja():
     # por omision, como se comporta desde la F4
     assert documento()["agrupar_por_cuarto"] is True
     assert documento(agrupar_por_cuarto=False)["agrupar_por_cuarto"] is False
+
+
+def test_el_documento_guarda_si_el_visor_va_ancho():
+    def documento(**extra):
+        return a_dict(proyecto="P", rooms=[], clips=[], bins=BinTree(),
+                      tamanos={}, duraciones={}, rotaciones={}, **extra)
+
+    assert documento()["modo_horizontal"] is False
+    assert documento(modo_horizontal=True)["modo_horizontal"] is True

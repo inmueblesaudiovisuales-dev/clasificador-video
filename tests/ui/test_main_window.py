@@ -4794,3 +4794,155 @@ def test_un_archivo_ilegible_no_corta_la_tanda_ni_corre_los_indices(qtbot, monke
     assert [c.ruta.name for c in clips] == ["C0000.MP4", "C0002.MP4", "C0003.MP4"]
     # y las medidas van por el indice NUEVO, sin huecos del que se salto
     assert sorted(medidas["duraciones"]) == [0, 1, 2]
+
+
+# --- modo horizontal: el visor sin la hoja al lado -----------------------
+#
+# Ver `docs/superpowers/specs/2026-08-15-modo-horizontal-design.md`.
+
+
+def _ventana_con_clip_horizontal(qtbot, ancho=1600, alto=900):
+    window = _window_with_video(qtbot)
+    window.resize(ancho, alto)
+    window.load_clips([Clip(orden=1, ruta=Path("/c/H.MP4"), categoria_path=[],
+                            fps=30.0)])
+    window._clip_sizes = {0: (3840, 2160)}
+    window.show()
+    qtbot.waitExposed(window)
+    if window._modo_hoja:
+        window.alternar_modo_hoja()       # a modo clip, que es donde aplica
+    window._resize_video_stage()
+    return window
+
+
+def test_el_modo_horizontal_esconde_la_hoja_y_le_da_su_ancho_al_video(qtbot):
+    """Lo que el modo existe para hacer, en numeros.
+
+    Un 16:9 a toda altura pide 1493 px de ancho y solo hay 939 con la hoja
+    al lado, asi que el visor queda alto y angosto y mpv rellena con negro.
+    Sin la hoja son 1344 -- el doble de area de imagen.
+    """
+    window = _ventana_con_clip_horizontal(qtbot)
+    antes = window.video_stage.width()
+
+    window.set_modo_horizontal(True)
+
+    assert window.clip_sheet.isHidden()
+    assert window.video_stage.width() > antes
+    # el ancho es exactamente lo que dejan el rail y la columna de estado
+    assert window.video_stage.width() == (
+        window.width() - theme.RAIL_WIDTH - theme.TOOLCOL_WIDTH
+    )
+
+
+def test_el_modo_horizontal_deja_el_rail_y_el_estado_del_clip(qtbot):
+    """Es el punto medio entre la hoja al lado y `F`: lo unico que se va son
+    las miniaturas, que es lo que no estas mirando toma por toma."""
+    window = _ventana_con_clip_horizontal(qtbot)
+
+    window.set_modo_horizontal(True)
+
+    assert not window.room_rail.isHidden()
+    assert not window.tool_column.isHidden()
+    assert not window.title_bar.isHidden()
+    assert not window.status_bar.isHidden()
+
+
+def test_en_modo_hoja_la_hoja_se_ve_aunque_el_visor_vaya_ancho(qtbot):
+    """Sin hoja no hay modo hoja. El modo horizontal solo habla de lo que
+    pasa en modo clip."""
+    window = _ventana_con_clip_horizontal(qtbot)
+    window.set_modo_horizontal(True)
+    assert window.clip_sheet.isHidden()
+
+    window.alternar_modo_hoja()
+
+    assert not window.clip_sheet.isHidden()
+
+
+def test_salir_de_solo_video_no_devuelve_la_hoja_que_el_modo_escondio(qtbot):
+    """La regla de visibilidad vivia repartida entre los dos modos que
+    esconden paneles. Con un tercero en la mezcla, `F` y de vuelta traia la
+    hoja que el modo horizontal acababa de esconder.
+
+    Se comprueba la HOJA y no el ancho del visor: el ancho despues de un ida
+    y vuelta de `F` con un clip horizontal esta contaminado por un trinquete
+    que ya existe en master --la ventana crece de 1600 a 1800 px y no
+    encoge-- y que no es de este modo. Va anotado aparte.
+    """
+    window = _ventana_con_clip_horizontal(qtbot)
+    window.set_modo_horizontal(True)
+
+    window.alternar_solo_video()          # F
+    window.alternar_solo_video()          # y de vuelta
+
+    assert window.clip_sheet.isHidden()
+    assert window.modo_horizontal() is True
+
+
+def test_solo_video_sigue_ganandole_al_modo_horizontal(qtbot):
+    window = _ventana_con_clip_horizontal(qtbot)
+    window.set_modo_horizontal(True)
+
+    window.alternar_solo_video()
+
+    assert window.clip_sheet.isHidden()
+    assert window.room_rail.isHidden()
+    assert window.video_stage.width() == window.width()
+
+
+def test_apagar_el_modo_horizontal_devuelve_la_hoja(qtbot):
+    window = _ventana_con_clip_horizontal(qtbot)
+    window.set_modo_horizontal(True)
+
+    window.set_modo_horizontal(False)
+
+    assert not window.clip_sheet.isHidden()
+
+
+def test_el_interruptor_de_la_barra_avisa_y_restaurar_no(qtbot):
+    """Restaurar un proyecto no puede disparar el guardado que lo puso."""
+    window = _ventana_con_clip_horizontal(qtbot)
+    avisos = []
+    window.title_bar.modo_horizontal_cambiado.connect(avisos.append)
+
+    window.set_modo_horizontal(True)       # como al restaurar
+    assert avisos == []
+    assert window.title_bar.visor_button.isChecked()
+
+    window.title_bar.visor_button.click()              # como el usuario
+    assert avisos == [False]
+    assert window.modo_horizontal() is False
+
+
+def test_solo_video_y_volver_no_infla_la_ventana(qtbot):
+    """El trinquete: `setFixedWidth` fija tambien el MINIMO.
+
+    Saliendo de `F`, el visor venia anclado al ancho de la ventana entera y
+    apenas volvian el rail y la columna ese ancho se sumaba al minimo de
+    ellos: la ventana crecia de 1600 a 1800 px y no encogia nunca. Cada `F`
+    le comia un pedazo mas.
+
+    Con material VERTICAL no se veia --el visor ya es angosto y nunca llega
+    a ser el piso-- asi que solo aparece con material horizontal, que es
+    justo donde el ancho ya escaseaba.
+    """
+    window = _ventana_con_clip_horizontal(qtbot)
+    antes = window.width()
+
+    window.alternar_solo_video()          # F
+    window.alternar_solo_video()          # y de vuelta
+
+    assert window.width() == antes
+
+
+def test_el_trinquete_tampoco_aparece_con_un_clip_vertical(qtbot):
+    window = _ventana_con_clip_horizontal(qtbot)
+    window._clip_sizes = {0: (2160, 3840)}
+    window._resize_video_stage()
+    antes = window.width()
+
+    window.alternar_solo_video()
+    window.alternar_solo_video()
+
+    assert window.width() == antes
