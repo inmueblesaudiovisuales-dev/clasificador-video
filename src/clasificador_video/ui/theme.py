@@ -395,6 +395,19 @@ def build_stylesheet() -> str:
         color: {TEXT_2};
         font-size: {FONT_SMALL}px;
     }}
+    /* El renglon que ya no se puede cumplir: pierde contraste y su boton se
+       apaga, para que se lea «esta, pero no se puede». Va por PROPIEDAD y no
+       por `:disabled` sobre la fila -- una fila apagada no recibe eventos de
+       mouse, y ahi vive el tooltip que explica el porque. Mismo criterio que
+       la fila de un proyecto que no se encuentra. */
+    QWidget#histRow[bloqueada="true"] QLabel#histWhat,
+    QWidget#histRow[bloqueada="true"] QLabel#histDetail {{
+        color: {TEXT_3};
+    }}
+    QWidget#histRow[bloqueada="true"][top="true"] {{
+        background-color: transparent;
+        border-left: 2px solid {LINE_SOFT};
+    }}
     QPushButton#histUndo {{
         background-color: transparent;
         border: none;

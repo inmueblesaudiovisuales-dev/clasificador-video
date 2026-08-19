@@ -288,7 +288,8 @@ class _FilaHistorial(QWidget):
 
     revert_requested = Signal(int)
 
-    def __init__(self, entry, es_primera: bool, parent=None):
+    def __init__(self, entry, es_primera: bool, motivo_bloqueado: str | None = None,
+                 parent=None):
         super().__init__(parent)
         self.setObjectName("histRow")
         self.setAttribute(Qt.WA_StyledBackground, True)
@@ -325,6 +326,18 @@ class _FilaHistorial(QWidget):
         self.undo_button.clicked.connect(
             lambda: self.revert_requested.emit(self.entry_id)
         )
+
+        # Un renglon que ya no se puede cumplir se APAGA, no se esconde: hay
+        # que poder ver que la accion existio. Se marca por PROPIEDAD y no
+        # con `setEnabled(False)` sobre la fila entera, porque un widget
+        # apagado no recibe eventos de mouse y el tooltip --que es donde vive
+        # el porque-- no se veria. Mismo tropiezo que ya tuvo la fila de
+        # proyectos recientes.
+        self.motivo_bloqueado = motivo_bloqueado
+        self.setProperty("bloqueada", "true" if motivo_bloqueado else "false")
+        if motivo_bloqueado:
+            self.undo_button.setEnabled(False)
+            self.setToolTip(f"No se puede deshacer: {motivo_bloqueado}")
 
         # `Maximum` deja que la etiqueta se ENCOJA y elida cuando el nombre del
         # cuarto es largo, pero nunca que crezca mas alla de su texto: con
@@ -579,20 +592,29 @@ class RoomRail(QWidget):
         if nombre.strip():
             self.room_created.emit(nombre.strip())
 
-    def set_history(self, entries: list) -> None:
+    def set_history(self, entries: list,
+                    bloqueadas: dict[int, str] | None = None) -> None:
         """Las ultimas acciones, la mas reciente arriba. Se le pasa la lista
-        completa del `History`; aca se recorta a lo que entra en el rail."""
+        completa del `History`; aca se recorta a lo que entra en el rail.
+
+        `bloqueadas` es `{id_de_entrada: por que}`, y lo calcula la VENTANA:
+        el rail no sabe que es un bin ni tiene por que saberlo.
+        """
+        bloqueadas = bloqueadas or {}
         # mismas entradas, mismas filas: `_refresh_history` corre en cada
-        # accion y casi siempre el historial no cambio
-        ids = [e.id for e in entries[:MAX_HISTORIAL]]
-        if ids == [f.entry_id for f in self.history_rows]:
+        # accion y casi siempre el historial no cambio. La firma incluye lo
+        # BLOQUEADO porque eso cambia sin que cambien los ids -- meterle
+        # clips a un bin no crea ni quita entradas, solo apaga un renglon.
+        firma = [(e.id, bloqueadas.get(e.id)) for e in entries[:MAX_HISTORIAL]]
+        if firma == [(f.entry_id, f.motivo_bloqueado) for f in self.history_rows]:
             return
         for fila in self.history_rows:
             fila.setParent(None)
             fila.deleteLater()
         self.history_rows = []
         for posicion, entrada in enumerate(entries[:MAX_HISTORIAL]):
-            fila = _FilaHistorial(entrada, es_primera=(posicion == 0))
+            fila = _FilaHistorial(entrada, es_primera=(posicion == 0),
+                                  motivo_bloqueado=bloqueadas.get(entrada.id))
             fila.revert_requested.connect(self.revert_requested.emit)
             self._history_layout.addWidget(fila)
             self.history_rows.append(fila)

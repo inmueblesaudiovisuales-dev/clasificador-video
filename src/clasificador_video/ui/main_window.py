@@ -1309,9 +1309,39 @@ class MainWindow(QWidget):
         self.history.push(HistoryEntry(etiqueta, detalle, color, antes, cuarto_borrado))
         self._refresh_history()
 
+    def _motivo_bloqueado(self, entrada: HistoryEntry) -> str | None:
+        """Por que ese renglon ya no se puede deshacer, o `None` si si se puede.
+
+        Lo calcula la ventana porque es quien conoce los bins: `History` se
+        queda sin saber que es un bin, igual que se quedo sin saber que es un
+        cuarto.
+        """
+        if entrada.bin_creado is not None and self.bins.clips_de(entrada.bin_creado):
+            return "ya tiene clips"
+        if entrada.bins_antes is not None:
+            nombres = self.bins.nombres()
+            if any(b is not None and b not in nombres
+                   for b in entrada.bins_antes.values()):
+                return "ese bin ya no está"
+        if entrada.bin_renombrado is not None:
+            _, nuevo = entrada.bin_renombrado
+            if nuevo not in self.bins.nombres():
+                return "ese bin ya no está"
+        return None
+
     def _refresh_history(self) -> None:
-        self.room_rail.set_history(self.history.entries())
-        self.tool_column.set_can_undo(self.history.can_undo())
+        entradas = self.history.entries()
+        bloqueadas = {}
+        for entrada in entradas:
+            motivo = self._motivo_bloqueado(entrada)
+            if motivo is not None:
+                bloqueadas[entrada.id] = motivo
+        self.room_rail.set_history(entradas, bloqueadas)
+        # `⌘Z` deshace la de arriba: si esa esta bloqueada no hay nada que
+        # deshacer, y el boton tiene que decirlo igual que el renglon
+        self.tool_column.set_can_undo(
+            bool(entradas) and entradas[0].id not in bloqueadas
+        )
 
     def undo(self) -> None:
         """`⌘Z`: deshace la accion de arriba del historial."""

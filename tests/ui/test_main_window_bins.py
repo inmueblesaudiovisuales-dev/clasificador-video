@@ -1958,3 +1958,24 @@ def test_renombrar_un_bin_no_toca_el_renglon_de_un_cuarto_que_se_llame_igual(qtb
 
     de_cuarto = [e for e in window.history.entries() if not e.habla_de_bins()][0]
     assert de_cuarto.etiqueta == "Cocina"
+
+
+def test_el_renglon_del_bin_creado_se_bloquea_al_meterle_clips(qtbot):
+    window = _ventana_con_bins(qtbot)
+    window._on_bin_nuevo_pedido()
+    entrada = window.history.entries()[0]
+    nuevo = entrada.bin_creado
+    assert window._motivo_bloqueado(entrada) is None
+
+    window._on_clips_movidos([0], nuevo)
+
+    assert window._motivo_bloqueado(entrada) == "ya tiene clips"
+
+
+def test_se_bloquea_el_arrastre_cuyo_bin_de_origen_ya_no_esta(qtbot):
+    window = _ventana_con_bins(qtbot)
+    window._on_clips_movidos([0], "Card B")
+    entrada = window.history.entries()[0]
+    window.bins.quitar("Card A")
+
+    assert window._motivo_bloqueado(entrada) == "ese bin ya no está"

@@ -554,3 +554,30 @@ def test_la_fila_de_S_sobrevive_a_reconstruir_los_cuartos(qtbot):
     rail.set_rooms(["Cocina", "Sala"], {"Cocina": 3})
     assert not rail.same_row.isHidden()
     assert "Cocina" in rail.same_row.name_label.full_text()
+
+
+def test_un_renglon_bloqueado_se_apaga_y_dice_por_que(qtbot):
+    """No desaparece: Bruno tiene que poder ver que la accion existio, igual
+    que un proyecto que no se encuentra se ve apagado en vez de esfumarse."""
+    rail = _rail(qtbot)
+    entrada = _entrada(etiqueta="Card C", detalle="→ bin nuevo")
+
+    rail.set_history([entrada], {entrada.id: "ya tiene clips"})
+
+    fila = rail.history_rows[0]
+    assert not fila.undo_button.isEnabled()
+    assert "ya tiene clips" in fila.toolTip()
+
+
+def test_el_renglon_se_vuelve_a_dibujar_al_cambiar_lo_bloqueado(qtbot):
+    """`set_history` se salta el redibujado cuando los ids son los mismos, y
+    los ids NO cambian al bloquearse: sin mirarlo, el renglon se quedaba
+    prendido despues de dejar de poderse."""
+    rail = _rail(qtbot)
+    entrada = _entrada(etiqueta="Card C", detalle="→ bin nuevo")
+    rail.set_history([entrada])
+    assert rail.history_rows[0].undo_button.isEnabled()
+
+    rail.set_history([entrada], {entrada.id: "ya tiene clips"})
+
+    assert not rail.history_rows[0].undo_button.isEnabled()
