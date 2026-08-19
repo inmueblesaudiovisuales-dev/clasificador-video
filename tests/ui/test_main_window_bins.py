@@ -2014,3 +2014,36 @@ def test_el_boton_de_deshacer_se_apaga_si_el_de_arriba_esta_bloqueado(qtbot):
     window._refresh_history()
 
     assert not window.tool_column.undo_button.isEnabled()
+
+
+def test_el_caso_del_spec_de_punta_a_punta(qtbot):
+    """Lo que Bruno vivió el 2026-08-18, tal cual: clasificar, arrastrar sin
+    querer, y apretar ⌘Z. Antes el clip se quedaba en el bin nuevo Y otro
+    clip perdía su cuarto."""
+    window = _ventana_con_bins(qtbot)
+    for indice, tecla in ((0, "1"), (1, "1"), (2, "2")):
+        window.select_clip(indice)
+        window.handle_key_press(tecla)
+    cuartos = [list(c.categoria_path) for c in window.clips]
+
+    window._on_clips_movidos([0], "Card B")
+    window.undo()
+
+    assert window.bins.bin_de(0) == "Card A"
+    assert [list(c.categoria_path) for c in window.clips] == cuartos
+
+
+def test_quitar_un_bin_sigue_vaciando_el_historial(qtbot):
+    """No entra en este trabajo y tiene que seguir igual: sacar clips corre
+    los numeros de todos los demas, y cada entrada habla por numero de clip.
+
+    El cartel de confirmacion lo contesta la fixture `confirmar_por_defecto`.
+    """
+    window = _ventana_con_bins(qtbot)
+    window.select_clip(0)
+    window.handle_key_press("1")
+    assert window.history.entries()
+
+    window._on_bin_quitado("Card A")
+
+    assert window.history.entries() == []

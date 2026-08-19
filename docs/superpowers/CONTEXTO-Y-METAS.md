@@ -170,6 +170,36 @@ medido que no calza cuadro a cuadro.
 
 ---
 
+## Lo que se cerró el 2026-08-18
+
+### Los bins en el deshacer — **hecho**
+
+Estaba en «lo que falta» descrito como una función pendiente: «los bins no
+pasan por el historial que ya existe». Al probarlo con la app corriendo
+resultó ser otra cosa, y peor: **`⌘Z` prometía deshacer lo último y deshacía
+otra cosa.** Arrastrabas un clip a otro bin, apretabas `⌘Z`, y el clip se
+quedaba donde lo soltaste mientras otro clip perdía el cuarto que le habías
+puesto. Dos cosas mal, ninguna avisaba.
+
+Pegaba justo donde el diseño quiso ser cuidadoso: se decidió a propósito que
+arrastrar cambie el bin y nunca el cuarto, para que un gesto mal soltado no
+reclasifique — pero deshacer ese gesto sí reclasificaba, al revés.
+
+Ahora mover clips, crear un bin y renombrarlo entran al historial con su
+renglón y su `↺`. Un renglón que ya no se puede cumplir —el bin creado ya
+tiene clips, o el bin al que había que regresar los clips ya no está— **se
+apaga y dice por qué** en vez de hacer otra cosa, y `⌘Z` no se salta al
+siguiente ni se lo traga.
+
+**Quitar un bin se quedó fuera a propósito**, y no por falta de tiempo: esa
+acción saca clips del proyecto, y eso corre los números de todos los demás
+mientras cada entrada del historial habla por número de clip. Ya está
+resuelto de otra forma —vacía el historial entero— y así se queda.
+
+Detalle en `specs/2026-08-18-bins-en-el-deshacer-design.md`.
+
+---
+
 ## Lo que falta
 
 ### 1. Correr un shooting completo con la app — **lo primero**
@@ -206,12 +236,11 @@ separados por coma o salto, autocompletar con los nombres ya usados, y
 plantillas guardadas. Aprobado por Bruno, sin plan ni implementación. Nace de
 que él graba inmuebles y los cuartos se repiten casa tras casa.
 
-### 4. Los bins en el deshacer, y filtrar por duración
+### 4. Filtrar por duración
 
-Las dos son chicas y las dos salieron de corregir listas mal presentadas (ver
-abajo). Los bins —crear, borrar, renombrar, arrastrar clips— no pasan por el
-historial que ya existe. Y el buscador de la hoja ya filtra por nombre, cuarto,
-estado y bin; lo único que no cubre de lo que se ofreció es la duración.
+El buscador de la hoja ya filtra por nombre, cuarto, estado y bin; lo único
+que no cubre de lo que se ofreció es la duración. Salió de corregir una lista
+mal presentada (ver abajo).
 
 ### 5. Escala y velocidad — **medido el 2026-08-10, con su material**
 

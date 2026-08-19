@@ -421,6 +421,14 @@ def build_stylesheet() -> str:
     QPushButton#histUndo:hover {{
         color: {TEXT};
     }}
+    /* el `↺` de un renglon que ya no se puede cumplir. Sin esta regla el
+       boton se veia igual de encendido que uno que si funciona: comprobado
+       mirando el pixel el 2026-08-18, el texto de la fila si se apagaba y el
+       glifo no. Un boton que invita a apretarse y no hace nada es la misma
+       mentira, mas chica. */
+    QPushButton#histUndo:disabled {{
+        color: {LINE};
+    }}
 
     QPushButton#newRoomRow {{
         background-color: transparent;

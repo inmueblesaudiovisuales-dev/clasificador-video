@@ -130,6 +130,11 @@ Arrastra clips de un bin a otro. **Arrastrar cambia el bin y nada más** — el
 cuarto sigue siendo cosa del teclado, para que un gesto mal soltado no
 reclasifique.
 
+Mover clips de bin, crear un bin y renombrarlo **se deshacen con `⌘Z`** y
+aparecen en la lista del rail como cualquier otra acción. Un renglón que ya
+no se puede cumplir —creaste un bin y ya le metiste clips— se ve apagado y
+dice por qué, en vez de deshacer otra cosa.
+
 El renglón **AGRUPAR** decide si los clips se juntan por cuarto o se quedan
 como salieron de la cámara:
 
