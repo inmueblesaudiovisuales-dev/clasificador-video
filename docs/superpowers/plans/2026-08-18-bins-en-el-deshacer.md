@@ -42,7 +42,7 @@
 - Modify: `src/clasificador_video/history.py`
 - Test: `tests/test_history.py`
 
-- [ ] **Step 1: Escribe las pruebas que fallan**
+- [x] **Step 1: Escribe las pruebas que fallan**
 
 Al final de `tests/test_history.py`:
 
@@ -114,7 +114,7 @@ def test_renombrar_un_cuarto_no_toca_un_bin_que_se_llame_igual():
     assert h.entries()[0].bins_antes == {0: "Cocina"}
 ```
 
-- [ ] **Step 2: Corre las pruebas y comprueba que fallan**
+- [x] **Step 2: Corre las pruebas y comprueba que fallan**
 
 ```bash
 QT_QPA_PLATFORM=offscreen .venv/bin/pytest tests/test_history.py -q -k "bin"
@@ -122,7 +122,7 @@ QT_QPA_PLATFORM=offscreen .venv/bin/pytest tests/test_history.py -q -k "bin"
 
 Esperado: FAIL con `TypeError: HistoryEntry.__init__() got an unexpected keyword argument 'bins_antes'`.
 
-- [ ] **Step 3: Agrega los campos y `renombrar_bin`**
+- [x] **Step 3: Agrega los campos y `renombrar_bin`**
 
 En `src/clasificador_video/history.py`, dentro de `HistoryEntry`, después de `cuarto_borrado`:
 
@@ -200,7 +200,7 @@ Y agrega el método nuevo justo debajo de `renombrar_cuarto`:
                                           nuevo if b == viejo else b)
 ```
 
-- [ ] **Step 4: Corre las pruebas**
+- [x] **Step 4: Corre las pruebas**
 
 ```bash
 QT_QPA_PLATFORM=offscreen .venv/bin/pytest tests/test_history.py -q
@@ -208,7 +208,7 @@ QT_QPA_PLATFORM=offscreen .venv/bin/pytest tests/test_history.py -q
 
 Esperado: PASS, todas.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/clasificador_video/history.py tests/test_history.py
@@ -225,7 +225,7 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 - Modify: `src/clasificador_video/ui/main_window.py` (`_on_clips_movidos`, `_aplicar_entrada`)
 - Test: `tests/ui/test_main_window_bins.py`
 
-- [ ] **Step 1: Escribe las pruebas que fallan**
+- [x] **Step 1: Escribe las pruebas que fallan**
 
 Al final de `tests/ui/test_main_window_bins.py`. Usa los helpers que ya hay en ese archivo para armar la ventana; si el helper se llama distinto, ajusta la llamada pero NO el cuerpo de la prueba.
 
@@ -335,7 +335,7 @@ def _ventana_con_bins(qtbot) -> MainWindow:
     return window
 ```
 
-- [ ] **Step 2: Corre las pruebas y comprueba que fallan**
+- [x] **Step 2: Corre las pruebas y comprueba que fallan**
 
 ```bash
 QT_QPA_PLATFORM=offscreen .venv/bin/pytest tests/ui/test_main_window_bins.py -q -k "arrastre or sin_bin or SU_bin"
@@ -343,7 +343,7 @@ QT_QPA_PLATFORM=offscreen .venv/bin/pytest tests/ui/test_main_window_bins.py -q 
 
 Esperado: FAIL — el clip se queda en `Card B` y el cuarto del otro se pierde.
 
-- [ ] **Step 3: Registra el arrastre**
+- [x] **Step 3: Registra el arrastre**
 
 En `main_window.py`, reemplaza el cuerpo de `_on_clips_movidos` (deja el docstring que ya tiene y añádele el párrafo nuevo):
 
@@ -393,7 +393,7 @@ En `main_window.py`, reemplaza el cuerpo de `_on_clips_movidos` (deja el docstri
 
 Comprueba que `SIN_BIN` ya esté importado en `main_window.py` (se usa en `_on_bin_seleccionado`); si no, añádelo al import de `clip_sheet`.
 
-- [ ] **Step 4: Aplica el arrastre al deshacer**
+- [x] **Step 4: Aplica el arrastre al deshacer**
 
 En `_aplicar_entrada`, después del bloque de `cuarto_borrado` y antes de `self._refresh_sheet()`:
 
@@ -409,7 +409,7 @@ En `_aplicar_entrada`, después del bloque de `cuarto_borrado` y antes de `self.
                 self.bins.mover(indices, bin_nombre)
 ```
 
-- [ ] **Step 5: Corre las pruebas**
+- [x] **Step 5: Corre las pruebas**
 
 ```bash
 QT_QPA_PLATFORM=offscreen .venv/bin/pytest tests/ui/test_main_window_bins.py -q
@@ -417,7 +417,7 @@ QT_QPA_PLATFORM=offscreen .venv/bin/pytest tests/ui/test_main_window_bins.py -q
 
 Esperado: PASS, todas.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/clasificador_video/ui/main_window.py tests/ui/test_main_window_bins.py
@@ -434,7 +434,7 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 - Modify: `src/clasificador_video/ui/main_window.py` (`_on_bin_nuevo_pedido`, `_aplicar_entrada`)
 - Test: `tests/ui/test_main_window_bins.py`
 
-- [ ] **Step 1: Escribe las pruebas que fallan**
+- [x] **Step 1: Escribe las pruebas que fallan**
 
 ```python
 def test_deshacer_quita_el_bin_recien_creado(qtbot):
@@ -474,7 +474,7 @@ def test_no_se_borra_un_bin_que_ya_tiene_clips(qtbot):
     assert window.bins.bin_de(0) == "Card A"
 ```
 
-- [ ] **Step 2: Corre las pruebas y comprueba que fallan**
+- [x] **Step 2: Corre las pruebas y comprueba que fallan**
 
 ```bash
 QT_QPA_PLATFORM=offscreen .venv/bin/pytest tests/ui/test_main_window_bins.py -q -k "recien_creado or su_renglon or ya_tiene_clips"
@@ -482,7 +482,7 @@ QT_QPA_PLATFORM=offscreen .venv/bin/pytest tests/ui/test_main_window_bins.py -q 
 
 Esperado: FAIL — no se crea entrada y el bin se queda.
 
-- [ ] **Step 3: Registra la creación**
+- [x] **Step 3: Registra la creación**
 
 En `_on_bin_nuevo_pedido`, después de `nombre = self.bins.crear_vacio("Bin")`:
 
@@ -500,7 +500,7 @@ En `_on_bin_nuevo_pedido`, después de `nombre = self.bins.crear_vacio("Bin")`:
         self._refresh_history()
 ```
 
-- [ ] **Step 4: Aplica la creación al deshacer**
+- [x] **Step 4: Aplica la creación al deshacer**
 
 En `_aplicar_entrada`, después del bloque de `bins_antes`:
 
@@ -515,7 +515,7 @@ En `_aplicar_entrada`, después del bloque de `bins_antes`:
                 self.clip_sheet.set_bin_order(self.bins.nombres())
 ```
 
-- [ ] **Step 5: Corre las pruebas**
+- [x] **Step 5: Corre las pruebas**
 
 ```bash
 QT_QPA_PLATFORM=offscreen .venv/bin/pytest tests/ui/test_main_window_bins.py -q
@@ -523,7 +523,7 @@ QT_QPA_PLATFORM=offscreen .venv/bin/pytest tests/ui/test_main_window_bins.py -q
 
 Esperado: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/clasificador_video/ui/main_window.py tests/ui/test_main_window_bins.py
@@ -540,7 +540,7 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 - Modify: `src/clasificador_video/ui/main_window.py` (`_on_bin_renombrado`, `_aplicar_entrada`)
 - Test: `tests/ui/test_main_window_bins.py`
 
-- [ ] **Step 1: Escribe las pruebas que fallan**
+- [x] **Step 1: Escribe las pruebas que fallan**
 
 ```python
 def test_deshacer_un_renombrado_recupera_el_nombre_viejo(qtbot):
@@ -580,7 +580,7 @@ def test_renombrar_un_bin_no_toca_el_renglon_de_un_cuarto_que_se_llame_igual(qtb
     assert de_cuarto.etiqueta == "Cocina"
 ```
 
-- [ ] **Step 2: Corre las pruebas y comprueba que fallan**
+- [x] **Step 2: Corre las pruebas y comprueba que fallan**
 
 ```bash
 QT_QPA_PLATFORM=offscreen .venv/bin/pytest tests/ui/test_main_window_bins.py -q -k "renombrado or renglones_viejos or se_llame_igual"
@@ -588,7 +588,7 @@ QT_QPA_PLATFORM=offscreen .venv/bin/pytest tests/ui/test_main_window_bins.py -q 
 
 Esperado: FAIL.
 
-- [ ] **Step 3: Extrae el renombrado a su propio método**
+- [x] **Step 3: Extrae el renombrado a su propio método**
 
 Este paso NO cambia comportamiento: mueve código para que deshacer pueda reusarlo. En `main_window.py`, renombra `_on_bin_renombrado` a `_aplicar_renombrado_de_bin`, quítale la última línea (`self._autosave()`), y añádele docstring y la llamada al historial. Queda así, entero:
 
@@ -634,7 +634,7 @@ Este paso NO cambia comportamiento: mueve código para que deshacer pueda reusar
         self._pintar_avance_de_proxies()
 ```
 
-- [ ] **Step 4: Corre la suite y comprueba que no rompiste nada**
+- [x] **Step 4: Corre la suite y comprueba que no rompiste nada**
 
 ```bash
 QT_QPA_PLATFORM=offscreen .venv/bin/pytest tests/ -q
@@ -642,7 +642,7 @@ QT_QPA_PLATFORM=offscreen .venv/bin/pytest tests/ -q
 
 Esperado: FAIL solo en las pruebas de la Step 1 y en las que llamen a `_on_bin_renombrado`, que ya no existe. Anota cuáles son: la Step 5 las va a arreglar sola al reponer el método.
 
-- [ ] **Step 5: Vuelve a poner `_on_bin_renombrado`, ahora registrando**
+- [x] **Step 5: Vuelve a poner `_on_bin_renombrado`, ahora registrando**
 
 Justo encima de `_aplicar_renombrado_de_bin`:
 
@@ -676,7 +676,7 @@ Justo encima de `_aplicar_renombrado_de_bin`:
         self._autosave()
 ```
 
-- [ ] **Step 6: Aplica el renombrado al deshacer**
+- [x] **Step 6: Aplica el renombrado al deshacer**
 
 En `_aplicar_entrada`, después del bloque de `bin_creado`:
 
@@ -690,7 +690,7 @@ En `_aplicar_entrada`, después del bloque de `bin_creado`:
                 self._aplicar_renombrado_de_bin(nuevo, viejo)
 ```
 
-- [ ] **Step 7: Corre la suite completa**
+- [x] **Step 7: Corre la suite completa**
 
 ```bash
 QT_QPA_PLATFORM=offscreen .venv/bin/pytest tests/ -q
@@ -698,7 +698,7 @@ QT_QPA_PLATFORM=offscreen .venv/bin/pytest tests/ -q
 
 Esperado: PASS, todas. Este task mueve código que ya existía, así que aquí es donde se nota si se quedó algo atrás.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add src/clasificador_video/ui/main_window.py tests/ui/test_main_window_bins.py
@@ -717,7 +717,7 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 - Modify: `src/clasificador_video/ui/main_window.py` (`_motivo_bloqueado`, `_refresh_history`)
 - Test: `tests/ui/test_room_rail.py`, `tests/ui/test_main_window_bins.py`
 
-- [ ] **Step 1: Escribe las pruebas que fallan**
+- [x] **Step 1: Escribe las pruebas que fallan**
 
 En `tests/ui/test_room_rail.py`:
 
@@ -784,7 +784,7 @@ def test_se_bloquea_el_arrastre_cuyo_bin_de_origen_ya_no_esta(qtbot):
     assert window._motivo_bloqueado(entrada) == "ese bin ya no está"
 ```
 
-- [ ] **Step 2: Corre las pruebas y comprueba que fallan**
+- [x] **Step 2: Corre las pruebas y comprueba que fallan**
 
 ```bash
 QT_QPA_PLATFORM=offscreen .venv/bin/pytest tests/ui/test_room_rail.py tests/ui/test_main_window_bins.py -q -k "bloquea or apaga or dibujar"
@@ -792,7 +792,7 @@ QT_QPA_PLATFORM=offscreen .venv/bin/pytest tests/ui/test_room_rail.py tests/ui/t
 
 Esperado: FAIL con `TypeError: set_history() takes 2 positional arguments` y `AttributeError: _motivo_bloqueado`.
 
-- [ ] **Step 3: La fila se apaga**
+- [x] **Step 3: La fila se apaga**
 
 En `room_rail.py`, `_FilaHistorial.__init__` cambia de firma:
 
@@ -848,7 +848,7 @@ Y `set_history`:
         self.history_panel.setVisible(bool(self.history_rows))
 ```
 
-- [ ] **Step 4: El estilo del renglón apagado**
+- [x] **Step 4: El estilo del renglón apagado**
 
 En `theme.py`, dentro de `build_stylesheet`, junto a las demás reglas de `#histRow`:
 
@@ -863,7 +863,7 @@ En `theme.py`, dentro de `build_stylesheet`, junto a las demás reglas de `#hist
     }}
 ```
 
-- [ ] **Step 5: La ventana calcula el motivo**
+- [x] **Step 5: La ventana calcula el motivo**
 
 En `main_window.py`, junto a `_refresh_history`:
 
@@ -907,7 +907,7 @@ y `_refresh_history` pasa a:
         )
 ```
 
-- [ ] **Step 6: Corre la suite completa**
+- [x] **Step 6: Corre la suite completa**
 
 ```bash
 QT_QPA_PLATFORM=offscreen .venv/bin/pytest tests/ -q
@@ -915,7 +915,7 @@ QT_QPA_PLATFORM=offscreen .venv/bin/pytest tests/ -q
 
 Esperado: PASS.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add src/clasificador_video/ui/room_rail.py src/clasificador_video/ui/theme.py src/clasificador_video/ui/main_window.py tests/ui/test_room_rail.py tests/ui/test_main_window_bins.py
@@ -932,7 +932,7 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 - Modify: `src/clasificador_video/ui/main_window.py` (`undo`, `revert`)
 - Test: `tests/ui/test_main_window_bins.py`
 
-- [ ] **Step 1: Escribe las pruebas que fallan**
+- [x] **Step 1: Escribe las pruebas que fallan**
 
 ```python
 def test_cmd_z_no_salta_al_siguiente_cuando_el_de_arriba_esta_bloqueado(qtbot):
@@ -965,7 +965,7 @@ def test_el_boton_de_deshacer_se_apaga_si_el_de_arriba_esta_bloqueado(qtbot):
     assert not window.tool_column.undo_button.isEnabled()
 ```
 
-- [ ] **Step 2: Corre las pruebas y comprueba que fallan**
+- [x] **Step 2: Corre las pruebas y comprueba que fallan**
 
 ```bash
 QT_QPA_PLATFORM=offscreen .venv/bin/pytest tests/ui/test_main_window_bins.py -q -k "no_salta or boton_de_deshacer"
@@ -973,7 +973,7 @@ QT_QPA_PLATFORM=offscreen .venv/bin/pytest tests/ui/test_main_window_bins.py -q 
 
 Esperado: FAIL — `⌘Z` se lleva el cuarto «Sala».
 
-- [ ] **Step 3: `undo` y `revert` respetan el bloqueo**
+- [x] **Step 3: `undo` y `revert` respetan el bloqueo**
 
 ```python
     def undo(self) -> None:
@@ -997,7 +997,7 @@ Esperado: FAIL — `⌘Z` se lleva el cuarto «Sala».
         self._aplicar_entrada(self.history.revert(entry_id))
 ```
 
-- [ ] **Step 4: Corre la suite completa**
+- [x] **Step 4: Corre la suite completa**
 
 ```bash
 QT_QPA_PLATFORM=offscreen .venv/bin/pytest tests/ -q
@@ -1005,7 +1005,7 @@ QT_QPA_PLATFORM=offscreen .venv/bin/pytest tests/ -q
 
 Esperado: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/clasificador_video/ui/main_window.py tests/ui/test_main_window_bins.py
@@ -1022,7 +1022,7 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 - Test: `tests/ui/test_main_window_bins.py`
 - Modify: `README.md`, `docs/superpowers/CONTEXTO-Y-METAS.md`
 
-- [ ] **Step 1: Escribe la prueba del caso completo**
+- [x] **Step 1: Escribe la prueba del caso completo**
 
 ```python
 def test_el_caso_del_spec_de_punta_a_punta(qtbot):
@@ -1063,7 +1063,7 @@ def test_quitar_un_bin_sigue_vaciando_el_historial(qtbot, monkeypatch):
 
 Si el diálogo de confirmación de `_on_bin_quitado` usa otro método de `QMessageBox`, ajusta el `monkeypatch` a ese; búscalo con `grep -n "QMessageBox" src/clasificador_video/ui/main_window.py`.
 
-- [ ] **Step 2: Corre la suite completa**
+- [x] **Step 2: Corre la suite completa**
 
 ```bash
 QT_QPA_PLATFORM=offscreen .venv/bin/pytest tests/ -q
@@ -1071,7 +1071,7 @@ QT_QPA_PLATFORM=offscreen .venv/bin/pytest tests/ -q
 
 Esperado: PASS.
 
-- [ ] **Step 3: Comprobación visual del renglón apagado**
+- [x] **Step 3: Comprobación visual del renglón apagado**
 
 No basta con que la prueba pase: hay que ver el pixel. Guarda esto en el scratchpad de la sesión (NO en el repo) y córrelo:
 
@@ -1105,7 +1105,7 @@ QT_QPA_PLATFORM=offscreen .venv/bin/python <ruta>/rail.py <ruta-del-scratchpad>
 
 Abre el PNG con la herramienta de lectura de archivos. Confirma tres cosas a simple vista: el renglón de «Card C» se lee más apagado que los otros dos, su `↺` se ve inactivo, y los tres renglones siguen ahí —ninguno desapareció—.
 
-- [ ] **Step 4: Actualiza la documentación**
+- [x] **Step 4: Actualiza la documentación**
 
 En `README.md`, en la sección de la hoja de contactos, después del párrafo del arrastre entre bins:
 
@@ -1118,7 +1118,7 @@ dice por qué, en vez de deshacer otra cosa.
 
 En `docs/superpowers/CONTEXTO-Y-METAS.md`, en «Lo que falta», el punto 4 dice hoy que los bins no pasan por el historial. Bórralo de ahí y súbelo a una sección de lo hecho, con el porqué: era un `⌘Z` que revertía en silencio una acción anterior, no una función que faltaba.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add tests/ui/test_main_window_bins.py README.md docs/superpowers/CONTEXTO-Y-METAS.md
