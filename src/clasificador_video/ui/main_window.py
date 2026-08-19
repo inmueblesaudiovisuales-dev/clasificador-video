@@ -1344,11 +1344,27 @@ class MainWindow(QWidget):
         )
 
     def undo(self) -> None:
-        """`⌘Z`: deshace la accion de arriba del historial."""
+        """`⌘Z`: deshace la accion de arriba del historial.
+
+        Si esa accion ya no se puede cumplir, NO se salta a la siguiente:
+        saltar seria deshacer algo que no pediste sin decirlo, que es
+        justamente el bug que este historial existe para no tener. El
+        renglon del rail ya explica por que no se puede.
+
+        Y tampoco se la traga: la entrada se queda en la pila. Sacarla no
+        haria nada visible, pero el renglon desapareceria del rail y el
+        siguiente `⌘Z` si desharia lo de abajo.
+        """
+        entradas = self.history.entries()
+        if entradas and self._motivo_bloqueado(entradas[0]) is not None:
+            return
         self._aplicar_entrada(self.history.undo_last())
 
     def revert(self, entry_id: int) -> None:
         """El boton `↺` de una fila cualquiera, no solo la de arriba."""
+        entrada = next((e for e in self.history.entries() if e.id == entry_id), None)
+        if entrada is not None and self._motivo_bloqueado(entrada) is not None:
+            return   # el boton ya esta apagado; esta es la red de abajo
         self._aplicar_entrada(self.history.revert(entry_id))
 
     def _aplicar_entrada(self, entrada: HistoryEntry | None) -> None:

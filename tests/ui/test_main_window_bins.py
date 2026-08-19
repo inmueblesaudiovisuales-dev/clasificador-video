@@ -1979,3 +1979,38 @@ def test_se_bloquea_el_arrastre_cuyo_bin_de_origen_ya_no_esta(qtbot):
     window.bins.quitar("Card A")
 
     assert window._motivo_bloqueado(entrada) == "ese bin ya no está"
+
+
+def test_cmd_z_no_salta_al_siguiente_cuando_el_de_arriba_esta_bloqueado(qtbot):
+    """Es el bug entero, en chico: si ⌘Z se saltara el renglon bloqueado
+    desharia una accion anterior sin decirlo -- exactamente lo que este
+    trabajo existe para quitar."""
+    window = _ventana_con_bins(qtbot)
+    window.select_clip(0)
+    window.handle_key_press("1")                 # Sala, y entra al historial
+    window._on_bin_nuevo_pedido()
+    nuevo = window.history.entries()[0].bin_creado
+    window.bins.mover([1], nuevo)                # a mano: no crea entrada
+    window._refresh_history()
+
+    window.undo()
+
+    assert window.clips[0].categoria_path == ["Sala"]
+    assert nuevo in window.bins.nombres()
+    # y el renglon SIGUE ahi: sin esto la prueba pasa por el motivo
+    # equivocado. `⌘Z` se tragaba la entrada bloqueada --la sacaba de la
+    # pila-- y nada mas: no pasaba nada visible, pero el renglon
+    # desaparecia del rail y la siguiente vez ⌘Z si deshacia el cuarto.
+    assert [e.bin_creado for e in window.history.entries()] == [nuevo, None]
+
+
+def test_el_boton_de_deshacer_se_apaga_si_el_de_arriba_esta_bloqueado(qtbot):
+    window = _ventana_con_bins(qtbot)
+    window._on_bin_nuevo_pedido()
+    nuevo = window.history.entries()[0].bin_creado
+    assert window.tool_column.undo_button.isEnabled()
+
+    window.bins.mover([1], nuevo)
+    window._refresh_history()
+
+    assert not window.tool_column.undo_button.isEnabled()
