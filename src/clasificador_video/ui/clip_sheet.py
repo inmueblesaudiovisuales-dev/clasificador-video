@@ -3453,11 +3453,15 @@ class ClipSheet(QWidget):
         if not 0 <= self._current < len(self.item_widgets):
             return
         grupo = self._group_of(self.item_widgets[self._current].clip)
-        # solo lo VISIBLE: con un filtro puesto, meter en la seleccion clips
-        # que no estas viendo termina en asignarles un cuarto sin querer
+        # solo lo que se DIBUJA: con un filtro puesto --o con el bin
+        # colapsado-- meter en la seleccion clips que no estas viendo termina
+        # en asignarles un cuarto sin querer. Se pregunta por `_se_dibuja` y
+        # no por `_es_visible` porque son dos cosas las que esconden una
+        # tarjeta, y aqui las dos cuentan igual: el colapso llego despues que
+        # esta funcion y se habia quedado fuera.
         self.set_selected({
             i for i, card in enumerate(self.item_widgets)
-            if self._group_of(card.clip) == grupo and self._es_visible(i)
+            if self._group_of(card.clip) == grupo and self._se_dibuja(i)
         })
 
     def set_selected(self, indices: set[int]) -> None:

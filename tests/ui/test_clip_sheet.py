@@ -2800,3 +2800,41 @@ def test_el_orden_visual_sigue_al_dibujado_y_no_al_de_creacion(qtbot):
 
     assert hoja.group_titles() == [(SIN_BIN, "Cocina"), (SIN_BIN, "Sala")]
     assert hoja.orden_visual() == [2, 1]
+
+
+def test_seleccionar_el_grupo_no_agarra_lo_que_esconde_un_bin_cerrado(qtbot):
+    """`⌘A` selecciona el grupo donde estás, y lo que no se ve no es parte.
+
+    Miraba solo el filtro, no el colapso -- las dos cosas esconden tarjetas y
+    la regla es la misma: meter en la selección clips que no estás viendo
+    termina en asignarles un cuarto sin querer. El colapso llegó después que
+    esta función y se quedó fuera.
+    """
+    clips = [_clip(1, "Sala"), _clip(2, "Sala"), _clip(3, "Cocina")]
+    for c in clips[:2]:
+        c.bin_nombre = "Card A"
+    clips[2].bin_nombre = "Card B"
+    sheet = _sheet(qtbot, clips)
+    sheet.set_bin_order(["Card A", "Card B"])
+    sheet.set_bin_collapsed("Card A", True)
+
+    sheet.set_current(0)          # un clip del bin cerrado
+    sheet.select_current_group()
+
+    assert sheet.selected_indices() == []
+
+
+def test_seleccionar_el_grupo_vuelve_a_funcionar_al_abrir_el_bin(qtbot):
+    clips = [_clip(1, "Sala"), _clip(2, "Sala"), _clip(3, "Cocina")]
+    for c in clips[:2]:
+        c.bin_nombre = "Card A"
+    clips[2].bin_nombre = "Card B"
+    sheet = _sheet(qtbot, clips)
+    sheet.set_bin_order(["Card A", "Card B"])
+    sheet.set_bin_collapsed("Card A", True)
+    sheet.set_bin_collapsed("Card A", False)
+
+    sheet.set_current(0)
+    sheet.select_current_group()
+
+    assert sheet.selected_indices() == [0, 1]
