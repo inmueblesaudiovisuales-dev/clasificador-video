@@ -135,3 +135,70 @@ def test_vaciar_el_historial():
     h.clear()
     assert h.entries() == []
     assert h.undo_last() is None
+
+
+def test_una_entrada_puede_recordar_de_que_bin_venia_cada_clip():
+    """El bin no es un campo del clip --vive en `BinTree`-- asi que no puede
+    viajar por `antes`, que se aplica con `setattr` sobre el clip."""
+    entrada = HistoryEntry(
+        etiqueta="Card B", detalle="→ 3 clips", color="#3e9bc0", antes={},
+        bins_antes={0: "Card A", 1: None},
+    )
+    assert entrada.bins_antes == {0: "Card A", 1: None}
+    assert entrada.bin_creado is None
+    assert entrada.bin_renombrado is None
+
+
+def test_los_campos_de_bin_nacen_vacios():
+    """Una entrada de cuarto o de estado no habla de bins, y no tiene por que
+    escribir tres `None` para decirlo."""
+    entrada = HistoryEntry(etiqueta="Cocina", detalle="→ 6 clips",
+                           color="#c0885a", antes={})
+    assert entrada.bins_antes is None
+    assert entrada.bin_creado is None
+    assert entrada.bin_renombrado is None
+
+
+def test_renombrar_un_bin_mueve_lo_ya_registrado():
+    """Mismo motivo que `renombrar_cuarto`: un renglon que hable de un bin
+    que ya no existe promete devolver algo inalcanzable."""
+    h = History()
+    h.push(HistoryEntry(etiqueta="Card A", detalle="→ 2 clips", color="#3e9bc0",
+                        antes={}, bins_antes={0: "Card A", 1: None}))
+    h.push(HistoryEntry(etiqueta="Card A", detalle="→ bin nuevo", color="#3e9bc0",
+                        antes={}, bin_creado="Card A"))
+
+    h.renombrar_bin("Card A", "Camara 1")
+
+    creado, movido = h.entries()
+    assert creado.bin_creado == "Camara 1"
+    assert creado.etiqueta == "Camara 1"
+    assert movido.bins_antes == {0: "Camara 1", 1: None}
+    assert movido.etiqueta == "Camara 1"
+
+
+def test_renombrar_un_bin_no_toca_un_cuarto_que_se_llame_igual():
+    """Un cuarto y un bin pueden llamarse igual --«Cocina» la camara y
+    «Cocina» el cuarto-- y la `etiqueta` no distingue cual es cual. Se mira
+    si la entrada habla de bins, que es el dato."""
+    h = History()
+    h.push(HistoryEntry(etiqueta="Cocina", detalle="→ 6 clips", color="#c0885a",
+                        antes={0: {"categoria_path": ["Cocina"]}}))
+
+    h.renombrar_bin("Cocina", "Camara 1")
+
+    assert h.entries()[0].etiqueta == "Cocina"
+    assert h.entries()[0].antes == {0: {"categoria_path": ["Cocina"]}}
+
+
+def test_renombrar_un_cuarto_no_toca_un_bin_que_se_llame_igual():
+    """El reves del anterior, y hace falta desde hoy: hasta ahora ninguna
+    entrada del historial hablaba de bins."""
+    h = History()
+    h.push(HistoryEntry(etiqueta="Cocina", detalle="→ 2 clips", color="#3e9bc0",
+                        antes={}, bins_antes={0: "Cocina"}))
+
+    h.renombrar_cuarto("Cocina", "Cocina chica")
+
+    assert h.entries()[0].etiqueta == "Cocina"
+    assert h.entries()[0].bins_antes == {0: "Cocina"}

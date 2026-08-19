@@ -33,7 +33,35 @@ class HistoryEntry:
     color: str             # cuadrito de la fila: color de cuarto o de estado
     antes: dict[int, dict]
     cuarto_borrado: tuple[str, int] | None = None
+
+    # --- lo que la accion le hizo a los BINS -------------------------------
+    # Van aparte de `antes` porque el bin NO es un campo del clip: vive en
+    # `BinTree`, que es la unica fuente de verdad. `antes` se aplica con
+    # `setattr` sobre el clip, y meter aqui un campo que el clip no tiene
+    # seria inventarle uno -- justo la duplicacion que hace que dos copias
+    # del mismo dato se contradigan.
+    #
+    # `bins_antes` es `{indice_de_clip: nombre_del_bin}`, con `None` para
+    # «estaba suelto», que es un estado valido y no la ausencia de dato.
+    bins_antes: dict[int, str | None] | None = None
+    bin_creado: str | None = None
+    # `(viejo, nuevo)`. No se deduce del texto del renglon: `etiqueta` y
+    # `detalle` son para el ojo, y leerlos como dato hace que cambiar una
+    # palabra rompa una funcion.
+    bin_renombrado: tuple[str, str] | None = None
+
     id: int = field(default_factory=lambda: next(_ids))
+
+    def habla_de_bins(self) -> bool:
+        """Si esta entrada es de un bin o de un cuarto.
+
+        Hace falta porque un cuarto y un bin se pueden llamar IGUAL --«Cocina»
+        la camara y «Cocina» el cuarto-- y la `etiqueta` no los distingue.
+        Renombrar uno movia el renglon del otro.
+        """
+        return (self.bins_antes is not None
+                or self.bin_creado is not None
+                or self.bin_renombrado is not None)
 
 
 class History:
@@ -89,12 +117,39 @@ class History:
         de otra forma, y su boton `↺` promete devolverte algo que no existe.
         """
         for entrada in self._entries:
+            if entrada.habla_de_bins():
+                continue    # es un bin, no un cuarto (ver `habla_de_bins`)
             if entrada.etiqueta == viejo:
                 entrada.etiqueta = nuevo
             for campos in entrada.antes.values():
                 camino = campos.get("categoria_path")
                 if isinstance(camino, list) and camino and camino[0] == viejo:
                     campos["categoria_path"] = [nuevo, *camino[1:]]
+
+    def renombrar_bin(self, viejo: str, nuevo: str) -> None:
+        """El gemelo de `renombrar_cuarto`, para el otro eje.
+
+        Un renglon que siga hablando de un bin que ya no existe promete
+        devolverte algo inalcanzable: su `↺` no encontraria a donde regresar
+        los clips. Solo toca las entradas que hablan de bins, para no
+        confundirse con un cuarto que se llame igual.
+        """
+        for entrada in self._entries:
+            if not entrada.habla_de_bins():
+                continue
+            if entrada.etiqueta == viejo:
+                entrada.etiqueta = nuevo
+            if entrada.bin_creado == viejo:
+                entrada.bin_creado = nuevo
+            if entrada.bins_antes is not None:
+                entrada.bins_antes = {
+                    i: (nuevo if b == viejo else b)
+                    for i, b in entrada.bins_antes.items()
+                }
+            if entrada.bin_renombrado is not None:
+                a, b = entrada.bin_renombrado
+                entrada.bin_renombrado = (nuevo if a == viejo else a,
+                                          nuevo if b == viejo else b)
 
     def entries(self) -> list[HistoryEntry]:
         return list(self._entries)
