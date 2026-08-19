@@ -1328,6 +1328,15 @@ class MainWindow(QWidget):
             if 0 <= indice < len(self.clips):
                 for campo, valor in campos.items():
                     setattr(self.clips[indice], campo, _copiar(valor))
+        if entrada.bins_antes is not None:
+            # agrupado por destino porque `mover` recibe una lista por
+            # destino, y el gesto pudo juntar clips de bins distintos
+            por_bin: dict[str | None, list[int]] = {}
+            for indice, bin_nombre in entrada.bins_antes.items():
+                if 0 <= indice < len(self.clips):
+                    por_bin.setdefault(bin_nombre, []).append(indice)
+            for bin_nombre, indices_del_bin in por_bin.items():
+                self.bins.mover(indices_del_bin, bin_nombre)
         if entrada.cuarto_borrado is not None:
             # se REINSERTA en su posicion, que es lo que le da la tecla.
             # Restaurar la lista entera --como hacia antes-- se llevaba puesto
@@ -2725,9 +2734,45 @@ class MainWindow(QWidget):
         """
         if not indices:
             return
+        # ANTES de mover, como todo lo que entra al historial: despues ya
+        # guardaria el estado nuevo y deshacer no haria nada. Se guarda de
+        # que bin venia CADA clip --no el destino-- porque el gesto puede
+        # juntar clips de bins distintos y cada uno tiene que volver al suyo.
+        self._registrar_movimiento_de_bin(indices, destino)
         self.bins.mover(indices, destino)
         self._refresh_sheet()
         self._autosave()
+
+    def _registrar_movimiento_de_bin(self, indices: list[int],
+                                     destino: str | None) -> None:
+        """La entrada del historial de un arrastre.
+
+        Va aparte de `_registrar` porque aquella guarda CAMPOS del clip, y el
+        bin no es un campo del clip. La etiqueta es el destino --es lo que
+        acabas de hacer, «los mande a Card B»-- y el color, la identidad de
+        camara de ese bin.
+        """
+        self.history.push(HistoryEntry(
+            etiqueta=destino or SIN_BIN,
+            detalle=self._detalle(indices),
+            color=self._color_de_bin(destino),
+            antes={},
+            bins_antes={i: self.bins.bin_de(i) for i in indices
+                        if 0 <= i < len(self.clips)},
+        ))
+        self._refresh_history()
+
+    def _color_de_bin(self, nombre: str | None) -> str:
+        """El tercer canal de color, ni cuarto ni estado (ver `theme.py`).
+
+        Un bin que no esta en la lista --«Sin bin», o uno que ya se fue-- se
+        pinta con el gris apagado: no es una camara, asi que no lleva
+        identidad de camara.
+        """
+        nombres = self.bins.nombres()
+        if nombre is None or nombre not in nombres:
+            return theme.TEXT_3
+        return theme.bin_color(nombres.index(nombre))
 
     def _on_bin_seleccionado(self, nombre: str) -> None:
         """«Seleccionar los N clips» del menu del encabezado.

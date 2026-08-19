@@ -1769,3 +1769,118 @@ def test_dos_carpetas_de_discos_distintos_no_suben_el_origen_a_la_raiz(
     ventana.importar_rutas([sony, dron], nombre_de_bin="Rodaje")
 
     assert ventana.bins.origen_de("Rodaje") == sony
+
+
+# ---------------------------------------------------------------------------
+# Los bins en el deshacer
+# (spec 2026-08-18-bins-en-el-deshacer-design.md)
+# ---------------------------------------------------------------------------
+
+
+def _ventana_con_bins(qtbot) -> MainWindow:
+    """Tres clips en «Card A» y un «Card B» vacío al lado.
+
+    No usa la fixture `ventana` porque estas pruebas asignan cuartos con el
+    teclado, y aquella nace con la lista de cuartos vacía.
+    """
+    seleccion = RoomSelection()
+    for cuarto in ("Sala", "Cocina"):
+        seleccion.add(cuarto)
+    window = MainWindow(project_name="Casa Jardin", room_selection=seleccion,
+                        video_factory=FakeMpv)
+    window._probe_clip = _probe_falso
+    qtbot.addWidget(window)
+    window.resize(1500, 900)
+    window.load_clips([_clip(i, f"/x/C{i:04d}.MP4") for i in range(3)])
+    window.bins.agregar("Card A", Path("/A"), [0, 1, 2])
+    window.bins.crear_vacio("Card B")
+    window._refresh_sheet(force_rebuild=True)
+    window.show()
+    qtbot.waitExposed(window)
+    if window._modo_hoja:
+        window.alternar_modo_hoja()
+    return window
+
+
+def test_deshacer_un_arrastre_devuelve_el_clip_a_su_bin(qtbot):
+    """El bug que originó todo esto, medido el 2026-08-18: arrastras un clip
+    a otro bin, aprietas ⌘Z, y el clip se quedaba donde lo soltaste MIENTRAS
+    otro clip perdía el cuarto que le habías puesto."""
+    window = _ventana_con_bins(qtbot)
+    window.select_clip(0)
+    window.handle_key_press("1")               # Sala al clip 1
+    window.select_clip(2)
+    window.handle_key_press("2")               # Cocina al clip 3
+
+    window._on_clips_movidos([0], "Card B")
+    window.undo()
+
+    assert window.bins.bin_de(0) == "Card A"
+    assert window.clips[2].categoria_path == ["Cocina"]
+
+
+def test_deshacer_un_arrastre_devuelve_cada_clip_a_SU_bin(qtbot):
+    """Varios clips de bins distintos en el mismo gesto: cada uno vuelve a
+    donde estaba, no todos al primero."""
+    window = _ventana_con_bins(qtbot)
+    window.bins.mover([2], "Card B")           # el clip 3 ya vivía en Card B
+
+    window._on_clips_movidos([0, 2], None)     # los dos, a «Sin bin»
+    window.undo()
+
+    assert window.bins.bin_de(0) == "Card A"
+    assert window.bins.bin_de(2) == "Card B"
+
+
+def test_deshacer_devuelve_a_sin_bin_al_que_venia_suelto(qtbot):
+    """«Suelto» es un estado valido, no la ausencia de dato: devolverlo al
+    primer bin seria inventarle una camara."""
+    window = _ventana_con_bins(qtbot)
+    window.bins.mover([1], None)               # el clip 2 queda suelto
+
+    window._on_clips_movidos([1], "Card B")
+    window.undo()
+
+    assert window.bins.bin_de(1) is None
+
+
+def test_deshacer_un_arrastre_no_toca_el_cuarto_ni_el_estado(qtbot):
+    """Arrastrar cambia el bin y nada mas; deshacerlo, tambien. Es lo que
+    hace que ⌘Z se pueda apretar sin pensarlo."""
+    window = _ventana_con_bins(qtbot)
+    window.select_clip(0)
+    window.handle_key_press("1")               # Sala
+    window.select_clip(0)
+    window.handle_key_press("p")               # pick
+    window.handle_key_press("i")               # in
+
+    window._on_clips_movidos([0], "Card B")
+    window.undo()
+
+    assert window.clips[0].categoria_path == ["Sala"]
+    assert window.clips[0].flag == "pick"
+    assert window.clips[0].in_frame is not None
+
+
+def test_el_arrastre_deja_su_renglon_en_el_historial(qtbot):
+    window = _ventana_con_bins(qtbot)
+
+    window._on_clips_movidos([0, 1], "Card B")
+
+    entrada = window.history.entries()[0]
+    assert entrada.etiqueta == "Card B"
+    assert entrada.detalle == "→ 2 clips"
+    assert entrada.bins_antes == {0: "Card A", 1: "Card A"}
+
+
+def test_deshacer_un_arrastre_no_mete_su_propia_entrada(qtbot):
+    """Si `_on_clips_movidos` registrara desde adentro, deshacer meteria una
+    entrada nueva y ⌘Z se volveria un columpio: dos teclazos y vuelves al
+    principio sin haber deshecho nada."""
+    window = _ventana_con_bins(qtbot)
+    window._on_clips_movidos([0], "Card B")
+    cuantas = len(window.history.entries())
+
+    window.undo()
+
+    assert len(window.history.entries()) == cuantas - 1
