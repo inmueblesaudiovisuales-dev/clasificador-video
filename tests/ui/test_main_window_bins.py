@@ -1884,3 +1884,40 @@ def test_deshacer_un_arrastre_no_mete_su_propia_entrada(qtbot):
     window.undo()
 
     assert len(window.history.entries()) == cuantas - 1
+
+
+def test_deshacer_quita_el_bin_recien_creado(qtbot):
+    window = _ventana_con_bins(qtbot)
+    antes = window.bins.nombres()
+
+    window._on_bin_nuevo_pedido()
+    assert len(window.bins.nombres()) == len(antes) + 1
+    window.undo()
+
+    assert window.bins.nombres() == antes
+
+
+def test_crear_un_bin_deja_su_renglon(qtbot):
+    window = _ventana_con_bins(qtbot)
+
+    window._on_bin_nuevo_pedido()
+
+    entrada = window.history.entries()[0]
+    assert entrada.bin_creado in window.bins.nombres()
+    assert entrada.detalle == "→ bin nuevo"
+
+
+def test_no_se_borra_un_bin_que_ya_tiene_clips(qtbot):
+    """El arrastre fue una decision aparte y mas reciente: borrar el bin se
+    llevaria dos cosas de un click. Primero deshaces el arrastre --que desde
+    hoy se puede-- y luego el bin."""
+    window = _ventana_con_bins(qtbot)
+    window._on_bin_nuevo_pedido()
+    nuevo = window.history.entries()[0].bin_creado
+    window._on_clips_movidos([0], nuevo)
+
+    window.undo()          # deshace el ARRASTRE, que es lo de arriba
+    window.undo()          # y ahora si, el bin
+
+    assert nuevo not in window.bins.nombres()
+    assert window.bins.bin_de(0) == "Card A"

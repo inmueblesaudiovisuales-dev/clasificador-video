@@ -1337,6 +1337,14 @@ class MainWindow(QWidget):
                     por_bin.setdefault(bin_nombre, []).append(indice)
             for bin_nombre, indices_del_bin in por_bin.items():
                 self.bins.mover(indices_del_bin, bin_nombre)
+        if entrada.bin_creado is not None:
+            # solo si sigue vacio: un bin con material no se borra por
+            # deshacer (spec §2). El renglon se apaga antes de llegar aqui,
+            # y esta guarda es la red de abajo -- el estado pudo cambiar
+            # entre que se dibujo el renglon y que lo apretaste.
+            if not self.bins.clips_de(entrada.bin_creado):
+                self.bins.quitar(entrada.bin_creado)
+                self.clip_sheet.set_bin_order(self.bins.nombres())
         if entrada.cuarto_borrado is not None:
             # se REINSERTA en su posicion, que es lo que le da la tecla.
             # Restaurar la lista entera --como hacia antes-- se llevaba puesto
@@ -2691,6 +2699,17 @@ class MainWindow(QWidget):
         hay un bin mas-- y reconstruir tiraria las portadas ya cargadas.
         """
         nombre = self.bins.crear_vacio("Bin")
+        # DESPUES de crearlo, no antes: el nombre lo decide `BinTree` --hay
+        # que esquivar los que ya existen-- y sin el nombre real la entrada
+        # no sabria cual quitar.
+        self.history.push(HistoryEntry(
+            etiqueta=nombre,
+            detalle="→ bin nuevo",
+            color=self._color_de_bin(nombre),
+            antes={},
+            bin_creado=nombre,
+        ))
+        self._refresh_history()
         self._refresh_sheet()
         cabecera = self.clip_sheet.bin_header_widget(nombre)
         if cabecera is not None:
