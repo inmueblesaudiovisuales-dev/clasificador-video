@@ -30,11 +30,11 @@ SUFIJO_PROXY = "S03"
 # material: junto a los originales, `C0001_proxy.MP4` se importaba como un
 # clip mas y cada toma quedaba duplicada, igual que pasaba con los `.LRF`.
 #
-# Enganchar un proxy NO depende de esta lista: para eso sirve el patron que
-# se deduce del par que elijas (`proxy_match.patron_de_proxy`), que acepta
+# Enganchar un proxy NO depende de esto: para eso sirve el patron que se
+# deduce del par que elijas (`proxy_match.patron_de_proxy`), que acepta
 # cualquier terminacion --y tambien el nombre identico, sin terminacion--.
-# Esto es solo «que NO es material».
-SUFIJOS_DE_PROXY = (SUFIJO_PROXY, "_proxy")
+# Aca solo se contesta «que NO es material», y quien lo contesta es
+# `es_archivo_de_proxy`.
 
 
 def es_archivo_de_proxy(ruta: Path) -> bool:

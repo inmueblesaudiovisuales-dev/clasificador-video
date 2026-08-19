@@ -158,3 +158,51 @@ def test_un_archivo_ajeno_al_bin_no_calza_con_ninguno():
     clips = [Path("/m/C0001.MP4"), Path("/m/C0002.MP4")]
 
     assert clip_del_proxy(clips, Path("/p/DJI_0001.MP4")) is None
+
+
+def test_un_proxy_con_otra_extension_en_la_misma_carpeta_si_se_engancha(
+        tmp_path, monkeypatch):
+    """El guardia de «un clip no es su propio proxy» no puede tapar un proxy
+    de verdad.
+
+    Con el patron de nombre IDENTICO (sin prefijo ni sufijo), el nombre que
+    se busca es el mismo del clip -- y si el proxy vive en la carpeta del
+    material y solo cambia la extension, los dos archivos comparten `stem`.
+    De ese par, el mapa por `stem` se queda con UNO, y cual depende del orden
+    en que el disco entrega los archivos. Cuando ganaba el original, el
+    guardia lo daba por «es el mismo archivo» y devolvia nada: el proxy bueno
+    desaparecia sin que nadie lo dijera.
+
+    La extension se resuelve PRIMERO y el guardia se pregunta despues, sobre
+    el archivo que de verdad se va a enganchar.
+
+    El orden del disco se FIJA a proposito: sin fijarlo el test pasa o falla
+    segun como APFS liste esa carpeta ese dia, que es exactamente lo que
+    hacia al bug invisible.
+    """
+    for nombre in ("C0001.MOV", "C0001.MP4", "C0002.MOV", "C0002.MP4"):
+        (tmp_path / nombre).write_bytes(b"x")
+    originales = [tmp_path / "C0001.MP4", tmp_path / "C0002.MP4"]
+    de_verdad = Path.iterdir
+    monkeypatch.setattr(
+        Path, "iterdir",
+        lambda self: iter(sorted(de_verdad(self), key=lambda r: r.name)),
+    )
+
+    emparejado = emparejar_con_patron(originales, tmp_path, "", "", ".MOV")
+
+    assert emparejado[tmp_path / "C0001.MP4"] == tmp_path / "C0001.MOV"
+    assert emparejado[tmp_path / "C0002.MP4"] == tmp_path / "C0002.MOV"
+
+
+def test_el_guardia_sigue_parando_al_original_elegido_por_equivocacion(tmp_path):
+    """Lo que el guardia existe para atajar: el dialogo abre en la carpeta
+    del material, y elegir ahi un original emparejaba a cada clip consigo
+    mismo -- un proyecto entero diciendo PROXY sobre los 4K."""
+    for nombre in ("C0001.MP4", "C0002.MP4"):
+        (tmp_path / nombre).write_bytes(b"x")
+    originales = [tmp_path / "C0001.MP4", tmp_path / "C0002.MP4"]
+
+    emparejado = emparejar_con_patron(originales, tmp_path, "", "", ".MP4")
+
+    assert set(emparejado.values()) == {None}

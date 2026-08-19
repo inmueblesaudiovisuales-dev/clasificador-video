@@ -72,6 +72,12 @@ def emparejar_con_patron(
     for original in originales:
         buscado = f"{prefijo}{original.stem}{sufijo}"
         candidato = por_stem.get(buscado)
+        # el `extension` no filtra, ORDENA: si hay dos con el mismo nombre
+        # y distinta extension, gana la del proxy que se eligio
+        if candidato is not None and candidato.suffix.lower() != extension.lower():
+            mismo = carpeta / f"{buscado}{extension}"
+            if mismo.exists():
+                candidato = mismo
         # Un clip NO puede ser su propio proxy. Es alcanzable desde que se
         # admite el proxy con el nombre identico al del clip: ahi el patron
         # es «sin prefijo y sin sufijo», y el dialogo abre en la carpeta del
@@ -79,15 +85,16 @@ def emparejar_con_patron(
         # a cada clip consigo mismo. La validacion cuadro a cuadro lo daba
         # por bueno (es el mismo archivo, claro), y quedaba un proyecto
         # entero diciendo PROXY sobre los 4K, guardado en el .cvproj.
+        #
+        # Va DESPUES de resolver la extension, y el orden importa: con el
+        # patron de nombre identico, un proxy que viva en la carpeta del
+        # material y solo cambie de extension comparte `stem` con su clip, y
+        # el mapa de arriba se queda con uno de los dos segun como el disco
+        # liste la carpeta. Preguntando antes, las veces que ganaba el
+        # original el proxy bueno se perdia en silencio.
         if candidato is not None and _es_el_mismo_archivo(candidato, original):
             resultado[original] = None
             continue
-        # el `extension` no filtra, ORDENA: si hay dos con el mismo nombre
-        # y distinta extension, gana la del proxy que se eligio
-        if candidato is not None and candidato.suffix.lower() != extension.lower():
-            mismo = carpeta / f"{buscado}{extension}"
-            if mismo.exists():
-                candidato = mismo
         resultado[original] = candidato
     return resultado
 
