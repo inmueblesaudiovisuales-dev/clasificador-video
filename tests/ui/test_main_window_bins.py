@@ -1921,3 +1921,40 @@ def test_no_se_borra_un_bin_que_ya_tiene_clips(qtbot):
 
     assert nuevo not in window.bins.nombres()
     assert window.bins.bin_de(0) == "Card A"
+
+
+def test_deshacer_un_renombrado_recupera_el_nombre_viejo(qtbot):
+    window = _ventana_con_bins(qtbot)
+
+    window._on_bin_renombrado("Card A", "Camara 1")
+    assert "Camara 1" in window.bins.nombres()
+    window.undo()
+
+    assert "Card A" in window.bins.nombres()
+    assert "Camara 1" not in window.bins.nombres()
+    assert window.bins.bin_de(0) == "Card A"
+
+
+def test_renombrar_un_bin_arregla_los_renglones_viejos(qtbot):
+    """Un renglon que hable de un bin que ya no existe promete devolver algo
+    inalcanzable. Mismo arreglo que ya se le hizo a los cuartos."""
+    window = _ventana_con_bins(qtbot)
+    window._on_clips_movidos([0], "Card B")
+
+    window._on_bin_renombrado("Card A", "Camara 1")
+
+    movido = [e for e in window.history.entries() if e.bins_antes][0]
+    assert movido.bins_antes == {0: "Camara 1"}
+
+
+def test_renombrar_un_bin_no_toca_el_renglon_de_un_cuarto_que_se_llame_igual(qtbot):
+    """Un cuarto «Cocina» y una camara «Cocina» pueden convivir."""
+    window = _ventana_con_bins(qtbot)
+    window.select_clip(0)
+    window.handle_key_press("2")                    # Cocina, el CUARTO
+    window._on_bin_renombrado("Card A", "Cocina")   # y ahora el BIN
+
+    window._on_bin_renombrado("Cocina", "Camara 1")
+
+    de_cuarto = [e for e in window.history.entries() if not e.habla_de_bins()][0]
+    assert de_cuarto.etiqueta == "Cocina"

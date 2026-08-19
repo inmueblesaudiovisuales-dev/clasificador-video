@@ -1345,6 +1345,13 @@ class MainWindow(QWidget):
             if not self.bins.clips_de(entrada.bin_creado):
                 self.bins.quitar(entrada.bin_creado)
                 self.clip_sheet.set_bin_order(self.bins.nombres())
+        if entrada.bin_renombrado is not None:
+            renombrado_viejo, renombrado_nuevo = entrada.bin_renombrado
+            # al reves. Solo si el nombre de hoy sigue siendo el que esta
+            # entrada puso: si lo renombraste otra vez, este renglon ya
+            # quedo bloqueado y no deberia llegar hasta aqui.
+            if renombrado_nuevo in self.bins.nombres():
+                self._aplicar_renombrado_de_bin(renombrado_nuevo, renombrado_viejo)
         if entrada.cuarto_borrado is not None:
             # se REINSERTA en su posicion, que es lo que le da la tecla.
             # Restaurar la lista entera --como hacia antes-- se llevaba puesto
@@ -2658,7 +2665,13 @@ class MainWindow(QWidget):
         cabecera.select_all_requested.connect(self._on_bin_seleccionado)
         cabecera.remove_requested.connect(self._on_bin_quitado)
 
-    def _on_bin_renombrado(self, viejo: str, nuevo: str) -> None:
+    def _aplicar_renombrado_de_bin(self, viejo: str, nuevo: str) -> None:
+        """Le cambia el nombre al bin y a TODO lo que lo guarda por nombre.
+
+        Vive aparte de `_on_bin_renombrado` porque deshacer un renombrado es
+        renombrar al reves, y las dos cosas tienen que mover exactamente las
+        mismas llaves. Escrito dos veces, la segunda copia se olvida de una.
+        """
         self.bins.renombrar(viejo, nuevo)
         # la hoja guarda por NOMBRE dos cosas suyas que el dato no conoce:
         # si el bin esta colapsado y su carpeta de origen. Se le avisa antes
@@ -2680,12 +2693,43 @@ class MainWindow(QWidget):
                     and self._generando_proxies["bin"] == viejo):
                 self._generando_proxies["bin"] = nuevo
             self._refrescar_aviso()
+            # y los renglones del historial, que guardan el NOMBRE del bin:
+            # sin esto prometen devolver los clips a un bin que ya no existe.
+            # Mismo arreglo, mismo motivo y mismo lugar que el de los cuartos
+            # en `_on_room_renamed`.
+            self.history.renombrar_bin(viejo, nuevo)
         # `force_rebuild` no: reconstruir la hoja tiraria las portadas ya
         # cargadas, y aqui no cambio ni un clip -- solo como se llama su bin.
         self._refresh_sheet()
         # DESPUES del refresco: el encabezado con el nombre nuevo nace ahi, y
         # nace sin saber que su bin esta generando proxies.
         self._pintar_avance_de_proxies()
+
+    def _on_bin_renombrado(self, viejo: str, nuevo: str) -> None:
+        """Le pusiste otro nombre al bin desde su encabezado.
+
+        Aqui se aplica PRIMERO y se registra despues, al reves de la regla de
+        siempre, y es a proposito: `_aplicar_renombrado_de_bin` llama a
+        `history.renombrar_bin`, que le pasa por encima a todo lo que hable
+        del nombre viejo -- incluida la entrada que se acabara de meter, que
+        quedaria diciendo `(nuevo, nuevo)` y no sabria a que volver.
+        """
+        nuevo = nuevo.strip()
+        if not nuevo or nuevo == viejo or nuevo in self.bins.nombres():
+            # `BinTree.renombrar` ignora en silencio un nombre repetido o
+            # vacio, con el mismo criterio que `RoomSelection.rename`. Aqui
+            # tampoco se registra: quedaria el renglon de una accion que no
+            # paso, y su `↺` prometeria deshacer nada.
+            return
+        self._aplicar_renombrado_de_bin(viejo, nuevo)
+        self.history.push(HistoryEntry(
+            etiqueta=nuevo,
+            detalle=f"→ antes {viejo}",
+            color=self._color_de_bin(nuevo),
+            antes={},
+            bin_renombrado=(viejo, nuevo),
+        ))
+        self._refresh_history()
         self._autosave()
 
     def _on_bin_nuevo_pedido(self) -> None:
