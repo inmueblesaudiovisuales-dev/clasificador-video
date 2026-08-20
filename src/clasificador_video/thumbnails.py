@@ -71,6 +71,12 @@ def build_thumbnail_command(video: Path, at_seconds: float, outdir: Path) -> lis
     return [
         _mpv(),
         "--no-config",
+        # Sin audio: doce miniaturas por clip son doce mpv que abren el
+        # archivo, y cada uno tomaba el dispositivo de audio para escribir un
+        # cuadro y salirse. Con 132 clips eso es un chasquido tras otro
+        # durante toda la importacion. Va con la misma decision que dejo al
+        # reproductor callado (ver `player.py`).
+        "--no-audio",
         "--vo=image",
         f"--vo-image-outdir={outdir}",
         f"--start={at_seconds}",

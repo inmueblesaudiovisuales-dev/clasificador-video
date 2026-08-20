@@ -111,6 +111,11 @@ estás mirando.
 Los filtros no cambian solo lo que ves: **cambian por dónde te llevan las
 flechas**. Con «solo picks» puesto, `→` salta al siguiente pick.
 
+**La app no suena.** Los clips se reproducen callados siempre, sin tecla que
+lo cambie: aquí se clasifica mirando, y un shooting entero sonando mientras
+recorres toma por toma es ruido y nada más. Si necesitas oír una toma, ábrela
+en QuickTime.
+
 **Material horizontal.** Un clip vertical usa toda la altura de la ventana;
 uno horizontal no alcanza, porque el ancho se lo reparten el rail y la hoja.
 El botón **Ancho** de la barra de arriba esconde la hoja mientras ves clip

@@ -247,3 +247,16 @@ def test_si_se_corta_a_la_mitad_no_deja_marca(tmp_path):
 
     assert list(salida.glob("strip_*.jpg"))            # alcanzo a sacar algunas
     assert not (salida / MARCA_DE_COMPLETA).exists()   # pero no dice que acabo
+
+
+def test_las_miniaturas_se_sacan_sin_audio():
+    """Doce miniaturas por clip son doce mpv que abren el archivo. Cada uno
+    tomaba el dispositivo de audio para escribir un cuadro y salirse, y con
+    132 clips eso es un chasquido tras otro durante toda la importacion.
+
+    Va junto con que el reproductor nazca callado: la app no suena, y eso
+    incluye a los mpv que no se ven.
+    """
+    cmd = build_thumbnail_command(Path("/x/C0001.MP4"), 1.5, Path("/tmp/out"))
+
+    assert "--no-audio" in cmd

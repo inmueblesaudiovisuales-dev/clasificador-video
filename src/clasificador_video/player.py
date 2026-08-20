@@ -34,7 +34,14 @@ class MpvPlayer:
         # keep_open=always conserva el ultimo frame decodificado al llegar a
         # EOF en vez de descargar el archivo (los clips de prueba duran
         # pocos segundos; sin esto el widget queda negro tras el primer EOF).
-        self._mpv = mpv_factory(hwdec="videotoolbox", vo="libmpv", keep_open="always")
+        # mute=True: la app NO suena, nunca. Decision de Bruno el 2026-08-20
+        # --se le ofrecio una tecla para prenderlo y la descarto--. Se
+        # clasifica mirando, y un shooting entero sonando mientras recorres
+        # clip por clip es ruido y nada mas. Va aqui, en la creacion, y no
+        # como un `mute` que se pone despues de abrir: asi no hay un instante
+        # en que el primer clip suene antes de callarse.
+        self._mpv = mpv_factory(hwdec="videotoolbox", vo="libmpv",
+                                keep_open="always", mute=True)
         self._mpv.pause = True  # estado inicial definido: nunca reproducir solo
         self.in_frame: int | None = None
         self.out_frame: int | None = None

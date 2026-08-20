@@ -340,3 +340,16 @@ def test_pasar_de_cuadro_no_le_escribe_pause_a_mpv():
     escrituras.clear()          # el constructor escribe pause = True a proposito
     player.step_frame(1)
     assert escrituras == [], "step_frame no debe escribirle `pause` a mpv"
+
+
+def test_el_reproductor_nace_callado():
+    """Decision de Bruno el 2026-08-20: la app nunca suena.
+
+    Se clasifica mirando, no oyendo, y un shooting entero sonando mientras
+    recorres clip por clip es ruido y nada mas. No hay tecla para prenderlo
+    --se ofrecio y lo descarto-- asi que esto no es un valor por omision que
+    algo mas pueda cambiar: es como abre mpv y como se queda.
+    """
+    player = MpvPlayer(FakeMpv)
+
+    assert player.mpv_handle.init_kwargs["mute"] is True
