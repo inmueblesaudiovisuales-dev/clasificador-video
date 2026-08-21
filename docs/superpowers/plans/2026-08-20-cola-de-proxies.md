@@ -42,7 +42,7 @@
 - Modify: `src/clasificador_video/proxy_gen.py`
 - Test: `tests/test_proxy_gen.py`
 
-- [ ] **Step 1: Escribe las pruebas que fallan**
+- [x] **Step 1: Escribe las pruebas que fallan**
 
 Al final de `tests/test_proxy_gen.py`:
 
@@ -82,7 +82,7 @@ def test_barrer_parciales_aguanta_una_carpeta_que_no_esta(tmp_path):
 
 Añade `barrer_parciales` al import que ya hay arriba del archivo.
 
-- [ ] **Step 2: Corre las pruebas y comprueba que fallan**
+- [x] **Step 2: Corre las pruebas y comprueba que fallan**
 
 ```bash
 QT_QPA_PLATFORM=offscreen .venv/bin/pytest tests/test_proxy_gen.py -q -k barrer
@@ -90,7 +90,7 @@ QT_QPA_PLATFORM=offscreen .venv/bin/pytest tests/test_proxy_gen.py -q -k barrer
 
 Esperado: FAIL con `ImportError: cannot import name 'barrer_parciales'`.
 
-- [ ] **Step 3: Escribe la función**
+- [x] **Step 3: Escribe la función**
 
 En `proxy_gen.py`, justo debajo de `faltantes`:
 
@@ -133,7 +133,7 @@ Y en `generar`, cambia la linea del parcial para que use la constante:
     parcial = destino.with_name(destino.name + SUFIJO_PARCIAL)
 ```
 
-- [ ] **Step 4: Corre las pruebas**
+- [x] **Step 4: Corre las pruebas**
 
 ```bash
 QT_QPA_PLATFORM=offscreen .venv/bin/pytest tests/test_proxy_gen.py -q
@@ -141,7 +141,7 @@ QT_QPA_PLATFORM=offscreen .venv/bin/pytest tests/test_proxy_gen.py -q
 
 Esperado: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/clasificador_video/proxy_gen.py tests/test_proxy_gen.py
@@ -159,7 +159,7 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 - Modify: `src/clasificador_video/ui/theme.py`
 - Test: `tests/ui/test_clip_sheet.py`
 
-- [ ] **Step 1: Escribe las pruebas que fallan**
+- [x] **Step 1: Escribe las pruebas que fallan**
 
 ```python
 def test_un_bin_formado_lo_dice_en_su_insignia(qtbot):
@@ -214,7 +214,7 @@ def test_el_menu_de_un_bin_formado_ofrece_cancelar(qtbot):
     assert not any("Crear proxies" in t for t in textos)
 ```
 
-- [ ] **Step 2: Corre las pruebas y comprueba que fallan**
+- [x] **Step 2: Corre las pruebas y comprueba que fallan**
 
 ```bash
 QT_QPA_PLATFORM=offscreen .venv/bin/pytest tests/ui/test_clip_sheet.py -q -k "cola or formado or CORRE"
@@ -222,7 +222,7 @@ QT_QPA_PLATFORM=offscreen .venv/bin/pytest tests/ui/test_clip_sheet.py -q -k "co
 
 Esperado: FAIL con `AttributeError: 'ClipSheet' object has no attribute 'set_bin_en_cola'`.
 
-- [ ] **Step 3: El estado en el encabezado**
+- [x] **Step 3: El estado en el encabezado**
 
 En `_BinHeader.__init__`, junto a `self._generando`:
 
@@ -266,7 +266,7 @@ En el menú, cambia la condición:
         if self._generando is not None or self._en_cola:
 ```
 
-- [ ] **Step 4: El puente desde la hoja**
+- [x] **Step 4: El puente desde la hoja**
 
 En `ClipSheet`, junto a `set_bin_generando`:
 
@@ -280,7 +280,7 @@ En `ClipSheet`, junto a `set_bin_generando`:
         self._actualizar_encabezado_pegado()
 ```
 
-- [ ] **Step 5: El estilo**
+- [x] **Step 5: El estilo**
 
 En `theme.py`, junto a las demás reglas de `#binProxyBadge`:
 
@@ -294,7 +294,7 @@ En `theme.py`, junto a las demás reglas de `#binProxyBadge`:
     }}
 ```
 
-- [ ] **Step 6: Corre la suite completa**
+- [x] **Step 6: Corre la suite completa**
 
 ```bash
 QT_QPA_PLATFORM=offscreen .venv/bin/pytest tests/ -q
@@ -302,7 +302,7 @@ QT_QPA_PLATFORM=offscreen .venv/bin/pytest tests/ -q
 
 Esperado: PASS.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add src/clasificador_video/ui/clip_sheet.py src/clasificador_video/ui/theme.py tests/ui/test_clip_sheet.py
@@ -319,7 +319,7 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 - Modify: `src/clasificador_video/ui/main_window.py`
 - Test: `tests/ui/test_main_window_bins.py`
 
-- [ ] **Step 1: Escribe las pruebas que fallan**
+- [x] **Step 1: Escribe las pruebas que fallan**
 
 Usa el helper `_ventana_con_bins` que ya existe en ese archivo, y añade arriba uno nuevo:
 
@@ -383,7 +383,7 @@ def test_al_terminar_uno_arranca_el_siguiente_solo(qtbot, monkeypatch):
     assert window._cola_de_proxies == []
 ```
 
-- [ ] **Step 2: Corre las pruebas y comprueba que fallan**
+- [x] **Step 2: Corre las pruebas y comprueba que fallan**
 
 ```bash
 QT_QPA_PLATFORM=offscreen .venv/bin/pytest tests/ui/test_main_window_bins.py -q -k "forma or dos_veces or formado_lo_dice or siguiente_solo"
@@ -391,7 +391,7 @@ QT_QPA_PLATFORM=offscreen .venv/bin/pytest tests/ui/test_main_window_bins.py -q 
 
 Esperado: FAIL con `AttributeError: '_cola_de_proxies'`.
 
-- [ ] **Step 3: Parte `generar_proxies_de_bin` en dos**
+- [x] **Step 3: Parte `generar_proxies_de_bin` en dos**
 
 Hoy esa función hace tres cosas: decide si se puede, arma la lista y arranca. Se parte para que la fila pueda arrancar una tanda sin volver a preguntar.
 
@@ -511,7 +511,7 @@ Ojo con el `while`: un bin que se fue del proyecto mientras esperaba turno se sa
 
 Ojo también con la recursión: `_arrancar_tanda_de_proxies` llama a `_arrancar_siguiente_de_la_fila` cuando no hay nada que hacer, y esa vuelve a llamar a la primera. La fila es finita y cada vuelta saca un elemento, así que termina.
 
-- [ ] **Step 4: Corre las pruebas**
+- [x] **Step 4: Corre las pruebas**
 
 ```bash
 QT_QPA_PLATFORM=offscreen .venv/bin/pytest tests/ui/test_main_window_bins.py -q
@@ -519,7 +519,7 @@ QT_QPA_PLATFORM=offscreen .venv/bin/pytest tests/ui/test_main_window_bins.py -q
 
 Esperado: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/clasificador_video/ui/main_window.py tests/ui/test_main_window_bins.py
@@ -536,7 +536,7 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 - Modify: `src/clasificador_video/ui/main_window.py`
 - Test: `tests/ui/test_main_window_bins.py`
 
-- [ ] **Step 1: Escribe las pruebas que fallan**
+- [x] **Step 1: Escribe las pruebas que fallan**
 
 ```python
 def test_cancelar_un_bin_formado_no_toca_al_que_corre(qtbot, monkeypatch):
@@ -584,7 +584,7 @@ def test_cancelar_un_bin_que_ni_pediste_no_hace_nada(qtbot, monkeypatch):
     assert window._generando_proxies["cancelado"] is False
 ```
 
-- [ ] **Step 2: Corre las pruebas y comprueba que fallan**
+- [x] **Step 2: Corre las pruebas y comprueba que fallan**
 
 ```bash
 QT_QPA_PLATFORM=offscreen .venv/bin/pytest tests/ui/test_main_window_bins.py -q -k cancelar_un_bin_formado
@@ -592,7 +592,7 @@ QT_QPA_PLATFORM=offscreen .venv/bin/pytest tests/ui/test_main_window_bins.py -q 
 
 Esperado: FAIL — hoy `cancelar_generacion_de_proxies` ignora el nombre y cancela lo que corra.
 
-- [ ] **Step 3: Que mire el nombre**
+- [x] **Step 3: Que mire el nombre**
 
 Reemplaza `cancelar_generacion_de_proxies` entera:
 
@@ -619,7 +619,7 @@ Reemplaza `cancelar_generacion_de_proxies` entera:
             self._generando_proxies["cancelado"] = True
 ```
 
-- [ ] **Step 4: Corre la suite completa**
+- [x] **Step 4: Corre la suite completa**
 
 ```bash
 QT_QPA_PLATFORM=offscreen .venv/bin/pytest tests/ -q
@@ -627,7 +627,7 @@ QT_QPA_PLATFORM=offscreen .venv/bin/pytest tests/ -q
 
 Esperado: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/clasificador_video/ui/main_window.py tests/ui/test_main_window_bins.py
@@ -644,7 +644,7 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 - Modify: `src/clasificador_video/ui/main_window.py` (`_terminar_generacion_de_proxies`)
 - Test: `tests/ui/test_main_window_bins.py`
 
-- [ ] **Step 1: Escribe las pruebas que fallan**
+- [x] **Step 1: Escribe las pruebas que fallan**
 
 ```python
 def _carteles(monkeypatch):
@@ -721,7 +721,7 @@ def test_lo_que_alcanzo_a_crear_un_bin_cancelado_si_cuenta(qtbot, monkeypatch):
     assert window._resumen_de_la_fila["creados"] == 4
 ```
 
-- [ ] **Step 2: Corre las pruebas y comprueba que fallan**
+- [x] **Step 2: Corre las pruebas y comprueba que fallan**
 
 ```bash
 QT_QPA_PLATFORM=offscreen .venv/bin/pytest tests/ui/test_main_window_bins.py -q -k "UN_cartel or suma_todas or cancelarlo_todo or alcanzo_a_crear"
@@ -729,7 +729,7 @@ QT_QPA_PLATFORM=offscreen .venv/bin/pytest tests/ui/test_main_window_bins.py -q 
 
 Esperado: FAIL — hoy el cartel sale al terminar cada tanda.
 
-- [ ] **Step 3: Acumular, y avisar solo al vaciarse**
+- [x] **Step 3: Acumular, y avisar solo al vaciarse**
 
 Reemplaza `_terminar_generacion_de_proxies` entera:
 
@@ -786,7 +786,7 @@ Reemplaza `_terminar_generacion_de_proxies` entera:
         )
 ```
 
-- [ ] **Step 4: Corre la suite completa**
+- [x] **Step 4: Corre la suite completa**
 
 ```bash
 QT_QPA_PLATFORM=offscreen .venv/bin/pytest tests/ -q
@@ -794,7 +794,7 @@ QT_QPA_PLATFORM=offscreen .venv/bin/pytest tests/ -q
 
 Esperado: PASS. Aquí es donde se nota si alguna prueba vieja esperaba el cartel por tanda; si alguna falla, actualízala al comportamiento nuevo y di en el commit cuál era.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/clasificador_video/ui/main_window.py tests/ui/test_main_window_bins.py
@@ -811,7 +811,7 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 - Modify: `src/clasificador_video/ui/main_window.py`
 - Test: `tests/ui/test_main_window_bins.py`
 
-- [ ] **Step 1: Escribe las pruebas que fallan**
+- [x] **Step 1: Escribe las pruebas que fallan**
 
 ```python
 def test_al_empezar_la_tanda_se_barren_los_parciales(qtbot, monkeypatch, tmp_path):
@@ -843,7 +843,7 @@ def test_quitar_un_bin_vacia_tambien_la_fila(qtbot, monkeypatch):
 
 Añade `from clasificador_video import proxy_gen` al principio del archivo si no está.
 
-- [ ] **Step 2: Corre las pruebas y comprueba que fallan**
+- [x] **Step 2: Corre las pruebas y comprueba que fallan**
 
 ```bash
 QT_QPA_PLATFORM=offscreen .venv/bin/pytest tests/ui/test_main_window_bins.py -q -k "barren_los_parciales or vacia_tambien"
@@ -851,7 +851,7 @@ QT_QPA_PLATFORM=offscreen .venv/bin/pytest tests/ui/test_main_window_bins.py -q 
 
 Esperado: FAIL.
 
-- [ ] **Step 3: Barrer, y vaciar la fila**
+- [x] **Step 3: Barrer, y vaciar la fila**
 
 En `_arrancar_tanda_de_proxies`, justo después de calcular `carpeta` y ANTES de calcular `pendientes`:
 
@@ -877,7 +877,7 @@ En `_descartar_generacion_de_proxies`, antes del `estado = self._generando_proxi
         self._resumen_de_la_fila = {"creados": 0, "fallidos": []}
 ```
 
-- [ ] **Step 4: Corre la suite completa**
+- [x] **Step 4: Corre la suite completa**
 
 ```bash
 QT_QPA_PLATFORM=offscreen .venv/bin/pytest tests/ -q
@@ -885,7 +885,7 @@ QT_QPA_PLATFORM=offscreen .venv/bin/pytest tests/ -q
 
 Esperado: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/clasificador_video/ui/main_window.py tests/ui/test_main_window_bins.py
@@ -902,7 +902,7 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 - Test: `tests/ui/test_main_window_bins.py`
 - Modify: `README.md`, `docs/superpowers/CONTEXTO-Y-METAS.md`
 
-- [ ] **Step 1: La prueba del recorrido completo**
+- [x] **Step 1: La prueba del recorrido completo**
 
 ```python
 def test_el_recorrido_completo_de_la_fila(qtbot, monkeypatch):
@@ -932,7 +932,7 @@ def test_el_recorrido_completo_de_la_fila(qtbot, monkeypatch):
     assert "4" in vistos[0][2]
 ```
 
-- [ ] **Step 2: Corre la suite completa**
+- [x] **Step 2: Corre la suite completa**
 
 ```bash
 QT_QPA_PLATFORM=offscreen .venv/bin/pytest tests/ -q
@@ -940,7 +940,7 @@ QT_QPA_PLATFORM=offscreen .venv/bin/pytest tests/ -q
 
 Esperado: PASS.
 
-- [ ] **Step 3: Comprobación visual de la insignia «en cola»**
+- [x] **Step 3: Comprobación visual de la insignia «en cola»**
 
 No basta con que la prueba pase. Guarda esto en el scratchpad de la sesión (NO en el repo) y córrelo:
 
@@ -980,7 +980,7 @@ QT_QPA_PLATFORM=offscreen .venv/bin/python <ruta>/cola.py <ruta-del-scratchpad>
 
 Abre el PNG con la herramienta de lectura de archivos. Confirma tres cosas: «Card A» dice el avance `7/23`, «Card B» y «Card C» dicen «en cola», y el que corre salta más a la vista que los que esperan.
 
-- [ ] **Step 4: Actualiza la documentación**
+- [x] **Step 4: Actualiza la documentación**
 
 En `README.md`, en la parte de proxies, después de donde se explica «Crear los proxies»:
 
@@ -993,7 +993,7 @@ bin cancela solo ese; los demás siguen.
 
 En `docs/superpowers/CONTEXTO-Y-METAS.md`, en la sección de lo que se cerró, añade un punto explicando que la fila existe y que **reanudar tras cancelar ya funcionaba desde antes** — para que no se vuelva a "construir".
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add tests/ui/test_main_window_bins.py README.md docs/superpowers/CONTEXTO-Y-METAS.md
