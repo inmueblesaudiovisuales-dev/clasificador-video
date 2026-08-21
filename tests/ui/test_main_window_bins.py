@@ -2417,3 +2417,58 @@ def test_un_bin_entero_ya_en_disco_no_traba_la_fila(qtbot, monkeypatch, tmp_path
 
     assert ruta in sondeados.get("emp", {})
     assert siguientes                               # la fila sigue
+
+
+def test_al_terminar_la_tanda_se_recoge_lo_que_quedo_sin_enganchar(qtbot, monkeypatch, tmp_path):
+    """La otra mitad del arreglo, para que no haga falta una segunda corrida.
+
+    Los sondeos de proxy comparten la fila de trabajos con las portadas, asi
+    que con 205 clips se quedan atras. Si la app se cierra ahi, esos proxies
+    quedan generados y sin enganchar -- que es lo que le paso al dron. Al
+    terminar la tanda ya no hay generacion compitiendo, asi que es el momento
+    de recoger lo que se quedo.
+    """
+    mat = tmp_path / "Card A"
+    mat.mkdir()
+    ruta = mat / "C0001.MP4"
+    ruta.write_bytes(b"x" * 100)
+    window = _ventana_con_bins(qtbot)
+    window.load_clips([Clip(orden=1, ruta=ruta, categoria_path=[], fps=30.0)])
+    window.bins.agregar("Card A", mat, [0])
+    carpeta = proxy_gen.carpeta_de_proxies(mat)
+    carpeta.mkdir(parents=True, exist_ok=True)
+    proxy_gen.ruta_de_proxy(ruta, carpeta).write_bytes(b"proxy")
+    sondeados = {}
+    monkeypatch.setattr(window, "_sondear_proxies",
+                        lambda emp, indices=None: sondeados.update(emp=emp))
+    _corriendo(window, "Card A", carpeta=carpeta, hechos=1, total=1)
+
+    window._terminar_generacion_de_proxies()
+
+    assert ruta in sondeados.get("emp", {})
+
+
+def test_recoger_no_toca_los_que_ya_estan_enganchados(qtbot, monkeypatch, tmp_path):
+    """Volver a sondear uno enganchado lo DESENGANCHA primero
+    (`_sondear_proxies` limpia antes de validar): si el sondeo no alcanza a
+    volver, la marca PROXY desaparece de un clip que si lo tenia."""
+    mat = tmp_path / "Card A"
+    mat.mkdir()
+    ruta = mat / "C0001.MP4"
+    ruta.write_bytes(b"x" * 100)
+    window = _ventana_con_bins(qtbot)
+    window.load_clips([Clip(orden=1, ruta=ruta, categoria_path=[], fps=30.0)])
+    window.bins.agregar("Card A", mat, [0])
+    carpeta = proxy_gen.carpeta_de_proxies(mat)
+    carpeta.mkdir(parents=True, exist_ok=True)
+    px = proxy_gen.ruta_de_proxy(ruta, carpeta)
+    px.write_bytes(b"proxy")
+    window.clips[0].ruta_proxy = px          # ya enganchado
+    sondeados = []
+    monkeypatch.setattr(window, "_sondear_proxies",
+                        lambda emp, indices=None: sondeados.append(emp))
+    _corriendo(window, "Card A", carpeta=carpeta, hechos=1, total=1)
+
+    window._terminar_generacion_de_proxies()
+
+    assert sondeados == []

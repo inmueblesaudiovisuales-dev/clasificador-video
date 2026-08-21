@@ -2819,6 +2819,7 @@ class MainWindow(QWidget):
         # falló, esos clips se quedarían en gris para siempre esperando algo
         # que ya no va a llegar.
         self._schedule_thumbnails(self.bins.clips_de(estado["bin"]))
+        self._recoger_proxies_sin_enganchar(estado["bin"], estado["carpeta"])
         # Lo que esta tanda aporta al cartel del final. Los que ALCANZO a
         # crear cuentan aunque la hayas cancelado: se hicieron y estan
         # enganchados, y callarlos seria mentir en el otro sentido.
@@ -2830,6 +2831,39 @@ class MainWindow(QWidget):
             self._arrancar_siguiente_de_la_fila()
             return
         self._avisar_del_final_de_la_fila()
+
+    def _recoger_proxies_sin_enganchar(self, nombre_de_bin: str, carpeta) -> None:
+        """Los que se generaron y se quedaron sin enganchar.
+
+        **Por qué hace falta, con nombre y fecha:** los sondeos de proxy
+        comparten la fila de trabajos con las portadas, y cada proxy que se
+        genera encola además las suyas. Con 205 clips los sondeos se van
+        quedando atrás, y si la app se cierra ahí esos proxies quedan en el
+        disco, completos y sin enganchar. Le pasó a Bruno con el dron el
+        2026-08-20: 13 de 39, y el bin se quedó en 26/39.
+
+        Al terminar la tanda ya no hay generación compitiendo, así que es el
+        momento de recoger. La otra mitad del arreglo está al EMPEZAR, que
+        cubre lo que quedó de sesiones anteriores; ésta evita que haga falta
+        una segunda corrida siquiera.
+
+        Solo los que NO tienen proxy enganchado: volver a sondear uno que sí
+        lo tiene lo desengancharía primero —`_sondear_proxies` limpia antes
+        de validar— y si el sondeo no alcanza a volver, la marca PROXY
+        desaparece de un clip que estaba bien.
+        """
+        rezagados = {}
+        for i in self.bins.clips_de(nombre_de_bin):
+            if not (0 <= i < len(self.clips)) or self.clips[i].ruta_proxy is not None:
+                continue
+            ruta = proxy_gen.ruta_de_proxy(self.clips[i].ruta, carpeta)
+            if ruta.exists():
+                rezagados[i] = ruta
+        if rezagados:
+            self._sondear_proxies(
+                {self.clips[i].ruta: ruta for i, ruta in rezagados.items()},
+                indices=list(rezagados),
+            )
 
     def _avisar_del_final_de_la_fila(self) -> None:
         """UN cartel, cuando la fila se vacía.
