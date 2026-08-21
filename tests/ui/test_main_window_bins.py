@@ -4,6 +4,7 @@ from pathlib import Path
 
 import pytest
 
+from clasificador_video import proxy_gen
 from clasificador_video.manifest import Clip
 from clasificador_video.proyecto import rutas_relativas
 from clasificador_video.rooms import RoomSelection
@@ -2353,3 +2354,66 @@ def test_el_recorrido_completo_de_la_fila(qtbot, monkeypatch):
 
     assert len(vistos) == 1
     assert "4 proxies creados" in vistos[0][2]
+
+
+def test_un_proxy_que_ya_esta_en_disco_se_engancha_en_vez_de_ignorarse(qtbot, monkeypatch, tmp_path):
+    """El bug de los 13 del dron, 2026-08-20.
+
+    Una tanda que se corta despues de generar pero antes de enganchar deja
+    archivos COMPLETOS y sin enganchar. La siguiente corrida los daba por
+    hechos --el archivo existe-- y no los miraba nunca: el bin se quedaba en
+    26/39 para siempre, y volver a darle contestaba «todos ya tienen proxy».
+
+    El `.parcial` no cubre esto: protege del archivo TRUNCADO, no del
+    completo que nadie engancho.
+    """
+    mat = tmp_path / "Card A"
+    mat.mkdir()
+    rutas = []
+    for n in ("C0001.MP4", "C0002.MP4"):
+        (mat / n).write_bytes(b"x" * 100)
+        rutas.append(mat / n)
+    window = _ventana_con_bins(qtbot)
+    window.load_clips([Clip(orden=i + 1, ruta=r, categoria_path=[], fps=30.0)
+                       for i, r in enumerate(rutas)])
+    window.bins.agregar("Card A", mat, [0, 1])
+    carpeta = proxy_gen.carpeta_de_proxies(mat)
+    carpeta.mkdir(parents=True, exist_ok=True)
+    # al clip 1 le quedo su proxy en disco, sin enganchar
+    proxy_gen.ruta_de_proxy(rutas[0], carpeta).write_bytes(b"proxy")
+    sondeados = {}
+    monkeypatch.setattr(window, "_sondear_proxies",
+                        lambda emp, indices=None: sondeados.update(emp=emp, idx=indices))
+    encolados = []
+    monkeypatch.setattr(window._generacion_pool, "start", encolados.append)
+
+    window._arrancar_tanda_de_proxies("Card A")
+
+    assert rutas[0] in sondeados.get("emp", {})     # el que ya estaba: se mira
+    assert len(encolados) == 1                      # solo el otro se genera
+
+
+def test_un_bin_entero_ya_en_disco_no_traba_la_fila(qtbot, monkeypatch, tmp_path):
+    """Si TODOS ya estaban en disco no hay nada que generar, pero si hay que
+    engancharlos -- y el siguiente de la fila tiene que arrancar igual."""
+    mat = tmp_path / "Card A"
+    mat.mkdir()
+    ruta = mat / "C0001.MP4"
+    ruta.write_bytes(b"x" * 100)
+    window = _ventana_con_bins(qtbot)
+    window.load_clips([Clip(orden=1, ruta=ruta, categoria_path=[], fps=30.0)])
+    window.bins.agregar("Card A", mat, [0])
+    carpeta = proxy_gen.carpeta_de_proxies(mat)
+    carpeta.mkdir(parents=True, exist_ok=True)
+    proxy_gen.ruta_de_proxy(ruta, carpeta).write_bytes(b"proxy")
+    sondeados = {}
+    monkeypatch.setattr(window, "_sondear_proxies",
+                        lambda emp, indices=None: sondeados.update(emp=emp))
+    siguientes = []
+    monkeypatch.setattr(window, "_arrancar_siguiente_de_la_fila",
+                        lambda: siguientes.append(True))
+
+    window._arrancar_tanda_de_proxies("Card A")
+
+    assert ruta in sondeados.get("emp", {})
+    assert siguientes                               # la fila sigue

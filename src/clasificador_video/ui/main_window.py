@@ -2622,10 +2622,33 @@ class MainWindow(QWidget):
         # otro momento le pisaria el archivo al que esta escribiendo.
         proxy_gen.barrer_parciales(carpeta)
         candidatos = [i for i in indices if self.clips[i].ruta_proxy is None]
-        pendientes = [
-            i for i in candidatos
-            if not proxy_gen.ruta_de_proxy(self.clips[i].ruta, carpeta).exists()
-        ]
+        # Un archivo que ya esta ahi NO se da por hecho: se MIRA.
+        #
+        # El archivo existe y el clip no lo tiene enganchado significa que
+        # una tanda anterior alcanzo a generarlo y no a engancharlo -- se
+        # cerro la app en medio, o se corto la luz. Saltarlo por «ya existe»
+        # dejaba a ese clip sin proxy PARA SIEMPRE: la siguiente corrida lo
+        # volvia a saltar, y con todo el bin asi la app contestaba «todos los
+        # clips ya tienen proxy» sobre 13 que no lo tenian. Le paso a Bruno
+        # con el dron el 2026-08-20: 26/39, y las dos corridas siguientes no
+        # tocaron los 13.
+        #
+        # El `.parcial` de `generar` no cubre esto y no puede: protege del
+        # archivo TRUNCADO, no del completo que nadie engancho.
+        #
+        # Engancharlo cuesta un `ffprobe`; regenerarlo, minutos. Y pasa por
+        # la validacion de siempre, asi que uno que no calce se descarta y
+        # cae en `pendientes` la proxima vez.
+        ya_en_disco, pendientes = [], []
+        for i in candidatos:
+            ruta = proxy_gen.ruta_de_proxy(self.clips[i].ruta, carpeta)
+            (ya_en_disco if ruta.exists() else pendientes).append((i, ruta))
+        if ya_en_disco:
+            self._sondear_proxies(
+                {self.clips[i].ruta: ruta for i, ruta in ya_en_disco},
+                indices=[i for i, _ in ya_en_disco],
+            )
+        pendientes = [i for i, _ in pendientes]
         if not pendientes:
             self._arrancar_siguiente_de_la_fila()
             return

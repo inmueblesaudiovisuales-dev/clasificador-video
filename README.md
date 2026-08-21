@@ -199,7 +199,9 @@ chip, uno por uno y en segundo plano: puedes seguir clasificando mientras
 corre. El encabezado del bin va diciendo `creando proxies · 7/23` y **cada
 clip se engancha apenas termina el suyo**. Desde el mismo menú se cancela: lo
 hecho se queda, lo que faltaba no se hace, y volver a darle solo genera los
-que faltan.
+que faltan. Si en la carpeta ya hay un proxy que quedó sin enganchar —porque
+una tanda anterior se cortó a medias— **la app lo engancha en vez de
+rehacerlo**, después de comprobar que calza.
 
 **Puedes pedir varios bins seguidos.** El primero arranca y los demás se
 forman: cada uno dice `en cola` en su insignia y arranca solo cuando le toca.
