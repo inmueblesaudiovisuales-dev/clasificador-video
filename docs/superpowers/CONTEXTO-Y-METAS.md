@@ -170,6 +170,36 @@ medido que no calza cuadro a cuadro.
 
 ---
 
+## Lo que se cerró el 2026-08-20
+
+### La fila de proxies — **hecho**
+
+Salió de usar la app: con dos tarjetas hay dos bins que necesitan proxies, y
+pedir el segundo contestaba «espera a que termine». Lo caro no era esperar,
+era **tener que acordarse de volver**.
+
+Ahora se forman: pides los que quieras, corren en orden, cada uno se cancela
+por su lado desde su menú, y al vaciarse la fila sale **un** cartel con la
+suma de todo en vez de uno por bin. Sigue generando de uno en uno, que es
+deliberado.
+
+**Dos cosas que parecían faltar y ya estaban**, escritas aquí para que nadie
+las «arregle» otra vez:
+
+- **Reanudar tras cancelar ya funcionaba.** `faltantes()` se salta lo hecho.
+  Comprobado con la app antes de escribir el spec: con tres clips y uno
+  hecho, ofrece «se van a crear 2 proxies».
+- **Un proxy interrumpido nunca bloqueó a su clip.** `proxy_gen.generar`
+  escribe a `<nombre>.mp4.parcial` y solo renombra al nombre bueno cuando
+  ffmpeg devuelve 0, así que un corte deja un `.parcial` que
+  `ruta_de_proxy(...).exists()` no ve — el clip sigue contando como
+  pendiente. Lo único real era que esos `.parcial` no los barría nadie, y
+  ahora se barren al empezar cada tanda.
+
+Detalle en `specs/2026-08-20-cola-de-proxies-design.md`.
+
+---
+
 ## Lo que se cerró el 2026-08-18
 
 ### Los bins en el deshacer — **hecho**

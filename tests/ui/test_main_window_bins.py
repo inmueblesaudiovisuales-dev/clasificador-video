@@ -2326,3 +2326,30 @@ def test_quitar_un_bin_vacia_tambien_la_fila(qtbot, monkeypatch):
     window._descartar_generacion_de_proxies()
 
     assert window._cola_de_proxies == []
+
+
+def test_el_recorrido_completo_de_la_fila(qtbot, monkeypatch):
+    """Pides dos bins, corren en orden, y al final UN cartel con la suma."""
+    window = _ventana_con_bins(qtbot)
+    window.bins.mover([2], "Card B")
+    vistos = _carteles(monkeypatch)
+    arrancados = []
+
+    def arrancar(nombre):
+        arrancados.append(nombre)
+        _corriendo(window, nombre, generacion=len(arrancados), total=2, hechos=2)
+
+    monkeypatch.setattr(window, "_arrancar_tanda_de_proxies", arrancar)
+
+    window.generar_proxies_de_bin("Card A", preguntar=False)
+    window.generar_proxies_de_bin("Card B", preguntar=False)
+    assert window._cola_de_proxies == ["Card B"]
+
+    window._terminar_generacion_de_proxies()      # termina Card A
+    assert arrancados == ["Card A", "Card B"]
+    assert vistos == []                           # todavía queda uno
+
+    window._terminar_generacion_de_proxies()      # termina Card B
+
+    assert len(vistos) == 1
+    assert "4 proxies creados" in vistos[0][2]

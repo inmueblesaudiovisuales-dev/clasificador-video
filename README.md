@@ -197,6 +197,12 @@ clip se engancha apenas termina el suyo**. Desde el mismo menú se cancela: lo
 hecho se queda, lo que faltaba no se hace, y volver a darle solo genera los
 que faltan.
 
+**Puedes pedir varios bins seguidos.** El primero arranca y los demás se
+forman: cada uno dice `en cola` en su insignia y arranca solo cuando le toca.
+Al terminar todos sale **un** aviso con la cuenta de todo. Cancelar desde el
+menú de un bin cancela solo ese —si era el que corría, el siguiente arranca
+solo— y los demás siguen formados.
+
 Van a una carpeta **`Proxies` al lado** de la del material, para no ensuciar
 la copia de la tarjeta.
 
