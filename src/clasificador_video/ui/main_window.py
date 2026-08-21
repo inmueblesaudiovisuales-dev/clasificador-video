@@ -2614,6 +2614,13 @@ class MainWindow(QWidget):
             self._arrancar_siguiente_de_la_fila()
             return
         carpeta = proxy_gen.carpeta_de_proxies(self.clips[indices[0]].ruta.parent)
+        # Los pedazos de una tanda que se corto de golpe. AQUI y no al pedir
+        # el bin: este es el unico momento en que se sabe que no hay ningun
+        # `.parcial` en vuelo -- se genera de uno en uno, y la fila arranca
+        # la siguiente solo cuando la anterior termino. Dos bins de la misma
+        # carpeta comparten carpeta de proxies, asi que barrer en cualquier
+        # otro momento le pisaria el archivo al que esta escribiendo.
+        proxy_gen.barrer_parciales(carpeta)
         candidatos = [i for i in indices if self.clips[i].ruta_proxy is None]
         pendientes = [
             i for i in candidatos
@@ -2674,6 +2681,10 @@ class MainWindow(QWidget):
         calza, así que pasaba en silencio. Es el mismo modo de fallo que ya
         está documentado para `_proxy_generacion_de`.
         """
+        # La fila entera se va con la tanda, y por el mismo motivo: guarda
+        # nombres de bin, pero lo que arrancaria de ella engancha por INDICE
+        # de clip, y los indices se acaban de correr.
+        self._vaciar_la_fila_de_proxies()
         estado = self._generando_proxies
         if estado is None:
             return

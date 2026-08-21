@@ -2297,3 +2297,32 @@ def test_los_fallidos_de_todas_las_tandas_van_en_el_mismo_cartel(qtbot, monkeypa
     assert len(vistos) == 1
     assert vistos[0][0] == "warning"
     assert "2 fallaron" in vistos[0][2]
+
+
+def test_al_empezar_la_tanda_se_barren_los_parciales(qtbot, monkeypatch):
+    """Los pedazos de un cierre de golpe. Aqui y no al pedir el bin: este es
+    el unico momento en que se sabe que no hay ninguno en vuelo."""
+    from clasificador_video import proxy_gen
+    window = _ventana_con_bins(qtbot)
+    barridas = []
+    monkeypatch.setattr(proxy_gen, "barrer_parciales", lambda c: barridas.append(c))
+    monkeypatch.setattr(window._generacion_pool, "start", lambda job: None)
+
+    window._arrancar_tanda_de_proxies("Card A")
+
+    assert barridas
+
+
+def test_quitar_un_bin_vacia_tambien_la_fila(qtbot, monkeypatch):
+    """La fila guarda nombres de bin, y los trabajos en vuelo enganchan por
+    INDICE de clip: quitar un bin corre los indices y lo que llegue ya no
+    describe a nadie. La tanda ya se tiraba entera; la fila tambien."""
+    window = _ventana_con_bins(qtbot)
+    _sin_arrancar(window, monkeypatch)
+    window.generar_proxies_de_bin("Card A", preguntar=False)
+    _corriendo(window)
+    window.generar_proxies_de_bin("Card B", preguntar=False)
+
+    window._descartar_generacion_de_proxies()
+
+    assert window._cola_de_proxies == []
