@@ -2685,12 +2685,51 @@ class MainWindow(QWidget):
         self.clip_sheet.set_bin_generando(estado["bin"], None)
 
     def cancelar_generacion_de_proxies(self, nombre_de_bin: str = "") -> None:
-        """Lo que ya se generó se queda enganchado; lo que faltaba, no se
-        hace. El que esté a medias termina —cortar ffmpeg a la mitad deja un
-        archivo truncado— pero es uno solo, no los veintitrés."""
-        if self._generando_proxies is None:
+        """Cancela ESE bin y nada más.
+
+        El menú desde el que se llama es el de ese bin: llevarse los otros
+        tres de la fila por delante sería hacer algo que el botón no dice.
+
+        **Si es el que corre:** lo que ya se generó se queda enganchado, lo
+        que faltaba no se hace, y el siguiente de la fila arranca solo cuando
+        este termine de recoger. El que esté a medias termina —cortar ffmpeg
+        a la mitad deja un archivo truncado— pero es uno solo, no los
+        veintitrés.
+
+        **Si todavía esperaba turno:** sale de la fila y su insignia vuelve
+        al conteo real. Nada de lo que corre se toca.
+
+        **Sin nombre se cancela TODO**, fila incluida. No es un caso más: es
+        el camino de cerrar la app (`closeEvent`), donde no hay un bin del
+        que se hable sino un programa que se va. Dejar la fila viva ahí
+        volvería a congelar el cierre esperando tandas que ya no le importan
+        a nadie, que es justo lo que ese `cancelar` existe para evitar.
+        """
+        if not nombre_de_bin:
+            self._vaciar_la_fila_de_proxies()
+            if self._generando_proxies is not None:
+                self._generando_proxies["cancelado"] = True
             return
-        self._generando_proxies["cancelado"] = True
+        if nombre_de_bin in self._cola_de_proxies:
+            self._cola_de_proxies.remove(nombre_de_bin)
+            self.clip_sheet.set_bin_en_cola(nombre_de_bin, False)
+            return
+        if (self._generando_proxies is not None
+                and self._generando_proxies["bin"] == nombre_de_bin):
+            self._generando_proxies["cancelado"] = True
+
+    def _vaciar_la_fila_de_proxies(self) -> None:
+        """Saca a todos los formados y apaga sus insignias.
+
+        Vive aparte porque lo llaman dos caminos que no se parecen en nada
+        --cerrar la app y quitar un bin-- y los dos tienen que apagar las
+        insignias: una fila vacia con encabezados diciendo «en cola» es la
+        misma contradiccion de siempre.
+        """
+        for nombre in self._cola_de_proxies:
+            self.clip_sheet.set_bin_en_cola(nombre, False)
+        self._cola_de_proxies = []
+        self._resumen_de_la_fila = {"creados": 0, "fallidos": []}
 
     def _segundos_estimados(self, indices: list[int]) -> float:
         """~10 s de proceso por cada 6 s de video, medido con el material

@@ -2139,3 +2139,81 @@ def test_un_bin_que_se_fue_del_proyecto_no_traba_la_fila(qtbot, monkeypatch):
     window._arrancar_siguiente_de_la_fila()
 
     assert arrancados == ["Card B"]
+
+
+def _corriendo(window, nombre="Card A", **cambios):
+    estado = {"bin": nombre, "generacion": 1, "total": 3, "hechos": 1,
+              "fallidos": [], "cancelado": False, "carpeta": Path("/p")}
+    estado.update(cambios)
+    window._generando_proxies = estado
+    return estado
+
+
+def test_cancelar_un_bin_formado_no_toca_al_que_corre(qtbot, monkeypatch):
+    window = _ventana_con_bins(qtbot)
+    _sin_arrancar(window, monkeypatch)
+    window.generar_proxies_de_bin("Card A", preguntar=False)
+    _corriendo(window)
+    window.generar_proxies_de_bin("Card B", preguntar=False)
+
+    window.cancelar_generacion_de_proxies("Card B")
+
+    assert window._cola_de_proxies == []
+    assert window._generando_proxies["cancelado"] is False
+
+
+def test_cancelar_el_que_corre_no_vacia_la_fila(qtbot, monkeypatch):
+    """Cancelas el que corre porque te equivocaste de tarjeta; los otros que
+    pediste siguen siendo lo que querias."""
+    window = _ventana_con_bins(qtbot)
+    _sin_arrancar(window, monkeypatch)
+    window.generar_proxies_de_bin("Card A", preguntar=False)
+    _corriendo(window)
+    window.generar_proxies_de_bin("Card B", preguntar=False)
+
+    window.cancelar_generacion_de_proxies("Card A")
+
+    assert window._generando_proxies["cancelado"] is True
+    assert window._cola_de_proxies == ["Card B"]
+
+
+def test_cancelar_un_bin_que_ni_pediste_no_hace_nada(qtbot, monkeypatch):
+    window = _ventana_con_bins(qtbot)
+    _sin_arrancar(window, monkeypatch)
+    window.generar_proxies_de_bin("Card A", preguntar=False)
+    _corriendo(window)
+
+    window.cancelar_generacion_de_proxies("Card B")
+
+    assert window._generando_proxies["cancelado"] is False
+
+
+def test_salir_de_la_fila_apaga_la_insignia(qtbot, monkeypatch):
+    window = _ventana_con_bins(qtbot)
+    _sin_arrancar(window, monkeypatch)
+    window.generar_proxies_de_bin("Card A", preguntar=False)
+    _corriendo(window)
+    window.generar_proxies_de_bin("Card B", preguntar=False)
+    avisos = []
+    monkeypatch.setattr(window.clip_sheet, "set_bin_en_cola",
+                        lambda nombre, en_cola: avisos.append((nombre, en_cola)))
+
+    window.cancelar_generacion_de_proxies("Card B")
+
+    assert ("Card B", False) in avisos
+
+
+def test_cerrar_la_app_cancela_la_fila_entera(qtbot, monkeypatch):
+    """Sin nombre se cancela todo: es el camino de cerrar la app, donde no
+    hay un bin del que se hable sino un programa que se va. Dejar la fila
+    viva volveria a congelar el cierre esperando tandas de nadie."""
+    window = _ventana_con_bins(qtbot)
+    _sin_arrancar(window, monkeypatch)
+    window.generar_proxies_de_bin("Card A", preguntar=False)
+    _corriendo(window)
+    window.generar_proxies_de_bin("Card B", preguntar=False)
+
+    window.cancelar_generacion_de_proxies()
+
+    assert window._cola_de_proxies == []
+    assert window._generando_proxies["cancelado"] is True
