@@ -2047,3 +2047,95 @@ def test_quitar_un_bin_sigue_vaciando_el_historial(qtbot):
     window._on_bin_quitado("Card A")
 
     assert window.history.entries() == []
+
+
+# ---------------------------------------------------------------------------
+# La fila de proxies (spec 2026-08-20-cola-de-proxies-design.md)
+# ---------------------------------------------------------------------------
+
+
+def _sin_arrancar(window, monkeypatch):
+    """Deja la fila trabajar sin lanzar ffmpeg. Devuelve los bins arrancados.
+
+    Le pasa un clip a «Card B» de paso: nace vacío, y un bin sin clips no
+    llega ni a la fila -- `generar_proxies_de_bin` corta antes.
+    """
+    window.bins.mover([2], "Card B")
+    arrancados = []
+    monkeypatch.setattr(window, "_arrancar_tanda_de_proxies", arrancados.append)
+    return arrancados
+
+
+def test_pedir_un_segundo_bin_lo_forma_en_vez_de_rechazarlo(qtbot, monkeypatch):
+    """El bug que originó esto: «Espera a que termine, o cancélalo desde el
+    menú de ese bin». Con dos tarjetas eso es quedarse vigilando."""
+    window = _ventana_con_bins(qtbot)
+    _sin_arrancar(window, monkeypatch)
+
+    window.generar_proxies_de_bin("Card A", preguntar=False)
+    window._generando_proxies = {"bin": "Card A", "generacion": 1, "total": 3,
+                                 "hechos": 1, "fallidos": [], "cancelado": False,
+                                 "carpeta": Path("/p")}
+    window.generar_proxies_de_bin("Card B", preguntar=False)
+
+    assert window._cola_de_proxies == ["Card B"]
+
+
+def test_pedir_dos_veces_el_mismo_bin_no_lo_mete_dos_veces(qtbot, monkeypatch):
+    window = _ventana_con_bins(qtbot)
+    _sin_arrancar(window, monkeypatch)
+    window.generar_proxies_de_bin("Card A", preguntar=False)
+    window._generando_proxies = {"bin": "Card A", "generacion": 1, "total": 3,
+                                 "hechos": 1, "fallidos": [], "cancelado": False,
+                                 "carpeta": Path("/p")}
+
+    window.generar_proxies_de_bin("Card B", preguntar=False)
+    window.generar_proxies_de_bin("Card B", preguntar=False)
+    window.generar_proxies_de_bin("Card B", preguntar=False)
+
+    assert window._cola_de_proxies.count("Card B") == 1
+
+
+def test_el_bin_formado_lo_dice_en_la_hoja(qtbot, monkeypatch):
+    window = _ventana_con_bins(qtbot)
+    _sin_arrancar(window, monkeypatch)
+    avisos = []
+    monkeypatch.setattr(window.clip_sheet, "set_bin_en_cola",
+                        lambda nombre, en_cola: avisos.append((nombre, en_cola)))
+    window.generar_proxies_de_bin("Card A", preguntar=False)
+    window._generando_proxies = {"bin": "Card A", "generacion": 1, "total": 3,
+                                 "hechos": 1, "fallidos": [], "cancelado": False,
+                                 "carpeta": Path("/p")}
+
+    window.generar_proxies_de_bin("Card B", preguntar=False)
+
+    assert ("Card B", True) in avisos
+
+
+def test_al_terminar_uno_arranca_el_siguiente_solo(qtbot, monkeypatch):
+    """Es todo el punto: dejas los bins pedidos y te vas."""
+    window = _ventana_con_bins(qtbot)
+    arrancados = _sin_arrancar(window, monkeypatch)
+    window.generar_proxies_de_bin("Card A", preguntar=False)
+    window._generando_proxies = {"bin": "Card A", "generacion": 1, "total": 3,
+                                 "hechos": 1, "fallidos": [], "cancelado": False,
+                                 "carpeta": Path("/p")}
+    window.generar_proxies_de_bin("Card B", preguntar=False)
+
+    window._generando_proxies = None
+    window._arrancar_siguiente_de_la_fila()
+
+    assert arrancados == ["Card A", "Card B"]
+    assert window._cola_de_proxies == []
+
+
+def test_un_bin_que_se_fue_del_proyecto_no_traba_la_fila(qtbot, monkeypatch):
+    """Con un `if` en vez de un `while`, la fila se quedaba parada detras de
+    un bin que ya no existe y los que seguian no arrancaban nunca."""
+    window = _ventana_con_bins(qtbot)
+    arrancados = _sin_arrancar(window, monkeypatch)
+    window._cola_de_proxies = ["Fantasma", "Card B"]
+
+    window._arrancar_siguiente_de_la_fila()
+
+    assert arrancados == ["Card B"]

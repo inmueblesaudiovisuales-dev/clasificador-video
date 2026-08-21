@@ -569,6 +569,15 @@ class MainWindow(QWidget):
         # deja trabajos en vuelo cuyos resultados ya no aplican a nada.
         self._generando_proxies: dict | None = None
         self._generacion_de_proxies = 0
+        # Los bins formados, esperando turno. Se guarda el NOMBRE y no la
+        # lista de clips: entre que lo pides y que arranca puedes arrastrarle
+        # clips, engancharle proxies a mano o quitarle material, y una lista
+        # de antes describiria un bin que ya no es ese. La lista se calcula
+        # cuando le toca (ver el spec).
+        self._cola_de_proxies: list[str] = []
+        # Lo que llevan TODAS las tandas de esta fila, para el cartel unico
+        # del final. Se vacia cuando la fila arranca desde cero.
+        self._resumen_de_la_fila: dict = {"creados": 0, "fallidos": []}
         # las miniaturas se extraen en software (--hwdec=no, ver
         # thumbnails.py) -- no tocan VideoToolbox, asi que un par en
         # paralelo no compite con el reproductor embebido.
@@ -2529,11 +2538,11 @@ class MainWindow(QWidget):
         tomas son varios minutos, y ver el material aligerarse conforme
         avanza es lo que hace que la espera no se sienta muerta.
         """
-        if self._generando_proxies is not None:
+        if self._esta_pedido(nombre_de_bin):
             QMessageBox.information(
-                self, "Ya se están creando",
-                f"Se están creando los proxies de «{self._generando_proxies['bin']}». "
-                "Espera a que termine, o cancélalo desde el menú de ese bin.",
+                self, "Ya está pedido",
+                f"Los proxies de «{nombre_de_bin}» ya están pedidos. "
+                "Puedes cancelarlos desde el menú de ese bin.",
             )
             return
         indices = [i for i in self.bins.clips_de(nombre_de_bin)
@@ -2573,6 +2582,46 @@ class MainWindow(QWidget):
             if respuesta != QMessageBox.StandardButton.Yes:
                 return
 
+        if self._generando_proxies is not None:
+            # ya hay una corriendo: este se forma. La lista de clips que se
+            # acaba de calcular NO se guarda -- se vuelve a calcular cuando
+            # le toque, porque para entonces el bin pudo cambiar.
+            self._cola_de_proxies.append(nombre_de_bin)
+            self.clip_sheet.set_bin_en_cola(nombre_de_bin, True)
+            return
+        self._resumen_de_la_fila = {"creados": 0, "fallidos": []}
+        self._arrancar_tanda_de_proxies(nombre_de_bin)
+
+    def _esta_pedido(self, nombre_de_bin: str) -> bool:
+        """Ya corriendo, o ya formado. Pedirlo otra vez no lo mete dos veces:
+        la segunda tanda no tendria nada que hacer --la primera ya se llevo
+        los que faltaban-- y el bin saldria de la fila dos veces."""
+        corriendo = (self._generando_proxies is not None
+                     and self._generando_proxies["bin"] == nombre_de_bin)
+        return corriendo or nombre_de_bin in self._cola_de_proxies
+
+    def _arrancar_tanda_de_proxies(self, nombre_de_bin: str) -> None:
+        """Arranca la tanda de ESE bin, sin preguntar nada.
+
+        La lista se calcula AQUI y no al pedirlo: es el momento en que de
+        verdad se va a trabajar, y para entonces el bin puede tener otros
+        clips (ver el spec). Si no hay nada que hacer no se traba la fila --
+        se sigue con el que sigue.
+        """
+        indices = [i for i in self.bins.clips_de(nombre_de_bin)
+                   if 0 <= i < len(self.clips)]
+        if not indices:
+            self._arrancar_siguiente_de_la_fila()
+            return
+        carpeta = proxy_gen.carpeta_de_proxies(self.clips[indices[0]].ruta.parent)
+        candidatos = [i for i in indices if self.clips[i].ruta_proxy is None]
+        pendientes = [
+            i for i in candidatos
+            if not proxy_gen.ruta_de_proxy(self.clips[i].ruta, carpeta).exists()
+        ]
+        if not pendientes:
+            self._arrancar_siguiente_de_la_fila()
+            return
         self._generacion_de_proxies += 1
         self._generando_proxies = {
             "bin": nombre_de_bin,
@@ -2583,6 +2632,9 @@ class MainWindow(QWidget):
             "cancelado": False,
             "carpeta": carpeta,
         }
+        # sale de la fila y entra a correr: el encabezado tiene que dejar de
+        # decir «en cola» o taparia el avance
+        self.clip_sheet.set_bin_en_cola(nombre_de_bin, False)
         self._pintar_avance_de_proxies()
         estado = self._generando_proxies
         for i in pendientes:
@@ -2592,6 +2644,20 @@ class MainWindow(QWidget):
                 lambda e=estado: e["cancelado"],
                 self._señales_de_trabajos,
             ))
+
+    def _arrancar_siguiente_de_la_fila(self) -> None:
+        """El de adelante de la fila, si hay.
+
+        Con un `while` y no un `if`: un bin que se fue del proyecto mientras
+        esperaba turno se salta y se sigue con el que sigue. Con `if`, la
+        fila se quedaba parada detras de el y los demas no arrancaban nunca.
+        """
+        while self._cola_de_proxies:
+            nombre = self._cola_de_proxies.pop(0)
+            self.clip_sheet.set_bin_en_cola(nombre, False)
+            if nombre in self.bins.nombres():
+                self._arrancar_tanda_de_proxies(nombre)
+                return
 
     def _descartar_generacion_de_proxies(self) -> None:
         """Tira la tanda que corre, sin avisos ni resúmenes.
