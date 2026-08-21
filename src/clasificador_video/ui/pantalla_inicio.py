@@ -26,6 +26,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from clasificador_video import __version__
 from clasificador_video.ui.text import ElidedLabel
 
 FILA_ALTO = 54          # dos renglones cortos, del alto de una fila de lista
@@ -214,6 +215,14 @@ class PantallaInicio(QWidget):
         botones.addWidget(self.boton_nuevo)
         botones.addWidget(self.boton_abrir_otro)
         botones.addStretch(1)
+        # La version, apagada y a la derecha del todo. Aqui y no en la barra
+        # de titulo: esta pantalla esta vacia de sobra y no le compite el
+        # ancho al video, que con material horizontal es lo que escasea.
+        # Vive en `clasificador_video.__version__`, el mismo numero que macOS
+        # muestra en «Obtener informacion».
+        self.version_label = QLabel(f"Clasificador {__version__}")
+        self.version_label.setObjectName("versionApp")
+        botones.addWidget(self.version_label)
         raiz.addLayout(botones)
 
         self.set_recientes([])

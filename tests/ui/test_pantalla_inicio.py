@@ -308,3 +308,16 @@ def test_clickear_uno_que_si_esta_lo_abre(qtbot, tmp_path):
     pantalla.filas[0].click()
 
     assert abiertos == [proyecto]
+
+
+def test_la_pantalla_de_inicio_dice_la_version(qtbot):
+    """La primera pantalla que ves al abrir. Sin esto, la unica forma de
+    saber que version tienes era salirse al Finder -- y con la app repartida
+    al equipo, «¿que version traes?» es la primera pregunta de cualquier
+    reporte."""
+    import clasificador_video
+
+    pantalla = PantallaInicio()
+    qtbot.addWidget(pantalla)
+
+    assert clasificador_video.__version__ in pantalla.version_label.text()

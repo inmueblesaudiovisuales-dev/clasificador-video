@@ -874,3 +874,28 @@ def test_la_fecha_del_reciente_es_la_de_la_ultima_vez_que_trabajaste(qtbot, tmp_
     coord.ventanas[0].close()
 
     assert Recientes(recientes).lista()[0].cuando == "2026-08-09 18:30"
+
+
+def test_la_version_vive_en_un_solo_lugar():
+    """El instalable y la app tienen que decir lo MISMO.
+
+    Hasta la 1.2 la version solo existia en la receta de empaquetado, o sea
+    que la app no la sabia y no habia forma de preguntarsela: para averiguar
+    que version tenias habia que salirte al Finder. Y escrita en dos lados,
+    tarde o temprano dirian cosas distintas y nadie sabria cual es la buena.
+    """
+    import clasificador_video
+
+    assert clasificador_video.__version__
+
+
+def test_la_receta_del_instalable_lee_esa_misma_version():
+    """La receta NO puede tener su propio numero: es el que macOS pone en
+    «Obtener informacion», y si se separa del de la app, la que dice el
+    Finder y la que dice la pantalla de inicio se contradicen."""
+    from pathlib import Path
+
+    receta = (Path(__file__).resolve().parents[1]
+              / "empaque" / "clasificador.spec").read_text()
+
+    assert "__version__" in receta

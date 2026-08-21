@@ -1213,6 +1213,12 @@ def build_stylesheet() -> str:
        Va por PROPIEDAD y no por `:disabled` -- la fila ya no se apaga con
        `setEnabled(False)`, porque un widget apagado tampoco recibe el clic
        DERECHO y ahi vive el unico «Quitar de la lista» que tiene. */
+    /* la version, en la pantalla de inicio: se lee cuando la buscas y no
+       compite con los botones */
+    QLabel#versionApp {{
+        color: {TEXT_3};
+        font-size: {FONT_MICRO}px;
+    }}
     QPushButton#filaReciente[perdido="true"] {{
         background-color: {BG_SURFACE_0};
         border: 1px solid {LINE_SOFT};

@@ -54,6 +54,10 @@ todos modos*. Pasa una sola vez.
 `.ccx` y Creative Cloud lo instala solo. Al abrir Premiere aparece en
 `Ventana > Plugins UXP > Clasificador de Video`.
 
+**Qué versión tienes:** la app lo dice abajo a la derecha de la pantalla de
+inicio — «Clasificador 1.3». Es lo primero que hay que saber para reportar
+cualquier cosa.
+
 Para armar los dos, ver [docs/DESARROLLO.md](docs/DESARROLLO.md).
 
 ---

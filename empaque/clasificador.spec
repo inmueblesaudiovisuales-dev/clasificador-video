@@ -66,11 +66,19 @@ pyz = PYZ(a.pure)
 exe = EXE(pyz, a.scripts, [], exclude_binaries=True, name="Clasificador",
           console=False, target_arch=None, codesign_identity=None)
 coll = COLLECT(exe, a.binaries, a.datas, strip=False, upx=False, name="Clasificador")
-# La version va aqui y en un solo lugar. macOS la lee de `Info.plist` y es
-# lo que se ve en «Obtener informacion» y en el nombre del `.dmg`; si la app
-# y el instalador dijeran versiones distintas, nadie sabria cual tiene
-# instalada.
-VERSION = "1.2"
+# La version se LEE de `src/clasificador_video/__init__.py`, que es donde
+# vive. macOS la saca de aqui para «Obtener informacion» y para el nombre del
+# `.dmg`, y la pantalla de inicio la lee del mismo lugar -- asi la que ve
+# Bruno dentro de la app y la que ve el Finder no se pueden contradecir.
+#
+# Se lee con una expresion regular y no importando el modulo: importarlo
+# desde la receta arrastraria PySide6 al proceso de PyInstaller.
+import re
+
+VERSION = re.search(
+    r'__version__ = "([^"]+)"',
+    (RAIZ / "src" / "clasificador_video" / "__init__.py").read_text(),
+).group(1)
 
 app = BUNDLE(coll, name="Clasificador.app",
              bundle_identifier="com.brunogutierrez.clasificador",
