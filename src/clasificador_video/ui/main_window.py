@@ -2785,15 +2785,46 @@ class MainWindow(QWidget):
         # falló, esos clips se quedarían en gris para siempre esperando algo
         # que ya no va a llegar.
         self._schedule_thumbnails(self.bins.clips_de(estado["bin"]))
-        if estado["cancelado"]:
-            return  # cancelar fue decision suya: no hace falta un cartel
-        if estado["fallidos"]:
-            cuantos = len(estado["fallidos"])
-            primero = estado["fallidos"][0][1]
+        # Lo que esta tanda aporta al cartel del final. Los que ALCANZO a
+        # crear cuentan aunque la hayas cancelado: se hicieron y estan
+        # enganchados, y callarlos seria mentir en el otro sentido.
+        self._resumen_de_la_fila["creados"] += (
+            estado["hechos"] - len(estado["fallidos"])
+        )
+        self._resumen_de_la_fila["fallidos"].extend(estado["fallidos"])
+        if self._cola_de_proxies:
+            self._arrancar_siguiente_de_la_fila()
+            return
+        self._avisar_del_final_de_la_fila()
+
+    def _avisar_del_final_de_la_fila(self) -> None:
+        """UN cartel, cuando la fila se vacía.
+
+        Con cuatro bins pedidos, uno por tanda serían cuatro carteles
+        seguidos y probablemente cuando ya nadie está viendo la pantalla.
+
+        Cancelar no agrega renglón —fue una decisión de Bruno y no hace falta
+        confirmársela— pero lo que ese bin alcanzó a crear sí cuenta en el
+        total. Y si no se creó ni un proxy no hay cartel: uno que diga «0
+        creados» es ruido.
+        """
+        resumen = self._resumen_de_la_fila
+        self._resumen_de_la_fila = {"creados": 0, "fallidos": []}
+        if not resumen["creados"] and not resumen["fallidos"]:
+            return
+        if resumen["fallidos"]:
+            cuantos = len(resumen["fallidos"])
+            primero = resumen["fallidos"][0][1]
             QMessageBox.warning(
                 self, "Algunos no se pudieron crear",
-                f"{cuantos} de {estado['total']} fallaron.\n\n{primero}",
+                f"{resumen['creados']} proxies creados, {cuantos} fallaron."
+                f"\n\n{primero}",
             )
+            return
+        QMessageBox.information(
+            self, "Proxies listos",
+            f"{resumen['creados']} proxies creados.",
+        )
 
     def quitar_proxies_de_bin(self, nombre_de_bin: str) -> None:
         """Desengancha los de ESE bin. Las portadas se vuelven a pedir del

@@ -2217,3 +2217,83 @@ def test_cerrar_la_app_cancela_la_fila_entera(qtbot, monkeypatch):
 
     assert window._cola_de_proxies == []
     assert window._generando_proxies["cancelado"] is True
+
+
+def _carteles(monkeypatch):
+    """Recoge los QMessageBox en vez de mostrarlos."""
+    from PySide6.QtWidgets import QMessageBox
+    vistos = []
+    monkeypatch.setattr(QMessageBox, "warning",
+                        lambda *a, **k: vistos.append(("warning", a[1], a[2])))
+    monkeypatch.setattr(QMessageBox, "information",
+                        lambda *a, **k: vistos.append(("info", a[1], a[2])))
+    return vistos
+
+
+def test_con_dos_bins_no_sale_cartel_al_terminar_el_primero(qtbot, monkeypatch):
+    """Cuatro bins formados serian cuatro carteles seguidos, y cuando ya
+    nadie esta viendo la pantalla."""
+    window = _ventana_con_bins(qtbot)
+    _sin_arrancar(window, monkeypatch)
+    vistos = _carteles(monkeypatch)
+    window._resumen_de_la_fila = {"creados": 0, "fallidos": []}
+    window._cola_de_proxies = ["Card B"]
+    _corriendo(window, total=2, hechos=2)
+
+    window._terminar_generacion_de_proxies()
+
+    assert vistos == []
+
+
+def test_el_cartel_del_final_suma_todas_las_tandas(qtbot, monkeypatch):
+    window = _ventana_con_bins(qtbot)
+    vistos = _carteles(monkeypatch)
+    window._resumen_de_la_fila = {"creados": 20, "fallidos": []}
+    window._cola_de_proxies = []
+    _corriendo(window, total=3, hechos=3)
+
+    window._terminar_generacion_de_proxies()
+
+    assert len(vistos) == 1
+    assert "23" in vistos[0][2]
+
+
+def test_cancelarlo_todo_no_saca_cartel(qtbot, monkeypatch):
+    """Cancelar fue decision suya: no hace falta confirmarsela."""
+    window = _ventana_con_bins(qtbot)
+    vistos = _carteles(monkeypatch)
+    window._resumen_de_la_fila = {"creados": 0, "fallidos": []}
+    window._cola_de_proxies = []
+    _corriendo(window, total=3, hechos=0, cancelado=True)
+
+    window._terminar_generacion_de_proxies()
+
+    assert vistos == []
+
+
+def test_lo_que_alcanzo_a_crear_un_bin_cancelado_si_cuenta(qtbot, monkeypatch):
+    """Se hicieron y estan enganchados; callarlos seria mentir en el otro
+    sentido."""
+    window = _ventana_con_bins(qtbot)
+    _carteles(monkeypatch)
+    window._resumen_de_la_fila = {"creados": 0, "fallidos": []}
+    window._cola_de_proxies = []
+    _corriendo(window, total=10, hechos=4, cancelado=True)
+
+    window._terminar_generacion_de_proxies()
+
+    assert window._resumen_de_la_fila["creados"] == 0   # se vació al avisar
+
+
+def test_los_fallidos_de_todas_las_tandas_van_en_el_mismo_cartel(qtbot, monkeypatch):
+    window = _ventana_con_bins(qtbot)
+    vistos = _carteles(monkeypatch)
+    window._resumen_de_la_fila = {"creados": 5, "fallidos": [(0, "ffmpeg tronó")]}
+    window._cola_de_proxies = []
+    _corriendo(window, total=3, hechos=3, fallidos=[(1, "otro que tronó")])
+
+    window._terminar_generacion_de_proxies()
+
+    assert len(vistos) == 1
+    assert vistos[0][0] == "warning"
+    assert "2 fallaron" in vistos[0][2]
