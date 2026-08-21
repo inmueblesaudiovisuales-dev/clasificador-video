@@ -2545,30 +2545,17 @@ class MainWindow(QWidget):
                 "Puedes cancelarlos desde el menú de ese bin.",
             )
             return
-        indices = [i for i in self.bins.clips_de(nombre_de_bin)
-                   if 0 <= i < len(self.clips)]
-        if not indices:
+        reparto = self._repartir_proxies_del_bin(nombre_de_bin)
+        if reparto is None:
             return
-        # La carpeta sale del PRIMER clip del bin. Con un bin que junta dos
-        # tarjetas de la misma camara, los proxies de las dos terminan en el
-        # mismo lugar --al lado de la primera-- en vez de uno por tarjeta.
-        # Es a proposito: `faltantes` mira ahi mismo, asi que sigue sin
-        # rehacer lo hecho, y un solo lugar es mas facil de encontrar que dos.
-        carpeta = proxy_gen.carpeta_de_proxies(self.clips[indices[0]].ruta.parent)
-        # solo los que no tienen proxy YA ENGANCHADO y no tienen archivo en
-        # la carpeta de proxies: volver a darle no rehace lo hecho.
-        candidatos = [i for i in indices if self.clips[i].ruta_proxy is None]
-        pendientes = [
-            i for i in candidatos
-            if not proxy_gen.ruta_de_proxy(self.clips[i].ruta, carpeta).exists()
-        ]
-        if not pendientes:
+        carpeta, ya_en_disco, pendientes = reparto
+        if not pendientes and not ya_en_disco:
             QMessageBox.information(
                 self, "Ya están",
                 f"Todos los clips de «{nombre_de_bin}» ya tienen proxy.",
             )
             return
-        if preguntar:
+        if preguntar and pendientes:
             # el tiempo va en el aviso porque es lo unico que uno quiere
             # saber antes de decir que si, y son minutos, no segundos
             minutos = max(1, round(self._segundos_estimados(pendientes) / 60))
@@ -2592,6 +2579,36 @@ class MainWindow(QWidget):
         self._resumen_de_la_fila = {"creados": 0, "fallidos": []}
         self._arrancar_tanda_de_proxies(nombre_de_bin)
 
+    def _repartir_proxies_del_bin(self, nombre_de_bin: str):
+        """Reparte los clips del bin en los que hay que ENGANCHAR y los que
+        hay que GENERAR. Devuelve `(carpeta, ya_en_disco, pendientes)`, o
+        `None` si el bin no tiene clips.
+
+        Vive aparte porque lo necesitan los DOS lados --el que pregunta y el
+        que trabaja-- y escrito dos veces se separan. Ya pasó: el arreglo de
+        «mirar el archivo en vez de asumir» se puso solo en el que trabaja,
+        y el que pregunta siguió cortando con «todos ya tienen proxy» sobre
+        13 que no lo tenían. El botón no llegaba nunca al arreglo.
+        """
+        indices = [i for i in self.bins.clips_de(nombre_de_bin)
+                   if 0 <= i < len(self.clips)]
+        if not indices:
+            return None
+        # La carpeta sale del PRIMER clip del bin. Con un bin que junta dos
+        # tarjetas de la misma camara, los proxies de las dos terminan en el
+        # mismo lugar --al lado de la primera-- en vez de uno por tarjeta.
+        carpeta = proxy_gen.carpeta_de_proxies(self.clips[indices[0]].ruta.parent)
+        ya_en_disco, pendientes = [], []
+        for i in indices:
+            if self.clips[i].ruta_proxy is not None:
+                continue                      # ya enganchado: nada que hacer
+            ruta = proxy_gen.ruta_de_proxy(self.clips[i].ruta, carpeta)
+            if ruta.exists():
+                ya_en_disco.append((i, ruta)) # generado antes, sin enganchar
+            else:
+                pendientes.append(i)
+        return carpeta, ya_en_disco, pendientes
+
     def _esta_pedido(self, nombre_de_bin: str) -> bool:
         """Ya corriendo, o ya formado. Pedirlo otra vez no lo mete dos veces:
         la segunda tanda no tendria nada que hacer --la primera ya se llevo
@@ -2608,12 +2625,11 @@ class MainWindow(QWidget):
         clips (ver el spec). Si no hay nada que hacer no se traba la fila --
         se sigue con el que sigue.
         """
-        indices = [i for i in self.bins.clips_de(nombre_de_bin)
-                   if 0 <= i < len(self.clips)]
-        if not indices:
+        reparto = self._repartir_proxies_del_bin(nombre_de_bin)
+        if reparto is None:
             self._arrancar_siguiente_de_la_fila()
             return
-        carpeta = proxy_gen.carpeta_de_proxies(self.clips[indices[0]].ruta.parent)
+        carpeta, ya_en_disco, pendientes = reparto
         # Los pedazos de una tanda que se corto de golpe. AQUI y no al pedir
         # el bin: este es el unico momento en que se sabe que no hay ningun
         # `.parcial` en vuelo -- se genera de uno en uno, y la fila arranca
@@ -2621,34 +2637,21 @@ class MainWindow(QWidget):
         # carpeta comparten carpeta de proxies, asi que barrer en cualquier
         # otro momento le pisaria el archivo al que esta escribiendo.
         proxy_gen.barrer_parciales(carpeta)
-        candidatos = [i for i in indices if self.clips[i].ruta_proxy is None]
-        # Un archivo que ya esta ahi NO se da por hecho: se MIRA.
+        # `ya_en_disco` son los que una tanda anterior alcanzo a GENERAR y no
+        # a enganchar --se cerro la app en medio, o se corto la luz--. No se
+        # dan por hechos: se miran. Saltarlos por «ya existe» dejaba a ese
+        # clip sin proxy PARA SIEMPRE, y con el bin entero asi la app
+        # contestaba «todos los clips ya tienen proxy» sobre 13 que no lo
+        # tenian. Le paso a Bruno con el dron el 2026-08-20.
         #
-        # El archivo existe y el clip no lo tiene enganchado significa que
-        # una tanda anterior alcanzo a generarlo y no a engancharlo -- se
-        # cerro la app en medio, o se corto la luz. Saltarlo por «ya existe»
-        # dejaba a ese clip sin proxy PARA SIEMPRE: la siguiente corrida lo
-        # volvia a saltar, y con todo el bin asi la app contestaba «todos los
-        # clips ya tienen proxy» sobre 13 que no lo tenian. Le paso a Bruno
-        # con el dron el 2026-08-20: 26/39, y las dos corridas siguientes no
-        # tocaron los 13.
-        #
-        # El `.parcial` de `generar` no cubre esto y no puede: protege del
-        # archivo TRUNCADO, no del completo que nadie engancho.
-        #
-        # Engancharlo cuesta un `ffprobe`; regenerarlo, minutos. Y pasa por
-        # la validacion de siempre, asi que uno que no calce se descarta y
-        # cae en `pendientes` la proxima vez.
-        ya_en_disco, pendientes = [], []
-        for i in candidatos:
-            ruta = proxy_gen.ruta_de_proxy(self.clips[i].ruta, carpeta)
-            (ya_en_disco if ruta.exists() else pendientes).append((i, ruta))
+        # Engancharlos cuesta un `ffprobe`; regenerarlos, minutos. Y pasan
+        # por la validacion de siempre, asi que el que no calce se descarta
+        # y cae en `pendientes` la proxima vez.
         if ya_en_disco:
             self._sondear_proxies(
                 {self.clips[i].ruta: ruta for i, ruta in ya_en_disco},
                 indices=[i for i, _ in ya_en_disco],
             )
-        pendientes = [i for i, _ in pendientes]
         if not pendientes:
             self._arrancar_siguiente_de_la_fila()
             return

@@ -2472,3 +2472,76 @@ def test_recoger_no_toca_los_que_ya_estan_enganchados(qtbot, monkeypatch, tmp_pa
     window._terminar_generacion_de_proxies()
 
     assert sondeados == []
+
+
+def _bin_con_proxies_en_disco(qtbot, tmp_path, cuantos_en_disco, cuantos_sin):
+    """Un bin donde parte de los proxies ya están en la carpeta sin enganchar."""
+    mat = tmp_path / "Card A"
+    mat.mkdir()
+    rutas = []
+    for n in range(cuantos_en_disco + cuantos_sin):
+        r = mat / f"C{n:04d}.MP4"
+        r.write_bytes(b"x" * 100)
+        rutas.append(r)
+    window = _ventana_con_bins(qtbot)
+    window.load_clips([Clip(orden=i + 1, ruta=r, categoria_path=[], fps=30.0)
+                       for i, r in enumerate(rutas)])
+    window.bins.agregar("Card A", mat, list(range(len(rutas))))
+    carpeta = proxy_gen.carpeta_de_proxies(mat)
+    carpeta.mkdir(parents=True, exist_ok=True)
+    for r in rutas[:cuantos_en_disco]:
+        proxy_gen.ruta_de_proxy(r, carpeta).write_bytes(b"proxy")
+    return window
+
+
+def test_el_boton_no_dice_ya_estan_cuando_faltan_por_enganchar(qtbot, monkeypatch, tmp_path):
+    """El bug que Bruno vio con la 1.4, 2026-08-20.
+
+    El arreglo de «mirar el archivo en vez de asumir» vivía en la mitad de
+    abajo, pero la mitad que PREGUNTA seguía con la comprobación vieja: veía
+    los archivos, los daba por hechos, y cortaba con «Todos los clips de
+    «DRONE» ya tienen proxy» sobre 13 que no lo tenían. El botón no llegaba
+    nunca al arreglo.
+
+    Esta prueba entra por donde entra Bruno —el botón— y no por la mitad de
+    abajo, que es justo lo que se me escapó.
+    """
+    window = _bin_con_proxies_en_disco(qtbot, tmp_path, cuantos_en_disco=2, cuantos_sin=0)
+    vistos = _carteles(monkeypatch)
+    sondeados = {}
+    monkeypatch.setattr(window, "_sondear_proxies",
+                        lambda emp, indices=None: sondeados.update(emp=emp))
+
+    window.generar_proxies_de_bin("Card A", preguntar=False)
+
+    assert vistos == []
+    assert len(sondeados.get("emp", {})) == 2
+
+
+def test_el_boton_si_dice_ya_estan_cuando_de_verdad_ya_estan(qtbot, monkeypatch, tmp_path):
+    """Todos enganchados de verdad: ahí el cartel es cierto y tiene que salir."""
+    window = _bin_con_proxies_en_disco(qtbot, tmp_path, cuantos_en_disco=2, cuantos_sin=0)
+    carpeta = proxy_gen.carpeta_de_proxies(window.clips[0].ruta.parent)
+    for i in range(2):
+        window.clips[i].ruta_proxy = proxy_gen.ruta_de_proxy(
+            window.clips[i].ruta, carpeta)
+    vistos = _carteles(monkeypatch)
+
+    window.generar_proxies_de_bin("Card A", preguntar=False)
+
+    assert len(vistos) == 1
+    assert "ya tienen proxy" in vistos[0][2]
+
+
+def test_el_cartel_de_confirmar_solo_cuenta_los_que_se_van_a_GENERAR(qtbot, monkeypatch, tmp_path):
+    """Los que ya están en disco no tardan minutos: solo se comprueban. Meterlos
+    en «se van a crear N» inflaría el número y el tiempo."""
+    window = _bin_con_proxies_en_disco(qtbot, tmp_path, cuantos_en_disco=2, cuantos_sin=1)
+    preguntas = []
+    from PySide6.QtWidgets import QMessageBox
+    monkeypatch.setattr(QMessageBox, "question",
+                        lambda *a, **k: preguntas.append(a[2]) or QMessageBox.StandardButton.No)
+
+    window.generar_proxies_de_bin("Card A", preguntar=True)
+
+    assert preguntas and "1 proxies" in preguntas[0]
