@@ -973,6 +973,13 @@ def build_stylesheet() -> str:
         border: 1px solid {PICK_COLOR};
         color: {aclarar(PICK_COLOR, 0.35)};
     }}
+    /* formado, esperando turno. Apagado a proposito: el que CORRE lleva su
+       propio color y tiene que seguir siendo el que salta a la vista cuando
+       hay cuatro bins pedidos. */
+    QLabel#binProxyBadge[estado="encolado"] {{
+        background-color: {BG_SURFACE_1};
+        color: {TEXT_3};
+    }}
     QLabel#binProxyBadge[estado="parcial"] {{
         border: 1px solid {CURRENT_COLOR};
         color: {aclarar(CURRENT_COLOR, 0.35)};

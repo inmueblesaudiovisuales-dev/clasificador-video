@@ -2838,3 +2838,61 @@ def test_seleccionar_el_grupo_vuelve_a_funcionar_al_abrir_el_bin(qtbot):
     sheet.select_current_group()
 
     assert sheet.selected_indices() == [0, 1]
+
+
+# --- la fila de proxies (spec 2026-08-20-cola-de-proxies-design.md) --------
+
+
+def _hoja_con_bin(qtbot, nombre="Card B"):
+    clip = _clip(1, "Sala")
+    clip.bin_nombre = nombre
+    sheet = _sheet(qtbot, [clip])
+    sheet.set_bin_order([nombre])
+    return sheet
+
+
+def test_un_bin_formado_lo_dice_en_su_insignia(qtbot):
+    """Sin esto, pedir un segundo bin no se ve por ningun lado: la insignia
+    seguiria diciendo «sin proxies» y pareceria que el clic no hizo nada."""
+    sheet = _hoja_con_bin(qtbot)
+
+    sheet.set_bin_en_cola("Card B", True)
+
+    assert "en cola" in sheet.bin_header_widget("Card B").proxy_badge.text()
+
+
+def test_el_que_CORRE_manda_sobre_el_que_espera(qtbot):
+    """Un bin no puede estar formado y corriendo a la vez, pero los dos
+    estados viven en el mismo widget: si «en cola» ganara, el avance «7/23»
+    desapareceria justo al arrancar."""
+    sheet = _hoja_con_bin(qtbot)
+    sheet.set_bin_en_cola("Card B", True)
+
+    sheet.set_bin_generando("Card B", 7, 23)
+
+    assert "7/23" in sheet.bin_header_widget("Card B").proxy_badge.text()
+
+
+def test_salir_de_la_fila_devuelve_la_insignia_al_conteo(qtbot):
+    sheet = _hoja_con_bin(qtbot)
+    sheet.set_bin_en_cola("Card B", True)
+
+    sheet.set_bin_en_cola("Card B", False)
+
+    assert "en cola" not in sheet.bin_header_widget("Card B").proxy_badge.text()
+
+
+def test_el_menu_de_un_bin_formado_ofrece_cancelar(qtbot):
+    """El menu miraba solo al que corre: un bin formado seguia ofreciendo
+    «Crear proxies del bin…», que es justo lo que ya pediste."""
+    sheet = _hoja_con_bin(qtbot)
+    cabecera = sheet.bin_header_widget("Card B")
+    sheet.set_bin_en_cola("Card B", True)
+
+    # el menu se guarda en una variable: es el DUEÑO de sus acciones, y
+    # leyendolas de un menu temporal Qt ya las destruyo a media expresion
+    menu = cabecera.construir_menu()
+    textos = [a.text() for a in menu.actions()]
+
+    assert any("Cancelar" in t for t in textos)
+    assert not any("Crear proxies" in t for t in textos)

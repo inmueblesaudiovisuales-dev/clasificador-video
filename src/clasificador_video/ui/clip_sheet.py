@@ -822,6 +822,11 @@ class _BinHeader(QWidget):
         # insignia se rehace en cada reagrupada: si el avance viviera afuera,
         # el primer refresco de la hoja lo borraria a media generacion.
         self._generando: tuple[int, int] | None = None
+        # formado, esperando turno. Es un estado APARTE de `_generando` y no
+        # un valor mas de el: los dos pueden estar puestos en el instante en
+        # que a este bin le toca --se le avisa que arranco antes de sacarlo
+        # de la fila-- y ahi tiene que ganar el que corre.
+        self._en_cola = False
         # lo enchufa la hoja al crear el encabezado: es `_aplicar_meta`, la
         # unica que sabe cuantos proxies enganchados tiene este bin.
         self._pedir_refresco_de_insignia = None
@@ -959,6 +964,7 @@ class _BinHeader(QWidget):
         # sin esto el menu del flotante ofrece «Crear proxies» mientras la
         # generacion corre, y darle encolaria una segunda tanda
         self._generando = otro._generando
+        self._en_cola = otro._en_cola
         self.name_label.setText(otro.nombre)
         self.source_label.setText(otro.source_label.text())
         self.count_label.setText(otro.count_label.text())
@@ -1005,6 +1011,11 @@ class _BinHeader(QWidget):
             hechos, total = self._generando
             self._pintar_insignia(f"creando proxies · {hechos}/{total}", "generando")
             return
+        if self._en_cola:
+            # despues del que corre y antes del conteo: formado todavia no
+            # dice nada del material, pero es mas nuevo que «sin proxies»
+            self._pintar_insignia("en cola", "encolado")
+            return
         marca = f"proxy {resolucion}" if resolucion else "proxy"
         if not enganchados:
             texto, estado = "sin proxies", "ninguno"
@@ -1020,6 +1031,14 @@ class _BinHeader(QWidget):
             self.proxy_badge.setProperty("estado", estado)
             self.proxy_badge.style().unpolish(self.proxy_badge)
             self.proxy_badge.style().polish(self.proxy_badge)
+
+    def set_en_cola(self, en_cola: bool) -> None:
+        """Formado, esperando turno. NO pinta directo: pide el refresco de la
+        insignia, igual que `set_generando`, para que al salir de la fila
+        vuelva sola al conteo real de proxies enganchados."""
+        self._en_cola = bool(en_cola)
+        if self._pedir_refresco_de_insignia is not None:
+            self._pedir_refresco_de_insignia(self)
 
     def set_generando(self, hechos: int | None, total: int = 0) -> None:
         """`None` para decir que ya no se esta generando nada.
@@ -1169,7 +1188,7 @@ class _BinHeader(QWidget):
         # corre, «Crear proxies» no tendria nada que hacer --los que faltan
         # ya estan encolados-- y cancelar es lo unico que uno quiere del
         # menu. Dos renglones, uno siempre inutil, es peor.
-        if self._generando is not None:
+        if self._generando is not None or self._en_cola:
             cancelar = QAction("Cancelar la creación de proxies", menu)
             cancelar.triggered.connect(
                 lambda: self.proxies_generate_cancelled.emit(self.nombre)
@@ -2148,6 +2167,14 @@ class ClipSheet(QWidget):
         # el encabezado pegado es una COPIA: sin volver a copiarlo, se queda
         # anunciando el estado de hace un minuto justo en el renglon que se
         # esta viendo.
+        self._actualizar_encabezado_pegado()
+
+    def set_bin_en_cola(self, nombre: str, en_cola: bool) -> None:
+        """El bin esta formado esperando turno. Mismo camino que
+        `set_bin_generando`, incluida la copia del encabezado pegado."""
+        cabecera = self._bin_headers.get(nombre)
+        if cabecera is not None:
+            cabecera.set_en_cola(en_cola)
         self._actualizar_encabezado_pegado()
 
     def bin_headers(self) -> list[str]:
