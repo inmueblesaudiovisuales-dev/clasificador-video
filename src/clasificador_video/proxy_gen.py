@@ -104,6 +104,38 @@ def faltantes(originales: list[Path], carpeta: Path) -> list[Path]:
     return [o for o in originales if not ruta_de_proxy(o, carpeta).exists()]
 
 
+SUFIJO_PARCIAL = ".parcial"
+
+
+def barrer_parciales(carpeta: Path) -> int:
+    """Borra los proxies a medias que hayan quedado, y dice cuantos eran.
+
+    `generar` escribe a `<nombre>.mp4.parcial` y solo renombra al nombre
+    bueno cuando ffmpeg termina bien, asi que un `.parcial` NUNCA bloquea a
+    su clip: `ruta_de_proxy(...).exists()` no lo ve y el clip se vuelve a
+    generar solo. O sea que esto no arregla nada roto -- limpia.
+
+    Cancelar ya los borra. Los que quedan son de un cierre de golpe, un
+    crash o un corte de luz, y ahi nadie los recoge: se van juntando en la
+    carpeta del material de Bruno.
+
+    **Cuando se llama importa:** al EMPEZAR la tanda de un bin, que es el
+    unico momento en que se sabe que no hay ninguno en vuelo --se genera de
+    uno en uno, y la fila arranca la siguiente solo cuando la anterior
+    termino--. Llamarlo al pedir un bin barreria el archivo que otro bin
+    esta escribiendo en ese instante, porque dos bins de la misma carpeta
+    comparten carpeta de proxies.
+    """
+    try:
+        pedazos = [p for p in carpeta.iterdir()
+                   if p.is_file() and p.name.endswith(SUFIJO_PARCIAL)]
+    except OSError:
+        return 0   # la carpeta no esta, o no se puede leer: nada que barrer
+    for pedazo in pedazos:
+        pedazo.unlink(missing_ok=True)
+    return len(pedazos)
+
+
 class Interrumpido(RuntimeError):
     """Se corto a mitad de camino porque alguien lo pidio, no porque fallara."""
 
@@ -126,7 +158,7 @@ def generar(original: Path, carpeta: Path, ffmpeg: str | None = None,
     """
     carpeta.mkdir(parents=True, exist_ok=True)
     destino = ruta_de_proxy(original, carpeta)
-    parcial = destino.with_name(destino.name + ".parcial")
+    parcial = destino.with_name(destino.name + SUFIJO_PARCIAL)
     proceso = subprocess.Popen(
         comando(original, parcial, ffmpeg),
         stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,

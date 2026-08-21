@@ -153,3 +153,36 @@ def test_cancelar_corta_ffmpeg_en_vez_de_esperarlo(tmp_path, monkeypatch):
 
     assert procesos[0].terminado                 # se le corto, no se espero
     assert list(carpeta.iterdir()) == []         # y no quedo el .parcial
+
+
+def test_barrer_parciales_se_lleva_los_pedazos(tmp_path):
+    """Un `.parcial` es un proxy a medias de una tanda que se corto de golpe.
+    `generar` los borra al cancelar, pero un cierre forzado o un corte de luz
+    los deja ahi, y nadie los recoge nunca."""
+    (tmp_path / "C0001S03.mp4.parcial").write_bytes(b"x")
+    (tmp_path / "C0002S03.mp4.parcial").write_bytes(b"x")
+
+    barridos = proxy_gen.barrer_parciales(tmp_path)
+
+    assert barridos == 2
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_barrer_parciales_no_toca_los_proxies_buenos(tmp_path):
+    """Lo unico que se va son los pedazos. Un proxy terminado es el trabajo
+    de varios minutos que esta tanda existe para no repetir."""
+    bueno = tmp_path / "C0001S03.mp4"
+    bueno.write_bytes(b"proxy de verdad")
+    (tmp_path / "C0002S03.mp4.parcial").write_bytes(b"x")
+
+    proxy_gen.barrer_parciales(tmp_path)
+
+    assert bueno.exists()
+    assert not (tmp_path / "C0002S03.mp4.parcial").exists()
+
+
+def test_barrer_parciales_aguanta_una_carpeta_que_no_esta(tmp_path):
+    """Se llama al empezar la tanda de un bin, y ese bin puede apuntar a una
+    tarjeta desconectada. Que no exista no es un error: no hay nada que
+    barrer."""
+    assert proxy_gen.barrer_parciales(tmp_path / "no existe") == 0
