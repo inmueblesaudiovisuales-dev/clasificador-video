@@ -59,7 +59,7 @@ una ventanita con su nombre y una barra mientras se preparan las portadas —
 con 205 clips son un par de segundos.
 
 **Qué versión tienes:** la app lo dice abajo a la derecha de la pantalla de
-inicio — «Clasificador 1.7». Es lo primero que hay que saber para reportar
+inicio — «Clasificador 1.8». Es lo primero que hay que saber para reportar
 cualquier cosa.
 
 Para armar los dos, ver [docs/DESARROLLO.md](docs/DESARROLLO.md).

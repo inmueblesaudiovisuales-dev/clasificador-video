@@ -5,4 +5,4 @@
 # informacion»-- y la pantalla de inicio, que es donde Bruno la ve sin
 # salirse de la app. Escrita en dos lados, tarde o temprano dirian cosas
 # distintas y nadie sabria cual es la buena.
-__version__ = "1.7"
+__version__ = "1.8"
