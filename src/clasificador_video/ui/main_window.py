@@ -4256,7 +4256,9 @@ class MainWindow(QWidget):
                 f"{len(unclassified)} clip(s) no tienen cuarto y entrarán en 'Sin clasificar'. "
                 "Puedes seguir y corregir después.",
             )
-        path, _ = QFileDialog.getSaveFileName(self, "Guardar manifest", "manifest.json", "JSON (*.json)")
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Guardar manifest", self._nombre_sugerido_del_manifest(),
+            "JSON (*.json)")
         if not path:
             return
         manifest = Manifest(
@@ -4269,6 +4271,21 @@ class MainWindow(QWidget):
                    for c in self.clips],
         )
         manifest.write_json(Path(path))
+
+    def _nombre_sugerido_del_manifest(self) -> str:
+        """`IAV-2608.17.json`, no `manifest.json`.
+
+        Antes proponia siempre el mismo nombre, y con varios shootings en la
+        carpeta de descargas eso son cinco archivos identicos que no dicen de
+        que proyecto salieron.
+
+        Se limpian las diagonales: el nombre del proyecto lo escribe Bruno, y
+        una diagonal ahi haria que el dialogo abriera en otra carpeta -- o
+        guardara donde nadie espera. Un nombre en blanco cae en
+        `manifest.json`, que es mejor que un archivo llamado `.json`.
+        """
+        limpio = self.project_name.replace("/", "-").replace("\\", "-").strip()
+        return f"{limpio}.json" if limpio else "manifest.json"
 
     def _on_import_folders(self) -> None:
         folder = QFileDialog.getExistingDirectory(self, "Elegir carpeta de material")

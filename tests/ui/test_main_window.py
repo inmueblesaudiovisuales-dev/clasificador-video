@@ -5347,3 +5347,57 @@ def test_la_ventana_abre_maximizada(qtbot):
     window.abrir_maximizada()
 
     assert window.isMaximized()
+
+
+def test_exportar_sugiere_el_nombre_del_proyecto(qtbot, monkeypatch):
+    """Antes proponía siempre «manifest.json». Con varios shootings en la
+    misma carpeta de descargas, eso son cinco archivos que se llaman igual y
+    ninguno dice de qué proyecto salió."""
+    from PySide6.QtWidgets import QFileDialog
+
+    window = _window(qtbot)
+    window.project_name = "IAV-2608.17"
+    window.load_clips([Clip(orden=1, ruta=Path("/tmp/a.mp4"),
+                            categoria_path=["Cocina"], fps=30.0)])
+    sugeridos = []
+    monkeypatch.setattr(QFileDialog, "getSaveFileName",
+                        lambda *a, **k: sugeridos.append(a[2]) or ("", ""))
+
+    window._on_export_manifest()
+
+    assert sugeridos == ["IAV-2608.17.json"]
+
+
+def test_exportar_no_deja_que_el_nombre_arme_una_ruta(qtbot, monkeypatch):
+    """El nombre del proyecto lo escribe Bruno, y una diagonal ahí haría que
+    el diálogo abriera en otra carpeta -- o guardara donde nadie espera."""
+    from PySide6.QtWidgets import QFileDialog
+
+    window = _window(qtbot)
+    window.project_name = "Casa/Lomas"
+    window.load_clips([Clip(orden=1, ruta=Path("/tmp/a.mp4"),
+                            categoria_path=["Cocina"], fps=30.0)])
+    sugeridos = []
+    monkeypatch.setattr(QFileDialog, "getSaveFileName",
+                        lambda *a, **k: sugeridos.append(a[2]) or ("", ""))
+
+    window._on_export_manifest()
+
+    assert "/" not in sugeridos[0]
+    assert sugeridos[0].endswith(".json")
+
+
+def test_exportar_sin_nombre_de_proyecto_cae_en_manifest(qtbot, monkeypatch):
+    from PySide6.QtWidgets import QFileDialog
+
+    window = _window(qtbot)
+    window.project_name = "   "
+    window.load_clips([Clip(orden=1, ruta=Path("/tmp/a.mp4"),
+                            categoria_path=["Cocina"], fps=30.0)])
+    sugeridos = []
+    monkeypatch.setattr(QFileDialog, "getSaveFileName",
+                        lambda *a, **k: sugeridos.append(a[2]) or ("", ""))
+
+    window._on_export_manifest()
+
+    assert sugeridos == ["manifest.json"]

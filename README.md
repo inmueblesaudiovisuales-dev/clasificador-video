@@ -185,7 +185,8 @@ seleccionar sus clips, quitarlo del proyecto.
 
 ### 5. Exportar
 
-`⌘E` guarda un `manifest.json`. En Premiere, abre el panel del plugin y dale
+`⌘E` guarda un archivo con **el nombre de tu proyecto** —
+`IAV-2608.17.json`—. En Premiere, abre el panel del plugin y dale
 a **Importar clasificación…**: arma los bins por cuarto, pone las etiquetas de
 color, aplica los in/out y engancha los proxies.
 
