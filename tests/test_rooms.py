@@ -110,3 +110,57 @@ def test_insertar_uno_que_ya_existe_no_lo_duplica():
     sel.add("Cocina")
     sel.insert_at(0, "Cocina")
     assert sel.active_rooms() == ["Cocina"]
+
+
+def test_mover_a_lleva_el_cuarto_a_esa_posicion():
+    """Arrastrar es mover A UN LUGAR, no `move(delta)` repetido: con 13
+    cuartos, subir el ultimo hasta arriba serian doce llamadas."""
+    seleccion = RoomSelection()
+    for cuarto in ["Fachada", "Sala", "Comedor", "Alberca"]:
+        seleccion.add(cuarto)
+
+    seleccion.mover_a("Alberca", 0)
+
+    assert seleccion.active_rooms() == ["Alberca", "Fachada", "Sala", "Comedor"]
+
+
+def test_mover_a_al_final():
+    seleccion = RoomSelection()
+    for cuarto in ["Fachada", "Sala", "Comedor"]:
+        seleccion.add(cuarto)
+
+    seleccion.mover_a("Fachada", 2)
+
+    assert seleccion.active_rooms() == ["Sala", "Comedor", "Fachada"]
+
+
+def test_mover_a_donde_ya_estaba_no_cambia_nada():
+    seleccion = RoomSelection()
+    for cuarto in ["Fachada", "Sala"]:
+        seleccion.add(cuarto)
+
+    seleccion.mover_a("Fachada", 0)
+
+    assert seleccion.active_rooms() == ["Fachada", "Sala"]
+
+
+def test_mover_a_recorta_la_posicion_en_vez_de_reventar():
+    """La posicion viene de un gesto del mouse: soltar debajo del ultimo
+    puede dar un numero mas grande que la lista."""
+    seleccion = RoomSelection()
+    for cuarto in ["Fachada", "Sala"]:
+        seleccion.add(cuarto)
+
+    seleccion.mover_a("Fachada", 99)
+    seleccion.mover_a("Sala", -3)
+
+    assert seleccion.active_rooms() == ["Sala", "Fachada"]
+
+
+def test_mover_a_un_cuarto_que_no_existe_no_hace_nada():
+    seleccion = RoomSelection()
+    seleccion.add("Fachada")
+
+    seleccion.mover_a("Alberca", 0)
+
+    assert seleccion.active_rooms() == ["Fachada"]

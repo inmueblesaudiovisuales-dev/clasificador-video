@@ -58,6 +58,23 @@ class RoomSelection:
             return  # en los extremos no pasa nada, no se envuelve
         self._order.insert(destino, self._order.pop(origen))
 
+    def mover_a(self, room: str, posicion: int) -> None:
+        """Lo lleva a esa posicion. El gemelo de `move` para el arrastre.
+
+        `move(delta)` sirve para «Subir» y «Bajar», que son un escalon; el
+        arrastre es «ponlo AQUI», y con 13 cuartos llevar el ultimo hasta
+        arriba serian doce llamadas.
+
+        La posicion se RECORTA en vez de reventar: viene de un gesto del
+        mouse, y soltar debajo del ultimo da un numero mas grande que la
+        lista. Un cuarto que no esta se ignora, con el mismo criterio que el
+        resto del modulo: es una entrada invalida, no un error del programa.
+        """
+        if room not in self._order:
+            return
+        posicion = max(0, min(posicion, len(self._order) - 1))
+        self._order.insert(posicion, self._order.pop(self._order.index(room)))
+
     def remove(self, room: str) -> None:
         if room in self._order:
             self._order.remove(room)
