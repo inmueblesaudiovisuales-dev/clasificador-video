@@ -193,11 +193,14 @@ Dentro de cada cuarto los clips quedan repartidos por cómo los marcaste:
 
 ```
 Cocina
-  ├── Destacados
   ├── Picks
   ├── Rejects
   └── Sin marcar
 ```
+
+**Los destacados van en Picks**, junto con los demás: un destacado es un pick
+reforzado, y en esa carpeta lo que quieres son los buenos, todos juntos. Los
+reconoces por su **etiqueta dorada** en el panel de proyecto, sin abrir nada.
 
 Solo aparecen las que tienen algo: un cuarto sin rejects no estrena esa
 carpeta. Los clips a los que nunca les pusiste cuarto siguen cayendo juntos

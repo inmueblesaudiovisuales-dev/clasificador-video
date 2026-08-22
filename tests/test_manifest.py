@@ -94,10 +94,28 @@ def test_cada_estado_tiene_su_subcarpeta():
                  fps=30.0, flag=flag)
         ).categoria_path[-1]
 
-    assert camino("destacado") == "Destacados"
     assert camino("pick") == "Picks"
     assert camino("reject") == "Rejects"
     assert camino("none") == "Sin marcar"
+
+
+def test_los_destacados_van_con_los_picks():
+    """Decision de Bruno el 2026-08-22. Un destacado ES un pick, reforzado:
+    partirlos en dos carpetas obligaba a mirar en dos lados para armar la
+    secuencia, y lo que uno quiere ahi son «los buenos».
+
+    No se pierde la distincion: el destacado llega a Premiere con la
+    etiqueta dorada (`MANGO`), que se ve en el panel de proyecto sin abrir
+    nada. Eso ya funcionaba y es lo que hace que esta carpeta sobre.
+    """
+    def camino(flag):
+        return con_subcarpeta_de_estado(
+            Clip(orden=1, ruta=Path("/c/A.MP4"), categoria_path=["Cocina"],
+                 fps=30.0, flag=flag)
+        ).categoria_path[-1]
+
+    assert camino("destacado") == "Picks"
+    assert camino("destacado") == camino("pick")
 
 
 def test_un_clip_sin_cuarto_se_deja_tal_cual():

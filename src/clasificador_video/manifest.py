@@ -54,10 +54,20 @@ class Manifest:
 # mentalmente. `pick` y `reject` se quedan en inglés porque así los dice un
 # editor en México, igual que en el resto de la app.
 #
-# De paso, Premiere ordena los bins por abecedario y estos cuatro caen justo
-# de mejor a peor: Destacados, Picks, Rejects, Sin marcar.
+# De paso, Premiere ordena los bins por abecedario y estos tres caen justo de
+# mejor a peor: Picks, Rejects, Sin marcar.
+#
+# **Los destacados van con los picks**, no en carpeta aparte. Decision de
+# Bruno el 2026-08-22: un destacado ES un pick, reforzado, y partirlos en dos
+# carpetas obligaba a mirar en dos lados para armar la secuencia -- cuando lo
+# que uno quiere ahi son «los buenos», todos juntos.
+#
+# No se pierde la distincion: el destacado llega a Premiere con la etiqueta
+# dorada (`MANGO`, ver `label.js`), que se ve en el panel de proyecto sin
+# abrir nada. Esa etiqueta ya funcionaba, y es lo que hace que la carpeta
+# sobre.
 SUBCARPETA_POR_FLAG = {
-    "destacado": "Destacados",
+    "destacado": "Picks",
     "pick": "Picks",
     "reject": "Rejects",
     "none": "Sin marcar",

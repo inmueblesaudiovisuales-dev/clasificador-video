@@ -9,12 +9,17 @@ async function processManifest(project, manifest) {
 
   for (const clipData of manifest.clips) {
     let nombreArchivo = "(sin ruta)";
+    // Se declara AFUERA del try para que el mensaje de error pueda decir a
+    // donde iba el clip. Sin eso, un fallo solo decia el nombre del archivo
+    // y habia que ir a buscar al .cvproj en que cuarto estaba -- que es
+    // justo lo que Bruno tuvo que preguntar.
+    let categoryPath = ["Sin clasificar"];
     try {
       nombreArchivo = (clipData.ruta || "").split("/").pop() || nombreArchivo;
 
-      const categoryPath = clipData.categoria_path && clipData.categoria_path.length > 0
-        ? clipData.categoria_path
-        : ["Sin clasificar"];
+      if (clipData.categoria_path && clipData.categoria_path.length > 0) {
+        categoryPath = clipData.categoria_path;
+      }
 
       const targetFolder = await resolveBinChain(project, rootFolder, categoryPath);
       const clipItem = await importOrReuseClip(project, targetFolder, clipData.ruta);
@@ -40,8 +45,13 @@ async function processManifest(project, manifest) {
       // rechazar con un string u otro valor sin .message) -- con fallback a
       // String(e) el mensaje nunca queda vacio ni tumba este catch.
       const mensaje = (e && e.message) || String(e);
-      resultado.errores.push({ archivo: nombreArchivo, mensaje: mensaje });
-      logToPanel(nombreArchivo + ": " + mensaje, true);
+      const donde = categoryPath.join(" > ");
+      resultado.errores.push({
+        archivo: nombreArchivo, mensaje: mensaje, destino: donde,
+      });
+      // el destino va en el mensaje: si un clip falla, lo primero que uno
+      // necesita es saber a que bin arrastrarlo a mano
+      logToPanel(nombreArchivo + " (iba a " + donde + "): " + mensaje, true);
     }
   }
 
