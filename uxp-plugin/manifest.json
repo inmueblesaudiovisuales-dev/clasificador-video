@@ -1,7 +1,7 @@
 {
   "id": "com.iav.clasificadorvideo",
   "name": "Clasificador de Video IAV",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "main": "index.html",
   "host": {
     "app": "premierepro",
@@ -15,8 +15,13 @@
     {
       "id": "panel1",
       "type": "panel",
-      "label": { "default": "Clasificador de Video" },
-      "minimumSize": { "width": 320, "height": 300 }
+      "label": {
+        "default": "Clasificador de Video"
+      },
+      "minimumSize": {
+        "width": 320,
+        "height": 300
+      }
     }
   ]
 }
