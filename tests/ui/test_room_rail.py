@@ -28,11 +28,18 @@ def test_los_primeros_nueve_cuartos_tienen_tecla(qtbot):
 
 
 def test_del_decimo_en_adelante_no_hay_tecla(qtbot):
-    """Los atajos numericos llegan hasta el noveno: el badge queda vacio
-    en vez de mentir con un numero que no funciona."""
+    """Los atajos numericos llegan hasta el noveno, y el badge no miente con
+    un numero que no funciona.
+
+    Cambio del 2026-08-20: antes quedaba VACIO. Decia «aqui no hay tecla»,
+    que es cierto, pero no decia a donde ir -- y Bruno se quedo sin forma de
+    clasificar esos cuartos. Ahora lleva `⏎`, el camino al buscador. La
+    propiedad `sin_tecla` se queda: es la que lo pinta apagado, para que no
+    compita con los numeros de verdad.
+    """
     rail = _rail(qtbot)
     rail.set_rooms([f"C{i}" for i in range(11)], {})
-    assert rail.rows[MAX_TECLAS].key_cap.text() == ""
+    assert rail.rows[MAX_TECLAS].key_cap.text() == "⏎"
     assert rail.rows[MAX_TECLAS].key_cap.property("sin_tecla") is True
     assert rail.rows[0].key_cap.property("sin_tecla") is False
 
@@ -631,3 +638,21 @@ def test_el_doble_click_sigue_renombrando(qtbot, monkeypatch):
     qtbot.mouseDClick(rail.rows[0], Qt.MouseButton.LeftButton)
 
     assert abiertos == [True]
+
+
+def test_el_decimo_cuarto_muestra_enter_en_vez_de_un_hueco(qtbot):
+    """El cuadrito vacío decía «aquí no hay tecla» pero no decía a dónde ir.
+    Son justamente los cuartos por los que el buscador existe, y Bruno no lo
+    encontró: «no hay una forma fácil de clasificar a estos cuartos»."""
+    rail = _rail(qtbot)
+    rail.set_rooms([f"Cuarto {n}" for n in range(1, 12)], {})
+
+    assert rail.rows[9].key_cap.text() == "⏎"
+
+
+def test_los_primeros_nueve_siguen_con_su_numero(qtbot):
+    rail = _rail(qtbot)
+    rail.set_rooms([f"Cuarto {n}" for n in range(1, 12)], {})
+
+    assert rail.rows[8].key_cap.text() == "9"
+    assert rail.rows[0].key_cap.text() == "1"

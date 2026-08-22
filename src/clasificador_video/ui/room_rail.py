@@ -184,12 +184,16 @@ class _FilaCuarto(QWidget):
         layout.setContentsMargins(6, 0, 6, 0)
         layout.setSpacing(8)
 
-        self.key_cap = QLabel("" if numero is None else str(numero))
+        # Del decimo en adelante no hay atajo numerico, y el badge se quedaba
+        # VACIO. Decia «aqui no hay tecla», que es cierto, pero no decia a
+        # donde ir -- y son justamente los cuartos por los que el buscador
+        # existe. `⏎` lo abre, que es exactamente lo que hace falta saber.
+        # Bruno se topo con el hueco: «no hay una forma facil de clasificar a
+        # estos cuartos que estan fuera del rango del 0-9».
+        self.key_cap = QLabel(str(numero) if numero is not None else "⏎")
         self.key_cap.setObjectName("keyCap")
         self.key_cap.setFixedSize(18, 18)
         self.key_cap.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        # los cuartos a partir del decimo no tienen atajo numerico: el badge
-        # queda vacio en vez de mentir con un numero que no funciona
         self.key_cap.setProperty("sin_tecla", numero is None)
 
         self.swatch = QLabel("")

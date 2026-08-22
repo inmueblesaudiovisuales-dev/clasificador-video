@@ -634,9 +634,14 @@ def build_stylesheet() -> str:
         font-size: {FONT_MICRO}px;
         font-weight: 600;
     }}
+    /* Los cuartos del decimo en adelante: sin atajo numerico, pero NO en
+       blanco. Llevan `⏎`, que es el camino al buscador, y se pinta apagado
+       para que no compita con los numeros -- no es una tecla directa, es una
+       indicacion. Antes esto era `color: transparent`, o sea un hueco que no
+       decia a donde ir. */
     QLabel#keyCap[sin_tecla="true"] {{
         background-color: transparent;
-        color: transparent;
+        color: {TEXT_3};
     }}
 
     QWidget#toolColumn {{
