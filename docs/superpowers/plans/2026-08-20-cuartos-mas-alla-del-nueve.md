@@ -37,7 +37,7 @@
 
 **Files:** `src/clasificador_video/ui/main_window.py`, `tests/ui/test_main_window.py`
 
-- [ ] **Step 1: Escribe las pruebas que fallan**
+- [x] **Step 1: Escribe las pruebas que fallan**
 
 ```python
 def test_la_s_pone_el_ultimo_cuarto_que_usaste(qtbot):
@@ -125,7 +125,7 @@ def _window_con_cuartos(qtbot, cuartos, clips=4):
     return window
 ```
 
-- [ ] **Step 2: Corre las pruebas y comprueba que fallan**
+- [x] **Step 2: Corre las pruebas y comprueba que fallan**
 
 ```bash
 QT_QPA_PLATFORM=offscreen .venv/bin/pytest tests/ui/test_main_window.py -q -k "la_s_ o deshacer_no_mueve or tiene_en_la_mano"
@@ -133,7 +133,7 @@ QT_QPA_PLATFORM=offscreen .venv/bin/pytest tests/ui/test_main_window.py -q -k "l
 
 Esperado: FAIL en la primera con `['Cocina'] != ['Alberca']`, y `AttributeError` en la última.
 
-- [ ] **Step 3: La ventana se acuerda**
+- [x] **Step 3: La ventana se acuerda**
 
 En `__init__`, junto al resto del estado de clasificación:
 
@@ -183,7 +183,7 @@ Y el respaldo:
 
 En `handle_key_press`, la rama de `s` pasa a llamar a `_cuarto_para_la_tecla_s()`. Lo mismo el lugar donde el rail pinta la pista de «mismo cuarto» (la llamada a `set_same_room`), para que lo que se ve y lo que hace la tecla no puedan contradecirse.
 
-- [ ] **Step 4: Que siga los renombrados y los borrados**
+- [x] **Step 4: Que siga los renombrados y los borrados**
 
 En `_on_room_renamed`, junto a `self.history.renombrar_cuarto(...)`:
 
@@ -202,7 +202,7 @@ En `_on_room_removed`, después de quitarlo de la selección:
             self._ultimo_cuarto_usado = None
 ```
 
-- [ ] **Step 5: Corre la suite completa y commitea**
+- [x] **Step 5: Corre la suite completa y commitea**
 
 ```bash
 QT_QPA_PLATFORM=offscreen .venv/bin/pytest tests/ -q
@@ -218,7 +218,7 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 
 **Files:** `src/clasificador_video/ui/room_palette.py`, `tests/ui/test_room_palette.py`
 
-- [ ] **Step 1: Escribe las pruebas que fallan**
+- [x] **Step 1: Escribe las pruebas que fallan**
 
 ```python
 def test_el_buscador_muestra_todos_los_cuartos(qtbot):
@@ -259,7 +259,7 @@ def test_bajar_hasta_el_ultimo_cuarto_lo_deja_a_la_vista(qtbot):
     assert visible.contains(punto)
 ```
 
-- [ ] **Step 2: Corre las pruebas y comprueba que fallan**
+- [x] **Step 2: Corre las pruebas y comprueba que fallan**
 
 ```bash
 QT_QPA_PLATFORM=offscreen .venv/bin/pytest tests/ui/test_room_palette.py -q -k "todos_los_cuartos or sin_limite or a_la_vista"
@@ -267,7 +267,7 @@ QT_QPA_PLATFORM=offscreen .venv/bin/pytest tests/ui/test_room_palette.py -q -k "
 
 Esperado: FAIL — solo devuelve 6.
 
-- [ ] **Step 3: Filas que crecen, dentro de un scroll**
+- [x] **Step 3: Filas que crecen, dentro de un scroll**
 
 En `room_palette.py`, `MAX_OPCIONES` deja de limitar cuántas hay y pasa a decir cuántas caben:
 
@@ -308,7 +308,7 @@ borde y con la barra horizontal apagada:
             self._scroll.ensureWidgetVisible(filas[min(self._activa, len(filas) - 1)])
 ```
 
-- [ ] **Step 4: Corre la suite completa y commitea**
+- [x] **Step 4: Corre la suite completa y commitea**
 
 ```bash
 QT_QPA_PLATFORM=offscreen .venv/bin/pytest tests/ -q
@@ -324,7 +324,7 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 
 **Files:** `src/clasificador_video/ui/room_rail.py`, `tests/ui/test_room_rail.py`
 
-- [ ] **Step 1: Escribe las pruebas que fallan**
+- [x] **Step 1: Escribe las pruebas que fallan**
 
 ```python
 def test_enter_en_una_fila_del_rail_pide_asignar(qtbot):
@@ -373,7 +373,7 @@ Si `_FilaCuarto` no tiene todavía una forma de preguntar si está en modo edici
 
 y ajusta el nombre del atributo al que de verdad guarda el editor (búscalo con `grep -n "_pedir_nombre" -A 15 src/clasificador_video/ui/room_rail.py`).
 
-- [ ] **Step 2: Corre las pruebas y comprueba que fallan**
+- [x] **Step 2: Corre las pruebas y comprueba que fallan**
 
 ```bash
 QT_QPA_PLATFORM=offscreen .venv/bin/pytest tests/ui/test_room_rail.py -q -k "asignar or renombrado or f2_sigue"
@@ -381,7 +381,7 @@ QT_QPA_PLATFORM=offscreen .venv/bin/pytest tests/ui/test_room_rail.py -q -k "asi
 
 Esperado: FAIL con `AttributeError: 'RoomRail' object has no attribute 'room_assign_requested'`.
 
-- [ ] **Step 3: La señal nueva y el cambio de tecla**
+- [x] **Step 3: La señal nueva y el cambio de tecla**
 
 En `_FilaCuarto`, junto a las demás señales:
 
@@ -416,7 +416,7 @@ En `RoomRail`, la señal que sube y la conexión, junto a `fila.rename_requested
             fila.assign_requested.connect(self.room_assign_requested.emit)
 ```
 
-- [ ] **Step 4: Corre la suite completa y commitea**
+- [x] **Step 4: Corre la suite completa y commitea**
 
 ```bash
 QT_QPA_PLATFORM=offscreen .venv/bin/pytest tests/ -q
@@ -432,7 +432,7 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 
 **Files:** `src/clasificador_video/ui/main_window.py`, `tests/ui/test_main_window.py`
 
-- [ ] **Step 1: Escribe la prueba que falla**
+- [x] **Step 1: Escribe la prueba que falla**
 
 ```python
 def test_el_rail_asigna_al_clip_actual(qtbot):
@@ -455,13 +455,13 @@ def test_asignar_desde_el_rail_cuenta_para_la_s(qtbot):
     assert window._ultimo_cuarto_usado == "Cocina"
 ```
 
-- [ ] **Step 2: Corre las pruebas y comprueba que fallan**
+- [x] **Step 2: Corre las pruebas y comprueba que fallan**
 
 ```bash
 QT_QPA_PLATFORM=offscreen .venv/bin/pytest tests/ui/test_main_window.py -q -k "rail_asigna or cuenta_para_la_s"
 ```
 
-- [ ] **Step 3: Conectarla**
+- [x] **Step 3: Conectarla**
 
 Donde se conectan las demás señales del rail:
 
@@ -473,7 +473,7 @@ Donde se conectan las demás señales del rail:
 
 Por `_asignar_cuarto` y no por un camino propio: es el único lugar que registra en el historial, avanza en la cola y anota el último cuarto usado. Un segundo camino sería una asignación de segunda, y eso no se ve hasta usarla.
 
-- [ ] **Step 4: Corre la suite completa y commitea**
+- [x] **Step 4: Corre la suite completa y commitea**
 
 ```bash
 QT_QPA_PLATFORM=offscreen .venv/bin/pytest tests/ -q
@@ -489,7 +489,7 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 
 **Files:** `src/clasificador_video/ui/room_rail.py`, `src/clasificador_video/ui/theme.py`, `tests/ui/test_room_rail.py`
 
-- [ ] **Step 1: Escribe las pruebas que fallan**
+- [x] **Step 1: Escribe las pruebas que fallan**
 
 ```python
 def test_el_decimo_cuarto_muestra_enter_en_vez_de_un_hueco(qtbot):
@@ -508,13 +508,13 @@ def test_los_primeros_nueve_siguen_con_su_numero(qtbot):
     assert rail.rows[8].key_label.text() == "9"
 ```
 
-- [ ] **Step 2: Corre las pruebas y comprueba que fallan**
+- [x] **Step 2: Corre las pruebas y comprueba que fallan**
 
 ```bash
 QT_QPA_PLATFORM=offscreen .venv/bin/pytest tests/ui/test_room_rail.py -q -k "decimo_cuarto or primeros_nueve"
 ```
 
-- [ ] **Step 3: Poner el glifo**
+- [x] **Step 3: Poner el glifo**
 
 Donde hoy se calcula `numero = indice + 1 if indice < MAX_TECLAS else None`, la fila pasa a recibir el texto ya resuelto:
 
@@ -531,7 +531,7 @@ Ajusta `_FilaCuarto.poner` (o como se llame quien recibe el número) para acepta
         self.key_label.setProperty("sinAtajo", tecla == "⏎")
 ```
 
-- [ ] **Step 4: El estilo**
+- [x] **Step 4: El estilo**
 
 En `theme.py`, junto a las reglas de la tecla del rail:
 
@@ -543,7 +543,7 @@ En `theme.py`, junto a las reglas de la tecla del rail:
     }}
 ```
 
-- [ ] **Step 5: Corre la suite completa y commitea**
+- [x] **Step 5: Corre la suite completa y commitea**
 
 ```bash
 QT_QPA_PLATFORM=offscreen .venv/bin/pytest tests/ -q
@@ -559,11 +559,11 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 
 **Files:** `README.md`, `docs/superpowers/CONTEXTO-Y-METAS.md`
 
-- [ ] **Step 1: Comprobación visual**
+- [x] **Step 1: Comprobación visual**
 
 Arma en el scratchpad (NO en el repo) una ventana con 13 cuartos, abre el buscador con `_on_enter()`, y guarda `window.grab()` a PNG. Ábrelo con la herramienta de lectura de archivos y confirma tres cosas: se ven más de seis cuartos, el rail muestra `⏎` del décimo en adelante, y el `⏎` se lee más apagado que los números.
 
-- [ ] **Step 2: El README**
+- [x] **Step 2: El README**
 
 En la tabla de teclas, añade los renglones que faltaban:
 
@@ -587,11 +587,11 @@ primeras letras y dale Enter otra vez. También puedes elegir el cuarto en el
 rail y apretar Enter.
 ```
 
-- [ ] **Step 3: CONTEXTO-Y-METAS**
+- [x] **Step 3: CONTEXTO-Y-METAS**
 
 Añade a lo cerrado un punto con las dos cosas, y con el porqué: `S` copiaba el cuarto del clip de al lado y eso se separa de «el último que usaste» en cuanto te saltas clips; y el buscador existía desde siempre pero mostraba seis de trece y `⏎` en el rail renombraba, así que parecía que no se podía.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add README.md docs/superpowers/CONTEXTO-Y-METAS.md

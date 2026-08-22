@@ -170,6 +170,36 @@ medido que no calza cuadro a cuadro.
 
 ---
 
+## Lo que se cerró el 2026-08-20 (segunda tanda)
+
+### Los cuartos más allá del nueve — **hecho**
+
+Salió de usar la app con 13 cuartos. Dos cosas, las dos reproducidas antes de
+tocar código.
+
+**`S` daba un cuarto viejo.** Copiaba el del clip de al lado hacia atrás, no
+el último que usaste. Coincide mientras avanzas en orden y se separa en
+cuanto te saltas clips o hay material de una pasada anterior. Bruno: «a veces
+`S` es el cuarto penúltimo en lugar del último». Ahora la app se acuerda del
+último que asignaste, venga de donde venga. Deshacer no lo mueve —`⌘Z`
+revierte el dato, no tu intención— y renombrar lo sigue.
+
+**A los cuartos del 10 en adelante no se llegaba.** El buscador que abre `⏎`
+**ya existía y funcionaba** —busca sin acentos, prefiere elegir sobre crear—
+pero mostraba 6 de 13, no estaba documentado en ningún lado, y con una fila
+del rail enfocada `⏎` renombraba en vez de asignar. Bruno lo vivió como «no
+me deja seleccionar cuartos, solo hacer nuevos». Ahora el buscador los
+muestra todos con scroll, `⏎` en el rail asigna (renombrar se fue a `F2` y al
+doble clic), y el hueco vacío del décimo cuarto dice `⏎`.
+
+**Lo que esto enseña, y por eso queda escrito:** la herramienta existía desde
+el rediseño. Lo que faltaba no era código, era que se viera. Un control que
+funciona y no se encuentra vale lo mismo que uno que no existe.
+
+Detalle en `specs/2026-08-20-cuartos-mas-alla-del-nueve-design.md`.
+
+---
+
 ## Lo que se cerró el 2026-08-20
 
 ### La fila de proxies — **hecho**

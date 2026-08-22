@@ -90,7 +90,7 @@ clips).
 | Tecla | Qué hace |
 |---|---|
 | `1`…`9` | asigna el cuarto de esa posición en el rail **y avanza** |
-| `S` | repite el cuarto del clip anterior **y avanza** |
+| `S` | repite **el último cuarto que usaste** y avanza |
 | `P` · `X` · `⇧P` | pick · reject · destacado |
 | `↑` `↓` | sube o baja un escalón de estado |
 | `I` `O` · `U` | marca in / out · los quita |
@@ -102,6 +102,8 @@ clips).
 | `F` | pantalla completa (esconde todo menos el video) |
 | `⇥` | cambia entre clip y hoja de contactos |
 | `+` `-` | miniaturas más grandes o más chicas |
+| `⏎` | busca un cuarto por nombre y lo asigna — la vía para los que pasan del noveno |
+| `F2` | renombra el cuarto seleccionado en el rail |
 | `⌘Z` | deshacer |
 | `⌘A` | selecciona el grupo donde estás |
 | `⌘E` | exportar a Premiere |
@@ -111,6 +113,12 @@ Asignar un cuarto **avanza solo al siguiente clip**: la idea es recorrer el
 shooting sin tocar las flechas, tecleando un número por clip. Marcar
 pick/reject o poner in/out **no** avanza — esos se hacen sobre el clip que
 estás mirando.
+
+**Más de nueve cuartos.** Los atajos `1`…`9` llegan al noveno. Del décimo en
+adelante el rail muestra `⏎` en lugar del número: aprieta Enter, escribe las
+primeras letras —sin preocuparte por acentos ni mayúsculas— y dale Enter otra
+vez. También puedes elegir el cuarto en la lista de la izquierda y apretar
+Enter.
 
 Los filtros no cambian solo lo que ves: **cambian por dónde te llevan las
 flechas**. Con «solo picks» puesto, `→` salta al siguiente pick.
