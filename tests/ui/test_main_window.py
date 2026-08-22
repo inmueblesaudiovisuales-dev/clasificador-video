@@ -5155,3 +5155,36 @@ def test_borrar_el_cuarto_que_la_s_tiene_en_la_mano_lo_suelta(qtbot):
     window._on_room_removed("Cocina")
 
     assert window._ultimo_cuarto_usado is None
+
+
+def test_el_rail_asigna_al_clip_actual(qtbot):
+    """`⏎` con una fila del rail enfocada le pone ese cuarto al clip."""
+    window = _window_con_cuartos(qtbot, ["Sala", "Cocina"], clips=4)
+    window.select_clip(2)
+
+    window.room_rail.room_assign_requested.emit("Cocina")
+
+    assert window.clips[2].categoria_path == ["Cocina"]
+
+
+def test_asignar_desde_el_rail_cuenta_para_la_s(qtbot):
+    """Pasa por el mismo camino que todo lo demás: lo que `S` recuerda es «el
+    último que usaste», no por dónde entró."""
+    window = _window_con_cuartos(qtbot, ["Sala", "Cocina"], clips=4)
+    window.select_clip(0)
+
+    window.room_rail.room_assign_requested.emit("Cocina")
+
+    assert window._ultimo_cuarto_usado == "Cocina"
+
+
+def test_asignar_desde_el_rail_entra_al_historial(qtbot):
+    """Un segundo camino para asignar seria una asignacion de segunda: no
+    registraria, o no avanzaria, y eso no se ve hasta usarla."""
+    window = _window_con_cuartos(qtbot, ["Sala", "Cocina"], clips=4)
+    window.select_clip(0)
+
+    window.room_rail.room_assign_requested.emit("Cocina")
+    window.undo()
+
+    assert window.clips[0].categoria_path == []

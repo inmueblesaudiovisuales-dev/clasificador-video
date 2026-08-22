@@ -713,6 +713,13 @@ class MainWindow(QWidget):
         self.room_rail = RoomRail()
         self.room_rail.import_requested.connect(self._on_import_folders)
         self.room_rail.room_created.connect(self._on_room_created)
+        # Por `_asignar_cuarto` y no por un camino propio: es el unico lugar
+        # que registra en el historial, avanza en la cola y anota el ultimo
+        # cuarto usado. Un segundo camino seria una asignacion de segunda, y
+        # eso no se ve hasta usarla.
+        self.room_rail.room_assign_requested.connect(
+            lambda nombre: self._asignar_cuarto([nombre])
+        )
         self.room_rail.room_renamed.connect(self._on_room_renamed)
         self.room_rail.room_moved.connect(self._on_room_moved)
         self.room_rail.room_removed.connect(self._on_room_removed)
