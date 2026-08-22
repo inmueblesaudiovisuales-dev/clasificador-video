@@ -656,3 +656,56 @@ def test_los_primeros_nueve_siguen_con_su_numero(qtbot):
 
     assert rail.rows[8].key_cap.text() == "9"
     assert rail.rows[0].key_cap.text() == "1"
+
+
+# --- arrastrar cuartos (spec 2026-08-20-orden-de-los-cuartos) -------------
+
+
+def test_soltar_arriba_del_primero_lo_manda_a_la_posicion_cero(qtbot):
+    rail = _rail(qtbot)
+    rail.set_rooms(["Fachada", "Sala", "Alberca"], {})
+
+    assert rail.posicion_para_soltar(0) == 0
+
+
+def test_soltar_debajo_del_ultimo_lo_manda_al_final(qtbot):
+    rail = _rail(qtbot)
+    rail.set_rooms(["Fachada", "Sala", "Alberca"], {})
+
+    assert rail.posicion_para_soltar(10_000) == 2
+
+
+def test_arrastrar_un_cuarto_avisa_con_su_posicion(qtbot):
+    """La señal lleva el nombre y a dónde va, no un delta: el arrastre es
+    «ponlo AQUÍ», y con 13 cuartos un delta serían doce avisos."""
+    rail = _rail(qtbot)
+    rail.set_rooms(["Fachada", "Sala", "Alberca"], {})
+    avisos = []
+    rail.room_reordered.connect(lambda n, p: avisos.append((n, p)))
+
+    rail.soltar_cuarto("Alberca", 0)
+
+    assert avisos == [("Alberca", 0)]
+
+
+def test_soltar_un_cuarto_donde_ya_estaba_no_avisa(qtbot):
+    """Sin esto, cada clic-sin-mover metería una acción que no hizo nada."""
+    rail = _rail(qtbot)
+    rail.set_rooms(["Fachada", "Sala"], {})
+    avisos = []
+    rail.room_reordered.connect(lambda n, p: avisos.append((n, p)))
+
+    rail.soltar_cuarto("Fachada", 0)
+
+    assert avisos == []
+
+
+def test_soltar_un_cuarto_que_no_existe_no_avisa(qtbot):
+    rail = _rail(qtbot)
+    rail.set_rooms(["Fachada"], {})
+    avisos = []
+    rail.room_reordered.connect(lambda n, p: avisos.append((n, p)))
+
+    rail.soltar_cuarto("Alberca", 0)
+
+    assert avisos == []

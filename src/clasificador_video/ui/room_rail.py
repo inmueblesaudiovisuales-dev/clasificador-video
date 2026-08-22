@@ -1,8 +1,10 @@
 # src/clasificador_video/ui/room_rail.py
 from __future__ import annotations
 
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import QMimeData, QPoint, Qt, Signal
+from PySide6.QtGui import QColor, QDrag, QPainter
 from PySide6.QtWidgets import (
+    QApplication,
     QHBoxLayout,
     QInputDialog,
     QLabel,
@@ -21,6 +23,11 @@ def _texto_de_estado(cuantos: int, palabra: str) -> str:
     return f"{cuantos} {palabra}" if palabra else str(cuantos)
 
 MAX_TECLAS = 9      # los atajos numericos llegan hasta el noveno cuarto
+
+# Tipo PROPIO, distinto del de los clips (`clip_sheet.MIME_CLIPS`): arrastrar
+# un cuarto y arrastrar clips significan cosas distintas, y sin separarlos el
+# rail aceptaria un puñado de clips como si fuera un cuarto.
+MIME_CUARTO = "application/x-clasificador-cuarto"
 MAX_HISTORIAL = 4   # el rail mide 200 px: mas filas empujan la lista de cuartos
 
 
@@ -179,6 +186,7 @@ class _FilaCuarto(QWidget):
         # QWidget y no un boton, asi que la barra espaciadora no lo "activa":
         # sigue reproduciendo el video aunque el rail tenga el foco.
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        self._inicio_del_arrastre: QPoint | None = None
 
         layout = QHBoxLayout(self)
         layout.setContentsMargins(6, 0, 6, 0)
@@ -229,6 +237,39 @@ class _FilaCuarto(QWidget):
 
     def mouseDoubleClickEvent(self, event) -> None:  # noqa: N802 -- override de Qt
         self._pedir_nombre()
+
+    def mousePressEvent(self, event) -> None:  # noqa: N802 -- override de Qt
+        # se guarda de donde salio para medir el umbral de arrastre; el click
+        # normal --enfocar la fila-- lo sigue haciendo Qt
+        if event.button() == Qt.MouseButton.LeftButton:
+            self._inicio_del_arrastre = event.position().toPoint()
+        super().mousePressEvent(event)
+
+    def mouseMoveEvent(self, event) -> None:  # noqa: N802 -- override de Qt
+        """Arranca el arrastre pasado el umbral del sistema.
+
+        Con el umbral y no al primer pixel: sin el, enfocar una fila con un
+        click que tiembla arrancaria un arrastre, y reordenar cambia la tecla
+        de los cuartos -- no es un gesto que uno quiera disparar sin querer.
+        """
+        if self._inicio_del_arrastre is None:
+            return
+        if not (event.buttons() & Qt.MouseButton.LeftButton):
+            return
+        recorrido = (event.position().toPoint() - self._inicio_del_arrastre)
+        if recorrido.manhattanLength() < QApplication.startDragDistance():
+            return
+        self._inicio_del_arrastre = None
+        mime = QMimeData()
+        mime.setData(MIME_CUARTO, self.nombre.encode())
+        arrastre = QDrag(self)
+        arrastre.setMimeData(mime)
+        arrastre.setPixmap(self.grab())
+        arrastre.exec(Qt.DropAction.MoveAction)
+
+    def mouseReleaseEvent(self, event) -> None:  # noqa: N802 -- override de Qt
+        self._inicio_del_arrastre = None
+        super().mouseReleaseEvent(event)
 
     def keyPressEvent(self, event) -> None:  # noqa: N802 -- override de Qt
         """Manejar los cuartos sin mouse, con la fila enfocada.
@@ -380,6 +421,7 @@ class RoomRail(QWidget):
 
     import_requested = Signal()
     room_assign_requested = Signal(str)
+    room_reordered = Signal(str, int)     # nombre, posicion destino
     room_created = Signal(str)
     room_renamed = Signal(str, str)
     room_moved = Signal(str, int)
@@ -390,6 +432,12 @@ class RoomRail(QWidget):
         super().__init__(parent)
         self.setObjectName("roomRail")
         self.setFixedWidth(theme.RAIL_WIDTH)
+        # para reordenar cuartos arrastrandolos. El rail acepta el drop --no
+        # cada fila-- porque soltar ENTRE dos filas tambien tiene que valer,
+        # y ahi no hay fila debajo del cursor.
+        self.setAcceptDrops(True)
+        # en que posicion caeria lo que se esta arrastrando ahora, o None
+        self._linea_de_destino: int | None = None
 
         raiz = QVBoxLayout(self)
         raiz.setContentsMargins(0, 0, 0, 0)
@@ -560,6 +608,84 @@ class RoomRail(QWidget):
         self.progress_bar.set_counts(
             [counts.get(c, 0) for c in rooms], self._pendientes
         )
+
+    def dragEnterEvent(self, event) -> None:  # noqa: N802 -- override de Qt
+        if event.mimeData().hasFormat(MIME_CUARTO):
+            self._linea_de_destino = self.posicion_para_soltar(
+                event.position().toPoint().y())
+            self.update()
+            event.acceptProposedAction()
+
+    def dragMoveEvent(self, event) -> None:  # noqa: N802 -- override de Qt
+        if not event.mimeData().hasFormat(MIME_CUARTO):
+            return
+        destino = self.posicion_para_soltar(event.position().toPoint().y())
+        if destino != self._linea_de_destino:
+            self._linea_de_destino = destino
+            self.update()
+        event.acceptProposedAction()
+
+    def dragLeaveEvent(self, event) -> None:  # noqa: N802 -- override de Qt
+        self._linea_de_destino = None
+        self.update()
+
+    def dropEvent(self, event) -> None:  # noqa: N802 -- override de Qt
+        mime = event.mimeData()
+        self._linea_de_destino = None
+        self.update()
+        if not mime.hasFormat(MIME_CUARTO):
+            return
+        nombre = bytes(mime.data(MIME_CUARTO)).decode(errors="ignore")
+        self.soltar_cuarto(nombre, self.posicion_para_soltar(
+            event.position().toPoint().y()))
+        event.acceptProposedAction()
+
+    def paintEvent(self, event) -> None:  # noqa: N802 -- override de Qt
+        """La linea que marca donde va a caer el cuarto que arrastras.
+
+        Del mismo ambar que el clip actual y el playhead: es «aqui es donde
+        estas apuntando», que es lo mismo que dice ese color en el resto de
+        la app.
+        """
+        super().paintEvent(event)
+        if self._linea_de_destino is None or not self.rows:
+            return
+        indice = min(self._linea_de_destino, len(self.rows) - 1)
+        fila = self.rows[indice]
+        y = fila.y() if indice == self._linea_de_destino else fila.y() + fila.height()
+        pintor = QPainter(self)
+        pintor.fillRect(6, y - 1, self.width() - 12, 2, QColor(theme.CURRENT_COLOR))
+        pintor.end()
+
+    def posicion_para_soltar(self, y: int) -> int:
+        """En que posicion cae algo soltado a la altura `y`.
+
+        Vive aparte del gesto a proposito: simular un drag-and-drop real bajo
+        `offscreen` es fragil, y lo que hay que defender es la traduccion de
+        un punto a una posicion -- que es donde uno se equivoca. El gesto
+        solo llama aqui.
+        """
+        if not self.rows:
+            return 0
+        for indice, fila in enumerate(self.rows):
+            if y < fila.y() + fila.height() // 2:
+                return indice
+        return len(self.rows) - 1
+
+    def soltar_cuarto(self, nombre: str, posicion: int) -> None:
+        """Termina el arrastre.
+
+        No avisa si el cuarto no se movio: cada clic-sin-arrastrar meteria
+        una accion que no hizo nada, y reordenar cambia la TECLA de los
+        cuartos -- una accion vacia que igual repinta el rail entero.
+        """
+        actual = [f.nombre for f in self.rows]
+        if nombre not in actual:
+            return
+        posicion = max(0, min(posicion, len(actual) - 1))
+        if actual.index(nombre) == posicion:
+            return
+        self.room_reordered.emit(nombre, posicion)
 
     def set_same_room(self, nombre: str | None, color: str | None) -> None:
         """El cuarto que aplicaria `S`, o `None` si no hay ninguno atras.
