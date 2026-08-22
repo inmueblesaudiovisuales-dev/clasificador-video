@@ -9,6 +9,7 @@ from clasificador_video.ui import theme
 from clasificador_video.ui.clip_sheet import (
     AGRUPADO_POR_RODAJE,
     MIN_TILE_WIDTH,
+    PORTADA,
     GAP,
     SIN_BIN,
     SIN_CLASIFICAR,
@@ -55,6 +56,31 @@ def _pixmap(color=Qt.GlobalColor.red) -> QPixmap:
 
 
 # --- proporcion real -------------------------------------------------------
+
+
+_TIRAS_DE_PRUEBA: dict = {}
+
+
+def _tira(cuantas: int = 12) -> list:
+    """Una tira de `cuantas` fotos EN DISCO, como la que guarda el cache.
+
+    En disco y no en memoria porque es lo que hace la app: desde el
+    2026-08-20 la tarjeta recibe rutas y carga cada foto cuando la necesita.
+    Probarlo con pixmaps ya cargados saltaria justamente el camino que
+    importa. Se escriben una sola vez por corrida.
+    """
+    import tempfile
+    from pathlib import Path as _Path
+    if cuantas not in _TIRAS_DE_PRUEBA:
+        carpeta = _Path(tempfile.mkdtemp(prefix="tira-"))
+        rutas = []
+        for n in range(cuantas):
+            pm = _pixmap()
+            ruta = carpeta / f"strip_{n:02d}.png"
+            pm.save(str(ruta))
+            rutas.append(ruta)
+        _TIRAS_DE_PRUEBA[cuantas] = rutas
+    return _TIRAS_DE_PRUEBA[cuantas]
 
 
 def test_una_tarjeta_vertical_es_mas_alta_que_ancha(qtbot):
@@ -249,7 +275,7 @@ def test_ctrl_click_alterna(qtbot):
 def test_el_hover_cambia_el_frame_mostrado(qtbot):
     sheet = _sheet(qtbot, [_clip(0, "Sala")])
     tarjeta = sheet.item_widgets[0]
-    tarjeta.set_frames([_pixmap() for _ in range(12)])
+    tarjeta.set_tira(_tira(12))
     assert tarjeta._shown_index == 3   # portada = el 25% (F8)
     tarjeta._show_frame(9)
     assert tarjeta._shown_index == 9
@@ -261,7 +287,7 @@ def test_al_salir_vuelve_al_poster(qtbot):
     arranca el video al abrirlo. Con la tira real de 12 frames, el 3."""
     sheet = _sheet(qtbot, [_clip(0, "Sala")])
     tarjeta = sheet.item_widgets[0]
-    tarjeta.set_frames([_pixmap() for _ in range(12)])
+    tarjeta.set_tira(_tira(12))
     tarjeta._show_frame(9)
     tarjeta.leaveEvent(None)
     assert tarjeta._shown_index == 3
@@ -908,7 +934,7 @@ def _card_con_frames(qtbot, cuantos: int = 12) -> ClipCard:
     tarjeta = _card(numero=93, duration_frames=300, fps=30.0)
     qtbot.addWidget(tarjeta)
     tarjeta.resize(180, 320)
-    tarjeta.set_frames([_pixmap() for _ in range(cuantos)])
+    tarjeta.set_tira(_tira(cuantos))
     return tarjeta
 
 
@@ -977,7 +1003,7 @@ def test_la_barrita_de_escrubeo_no_tapa_la_de_rango(qtbot):
                     in_frame=30, out_frame=200)
     qtbot.addWidget(tarjeta)
     tarjeta.resize(180, 320)
-    tarjeta.set_frames([_pixmap() for _ in range(12)])
+    tarjeta.set_tira(_tira(12))
     tarjeta.escrubear_a(0.5)
     imagen = tarjeta.grab().toImage()
     escala = imagen.width() / max(tarjeta.width(), 1)
@@ -2953,3 +2979,80 @@ def test_reordenar_no_recrea_las_tarjetas(qtbot):
 
     assert list(sheet.item_widgets) == antes
     assert _cuartos_en_orden(sheet) == ["Sala", "Fachada"]
+
+
+# --- abrir sin congelarse (spec 2026-08-20-abrir-sin-congelarse) ----------
+
+
+def _tira_en_disco(tmp_path, cuantas=12):
+    """Una tira de verdad en disco, para contar cuántas se leen."""
+    from PySide6.QtGui import QPixmap as _QPixmap
+    rutas = []
+    for n in range(cuantas):
+        pm = _QPixmap(40, 30)
+        pm.fill(Qt.GlobalColor.darkGray)
+        ruta = tmp_path / f"strip_{n:02d}.jpg"
+        pm.save(str(ruta))
+        rutas.append(ruta)
+    return rutas
+
+
+def test_abrir_carga_UNA_foto_y_no_las_doce(qtbot, tmp_path):
+    """El congelón de 34 segundos: cada clip guarda 12 fotos para escrubear,
+    y al abrir se cargaban las 12 de los 205 -- 2,460 imágenes de golpe. Para
+    ver la hoja hace falta una."""
+    rutas = _tira_en_disco(tmp_path)
+    sheet = _sheet(qtbot, [_clip(1, "Sala")])
+    tarjeta = sheet.item_widgets[0]
+
+    tarjeta.set_tira(rutas)
+
+    assert tarjeta.fotos_cargadas() == 1
+
+
+def test_la_portada_sigue_siendo_la_del_25_por_ciento(qtbot, tmp_path):
+    """No se toca: es el mismo punto donde arranca el video al abrirlo."""
+    rutas = _tira_en_disco(tmp_path)
+    sheet = _sheet(qtbot, [_clip(1, "Sala")])
+    tarjeta = sheet.item_widgets[0]
+
+    tarjeta.set_tira(rutas)
+
+    assert tarjeta._poster_index == round((len(rutas) - 1) * PORTADA)
+
+
+def test_escrubear_carga_el_cuadro_que_hace_falta(qtbot, tmp_path):
+    rutas = _tira_en_disco(tmp_path)
+    sheet = _sheet(qtbot, [_clip(1, "Sala")])
+    tarjeta = sheet.item_widgets[0]
+    tarjeta.set_tira(rutas)
+
+    tarjeta._show_frame(11)
+
+    assert tarjeta.fotos_cargadas() == 2
+    assert tarjeta._shown_index == 11
+
+
+def test_un_cuadro_ya_cargado_no_se_vuelve_a_leer(qtbot, tmp_path):
+    rutas = _tira_en_disco(tmp_path)
+    sheet = _sheet(qtbot, [_clip(1, "Sala")])
+    tarjeta = sheet.item_widgets[0]
+    tarjeta.set_tira(rutas)
+    tarjeta._show_frame(11)
+    tarjeta.reponer_portada()
+
+    tarjeta._show_frame(11)
+
+    assert tarjeta.fotos_cargadas() == 2
+
+
+def test_una_tira_de_una_sola_foto_sigue_funcionando(qtbot, tmp_path):
+    """Los clips que no alcanzaron a tener tira."""
+    rutas = _tira_en_disco(tmp_path, cuantas=1)
+    sheet = _sheet(qtbot, [_clip(1, "Sala")])
+    tarjeta = sheet.item_widgets[0]
+
+    tarjeta.set_tira(rutas)
+
+    assert tarjeta.fotos_cargadas() == 1
+    assert tarjeta._poster_index == 0

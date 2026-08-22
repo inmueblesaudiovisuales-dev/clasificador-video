@@ -101,6 +101,31 @@ def _centro_del_encabezado(hoja, nombre):
 # --- a que bin va lo que sueltas ------------------------------------------
 
 
+_TIRAS_DE_PRUEBA: dict = {}
+
+
+def _tira(cuantas: int = 12) -> list:
+    """Una tira de `cuantas` fotos EN DISCO, como la que guarda el cache.
+
+    En disco y no en memoria porque es lo que hace la app: desde el
+    2026-08-20 la tarjeta recibe rutas y carga cada foto cuando la necesita.
+    Probarlo con pixmaps ya cargados saltaria justamente el camino que
+    importa. Se escriben una sola vez por corrida.
+    """
+    import tempfile
+    from pathlib import Path as _Path
+    if cuantas not in _TIRAS_DE_PRUEBA:
+        carpeta = _Path(tempfile.mkdtemp(prefix="tira-"))
+        rutas = []
+        for n in range(cuantas):
+            pm = _pixmap()
+            ruta = carpeta / f"strip_{n:02d}.png"
+            pm.save(str(ruta))
+            rutas.append(ruta)
+        _TIRAS_DE_PRUEBA[cuantas] = rutas
+    return _TIRAS_DE_PRUEBA[cuantas]
+
+
 def test_soltar_sobre_un_encabezado_avisa_a_que_bin_va(qtbot, tmp_path):
     hoja = _hoja(qtbot, [_thumb(0, bin_nombre="Dron")], bins=["Dron"])
     archivo = tmp_path / "nuevo.MP4"
@@ -995,7 +1020,7 @@ def test_al_arrastrar_la_miniatura_vuelve_a_la_portada(qtbot):
     """
     hoja = _hoja(qtbot, [_thumb(0, bin_nombre="Sony")], bins=["Sony"])
     tarjeta = hoja.item_widgets[0]
-    tarjeta.set_frames([_pixmap() for _ in range(8)])
+    tarjeta.set_tira(_tira(8))
     tarjeta.escrubear_a(0.9)
     assert tarjeta._hover is not None
     assert tarjeta._shown_index != tarjeta._poster_index
@@ -1011,7 +1036,7 @@ def test_reponer_la_portada_es_lo_mismo_que_salir_de_la_tarjeta(qtbot):
     se iba a olvidar de apagar la barrita del escrubeo."""
     hoja = _hoja(qtbot, [_thumb(0)])
     tarjeta = hoja.item_widgets[0]
-    tarjeta.set_frames([_pixmap() for _ in range(8)])
+    tarjeta.set_tira(_tira(8))
 
     tarjeta.escrubear_a(0.9)
     tarjeta.leaveEvent(QEvent(QEvent.Type.Leave))

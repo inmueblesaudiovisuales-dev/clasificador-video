@@ -461,6 +461,8 @@ class ClipCard(QWidget):
         # cada evento de mouse: el arrastre manda uno por cada movimiento.
         self.indice = -1
         self._origen_arrastre: QPoint | None = None
+        self._rutas: list = []
+        self._rutas: list = []
         self._frames: list = []
         self._hover: float | None = None   # fraccion escrubeada, o None
         self._tinte: str | None = None     # color del rastro del pincel
@@ -573,24 +575,35 @@ class ClipCard(QWidget):
         self._apply_state()
 
     def set_pixmap(self, pixmap) -> None:
+        self._rutas = []          # ya viene cargada: no hay nada que leer
         self._frames = [pixmap]
         self._scaled_cache = {}
         self._poster_index = 0
         self._shown_index = None
         self._show_frame(0)
 
-    def set_frames(self, pixmaps: list) -> None:
-        """Tira de frames a lo largo del clip: habilita el scrub al pasar
-        el mouse, que ya funcionaba en el diseño viejo y se conserva."""
-        if not pixmaps:
+    def set_tira(self, rutas: list) -> None:
+        """La tira del clip, por RUTAS: se carga la portada y nada mas.
+
+        Las otras once fotos se leen la primera vez que hacen falta, o sea
+        cuando el mouse escrubea ESTA tarjeta. Antes llegaban ya cargadas, y
+        abrir un proyecto de 205 clips decodificaba 2,460 imagenes de golpe
+        en el hilo de la interfaz: 34 segundos de bolita de arcoiris,
+        medidos. Casi todas para tarjetas por las que uno nunca pasa.
+
+        Cada foto cuesta ~9 ms la primera vez y queda cargada, asi que el
+        escrubeo reparte ese costo en el gesto en vez de cobrarlo al abrir.
+        """
+        if not rutas:
             return
-        self._frames = pixmaps
+        self._rutas = list(rutas)
+        self._frames = [None] * len(self._rutas)
         self._scaled_cache = {}
         # 25% y no el del medio: en un recorrido el primer frame suele ser una
         # puerta o movimiento borroso, y el del medio puede ser cualquier cosa.
         # Es el MISMO punto donde el video arranca al abrirlo (F6), asi que la
         # miniatura muestra lo que vas a ver.
-        self._poster_index = round((len(pixmaps) - 1) * PORTADA)
+        self._poster_index = round((len(self._rutas) - 1) * PORTADA)
         self._shown_index = None
         self._show_frame(self._poster_index)
 
@@ -614,12 +627,35 @@ class ClipCard(QWidget):
         if self._frames:
             self._show_frame(indice if indice is not None else self._poster_index)
 
+    def _frame(self, index: int):
+        """La foto `index`, leyendola del disco la primera vez.
+
+        Es lo que permite abrir sin cargar la tira entera. Lo que no se pudo
+        leer queda anotado como un `QPixmap` vacio, para no reintentarlo en
+        cada movimiento del mouse.
+        """
+        foto = self._frames[index]
+        if foto is None and index < len(self._rutas):
+            foto = QPixmap(str(self._rutas[index]))
+            self._frames[index] = foto
+        return foto
+
+    def fotos_cargadas(self) -> int:
+        """Cuantas fotos de la tira estan en memoria. Existe para las
+        pruebas: es el numero que separa «abre rapido» de «abre en 34 s»."""
+        return sum(1 for f in self._frames if f is not None)
+
     def _show_frame(self, index: int) -> None:
         if index == self._shown_index or not self._frames:
             return
+        if not 0 <= index < len(self._frames):
+            return
         scaled = self._scaled_cache.get(index)
         if scaled is None:
-            scaled = self._frames[index].scaled(
+            foto = self._frame(index)
+            if foto is None or foto.isNull():
+                return
+            scaled = foto.scaled(
                 max(self.width(), 1), max(self.height(), 1),
                 Qt.AspectRatioMode.KeepAspectRatioByExpanding,
                 Qt.TransformationMode.SmoothTransformation,

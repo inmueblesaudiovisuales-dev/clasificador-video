@@ -3631,15 +3631,20 @@ class MainWindow(QWidget):
         que la extraccion termino."""
         if not frames or index >= self.clip_sheet.count():
             return
-        pixmaps = [QPixmap(str(f)) for f in frames]
         # `item_widgets` va por INDICE DE CLIP, no por posicion visual: los
         # clips se ven agrupados por cuarto, pero esta lista conserva el
         # orden de `self.clips`. Reordenarla haria que las miniaturas
         # aterricen en la tarjeta equivocada.
-        if len(pixmaps) > 1:
-            self.clip_sheet.item_widgets[index].set_frames(pixmaps)
+        #
+        # Se le pasan las RUTAS, no las fotos cargadas: la tarjeta carga solo
+        # su portada y el resto cuando el mouse escrubea. Antes esta linea
+        # decodificaba las 12 fotos de cada clip, y con 205 clips eso son
+        # 2,460 imagenes de golpe en el hilo de la interfaz -- 34 segundos de
+        # bolita de arcoiris al abrir el proyecto, medidos.
+        if len(frames) > 1:
+            self.clip_sheet.item_widgets[index].set_tira(frames)
         else:
-            self.clip_sheet.item_widgets[index].set_pixmap(pixmaps[0])
+            self.clip_sheet.item_widgets[index].set_pixmap(QPixmap(str(frames[0])))
 
     # ------------------------------------------------------------------
     # acciones
