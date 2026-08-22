@@ -2,7 +2,7 @@
 from PySide6.QtCore import Qt
 
 from clasificador_video.ui import theme
-from clasificador_video.ui.room_palette import RoomPalette
+from clasificador_video.ui.room_palette import ALTO_MAXIMO, RoomPalette
 
 
 def _paleta(qtbot, cuartos, conteos=None, seleccionados=1) -> RoomPalette:
@@ -156,3 +156,64 @@ def test_el_pie_dice_las_tres_teclas(qtbot):
     pie = paleta.foot_label.text()
     for tecla in ("↑", "↓", "⏎", "esc"):
         assert tecla in pie
+
+
+def test_el_buscador_muestra_todos_los_cuartos(qtbot):
+    """Con 13 cuartos mostraba 6, así que siete no aparecían y parecía que no
+    estaban -- justo los cuartos por los que este buscador existe. Bruno lo
+    reportó como «no hay una forma fácil de clasificar a estos cuartos que
+    están fuera del rango del 0-9»."""
+    cuartos = [f"Cuarto {n}" for n in range(1, 14)]
+
+    paleta = _paleta(qtbot, cuartos)
+
+    assert paleta.opciones_visibles() == cuartos
+
+
+def test_el_buscador_no_crece_sin_limite(qtbot):
+    """El tope de altura se queda: la paleta no puede tapar media pantalla.
+    Deja de ser un tope de cuántos cuartos EXISTEN y pasa a ser uno de
+    cuántos caben a la vez.
+
+    Se comparan dos aperturas y no un número fijo: el alto de la paleta
+    entera lleva además el buscador y el pie, y atarlo a una constante
+    volvería a fallar en cuanto alguno cambie de tamaño.
+    """
+    con_muchos = _paleta(qtbot, [f"Cuarto {n}" for n in range(1, 40)]).height()
+    con_trece = _paleta(qtbot, [f"Cuarto {n}" for n in range(1, 14)]).height()
+    con_tres = _paleta(qtbot, ["Sala", "Cocina", "Baño"]).height()
+
+    assert con_muchos == con_trece      # los dos topados
+    assert con_tres < con_trece         # y hasta el tope, sí crece
+
+
+def test_la_lista_respeta_su_tope_de_altura(qtbot):
+    paleta = _paleta(qtbot, [f"Cuarto {n}" for n in range(1, 40)])
+
+    assert paleta._scroll.height() == ALTO_MAXIMO
+
+
+def test_bajar_hasta_el_ultimo_cuarto_lo_deja_a_la_vista(qtbot):
+    """Una fila marcada que no se ve es lo mismo que no tenerla."""
+    cuartos = [f"Cuarto {n}" for n in range(1, 14)]
+    paleta = _paleta(qtbot, cuartos)
+    paleta.show()
+    qtbot.waitExposed(paleta)
+
+    for _ in range(len(cuartos)):
+        paleta.mover(1)
+
+    assert paleta.opcion_activa() == "Cuarto 13"
+    fila = paleta.filas_visibles()[-1]
+    viewport = paleta._scroll.viewport()
+    arriba = fila.mapTo(viewport, fila.rect().topLeft())
+    assert viewport.rect().contains(arriba)
+
+
+def test_filtrar_sigue_recortando_a_lo_que_calza(qtbot):
+    """Mostrarlos todos es al ABRIR. Escribir sigue filtrando."""
+    paleta = _paleta(qtbot, ["Cocina", "Sala", "Comedor"])
+
+    paleta.input.setText("co")
+
+    assert paleta.opciones_visibles() == ["Cocina", "Comedor"]

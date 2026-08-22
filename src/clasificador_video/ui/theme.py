@@ -708,6 +708,32 @@ def build_stylesheet() -> str:
         font-size: {FONT_BODY}px;
     }}
     /* crear va en verde --el color de pick-- porque es la accion que SUMA */
+    /* La barra de la lista de cuartos. Sin esto Qt dibuja la nativa --con
+       sus dos flechitas-- y en un tema oscuro se ve como un parche pegado.
+       Es el unico lugar de la app con barra visible, asi que la regla va
+       apuntada a `#palScroll` y no suelta. */
+    QScrollArea#palScroll QScrollBar:vertical {{
+        background: transparent;
+        width: 8px;
+        margin: 0px;
+    }}
+    QScrollArea#palScroll QScrollBar::handle:vertical {{
+        background-color: {LINE};
+        border-radius: 4px;
+        min-height: 24px;
+    }}
+    QScrollArea#palScroll QScrollBar::handle:vertical:hover {{
+        background-color: {TEXT_3};
+    }}
+    /* las flechas de arriba y abajo: no existen */
+    QScrollArea#palScroll QScrollBar::add-line:vertical,
+    QScrollArea#palScroll QScrollBar::sub-line:vertical {{
+        height: 0px;
+    }}
+    QScrollArea#palScroll QScrollBar::add-page:vertical,
+    QScrollArea#palScroll QScrollBar::sub-page:vertical {{
+        background: transparent;
+    }}
     QLabel#palCreate {{
         background-color: transparent;
         border-top: 1px solid {LINE_SOFT};

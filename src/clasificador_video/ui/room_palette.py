@@ -2,14 +2,27 @@
 from __future__ import annotations
 
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtWidgets import QHBoxLayout, QLabel, QLineEdit, QVBoxLayout, QWidget
+from PySide6.QtWidgets import (
+    QFrame,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QScrollArea,
+    QVBoxLayout,
+    QWidget,
+)
 
 from clasificador_video.filters import _sin_acentos
 from clasificador_video.ui import theme
 from clasificador_video.ui.text import ElidedLabel
 
 ANCHO = 330        # el del mockup
-MAX_OPCIONES = 6   # mas filas y la paleta tapa media pantalla
+# Cuantas filas CABEN a la vez. NO es un tope de cuantos cuartos existen --
+# eso era el bug: con 13 cuartos se veian 6 y parecia que los otros siete no
+# estaban, que son justamente los cuartos por los que esta paleta existe.
+FILAS_VISIBLES = 6
+ALTO_DE_FILA = 32
+ALTO_MAXIMO = FILAS_VISIBLES * ALTO_DE_FILA
 
 
 class _Opcion(QWidget):
@@ -102,9 +115,23 @@ class RoomPalette(QWidget):
         fl.addWidget(self.alcance_label)
         raiz.addWidget(fila)
 
-        self.opciones = [_Opcion(self) for _ in range(MAX_OPCIONES)]
-        for opcion in self.opciones:
-            raiz.addWidget(opcion)
+        # Las filas viven dentro de un area con scroll: son tantas como
+        # cuartos haya, y el tope de altura decide cuantas se ven de golpe.
+        self._scroll = QScrollArea()
+        self._scroll.setObjectName("palScroll")
+        self._scroll.setWidgetResizable(True)
+        self._scroll.setFrameShape(QFrame.Shape.NoFrame)
+        self._scroll.setHorizontalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self._scroll.setMaximumHeight(ALTO_MAXIMO)
+        self._contenido = QWidget()
+        self._layout_de_opciones = QVBoxLayout(self._contenido)
+        self._layout_de_opciones.setContentsMargins(0, 0, 0, 0)
+        self._layout_de_opciones.setSpacing(0)
+        self._layout_de_opciones.addStretch(1)
+        self._scroll.setWidget(self._contenido)
+        raiz.addWidget(self._scroll)
+        self.opciones: list[_Opcion] = []
 
         self.crear_label = QLabel("")
         self.crear_label.setObjectName("palCreate")
@@ -139,9 +166,9 @@ class RoomPalette(QWidget):
     def _coincidencias(self) -> list[str]:
         texto = self.input.text().strip()
         if not texto:
-            return self._cuartos[:MAX_OPCIONES]
+            return list(self._cuartos)
         aguja = _sin_acentos(texto)
-        return [c for c in self._cuartos if aguja in _sin_acentos(c)][:MAX_OPCIONES]
+        return [c for c in self._cuartos if aguja in _sin_acentos(c)]
 
     def opciones_visibles(self) -> list[str]:
         return [o.nombre for o in self.filas_visibles()]
@@ -177,8 +204,20 @@ class RoomPalette(QWidget):
         self._activa = 0
         self._refrescar()
 
+    def _asegurar_filas(self, cuantas: int) -> None:
+        """Crea las filas que falten. Se reusan entre aperturas: destruirlas
+        y rehacerlas en cada tecla haria parpadear la paleta."""
+        while len(self.opciones) < cuantas:
+            fila = _Opcion(self._contenido)
+            # antes del stretch, que va siempre al final para que las filas
+            # se apilen arriba en vez de repartirse el alto
+            self._layout_de_opciones.insertWidget(
+                self._layout_de_opciones.count() - 1, fila)
+            self.opciones.append(fila)
+
     def _refrescar(self) -> None:
         coincidencias = self._coincidencias()
+        self._asegurar_filas(len(coincidencias))
         for opcion in self.opciones:
             opcion.hide()
         for fila, nombre in zip(self.opciones, coincidencias):
@@ -190,6 +229,12 @@ class RoomPalette(QWidget):
             fila.poner(nombre, numero, theme.room_color(indice),
                        self._conteos.get(nombre, 0))
             fila.show()
+        # El alto de la lista se DECLARA, no se deduce. Un `QScrollArea` da un
+        # sizeHint chico, y quien coloca la paleta la encoge a eso: con 13
+        # cuartos se veian dos filas y media aunque las trece estuvieran ahi.
+        visibles = len(self.filas_visibles())
+        self._scroll.setFixedHeight(
+            ALTO_DE_FILA * min(visibles, FILAS_VISIBLES) if visibles else 0)
         crear = self.opcion_de_crear()
         self.crear_label.setText(f"+  Crear cuarto «{crear}»" if crear else "")
         self.crear_label.setVisible(bool(crear))
@@ -209,6 +254,11 @@ class RoomPalette(QWidget):
             return
         self._activa = max(0, min(self._activa + delta, len(visibles) - 1))
         self._marcar_activa()
+        # una fila marcada que no se ve es lo mismo que no tenerla
+        filas = self.filas_visibles()
+        if filas:
+            self._scroll.ensureWidgetVisible(
+                filas[min(self._activa, len(filas) - 1)])
 
     def confirmar(self) -> None:
         """`⏎`: asigna el cuarto activo, o crea el que escribiste.
