@@ -5338,3 +5338,12 @@ def test_sin_tarjetas_la_cola_cae_en_orden_de_grabacion(qtbot):
     window.clip_sheet.item_widgets = []
 
     assert window.queue() == [0, 1, 2]
+
+
+def test_la_ventana_abre_maximizada(qtbot):
+    """Abría en 1100x700 fijos, escritos a mano, sin mirar la pantalla.
+    Bruno: «que jale bien extendido por completo y así esté por default»."""
+    window = _window(qtbot)
+    window.abrir_maximizada()
+
+    assert window.isMaximized()

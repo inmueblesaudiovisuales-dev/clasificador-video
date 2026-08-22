@@ -170,6 +170,35 @@ medido que no calza cuadro a cuadro.
 
 ---
 
+## Lo que se cerró el 2026-08-20 (cuarta tanda)
+
+### Abrir sin congelarse — **hecho**
+
+Bruno: «cada vez que lo abro se pone mi mouse con la bolita de arco iris».
+
+**No era el arranque.** La app sola llega a la pantalla de inicio en menos de
+dos segundos. Era abrir el proyecto: **33.9 segundos congelado** con sus 205
+clips, medidos. `_pintar_miniatura` corría 205 veces seguidas en el hilo de
+la interfaz a 165 ms cada una, y esos 165 ms son las **doce fotos** que cada
+clip guarda para escrubear. 2,460 imágenes decodificadas de golpe.
+
+Casi todo ese trabajo sobra al abrir: para ver la hoja hace falta **una** foto
+por clip. Ahora la tarjeta recibe las rutas y carga solo su portada; las demás
+se leen cuando el mouse escrubea esa tarjeta. **33.9 s → 2.85 s** con el
+proyecto real.
+
+Más una pantalla de carga para los segundos que quedan —con 500 clips
+volverían a ser cinco— y la ventana **maximizada**, que abría en 1100×700
+escritos a mano sin mirar la pantalla.
+
+**Lo que esto enseña:** el costo no estaba donde los dos creíamos. Bruno pidió
+una pantalla de carga para tapar la espera; medirla mostró que la espera no
+tenía por qué existir. Vale la pena medir antes de decorar.
+
+Detalle en `specs/2026-08-20-abrir-sin-congelarse-design.md`.
+
+---
+
 ## Lo que se cerró el 2026-08-20 (tercera tanda)
 
 ### El orden de los cuartos — **hecho**

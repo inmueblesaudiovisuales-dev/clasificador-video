@@ -3873,6 +3873,18 @@ class MainWindow(QWidget):
         self._refresh_sheet()
         self._autosave()
 
+    def abrir_maximizada(self) -> None:
+        """Ocupa la pantalla, dejando el Dock y la barra de menu.
+
+        Antes abria en 1100x700 escritos a mano, sin mirar la pantalla. Con
+        material horizontal eso es bastante menos video: el ancho se lo
+        reparten el rail, la columna y la hoja, y lo que sobra es la imagen.
+
+        Maximizada y no pantalla completa: de pantalla completa hay que saber
+        salir, y `F` ya existe para cuando quieres solo el video.
+        """
+        self.showMaximized()
+
     def alternar_modo_hoja(self) -> None:
         """`⇥`: la hoja a pantalla completa, y de vuelta.
 

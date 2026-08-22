@@ -1252,6 +1252,32 @@ def build_stylesheet() -> str:
        DERECHO y ahi vive el unico «Quitar de la lista» que tiene. */
     /* la version, en la pantalla de inicio: se lee cuando la buscas y no
        compite con los botones */
+    /* la ventanita que se ve mientras un proyecto abre */
+    QWidget#pantallaDeCarga {{
+        background-color: {BG_SURFACE_0};
+        border: 1px solid {LINE};
+        border-radius: {RADIUS_LG}px;
+    }}
+    QLabel#cargaTitulo {{
+        background-color: transparent;
+        color: {TEXT};
+        font-size: {FONT_TITLE}px;
+        font-weight: 600;
+    }}
+    QLabel#cargaDetalle {{
+        background-color: transparent;
+        color: {TEXT_2};
+        font-size: {FONT_SMALL}px;
+    }}
+    QProgressBar#cargaBarra {{
+        background-color: {BG_SURFACE_2};
+        border: none;
+        border-radius: 2px;
+    }}
+    QProgressBar#cargaBarra::chunk {{
+        background-color: {CURRENT_COLOR};
+        border-radius: 2px;
+    }}
     QLabel#versionApp {{
         color: {TEXT_3};
         font-size: {FONT_MICRO}px;

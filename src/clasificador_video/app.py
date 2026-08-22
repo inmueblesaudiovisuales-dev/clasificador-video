@@ -24,6 +24,7 @@ from clasificador_video.manifest import Clip
 from clasificador_video.recientes import Recientes
 from clasificador_video.rooms import RoomSelection
 from clasificador_video.ui.main_window import MainWindow
+from clasificador_video.ui.pantalla_de_carga import PantallaDeCarga
 from clasificador_video.ui.pantalla_inicio import PantallaInicio
 from clasificador_video.ui.theme import build_stylesheet
 
@@ -206,7 +207,6 @@ def abrir_proyecto(ruta: Path, video_factory: Callable[..., object] | None = Non
     # apuntarlo al .cvproj, guardar el proyecto es lo que la app ya hacia
     window.session_path = ruta
     _poblar_ventana(window, data, clips)
-    window.resize(1100, 700)
     Recientes(recientes_path or RECIENTES_PATH).registrar(ruta, window.project_name)
     return window
 
@@ -237,7 +237,6 @@ def crear_proyecto(ruta: Path, nombre: str,
     if not ruta.exists():
         window.deleteLater()
         return None
-    window.resize(1100, 700)
     Recientes(recientes_path or RECIENTES_PATH).registrar(ruta, nombre)
     return window
 
@@ -391,6 +390,7 @@ class Coordinador(QObject):
         self._video_factory = video_factory
         self.ventanas: list[MainWindow] = []
         self.inicio = PantallaInicio()
+        self.carga = PantallaDeCarga()
         self.inicio.resize(560, 480)
         self.inicio.abrir_pedido.connect(self._abrir)
         self.inicio.nuevo_pedido.connect(self._nuevo)
@@ -486,7 +486,15 @@ class Coordinador(QObject):
         self.ventanas.append(ventana)
         ventana.cerrada.connect(lambda: self._al_cerrarse(ventana))
         self.inicio.hide()
-        ventana.show()
+        # La pantalla de carga ANTES de mostrar la ventana: abrir un proyecto
+        # grande son unos segundos de portadas, y sin nada en pantalla esos
+        # segundos se sienten como un cuelgue. Se va sola en cuanto la
+        # ventana esta arriba.
+        self.carga.abrir(ventana.project_name, len(ventana.clips))
+        QApplication.processEvents()
+        ventana.abrir_maximizada()
+        QApplication.processEvents()
+        self.carga.cerrar()
         # Y NADA de abrir el primer clip aqui. `load_clips` ya lo abrio, y lo
         # abrio bien: por `ruta_de_reproduccion` --o sea con su proxy si
         # valido-- y arrancando al 25%. Volver a abrirlo con la ruta en crudo

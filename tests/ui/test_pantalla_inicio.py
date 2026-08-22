@@ -321,3 +321,47 @@ def test_la_pantalla_de_inicio_dice_la_version(qtbot):
     qtbot.addWidget(pantalla)
 
     assert clasificador_video.__version__ in pantalla.version_label.text()
+
+
+# --- la pantalla de carga (spec 2026-08-20-abrir-sin-congelarse) ----------
+
+
+def test_la_pantalla_de_carga_dice_el_proyecto_y_los_clips(qtbot):
+    """El nombre va ahí y no un «Cargando…» genérico: con una lista de diez
+    recientes, picarle al renglón equivocado es fácil, y enterarse tres
+    segundos después es peor que enterarse ahora."""
+    from clasificador_video.ui.pantalla_de_carga import PantallaDeCarga
+
+    pantalla = PantallaDeCarga()
+    qtbot.addWidget(pantalla)
+
+    pantalla.abrir("IAV-2608.17", 205)
+
+    assert pantalla.titulo.text() == "IAV-2608.17"
+    assert "205" in pantalla.detalle.text()
+    assert not pantalla.isHidden()
+
+
+def test_la_pantalla_de_carga_avanza_y_se_va(qtbot):
+    from clasificador_video.ui.pantalla_de_carga import PantallaDeCarga
+
+    pantalla = PantallaDeCarga()
+    qtbot.addWidget(pantalla)
+    pantalla.abrir("Casa", 10)
+
+    pantalla.avanzar(7)
+    assert pantalla.barra.value() == 7
+
+    pantalla.cerrar()
+    assert pantalla.isHidden()
+
+
+def test_la_pantalla_de_carga_no_se_puede_cerrar_a_mano(qtbot):
+    """No es un diálogo: no hay ninguna decisión que tomar."""
+    from clasificador_video.ui.pantalla_de_carga import PantallaDeCarga
+    from PySide6.QtCore import Qt as _Qt
+
+    pantalla = PantallaDeCarga()
+    qtbot.addWidget(pantalla)
+
+    assert pantalla.windowFlags() & _Qt.WindowType.FramelessWindowHint
