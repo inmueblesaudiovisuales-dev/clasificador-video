@@ -2156,13 +2156,29 @@ def test_S_sin_clips_no_revienta(qtbot):
     _window(qtbot, rooms=("Cocina",)).handle_key_press("s")
 
 
-def test_S_no_mira_hacia_adelante(qtbot):
-    """«El anterior» es hacia atras. Si mirara adelante, el primer clip del
-    rollo copiaria el cuarto de uno que todavia no juzgaste."""
+def test_S_copia_el_ultimo_usado_aunque_este_mas_adelante(qtbot):
+    """Cambio del 2026-08-20. Este test defendia lo contrario --«el anterior
+    es hacia atras»-- y esa regla es la que le daba a Bruno un cuarto viejo:
+    con material clasificado de una pasada anterior, «el clip de al lado
+    hacia atras» no es el ultimo que usaste.
+
+    Copiar de un clip mas adelante ya no es copiar de uno «que todavia no
+    juzgaste»: lo juzgaste tu, hace un segundo, y por eso es el que `S`
+    tiene en la mano."""
     window = _window(qtbot, rooms=("Cocina",))
     window.load_clips([_clip(1), _clip(2)])
     window.select_clip(1)
     window.handle_key_press("1")          # el SEGUNDO a Cocina
+    window.select_clip(0)
+    window.handle_key_press("s")
+    assert window.clips[0].categoria_path == ["Cocina"]
+
+
+def test_S_no_inventa_cuando_no_hay_de_donde_copiar(qtbot):
+    """Lo que el test de arriba SI tenia que defender y se conserva: sin
+    ningun cuarto usado y sin nada clasificado atras, `S` no hace nada."""
+    window = _window(qtbot, rooms=("Cocina",))
+    window.load_clips([_clip(1), _clip(2)])
     window.select_clip(0)
     window.handle_key_press("s")
     assert window.clips[0].categoria_path == []
@@ -2197,14 +2213,29 @@ def test_S_se_puede_deshacer(qtbot):
     assert window.clips[1].categoria_path == []
 
 
-def test_la_fila_de_S_del_rail_sigue_al_clip_actual(qtbot):
-    """Muestra a que cuarto aplicaria AHORA, no el ultimo que usaste."""
+def test_la_fila_de_S_del_rail_dice_lo_que_la_tecla_va_a_poner(qtbot):
+    """La pista y la tecla salen de la MISMA fuente, o se contradicen.
+
+    Antes decia «a que cuarto aplicaria segun donde estas parado»; desde el
+    2026-08-20 `S` es «el ultimo que usaste», asi que la pista lo sigue a el
+    y no se apaga al moverte."""
     window = _window(qtbot, rooms=("Cocina", "Sala"))
     window.load_clips([_clip(1), _clip(2), _clip(3)])
     window.select_clip(0)
     window.handle_key_press("1")          # clip 1 -> Cocina, y avanza al 2
     assert "Cocina" in window.room_rail.same_row.name_label.full_text()
-    window.select_clip(0)                 # el primero no tiene anterior
+
+    window.select_clip(0)                 # me muevo: la pista NO cambia
+
+    assert "Cocina" in window.room_rail.same_row.name_label.full_text()
+
+
+def test_la_fila_de_S_se_esconde_cuando_no_hay_nada_que_sugerir(qtbot):
+    """Recien abierto y sin nada clasificado: la fila no puede ofrecer un
+    cuarto que no existe."""
+    window = _window(qtbot, rooms=("Cocina", "Sala"))
+    window.load_clips([_clip(1), _clip(2)])
+    window.select_clip(0)
     assert window.room_rail.same_row.isHidden()
 
 
@@ -5040,3 +5071,87 @@ def test_el_boton_ancho_no_se_ofrece_en_la_hoja(qtbot):
 
     window.alternar_modo_hoja()          # y de vuelta al visor
     assert window.title_bar.visor_button.isEnabled()
+
+
+# ---------------------------------------------------------------------------
+# Los cuartos más allá del nueve
+# (spec 2026-08-20-cuartos-mas-alla-del-nueve-design.md)
+# ---------------------------------------------------------------------------
+
+
+def _window_con_cuartos(qtbot, cuartos, clips=4) -> MainWindow:
+    window = _window(qtbot, rooms=tuple(cuartos))
+    window.resize(1400, 900)
+    window.load_clips([
+        Clip(orden=i + 1, ruta=Path(f"/tmp/C{i:04d}.MP4"), categoria_path=[], fps=30.0)
+        for i in range(clips)
+    ])
+    return window
+
+
+def test_la_s_pone_el_ultimo_cuarto_que_usaste(qtbot):
+    """El caso que Bruno reprodujo el 2026-08-20: le pones «Alberca» al clip
+    2, te mueves al clip 7, aprietas `S`, y te ponía «Cocina» -- lo que tenía
+    el clip 6 de una pasada anterior. `S` copiaba el cuarto del clip de al
+    lado hacia atrás, no el último que usaste."""
+    window = _window_con_cuartos(qtbot, ["Sala", "Cocina", "Alberca"], clips=8)
+    window.select_clip(5)
+    window.handle_key_press("2")              # el clip 6 queda en Cocina
+    window.select_clip(1)
+    window.handle_key_press("3")              # y ahora uso Alberca
+
+    window.select_clip(6)
+    window.handle_key_press("s")
+
+    assert window.clips[6].categoria_path == ["Alberca"]
+
+
+def test_la_s_sin_haber_usado_ninguno_cae_en_el_clip_anterior(qtbot):
+    """Recién abres el proyecto: `S` tiene que servir desde el primer teclazo
+    y no quedarse muerta esperando a que uses uno."""
+    window = _window_con_cuartos(qtbot, ["Sala", "Cocina"], clips=4)
+    window.clips[0].categoria_path = ["Cocina"]
+
+    window.select_clip(1)
+    window.handle_key_press("s")
+
+    assert window.clips[1].categoria_path == ["Cocina"]
+
+
+def test_deshacer_no_mueve_lo_que_la_s_va_a_poner(qtbot):
+    """`⌘Z` revierte el dato, no tu intención. Si deshacer lo moviera,
+    cambiaría en silencio lo que la siguiente tecla va a hacer."""
+    window = _window_con_cuartos(qtbot, ["Sala", "Cocina"], clips=4)
+    window.select_clip(0)
+    window.handle_key_press("2")              # Cocina
+    window.undo()
+
+    window.select_clip(2)
+    window.handle_key_press("s")
+
+    assert window.clips[2].categoria_path == ["Cocina"]
+
+
+def test_renombrar_el_cuarto_que_la_s_tiene_en_la_mano_lo_sigue(qtbot):
+    window = _window_con_cuartos(qtbot, ["Sala", "Cocina"], clips=4)
+    window.select_clip(0)
+    window.handle_key_press("2")              # Cocina
+
+    window._on_room_renamed("Cocina", "Cocina chica")
+    window.select_clip(2)
+    window.handle_key_press("s")
+
+    assert window.clips[2].categoria_path == ["Cocina chica"]
+
+
+def test_borrar_el_cuarto_que_la_s_tiene_en_la_mano_lo_suelta(qtbot):
+    """Y `S` vuelve al respaldo, en vez de poner un cuarto que ya no existe
+    -- que quedaría clasificado en un cuarto fantasma, como ya pasó con el
+    historial."""
+    window = _window_con_cuartos(qtbot, ["Sala", "Cocina"], clips=4)
+    window.select_clip(0)
+    window.handle_key_press("2")              # Cocina
+
+    window._on_room_removed("Cocina")
+
+    assert window._ultimo_cuarto_usado is None

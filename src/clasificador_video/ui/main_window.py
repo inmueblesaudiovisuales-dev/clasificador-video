@@ -567,6 +567,10 @@ class MainWindow(QWidget):
         # Estado de la tanda que corre, o None. Lleva su propia generación
         # por la misma razón que los proxies: quitar el bin a media tanda
         # deja trabajos en vuelo cuyos resultados ya no aplican a nada.
+        # El ultimo cuarto que se asigno EN ESTA SESION, que es lo que pone
+        # `S`. No se guarda en el proyecto: es el hilo de lo que estas
+        # haciendo ahorita, y al reabrir no hay hilo que retomar.
+        self._ultimo_cuarto_usado: str | None = None
         self._generando_proxies: dict | None = None
         self._generacion_de_proxies = 0
         # Los bins formados, esperando turno. Se guarda el NOMBRE y no la
@@ -1254,6 +1258,12 @@ class MainWindow(QWidget):
         Con dos caminos, `S` seria una asignacion de segunda: no registraria
         en el historial, o no avanzaria, y eso no se ve hasta usarla.
         """
+        # Aqui y no en cada tecla: por esta funcion pasan TODAS las formas de
+        # asignar --el digito, la `S`, el buscador, el rail, el pincel y el
+        # lote-- y lo que `S` tiene que recordar es «el ultimo que usaste»,
+        # no por donde entro.
+        if room_path:
+            self._ultimo_cuarto_usado = room_path[0]
         self._apply_categoria_to_targets(room_path)
         self._refresh_sheet()
         self._autosave()
@@ -1261,6 +1271,24 @@ class MainWindow(QWidget):
         # la cola, y quedarse en el obligaria a apretar la flecha 128 veces
         # de mas
         self._avanzar_en_la_cola()
+
+    def _cuarto_para_la_tecla_s(self) -> str | None:
+        """Lo que pone `S`: el ultimo cuarto que usaste en esta sesion.
+
+        Antes era el cuarto del clip de al lado hacia atras, y eso se separa
+        de lo que uno espera en cuanto te saltas clips o hay material
+        clasificado de una pasada anterior: te daba un cuarto viejo. Bruno lo
+        describio el 2026-08-20 como «`S` es el cuarto penultimo en lugar del
+        ultimo».
+
+        El respaldo se queda para el primer teclazo de la sesion, donde
+        todavia no hay «ultimo usado» y sin el la tecla no haria nada. Y se
+        comprueba contra los cuartos VIVOS: uno borrado pondria un cuarto
+        fantasma, que cuenta como clasificado y no sale en ningun renglon.
+        """
+        if self._ultimo_cuarto_usado in self.room_selection.active_rooms():
+            return self._ultimo_cuarto_usado
+        return self._cuarto_del_clip_anterior()
 
     def _cuarto_del_clip_anterior(self) -> str | None:
         """El cuarto del clip CON CUARTO mas cercano hacia atras.
@@ -1443,7 +1471,9 @@ class MainWindow(QWidget):
         self.room_rail.set_current_room(
             clip.categoria_path[0] if clip and clip.categoria_path else None
         )
-        anterior = self._cuarto_del_clip_anterior()
+        # la MISMA fuente que la tecla: lo que se ve y lo que hace `S` no
+        # pueden contradecirse
+        anterior = self._cuarto_para_la_tecla_s()
         self.room_rail.set_same_room(
             anterior,
             theme.room_color(rooms.index(anterior)) if anterior in rooms else None,
@@ -1576,6 +1606,10 @@ class MainWindow(QWidget):
         # clip: ahi tambien vive el nombre viejo. Sin esto, deshacer una
         # accion previa al renombrado devolvia un cuarto que ya no existe.
         self.history.renombrar_cuarto(viejo, nuevo)
+        # y lo que `S` tiene en la mano: es el MISMO cuarto con otro nombre,
+        # y sin esto la tecla apuntaria a uno que ya no existe
+        if self._ultimo_cuarto_usado == viejo:
+            self._ultimo_cuarto_usado = nuevo
         self._refresh_history()
         self._sync_rooms()
 
@@ -1602,6 +1636,11 @@ class MainWindow(QWidget):
             cuarto_borrado=(nombre, rooms.index(nombre)) if nombre in rooms else None,
         )
         self.room_selection.remove(nombre)
+        if self._ultimo_cuarto_usado == nombre:
+            # se suelta en vez de quedarse apuntando a un cuarto que ya no
+            # existe: `S` pondria un cuarto fantasma, que cuenta como
+            # clasificado y no aparece en ningun renglon del rail
+            self._ultimo_cuarto_usado = None
         # sus clips vuelven a la cola de trabajo, que es donde tienen que
         # estar: son clips que hay que volver a decidir, no clips perdidos
         for indice in afectados:
@@ -3943,7 +3982,7 @@ class MainWindow(QWidget):
             self._update_scrub_bar()
             return
         if key == "s":
-            cuarto = self._cuarto_del_clip_anterior()
+            cuarto = self._cuarto_para_la_tecla_s()
             if cuarto is not None:
                 self._asignar_cuarto([cuarto])
             return
