@@ -3477,6 +3477,32 @@ class ClipSheet(QWidget):
             ),
         )
 
+    def en_orden_visual(self, indices: list[int]) -> list[int]:
+        """Esos indices, ordenados COMO SE DIBUJAN.
+
+        Es lo que alimenta a las flechas. Distinto de
+        `indices_en_orden_visual`, que devuelve TODO lo dibujado: aqui se
+        respeta lo que el filtro dejo pasar, y solo se cambia el orden.
+
+        Vive en la hoja porque la hoja es quien dibuja. Que la ventana lo
+        recalculara por su cuenta es exactamente como se separaron estas dos
+        listas la primera vez: `cola()` ordenaba por rodaje y la hoja
+        agrupaba por cuarto, y las flechas te sacaban del cuarto en el que
+        estabas trabajando.
+
+        Sin tarjetas --proyecto recien abierto, antes del primer acomodo--
+        devuelve lo que le dieron: es un respaldo, no un caso de uso, pero
+        sin el las flechas se quedarian sin lista.
+        """
+        if not self.item_widgets:
+            return list(indices)
+        return sorted(
+            (i for i in indices if 0 <= i < len(self.item_widgets)),
+            key=lambda i: (
+                self._orden_de_grupo(self._group_of(self.item_widgets[i].clip)), i
+            ),
+        )
+
     def rango_visual(self, desde: int, hasta: int) -> list[int]:
         """Lo que hay ENTRE dos tarjetas, contado como se ve.
 

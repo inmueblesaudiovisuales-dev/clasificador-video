@@ -52,8 +52,21 @@ caso de uso: sin él, abrir un proyecto dejaría las flechas sin lista.
   saltando al siguiente pick.
 - **Marcar pick o reject sigue sin avanzar.** Se comprobó: el clip actual se
   queda donde está. Lo que se mueve al marcar es lo que el filtro esconde.
-- **Asignar un cuarto sigue avanzando**, y ahora avanza dentro de la lista
-  que estás viendo.
+- **Asignar un cuarto sigue avanzando en orden de RODAJE**, y eso no
+  contradice lo de arriba: son dos preguntas distintas. Asignar avanza «al
+  siguiente que no he tocado», que es una noción de tiempo — el siguiente que
+  grabaste. La flecha recorre «lo que estoy viendo».
+
+  Se descubrió construyendo, no diseñando: con el orden de la hoja, el clip
+  recién clasificado se va del grupo «Sin clasificar» al de su cuarto —o sea
+  al final de la lista— y «el siguiente» no tiene nada después. Te quedabas
+  parado en el mismo clip. Lo cacharon dos pruebas de la F3.
+
+- **Y cuando el clip actual ya no está en la cola** —lo resolviste, o lo
+  escondió el filtro— la flecha también sigue por orden de rodaje: no estás
+  recorriendo lo que ves, estás retomando desde un clip que ya no está en la
+  lista, y «el siguiente que grabé» es la única referencia que no depende de
+  dónde fue a parar su tarjeta.
 - **`S` no depende de esto.** Desde hoy pone el último cuarto que usaste, no
   el del clip anterior, así que reordenar la cola no la afecta.
 

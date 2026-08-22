@@ -1192,7 +1192,17 @@ class MainWindow(QWidget):
         """
         # el bin va aparte y no dentro del clip: `Clip.to_dict()` es el
         # contrato con el plugin de Premiere y no se toca.
-        return cola(self.clips, self.filters, bin_de=self.bins.mapa_por_clip())
+        pasan = cola(self.clips, self.filters, bin_de=self.bins.mapa_por_clip())
+        # Y EN EL ORDEN EN QUE SE DIBUJAN. `cola()` los devuelve en orden de
+        # rodaje, que es lo correcto para ella --de ahi vive la nocion de «el
+        # clip anterior»-- pero la hoja los agrupa por cuarto desde el
+        # rediseño, y las dos listas se separaron: mirabas una hoja ordenada
+        # por cuarto, apretabas `→`, y te sacaba del cuarto en el que
+        # estabas trabajando aunque le quedaran pendientes.
+        #
+        # El orden lo da la HOJA, que es quien dibuja. Recalcularlo aqui
+        # seria repetir la regla en dos lados, que es como se separaron.
+        return self.clip_sheet.en_orden_visual(pasan)
 
     def set_filters(self, estado: FilterState) -> None:
         self.filters = estado
@@ -1318,9 +1328,36 @@ class MainWindow(QWidget):
 
         Avanza solo cuando se actuo sobre UN clip: con seis seleccionados,
         avanzar es un salto sin sentido.
+
+        **Avanza en orden de RODAJE, no en el de la hoja**, y eso no es una
+        inconsistencia con las flechas: son dos preguntas distintas.
+
+        - Asignar un cuarto avanza «al siguiente que no he tocado». Eso es
+          una nocion de TIEMPO: el siguiente que grabaste.
+        - La flecha recorre «lo que estoy viendo», que es el orden de la
+          hoja.
+
+        Si asignar siguiera el orden de la hoja, el clip recien clasificado
+        se iria del grupo «Sin clasificar» al de su cuarto --o sea al final
+        de la lista-- y «el siguiente» no tendria nada despues: te quedarias
+        parado en el mismo clip.
         """
-        if len(self.selected_indices) <= 1:
-            self.handle_arrow("next")
+        if len(self.selected_indices) > 1:
+            return
+        indices = self.queue()
+        if not indices:
+            return
+        self.select_clip(self._siguiente_por_rodaje(indices))
+
+    def _siguiente_por_rodaje(self, indices: list[int]) -> int:
+        """El siguiente de la cola por numero de clip, no por posicion.
+
+        `indices` ya no viene ordenado de menor a mayor --sigue el orden de
+        la hoja-- asi que hay que ordenarlo para preguntar «cual es el
+        siguiente que grabe».
+        """
+        siguientes = sorted(i for i in indices if i > self.current_index)
+        return siguientes[0] if siguientes else max(indices)
 
     # ------------------------------------------------------------------
     # historial: registrar antes de mutar, deshacer despues
@@ -4092,12 +4129,7 @@ class MainWindow(QWidget):
         indices = self.queue()
         if not indices:
             return
-        if direction == "next":
-            siguientes = [i for i in indices if i > self.current_index]
-            self.current_index = siguientes[0] if siguientes else indices[-1]
-        else:
-            anteriores = [i for i in indices if i < self.current_index]
-            self.current_index = anteriores[-1] if anteriores else indices[0]
+        self.current_index = self._vecino_en_la_cola(indices, direction)
         self._abrir_clip_actual()
         self._refresh_sheet()
         # y la hoja SIGUE al clip actual. El borde ambar ya se pintaba, pero
@@ -4106,6 +4138,40 @@ class MainWindow(QWidget):
         self.clip_sheet.centrar_en(self.current_index)
         self._resize_video_stage()
         self._autosave()
+
+    def _vecino_en_la_cola(self, indices: list[int], direction: str) -> int:
+        """El siguiente (o el anterior) DENTRO de la cola.
+
+        Se mueve por POSICION en la lista, no comparando numeros de clip.
+        Antes era `[i for i in indices if i > self.current_index]`, y eso solo
+        funcionaba porque la cola venia ordenada de menor a mayor. Desde que
+        sigue el orden de la hoja --agrupada por cuarto-- ya no lo esta: con
+        la cola `[0, 2, 4, 1, 3, 5]`, estando en el 4 buscaba «el primero
+        mayor que 4» y te mandaba al 5, saltandose el 1 y el 3.
+
+        El clip actual puede NO estar en la cola --pasa cada vez que
+        resuelves uno y sale de ella--. Ahi se lo ubica donde estaria si
+        siguiera, y se toma el vecino que si este.
+        """
+        hacia_adelante = direction == "next"
+        if self.current_index in indices:
+            posicion = indices.index(self.current_index)
+            vecinos = (indices[posicion + 1:] if hacia_adelante
+                       else indices[:posicion][::-1])
+        else:
+            # El actual salio de la cola --lo resolviste, o lo escondio el
+            # filtro--. Ahi se sigue por orden de RODAJE, como siempre: no
+            # estas recorriendo lo que ves, estas retomando desde un clip que
+            # ya no esta en la lista, y «el siguiente que grabe» es la unica
+            # referencia que no depende de donde se fue a parar su tarjeta.
+            if hacia_adelante:
+                return self._siguiente_por_rodaje(indices)
+            anteriores = sorted(i for i in indices if i < self.current_index)
+            return anteriores[-1] if anteriores else min(indices)
+        if vecinos:
+            return vecinos[0]
+        # en los extremos se queda en la orilla, no se envuelve
+        return indices[-1] if hacia_adelante else indices[0]
 
     def _abrir_clip_actual(self) -> None:
         """El unico camino por el que se abre un clip.

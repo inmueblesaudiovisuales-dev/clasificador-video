@@ -5233,3 +5233,108 @@ def test_arrastrar_un_cuarto_reacomoda_la_hoja(qtbot):
     window.room_rail.room_reordered.emit("Alberca", 0)
 
     assert window.clip_sheet._room_order == ["Alberca", "Fachada", "Sala"]
+
+
+# ---------------------------------------------------------------------------
+# Las flechas siguen lo que ves
+# (spec 2026-08-20-las-flechas-siguen-lo-que-ves-design.md)
+# ---------------------------------------------------------------------------
+
+
+def _ventana_intercalada(qtbot, cuartos):
+    """Clips de cuartos alternados, como salen de la cámara."""
+    window = _window_con_cuartos(qtbot, sorted(set(cuartos)), clips=len(cuartos))
+    for i, cuarto in enumerate(cuartos):
+        window.clips[i].categoria_path = [cuarto]
+    window.room_selection._order = list(dict.fromkeys(cuartos))
+    window._sync_rooms()
+    window.show()
+    qtbot.waitExposed(window)
+    return window
+
+
+def _recorrido(window, pasos):
+    visto = [window.current_index]
+    for _ in range(pasos):
+        window.handle_arrow("next")
+        visto.append(window.current_index)
+    return visto
+
+
+def test_la_flecha_termina_un_cuarto_antes_de_pasar_al_siguiente(qtbot):
+    """El bug que Bruno reportó: «le doy a la flecha para el siguiente y a
+    veces se va a otro cuarto aun cuando hay clips pendientes de ese cuarto».
+
+    La hoja dibujaba 1,3,5,2,4,6 --agrupados por cuarto-- y las flechas iban
+    1,2,3,4, brincando de Cocina a Sala en cada teclazo.
+    """
+    window = _ventana_intercalada(qtbot, ["Cocina", "Sala"] * 3)
+    window.select_clip(0)
+
+    assert _recorrido(window, 3) == [0, 2, 4, 1]
+
+
+def test_en_orden_de_rodaje_la_flecha_no_cambia(qtbot):
+    """Ahí las dos listas ya coincidían: no es un caso aparte, es la misma
+    regla dando el mismo resultado."""
+    window = _ventana_intercalada(qtbot, ["Cocina", "Sala"] * 3)
+    window.set_agrupar_por_cuarto(False)
+    window.select_clip(0)
+
+    assert _recorrido(window, 3) == [0, 1, 2, 3]
+
+
+def test_los_cuartos_se_recorren_en_el_orden_del_rail(qtbot):
+    """No en el alfabético: el orden lo decide Bruno (spec del orden de los
+    cuartos)."""
+    window = _ventana_intercalada(qtbot, ["Sala", "Alberca"] * 2)
+    window.room_selection._order = ["Sala", "Alberca"]
+    window._sync_rooms()
+    window.select_clip(0)
+
+    assert [window.clips[i].categoria_path[0] for i in _recorrido(window, 3)] == [
+        "Sala", "Sala", "Alberca", "Alberca"
+    ]
+
+
+def test_sin_clasificar_se_recorre_primero(qtbot):
+    """Es la cola de trabajo, y esa regla ya la respeta la hoja."""
+    window = _ventana_intercalada(qtbot, ["Cocina", "Sala", "Cocina"])
+    window.clips[1].categoria_path = []          # el 2 queda sin clasificar
+    window._refresh_sheet(force_rebuild=True)
+    window.select_clip(1)
+
+    assert _recorrido(window, 1) == [1, 0]
+
+
+def test_la_flecha_al_reves_es_el_reverso_exacto(qtbot):
+    window = _ventana_intercalada(qtbot, ["Cocina", "Sala"] * 3)
+    window.select_clip(0)
+    ida = _recorrido(window, 3)
+
+    vuelta = [window.current_index]
+    for _ in range(3):
+        window.handle_arrow("prev")
+        vuelta.append(window.current_index)
+
+    assert vuelta == list(reversed(ida))
+
+
+def test_el_filtro_sigue_mandando_sobre_que_entra(qtbot):
+    """Esto cambia el ORDEN de lo que pasó el filtro, no el filtro."""
+    window = _ventana_intercalada(qtbot, ["Cocina", "Sala"] * 3)
+    for i in (0, 4):
+        window.clips[i].flag = "pick"
+    window.clip_sheet.chips["solo_picks"].click()
+    window.select_clip(0)
+
+    assert _recorrido(window, 2) == [0, 4, 4]
+
+
+def test_sin_tarjetas_la_cola_cae_en_orden_de_grabacion(qtbot):
+    """Respaldo, no caso de uso: sin él, abrir un proyecto dejaría las
+    flechas sin lista."""
+    window = _window_con_cuartos(qtbot, ["Cocina"], clips=3)
+    window.clip_sheet.item_widgets = []
+
+    assert window.queue() == [0, 1, 2]

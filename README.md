@@ -129,6 +129,12 @@ Enter.
 Los filtros no cambian solo lo que ves: **cambian por dónde te llevan las
 flechas**. Con «solo picks» puesto, `→` salta al siguiente pick.
 
+**Las flechas siguen el orden que estás viendo.** Con «Por cuarto» puesto,
+`→` termina un cuarto antes de pasar al siguiente — que es lo que quieres
+cuando andas repasando picks cuarto por cuarto. Asignar un cuarto con `1`…`9`
+sí avanza en orden de grabación: ahí lo que quieres es el siguiente que
+grabaste, no el siguiente de la lista.
+
 **La app no suena.** Los clips se reproducen callados siempre, sin tecla que
 lo cambie: aquí se clasifica mirando, y un shooting entero sonando mientras
 recorres toma por toma es ruido y nada más. Si necesitas oír una toma, ábrela
