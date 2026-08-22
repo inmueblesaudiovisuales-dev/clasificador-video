@@ -1684,6 +1684,10 @@ class ClipSheet(QWidget):
         # el orden de los bins es el de IMPORTACION, no el alfabetico: es el
         # orden en que entro el material y el que siguen las flechas.
         self._bin_order: list[str] = []
+        # El orden de los cuartos, tal como esta en el rail. La hoja no lo
+        # adivina --se lo dicen, igual que el de los bins-- porque quien
+        # decide es Bruno y quien lo guarda es `RoomSelection`.
+        self._room_order: list[str] = []
         self._bin_headers: dict[str, _BinHeader] = {}
         # el renglon de «bin vacio», uno por bin de verdad. Vive aparte del
         # encabezado y no adentro porque el encabezado tambien se dibuja
@@ -2119,6 +2123,19 @@ class ClipSheet(QWidget):
         self._firma = None
         self._regroup()
 
+    def set_room_order(self, nombres: list[str]) -> None:
+        """El orden de los cuartos dentro de cada bin.
+
+        Sale temprano si no cambio, por lo mismo que `set_bin_order`:
+        `MainWindow._refresh_sheet` llama aqui en cada flecha, cada cuarto y
+        cada pick.
+        """
+        if list(nombres) == self._room_order:
+            return
+        self._room_order = list(nombres)
+        self._firma = None
+        self._regroup()
+
     def set_bin_meta(self, nombre: str, origen: str = "",
                      proxies: tuple[int, int] | None = None,
                      resolucion: str | None = None) -> None:
@@ -2444,7 +2461,19 @@ class ClipSheet(QWidget):
             pos = self._bin_order.index(bin_nombre)
         else:
             pos = len(self._bin_order)
-        return (pos, bin_nombre, cuarto != SIN_CLASIFICAR, cuarto)
+        # Los cuartos van EN EL ORDEN DEL RAIL. Antes esto ordenaba por el
+        # NOMBRE --o sea por abecedario-- y contradecia al rail: subir un
+        # cuarto alla no movia un pixel aqui, y el numero de la tecla, que
+        # sale del rail, podia quedar hasta abajo. Bruno lo vivio como «no
+        # hay una forma de ordenar los cuartos».
+        #
+        # Uno que no este en el rail cae al final en vez de romper el orden o
+        # desaparecer, y el nombre queda de desempate: dos cuartos fuera del
+        # rail comparten posicion, y sin el su orden dependeria de como
+        # llegaron.
+        pos_cuarto = (self._room_order.index(cuarto)
+                      if cuarto in self._room_order else len(self._room_order))
+        return (pos, bin_nombre, cuarto != SIN_CLASIFICAR, pos_cuarto, cuarto)
 
     def _regroup(self) -> None:
         titulos: list[tuple[str, str]] = []

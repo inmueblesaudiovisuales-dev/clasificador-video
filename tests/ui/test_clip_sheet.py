@@ -2896,3 +2896,60 @@ def test_el_menu_de_un_bin_formado_ofrece_cancelar(qtbot):
 
     assert any("Cancelar" in t for t in textos)
     assert not any("Crear proxies" in t for t in textos)
+
+
+# --- el orden de los cuartos (spec 2026-08-20-orden-de-los-cuartos) --------
+
+
+def _cuartos_en_orden(sheet) -> list[str]:
+    """Los cuartos tal como se DIBUJAN, sin repetir."""
+    vistos = []
+    for i in sheet.indices_en_orden_visual():
+        cuarto = sheet.item_widgets[i].clip.room_label
+        if cuarto not in vistos:
+            vistos.append(cuarto)
+    return vistos
+
+
+def test_la_hoja_acomoda_los_cuartos_en_el_orden_del_rail(qtbot):
+    """El bug que Bruno describió como «no hay una forma de ordenar los
+    cuartos». La hoja los ordenaba por ABECEDARIO, así que subirlos en el
+    rail no movía un pixel aquí -- y el número de la tecla sale del rail, así
+    que su cuarto `1` podía aparecer hasta abajo."""
+    rail = ["Fachada", "Sala", "Comedor", "Alberca"]
+    sheet = _sheet(qtbot, [_clip(i + 1, c) for i, c in enumerate(rail)])
+
+    sheet.set_room_order(rail)
+
+    assert _cuartos_en_orden(sheet) == rail
+
+
+def test_sin_clasificar_sigue_arriba_de_todo(qtbot):
+    """Es la cola de trabajo: esa regla no la toca el orden nuevo."""
+    sheet = _sheet(qtbot, [_clip(1, "Sala"), _clip(2, None), _clip(3, "Fachada")])
+
+    sheet.set_room_order(["Fachada", "Sala"])
+
+    assert _cuartos_en_orden(sheet)[0] == SIN_CLASIFICAR
+
+
+def test_un_cuarto_que_no_esta_en_el_rail_cae_al_final(qtbot):
+    """Defensivo: no rompe el orden ni desaparece."""
+    sheet = _sheet(qtbot, [_clip(1, "Zulu"), _clip(2, "Sala")])
+
+    sheet.set_room_order(["Sala"])
+
+    assert _cuartos_en_orden(sheet) == ["Sala", "Zulu"]
+
+
+def test_reordenar_no_recrea_las_tarjetas(qtbot):
+    """Reagrupar re-coloca las tarjetas, no las recrea: recrearlas tira las
+    miniaturas ya cargadas, que es lo caro."""
+    sheet = _sheet(qtbot, [_clip(1, "Sala"), _clip(2, "Fachada")])
+    sheet.set_room_order(["Fachada", "Sala"])
+    antes = list(sheet.item_widgets)
+
+    sheet.set_room_order(["Sala", "Fachada"])
+
+    assert list(sheet.item_widgets) == antes
+    assert _cuartos_en_orden(sheet) == ["Sala", "Fachada"]

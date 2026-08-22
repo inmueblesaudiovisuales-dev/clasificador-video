@@ -1435,6 +1435,7 @@ class MainWindow(QWidget):
             if not self.bins.clips_de(entrada.bin_creado):
                 self.bins.quitar(entrada.bin_creado)
                 self.clip_sheet.set_bin_order(self.bins.nombres())
+                self.clip_sheet.set_room_order(self.room_selection.active_rooms())
         if entrada.bin_renombrado is not None:
             renombrado_viejo, renombrado_nuevo = entrada.bin_renombrado
             # al reves. Solo si el nombre de hoy sigue siendo el que esta
