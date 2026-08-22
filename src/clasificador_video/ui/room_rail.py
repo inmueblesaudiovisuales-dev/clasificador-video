@@ -436,8 +436,21 @@ class RoomRail(QWidget):
         # cada fila-- porque soltar ENTRE dos filas tambien tiene que valer,
         # y ahi no hay fila debajo del cursor.
         self.setAcceptDrops(True)
-        # en que posicion caeria lo que se esta arrastrando ahora, o None
-        self._linea_de_destino: int | None = None
+        # La linea que marca donde va a caer el cuarto que arrastras.
+        #
+        # Es un WIDGET y no pintura del rail: `paintEvent` del padre corre
+        # ANTES que el de los hijos, asi que una linea pintada ahi quedaba
+        # tapada por las filas y no se veia nunca. Un widget se puede
+        # levantar por encima de sus hermanos con `raise_()`.
+        #
+        # Del mismo ambar que el clip actual y el playhead: dice «aqui es
+        # donde estas apuntando», que es lo que ese color significa en el
+        # resto de la app.
+        self.linea_de_destino = QWidget(self)
+        self.linea_de_destino.setObjectName("lineaDeDestino")
+        self.linea_de_destino.setAttribute(Qt.WA_StyledBackground, True)
+        self.linea_de_destino.setFixedHeight(2)
+        self.linea_de_destino.hide()
 
         raiz = QVBoxLayout(self)
         raiz.setContentsMargins(0, 0, 0, 0)
@@ -611,28 +624,23 @@ class RoomRail(QWidget):
 
     def dragEnterEvent(self, event) -> None:  # noqa: N802 -- override de Qt
         if event.mimeData().hasFormat(MIME_CUARTO):
-            self._linea_de_destino = self.posicion_para_soltar(
-                event.position().toPoint().y())
-            self.update()
+            self.mostrar_linea_de_destino(
+                self.posicion_para_soltar(event.position().toPoint().y()))
             event.acceptProposedAction()
 
     def dragMoveEvent(self, event) -> None:  # noqa: N802 -- override de Qt
         if not event.mimeData().hasFormat(MIME_CUARTO):
             return
-        destino = self.posicion_para_soltar(event.position().toPoint().y())
-        if destino != self._linea_de_destino:
-            self._linea_de_destino = destino
-            self.update()
+        self.mostrar_linea_de_destino(
+            self.posicion_para_soltar(event.position().toPoint().y()))
         event.acceptProposedAction()
 
     def dragLeaveEvent(self, event) -> None:  # noqa: N802 -- override de Qt
-        self._linea_de_destino = None
-        self.update()
+        self.esconder_linea_de_destino()
 
     def dropEvent(self, event) -> None:  # noqa: N802 -- override de Qt
         mime = event.mimeData()
-        self._linea_de_destino = None
-        self.update()
+        self.esconder_linea_de_destino()
         if not mime.hasFormat(MIME_CUARTO):
             return
         nombre = bytes(mime.data(MIME_CUARTO)).decode(errors="ignore")
@@ -640,40 +648,59 @@ class RoomRail(QWidget):
             event.position().toPoint().y()))
         event.acceptProposedAction()
 
-    def paintEvent(self, event) -> None:  # noqa: N802 -- override de Qt
-        """La linea que marca donde va a caer el cuarto que arrastras.
+    def mostrar_linea_de_destino(self, insercion: int) -> None:
+        """La pone donde caeria el cuarto y la levanta sobre las filas.
 
-        Del mismo ambar que el clip actual y el playhead: es «aqui es donde
-        estas apuntando», que es lo mismo que dice ese color en el resto de
-        la app.
-        """
-        super().paintEvent(event)
-        if self._linea_de_destino is None or not self.rows:
-            return
-        indice = min(self._linea_de_destino, len(self.rows) - 1)
-        fila = self.rows[indice]
-        y = fila.y() if indice == self._linea_de_destino else fila.y() + fila.height()
-        pintor = QPainter(self)
-        pintor.fillRect(6, y - 1, self.width() - 12, 2, QColor(theme.CURRENT_COLOR))
-        pintor.end()
-
-    def posicion_para_soltar(self, y: int) -> int:
-        """En que posicion cae algo soltado a la altura `y`.
-
-        Vive aparte del gesto a proposito: simular un drag-and-drop real bajo
-        `offscreen` es fragil, y lo que hay que defender es la traduccion de
-        un punto a una posicion -- que es donde uno se equivoca. El gesto
-        solo llama aqui.
+        `insercion` es un punto entre filas: `len(filas)` significa «despues
+        de la ultima».
         """
         if not self.rows:
-            return 0
-        for indice, fila in enumerate(self.rows):
-            if y < fila.y() + fila.height() // 2:
-                return indice
-        return len(self.rows) - 1
+            return
+        if insercion >= len(self.rows):
+            fila = self.rows[-1]
+            y = fila.mapTo(self, fila.rect().bottomLeft()).y()
+        else:
+            fila = self.rows[insercion]
+            y = fila.mapTo(self, fila.rect().topLeft()).y()
+        self.linea_de_destino.setGeometry(7, y - 1, self.width() - 14, 2)
+        self.linea_de_destino.show()
+        self.linea_de_destino.raise_()
 
-    def soltar_cuarto(self, nombre: str, posicion: int) -> None:
-        """Termina el arrastre.
+    def esconder_linea_de_destino(self) -> None:
+        self.linea_de_destino.hide()
+
+    def posicion_para_soltar(self, y: int) -> int:
+        """Donde va la LINEA si sueltas a la altura `y`, en 0..len(filas).
+
+        Devuelve un punto de INSERCION, no una posicion final: `3` con tres
+        cuartos significa «despues del ultimo». Quien lo convierte en
+        posicion final es `soltar_cuarto`, que es el unico que sabe de donde
+        salio el cuarto.
+
+        La altura se mide EN COORDENADAS DEL RAIL, con `mapTo`. Las filas
+        cuelgan de un contenedor interno --`fila.y()` da 6, 35, 64...-- y el
+        punto donde sueltas llega en coordenadas del rail --112, 141, 170...
+        Comparados a secas, todo lo que se soltaba debajo de la primera fila
+        caia en la ultima posicion. Bruno lo conto asi: «esta muy raro como
+        funciona».
+
+        Vive aparte del gesto a proposito: simular un drag real bajo
+        `offscreen` es fragil, y esta traduccion es donde uno se equivoca.
+        """
+        for indice, fila in enumerate(self.rows):
+            centro = fila.mapTo(self, fila.rect().center()).y()
+            if y < centro:
+                return indice
+        return len(self.rows)
+
+    def soltar_cuarto(self, nombre: str, insercion: int) -> None:
+        """Termina el arrastre. `insercion` es donde estaba la LINEA.
+
+        El desfase de mover hacia abajo se corrige aqui: al sacar el cuarto
+        de su lugar, todo lo que estaba debajo sube uno, asi que insertarlo
+        en el numero de la linea lo dejaria un lugar mas abajo de lo que
+        viste. Hacia arriba no pasa -- lo que se saca esta debajo de la
+        linea, y nada de arriba se mueve.
 
         No avisa si el cuarto no se movio: cada clic-sin-arrastrar meteria
         una accion que no hizo nada, y reordenar cambia la TECLA de los
@@ -682,10 +709,12 @@ class RoomRail(QWidget):
         actual = [f.nombre for f in self.rows]
         if nombre not in actual:
             return
-        posicion = max(0, min(posicion, len(actual) - 1))
-        if actual.index(nombre) == posicion:
+        origen = actual.index(nombre)
+        destino = insercion - 1 if origen < insercion else insercion
+        destino = max(0, min(destino, len(actual) - 1))
+        if destino == origen:
             return
-        self.room_reordered.emit(nombre, posicion)
+        self.room_reordered.emit(nombre, destino)
 
     def set_same_room(self, nombre: str | None, color: str | None) -> None:
         """El cuarto que aplicaria `S`, o `None` si no hay ninguno atras.

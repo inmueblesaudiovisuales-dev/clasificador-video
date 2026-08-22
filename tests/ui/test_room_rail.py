@@ -661,25 +661,55 @@ def test_los_primeros_nueve_siguen_con_su_numero(qtbot):
 # --- arrastrar cuartos (spec 2026-08-20-orden-de-los-cuartos) -------------
 
 
-def test_soltar_arriba_del_primero_lo_manda_a_la_posicion_cero(qtbot):
+def _rail_mostrado(qtbot, cuartos):
+    """Con geometría de verdad: `posicion_para_soltar` mide dónde están las
+    filas EN EL RAIL, y sin mostrarlo todas están en el mismo lugar."""
     rail = _rail(qtbot)
-    rail.set_rooms(["Fachada", "Sala", "Alberca"], {})
+    rail.resize(200, 700)
+    rail.set_rooms(cuartos, {})
+    rail.show()
+    qtbot.waitExposed(rail)
+    return rail
+
+
+def test_soltar_arriba_del_primero_lo_manda_a_la_posicion_cero(qtbot):
+    rail = _rail_mostrado(qtbot, ["Fachada", "Sala", "Alberca"])
 
     assert rail.posicion_para_soltar(0) == 0
 
 
-def test_soltar_debajo_del_ultimo_lo_manda_al_final(qtbot):
-    rail = _rail(qtbot)
-    rail.set_rooms(["Fachada", "Sala", "Alberca"], {})
+def test_soltar_debajo_del_ultimo_da_la_posicion_de_despues_del_ultimo(qtbot):
+    """`posicion_para_soltar` devuelve dónde va la LÍNEA, no la posición
+    final: con tres cuartos, la línea de «hasta abajo» es la 3, después del
+    último. Quien convierte eso en posición final es `soltar_cuarto`, que es
+    el único que sabe de dónde salió el cuarto."""
+    rail = _rail_mostrado(qtbot, ["Fachada", "Sala", "Alberca"])
 
-    assert rail.posicion_para_soltar(10_000) == 2
+    assert rail.posicion_para_soltar(10_000) == 3
+
+
+def test_la_posicion_se_mide_en_coordenadas_DEL_RAIL(qtbot):
+    """El bug que Bruno describió como «está muy raro cómo funciona».
+
+    Las filas cuelgan de un contenedor interno, así que `fila.y()` daba 6,
+    35, 64… mientras el punto donde sueltas llega en coordenadas del rail:
+    112, 141, 170… Comparados a secas, todo lo que soltabas debajo de la
+    primera fila caía en la última posición.
+    """
+    rail = _rail_mostrado(qtbot, ["Fachada", "Sala", "Alberca"])
+    segunda = rail.rows[1]
+    centro_de_la_segunda = segunda.mapTo(rail, segunda.rect().center()).y()
+
+    # justo encima del centro de la segunda fila: la línea va ANTES de ella
+    assert rail.posicion_para_soltar(centro_de_la_segunda - 2) == 1
+    # justo debajo: va después
+    assert rail.posicion_para_soltar(centro_de_la_segunda + 2) == 2
 
 
 def test_arrastrar_un_cuarto_avisa_con_su_posicion(qtbot):
     """La señal lleva el nombre y a dónde va, no un delta: el arrastre es
     «ponlo AQUÍ», y con 13 cuartos un delta serían doce avisos."""
-    rail = _rail(qtbot)
-    rail.set_rooms(["Fachada", "Sala", "Alberca"], {})
+    rail = _rail_mostrado(qtbot, ["Fachada", "Sala", "Alberca"])
     avisos = []
     rail.room_reordered.connect(lambda n, p: avisos.append((n, p)))
 
@@ -688,10 +718,48 @@ def test_arrastrar_un_cuarto_avisa_con_su_posicion(qtbot):
     assert avisos == [("Alberca", 0)]
 
 
+def test_mover_un_cuarto_HACIA_ABAJO_cae_donde_dice_la_linea(qtbot):
+    """El desfase clásico de reordenar: la línea dice «aquí», pero al sacar
+    el cuarto de su lugar todo lo de abajo sube uno, así que insertarlo en el
+    número de la línea lo deja un lugar más abajo de lo que viste.
+
+    Con `[A, B, C, D]` y la línea encima de `D` --posicion 3-- el cuarto `A`
+    tiene que quedar entre `C` y `D`, no al final.
+    """
+    rail = _rail_mostrado(qtbot, ["A", "B", "C", "D"])
+    avisos = []
+    rail.room_reordered.connect(lambda n, p: avisos.append((n, p)))
+
+    rail.soltar_cuarto("A", 3)
+
+    assert avisos == [("A", 2)]
+
+
+def test_mover_un_cuarto_HACIA_ARRIBA_no_lleva_desfase(qtbot):
+    """Al revés no hace falta corregir: lo que se saca está debajo de la
+    línea, así que nada de arriba se mueve."""
+    rail = _rail_mostrado(qtbot, ["A", "B", "C", "D"])
+    avisos = []
+    rail.room_reordered.connect(lambda n, p: avisos.append((n, p)))
+
+    rail.soltar_cuarto("D", 1)
+
+    assert avisos == [("D", 1)]
+
+
+def test_soltar_hasta_abajo_lo_manda_al_final(qtbot):
+    rail = _rail_mostrado(qtbot, ["A", "B", "C"])
+    avisos = []
+    rail.room_reordered.connect(lambda n, p: avisos.append((n, p)))
+
+    rail.soltar_cuarto("A", 3)
+
+    assert avisos == [("A", 2)]
+
+
 def test_soltar_un_cuarto_donde_ya_estaba_no_avisa(qtbot):
     """Sin esto, cada clic-sin-mover metería una acción que no hizo nada."""
-    rail = _rail(qtbot)
-    rail.set_rooms(["Fachada", "Sala"], {})
+    rail = _rail_mostrado(qtbot, ["Fachada", "Sala"])
     avisos = []
     rail.room_reordered.connect(lambda n, p: avisos.append((n, p)))
 
@@ -709,3 +777,41 @@ def test_soltar_un_cuarto_que_no_existe_no_avisa(qtbot):
     rail.soltar_cuarto("Alberca", 0)
 
     assert avisos == []
+
+
+def test_la_linea_de_destino_se_ve_encima_de_las_filas(qtbot):
+    """Estaba pintada en el `paintEvent` del rail, que corre ANTES que los
+    hijos: quedaba tapada por las filas y no se veía nunca. Bruno pidió
+    justamente eso -- «que te diga en dónde va a ser reordenado el cuarto».
+
+    Es un widget de verdad y no pintura, porque un widget se puede levantar
+    por encima de los hermanos y la pintura del padre no.
+    """
+    rail = _rail_mostrado(qtbot, ["A", "B", "C"])
+    assert rail.linea_de_destino.isHidden()
+
+    rail.mostrar_linea_de_destino(1)
+
+    assert not rail.linea_de_destino.isHidden()
+    segunda = rail.rows[1]
+    arriba = segunda.mapTo(rail, segunda.rect().topLeft()).y()
+    assert abs(rail.linea_de_destino.y() - arriba) <= 2
+
+
+def test_la_linea_de_hasta_abajo_va_debajo_del_ultimo(qtbot):
+    rail = _rail_mostrado(qtbot, ["A", "B", "C"])
+
+    rail.mostrar_linea_de_destino(3)
+
+    ultima = rail.rows[-1]
+    abajo = ultima.mapTo(rail, ultima.rect().bottomLeft()).y()
+    assert abs(rail.linea_de_destino.y() - abajo) <= 2
+
+
+def test_la_linea_se_esconde_al_terminar(qtbot):
+    rail = _rail_mostrado(qtbot, ["A", "B", "C"])
+    rail.mostrar_linea_de_destino(1)
+
+    rail.esconder_linea_de_destino()
+
+    assert rail.linea_de_destino.isHidden()

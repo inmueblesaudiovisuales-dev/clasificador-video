@@ -639,6 +639,12 @@ def build_stylesheet() -> str:
        para que no compita con los numeros -- no es una tecla directa, es una
        indicacion. Antes esto era `color: transparent`, o sea un hueco que no
        decia a donde ir. */
+    /* la linea que marca donde va a caer el cuarto que arrastras: el mismo
+       ambar del clip actual y el playhead, que es «aqui estas apuntando» */
+    QWidget#lineaDeDestino {{
+        background-color: {CURRENT_COLOR};
+        border-radius: 1px;
+    }}
     QLabel#keyCap[sin_tecla="true"] {{
         background-color: transparent;
         color: {TEXT_3};
