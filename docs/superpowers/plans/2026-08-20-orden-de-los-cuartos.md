@@ -34,7 +34,7 @@
 
 **Files:** `src/clasificador_video/rooms.py`, `tests/test_rooms.py`
 
-- [ ] **Step 1: Escribe las pruebas que fallan**
+- [x] **Step 1: Escribe las pruebas que fallan**
 
 ```python
 def test_mover_a_lleva_el_cuarto_a_esa_posicion():
@@ -91,7 +91,7 @@ def test_mover_a_un_cuarto_que_no_existe_no_hace_nada():
     assert seleccion.active_rooms() == ["Fachada"]
 ```
 
-- [ ] **Step 2: Corre las pruebas y comprueba que fallan**
+- [x] **Step 2: Corre las pruebas y comprueba que fallan**
 
 ```bash
 QT_QPA_PLATFORM=offscreen .venv/bin/pytest tests/test_rooms.py -q -k mover_a
@@ -99,7 +99,7 @@ QT_QPA_PLATFORM=offscreen .venv/bin/pytest tests/test_rooms.py -q -k mover_a
 
 Esperado: `AttributeError: 'RoomSelection' object has no attribute 'mover_a'`.
 
-- [ ] **Step 3: Escribe el método**
+- [x] **Step 3: Escribe el método**
 
 En `rooms.py`, junto a `move`:
 
@@ -125,7 +125,7 @@ En `rooms.py`, junto a `move`:
 
 Comprueba cómo se llama la lista interna (`grep -n "self\._" src/clasificador_video/rooms.py`) y ajusta el nombre.
 
-- [ ] **Step 4: Corre las pruebas y commitea**
+- [x] **Step 4: Corre las pruebas y commitea**
 
 ```bash
 QT_QPA_PLATFORM=offscreen .venv/bin/pytest tests/test_rooms.py -q
@@ -141,7 +141,7 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 
 **Files:** `src/clasificador_video/ui/clip_sheet.py`, `tests/ui/test_clip_sheet.py`
 
-- [ ] **Step 1: Escribe las pruebas que fallan**
+- [x] **Step 1: Escribe las pruebas que fallan**
 
 ```python
 def test_la_hoja_acomoda_los_cuartos_en_el_orden_del_rail(qtbot):
@@ -200,7 +200,7 @@ def _cuartos_en_orden(sheet) -> list[str]:
     return vistos
 ```
 
-- [ ] **Step 2: Corre las pruebas y comprueba que fallan**
+- [x] **Step 2: Corre las pruebas y comprueba que fallan**
 
 ```bash
 QT_QPA_PLATFORM=offscreen .venv/bin/pytest tests/ui/test_clip_sheet.py -q -k "orden_del_rail or arriba_de_todo or cae_al_final or no_recarga"
@@ -208,7 +208,7 @@ QT_QPA_PLATFORM=offscreen .venv/bin/pytest tests/ui/test_clip_sheet.py -q -k "or
 
 Esperado: FAIL con el orden alfabético.
 
-- [ ] **Step 3: La hoja recibe el orden**
+- [x] **Step 3: La hoja recibe el orden**
 
 En `ClipSheet.__init__`, junto a `self._bin_order`:
 
@@ -264,7 +264,7 @@ Y `_orden_de_grupo` deja de ordenar por el nombre:
 
 El `cuarto` al final es el desempate: dos cuartos fuera del rail comparten `pos_cuarto`, y sin él su orden dependería de cómo llegaron.
 
-- [ ] **Step 4: La ventana se lo pasa**
+- [x] **Step 4: La ventana se lo pasa**
 
 En `main_window.py`, donde `_refresh_sheet` ya llama a `set_bin_order`, añade al lado:
 
@@ -272,7 +272,7 @@ En `main_window.py`, donde `_refresh_sheet` ya llama a `set_bin_order`, añade a
         self.clip_sheet.set_room_order(self.room_selection.active_rooms())
 ```
 
-- [ ] **Step 5: Corre la suite completa y commitea**
+- [x] **Step 5: Corre la suite completa y commitea**
 
 ```bash
 QT_QPA_PLATFORM=offscreen .venv/bin/pytest tests/ -q
@@ -288,7 +288,7 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 
 **Files:** `src/clasificador_video/ui/room_rail.py`, `src/clasificador_video/ui/theme.py`, `tests/ui/test_room_rail.py`
 
-- [ ] **Step 1: Escribe las pruebas que fallan**
+- [x] **Step 1: Escribe las pruebas que fallan**
 
 Las pruebas van sobre la DECISIÓN, no sobre el gesto de mouse: simular un
 drag-and-drop real bajo `offscreen` es frágil, y lo que importa es a qué
@@ -334,13 +334,13 @@ def test_soltar_un_cuarto_donde_ya_estaba_no_avisa(qtbot):
     assert avisos == []
 ```
 
-- [ ] **Step 2: Corre las pruebas y comprueba que fallan**
+- [x] **Step 2: Corre las pruebas y comprueba que fallan**
 
 ```bash
 QT_QPA_PLATFORM=offscreen .venv/bin/pytest tests/ui/test_room_rail.py -q -k "soltar or arrastrar_un_cuarto"
 ```
 
-- [ ] **Step 3: La decisión, separada del gesto**
+- [x] **Step 3: La decisión, separada del gesto**
 
 En `RoomRail`:
 
@@ -386,7 +386,7 @@ de clips, que ya existe y significa otra cosa.
 El rail dibuja la línea de destino en `paintEvent` cuando hay un arrastre
 encima, con la altura que devuelve `posicion_para_soltar`.
 
-- [ ] **Step 4: La línea que marca dónde cae**
+- [x] **Step 4: La línea que marca dónde cae**
 
 En `theme.py`, junto a las reglas del rail:
 
@@ -400,7 +400,7 @@ En `theme.py`, junto a las reglas del rail:
 Y en el `paintEvent` del rail se dibuja de 2 px de alto, de borde a borde
 del rail, a la altura de la posición destino.
 
-- [ ] **Step 5: Corre la suite completa y commitea**
+- [x] **Step 5: Corre la suite completa y commitea**
 
 ```bash
 QT_QPA_PLATFORM=offscreen .venv/bin/pytest tests/ -q
@@ -416,7 +416,7 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 
 **Files:** `src/clasificador_video/ui/main_window.py`, `tests/ui/test_main_window.py`
 
-- [ ] **Step 1: Escribe las pruebas que fallan**
+- [x] **Step 1: Escribe las pruebas que fallan**
 
 ```python
 def test_arrastrar_un_cuarto_lo_mueve_de_lugar(qtbot):
@@ -454,13 +454,13 @@ def test_arrastrar_un_cuarto_no_le_cambia_el_cuarto_a_ningun_clip(qtbot):
     assert [list(c.categoria_path) for c in window.clips] == antes
 ```
 
-- [ ] **Step 2: Corre las pruebas y comprueba que fallan**
+- [x] **Step 2: Corre las pruebas y comprueba que fallan**
 
 ```bash
 QT_QPA_PLATFORM=offscreen .venv/bin/pytest tests/ui/test_main_window.py -q -k arrastrar_un_cuarto
 ```
 
-- [ ] **Step 3: Conectarla**
+- [x] **Step 3: Conectarla**
 
 Junto a `self.room_rail.room_moved.connect(self._on_room_moved)`:
 
@@ -481,7 +481,7 @@ Junto a `self.room_rail.room_moved.connect(self._on_room_moved)`:
         self._sync_rooms()
 ```
 
-- [ ] **Step 4: Corre la suite completa y commitea**
+- [x] **Step 4: Corre la suite completa y commitea**
 
 ```bash
 QT_QPA_PLATFORM=offscreen .venv/bin/pytest tests/ -q
@@ -497,11 +497,11 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 
 **Files:** `README.md`, `docs/superpowers/CONTEXTO-Y-METAS.md`
 
-- [ ] **Step 1: Comprobación visual**
+- [x] **Step 1: Comprobación visual**
 
 Arma en el scratchpad (NO en el repo) una ventana con seis cuartos en un orden que no sea alfabético, y guarda `window.grab()` a PNG. Ábrelo con la herramienta de lectura de archivos y confirma que **el rail y la hoja dicen el mismo orden**, y que el cuarto `1` del rail es el primer bloque de la hoja.
 
-- [ ] **Step 2: El README**
+- [x] **Step 2: El README**
 
 Donde se explica el rail, añade:
 
@@ -513,11 +513,11 @@ número**: el que quede arriba es el `1`. Sirve para empezar por el cuarto que
 quieras cuando andas repasando picks.
 ```
 
-- [ ] **Step 3: CONTEXTO-Y-METAS**
+- [x] **Step 3: CONTEXTO-Y-METAS**
 
 Añade a lo cerrado el porqué, y sobre todo la lección: la hoja ordenaba por abecedario y el rail por decisión de Bruno, y esa contradicción hacía que reordenar —que sí existía— pareciera no existir. Y deja escrito que el arrastre en el rail se había descartado el 2026-08-08 por «una vez por shooting», supuesto que resultó falso.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add README.md docs/superpowers/CONTEXTO-Y-METAS.md

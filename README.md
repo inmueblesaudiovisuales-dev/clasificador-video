@@ -114,6 +114,12 @@ shooting sin tocar las flechas, tecleando un número por clip. Marcar
 pick/reject o poner in/out **no** avanza — esos se hacen sobre el clip que
 estás mirando.
 
+**El orden de los cuartos lo decides tú**, y es el mismo en la lista de la
+izquierda y en la hoja de contactos. Arrastra un cuarto para moverlo, o usa
+clic derecho → Subir / Bajar (`⌥↑` / `⌥↓` con el teclado). Mover un cuarto
+**cambia su número**: el que quede arriba es el `1`. Sirve para empezar por
+el cuarto que quieras cuando andas repasando picks.
+
 **Más de nueve cuartos.** Los atajos `1`…`9` llegan al noveno. Del décimo en
 adelante el rail muestra `⏎` en lugar del número: aprieta Enter, escribe las
 primeras letras —sin preocuparte por acentos ni mayúsculas— y dale Enter otra

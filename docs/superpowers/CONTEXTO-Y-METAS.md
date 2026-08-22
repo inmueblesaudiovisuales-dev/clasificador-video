@@ -170,6 +170,40 @@ medido que no calza cuadro a cuadro.
 
 ---
 
+## Lo que se cerró el 2026-08-20 (tercera tanda)
+
+### El orden de los cuartos — **hecho**
+
+Bruno explicó cómo trabaja: «para mí son dos fases: primero clasifico por
+cuarto y luego clasifico picks y no picks», y para la segunda quiere «empezar
+con el primer cuarto que quiera».
+
+**La hoja acomodaba los cuartos por abecedario y el rail en el orden que él
+eligió.** Las dos listas se contradecían, y la de la hoja no se podía cambiar
+de ninguna manera: subir un cuarto en el rail no movía un pixel allá. Encima
+el número de la tecla sale del rail, así que su cuarto `1` podía aparecer
+hasta abajo. Reproducido antes de tocar código.
+
+Ahora hay **un solo orden** en toda la app, y los cuartos **se arrastran** en
+el rail para cambiarlo.
+
+**Lo que esto enseña, otra vez:** reordenar cuartos SÍ existía —`⌥↑`/`⌥↓` y
+el menú— pero no servía de nada porque la hoja lo ignoraba. Dos listas del
+mismo dato que no se hablan valen menos que una sola.
+
+**Y una decisión reabierta con razón nueva.** El 2026-08-08 se descartó
+arrastrar en el rail: «acciones de una vez por shooting, no merecen atajos
+nuevos ni el riesgo del drag-and-drop». El supuesto era falso — reordenar es
+cómo Bruno decide por dónde empieza la fase 2, cada shooting, y con 13
+cuartos subir el último son doce repeticiones. Lo que se descartó por
+marginal estaba en el camino. **Subir y Bajar se quedaron**, porque dicen
+explícitamente que reordenar ES cambiar la tecla, y eso arrastrando no se
+lee.
+
+Detalle en `specs/2026-08-20-orden-de-los-cuartos-design.md`.
+
+---
+
 ## Lo que se cerró el 2026-08-20 (segunda tanda)
 
 ### Los cuartos más allá del nueve — **hecho**
