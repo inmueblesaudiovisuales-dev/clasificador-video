@@ -5188,3 +5188,48 @@ def test_asignar_desde_el_rail_entra_al_historial(qtbot):
     window.undo()
 
     assert window.clips[0].categoria_path == []
+
+
+def test_arrastrar_un_cuarto_lo_mueve_de_lugar(qtbot):
+    window = _window_con_cuartos(qtbot, ["Fachada", "Sala", "Alberca"], clips=3)
+
+    window.room_rail.room_reordered.emit("Alberca", 0)
+
+    assert window.room_selection.active_rooms() == ["Alberca", "Fachada", "Sala"]
+
+
+def test_arrastrar_un_cuarto_le_cambia_la_tecla(qtbot):
+    """Reordenar ES cambiar qué tecla le toca a cada cuarto -- lo que Bruno
+    quiere: poner arriba con lo que va a empezar."""
+    window = _window_con_cuartos(qtbot, ["Fachada", "Sala", "Alberca"], clips=3)
+
+    window.room_rail.room_reordered.emit("Alberca", 0)
+    window.select_clip(0)
+    window.handle_key_press("1")
+
+    assert window.clips[0].categoria_path == ["Alberca"]
+
+
+def test_arrastrar_un_cuarto_no_le_cambia_el_cuarto_a_ningun_clip(qtbot):
+    """El gesto mueve el cuarto de lugar y NADA más. Misma regla que el
+    arrastre de clips entre bins, y por el mismo motivo: con dos significados
+    en el mismo gesto, un arrastre mal soltado cambia el dato que más trabajo
+    cuesta."""
+    window = _window_con_cuartos(qtbot, ["Fachada", "Sala", "Alberca"], clips=3)
+    window.select_clip(0)
+    window.handle_key_press("2")               # Sala
+    antes = [list(c.categoria_path) for c in window.clips]
+
+    window.room_rail.room_reordered.emit("Alberca", 0)
+
+    assert [list(c.categoria_path) for c in window.clips] == antes
+
+
+def test_arrastrar_un_cuarto_reacomoda_la_hoja(qtbot):
+    """Un solo orden en toda la app: el rail y la hoja no pueden decir cosas
+    distintas."""
+    window = _window_con_cuartos(qtbot, ["Fachada", "Sala", "Alberca"], clips=3)
+
+    window.room_rail.room_reordered.emit("Alberca", 0)
+
+    assert window.clip_sheet._room_order == ["Alberca", "Fachada", "Sala"]

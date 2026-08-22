@@ -722,6 +722,7 @@ class MainWindow(QWidget):
         )
         self.room_rail.room_renamed.connect(self._on_room_renamed)
         self.room_rail.room_moved.connect(self._on_room_moved)
+        self.room_rail.room_reordered.connect(self._on_room_reordered)
         self.room_rail.room_removed.connect(self._on_room_removed)
         self.room_rail.revert_requested.connect(self.revert)
         # el boton «Cuartos ⌘R» estuvo muerto desde la F2: emitia una señal
@@ -1435,7 +1436,6 @@ class MainWindow(QWidget):
             if not self.bins.clips_de(entrada.bin_creado):
                 self.bins.quitar(entrada.bin_creado)
                 self.clip_sheet.set_bin_order(self.bins.nombres())
-                self.clip_sheet.set_room_order(self.room_selection.active_rooms())
         if entrada.bin_renombrado is not None:
             renombrado_viejo, renombrado_nuevo = entrada.bin_renombrado
             # al reves. Solo si el nombre de hoy sigue siendo el que esta
@@ -1624,6 +1624,18 @@ class MainWindow(QWidget):
     def _on_room_moved(self, nombre: str, delta: int) -> None:
         # reordenar cambia la TECLA, no a que cuarto pertenece cada clip
         self.room_selection.move(nombre, delta)
+        self._sync_rooms()
+
+    def _on_room_reordered(self, nombre: str, posicion: int) -> None:
+        """Soltaste un cuarto en otro lugar de la lista.
+
+        Igual que `_on_room_moved`: reordenar cambia la TECLA, no a que
+        cuarto pertenece cada clip. `_sync_rooms` es obligatorio --el router
+        se queda con la lista que le dieron, y sin volver a pasarsela las
+        teclas clasifican al cuarto equivocado en silencio-- y ademas es
+        quien refresca la hoja, que desde hoy sigue este mismo orden.
+        """
+        self.room_selection.mover_a(nombre, posicion)
         self._sync_rooms()
 
     def _on_room_removed(self, nombre: str) -> None:
@@ -4244,6 +4256,9 @@ class MainWindow(QWidget):
         # agrupada saldria con los bins en el orden equivocado y se veria
         # saltar.
         self.clip_sheet.set_bin_order(self.bins.nombres())
+        # el MISMO orden que el rail: las dos listas no pueden decir cosas
+        # distintas (ver `_orden_de_grupo`)
+        self.clip_sheet.set_room_order(self.room_selection.active_rooms())
         if force_rebuild:
             self.clip_sheet.set_clips(thumbs)
         elif len(thumbs) > self.clip_sheet.count():
