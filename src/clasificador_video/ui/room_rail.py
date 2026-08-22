@@ -163,6 +163,7 @@ class _FilaCuarto(QWidget):
     tecla le toca a cada cuarto. Decidido con Bruno el 2026-08-08.
     """
 
+    assign_requested = Signal(str)        # ponerle ESTE cuarto al clip actual
     rename_requested = Signal(str, str)   # nombre viejo, nombre nuevo
     move_requested = Signal(str, int)     # nombre, -1 arriba / +1 abajo
     remove_requested = Signal(str)
@@ -242,6 +243,18 @@ class _FilaCuarto(QWidget):
             event.accept()
             return
         if tecla in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
+            # asignar, no renombrar. El rail es una lista de cuartos junto al
+            # video, y lo que uno quiere hacer con un cuarto mientras
+            # clasifica es ponerselo a un clip. Renombrar es mantenimiento, y
+            # el mantenimiento no se queda con la tecla mas obvia: vive en
+            # `F2`, en el doble click y en el menu contextual.
+            #
+            # Bruno se topo con lo de antes y lo conto asi: «poner enter no
+            # me deja seleccionar cuartos, solo hacer nuevos».
+            self.assign_requested.emit(self.nombre)
+            event.accept()
+            return
+        if tecla == Qt.Key.Key_F2:
             self._pedir_nombre()
             event.accept()
             return
@@ -362,6 +375,7 @@ class RoomRail(QWidget):
     """
 
     import_requested = Signal()
+    room_assign_requested = Signal(str)
     room_created = Signal(str)
     room_renamed = Signal(str, str)
     room_moved = Signal(str, int)
@@ -531,6 +545,7 @@ class RoomRail(QWidget):
         for indice, cuarto in enumerate(rooms):
             numero = indice + 1 if indice < MAX_TECLAS else None
             fila = _FilaCuarto(numero, cuarto, theme.room_color(indice), counts.get(cuarto, 0))
+            fila.assign_requested.connect(self.room_assign_requested.emit)
             fila.rename_requested.connect(self.room_renamed.emit)
             fila.move_requested.connect(self.room_moved.emit)
             fila.remove_requested.connect(self.room_removed.emit)

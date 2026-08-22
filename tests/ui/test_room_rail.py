@@ -1,3 +1,5 @@
+from PySide6.QtCore import Qt
+
 from clasificador_video.ui import theme
 from clasificador_video.ui.room_rail import MAX_TECLAS, RoomRail
 
@@ -581,3 +583,51 @@ def test_el_renglon_se_vuelve_a_dibujar_al_cambiar_lo_bloqueado(qtbot):
     rail.set_history([entrada], {entrada.id: "ya tiene clips"})
 
     assert not rail.history_rows[0].undo_button.isEnabled()
+
+
+def _espiar_renombrado(monkeypatch):
+    """Renombrar abre un `QInputDialog` modal, que en un test cuelga. Se
+    espía en vez de abrirlo."""
+    from PySide6.QtWidgets import QInputDialog
+    abiertos = []
+    monkeypatch.setattr(QInputDialog, "getText",
+                        lambda *a, **k: abiertos.append(True) or ("", False))
+    return abiertos
+
+
+def test_enter_en_una_fila_del_rail_pide_asignar(qtbot, monkeypatch):
+    """Lo que Bruno encontró el 2026-08-20: `⏎` con una fila enfocada abría
+    el renombrado, así que «poner enter no me deja seleccionar cuartos, solo
+    hacer nuevos». Lo que uno quiere hacer con un cuarto mientras clasifica
+    es ponérselo a un clip; renombrar es mantenimiento."""
+    rail = _rail(qtbot)
+    rail.set_rooms(["Cocina", "Sala"], {"Cocina": 3, "Sala": 2})
+    abiertos = _espiar_renombrado(monkeypatch)
+    pedidos = []
+    rail.room_assign_requested.connect(pedidos.append)
+
+    qtbot.keyClick(rail.rows[0], Qt.Key.Key_Return)
+
+    assert pedidos == ["Cocina"]
+    assert abiertos == []
+
+
+def test_f2_sigue_renombrando(qtbot, monkeypatch):
+    """Renombrar no se pierde: se cambia de tecla."""
+    rail = _rail(qtbot)
+    rail.set_rooms(["Cocina"], {"Cocina": 3})
+    abiertos = _espiar_renombrado(monkeypatch)
+
+    qtbot.keyClick(rail.rows[0], Qt.Key.Key_F2)
+
+    assert abiertos == [True]
+
+
+def test_el_doble_click_sigue_renombrando(qtbot, monkeypatch):
+    rail = _rail(qtbot)
+    rail.set_rooms(["Cocina"], {"Cocina": 3})
+    abiertos = _espiar_renombrado(monkeypatch)
+
+    qtbot.mouseDClick(rail.rows[0], Qt.MouseButton.LeftButton)
+
+    assert abiertos == [True]
