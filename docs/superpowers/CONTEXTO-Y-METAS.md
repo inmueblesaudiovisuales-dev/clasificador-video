@@ -1,11 +1,11 @@
 # Contexto y metas del proyecto
 
-*(Última actualización: 2026-08-10, al cierre de la sesión en la que se
-generaron los proxies, se contestó el LUT dentro de Premiere y se sacaron los
-`.LRF` del ingest. Este documento describe **intención y dirección**, y lleva
-la cuenta de lo hecho y lo que falta — para decisiones técnicas ya tomadas,
-ver `CLAUDE.md`; para qué es la app y cómo correrla, ver `README.md`; para el
-detalle técnico de cada entrega y de cada bug, ver el handoff.)*
+*(Última actualización: 2026-08-22, al cierre de la sesión en la que Bruno
+usó la app con un shooting completo por primera vez y salieron ocho bugs de
+ese uso. Este documento describe **intención y dirección**, y lleva la cuenta
+de lo hecho y lo que falta — para decisiones técnicas ya tomadas, ver
+`CLAUDE.md`; para qué es la app y cómo correrla, ver `README.md`; para qué
+trajo cada versión en palabras de usuario, ver `docs/VERSIONES.md`.)*
 
 ## Estado actual
 
@@ -15,20 +15,38 @@ mover.** Llega reproduciendo, se marca con el teclado, se cruza a la hoja de
 contactos, se pinta por lotes y se exporta a Premiere, que arma el proyecto
 solo.
 
-**1355 tests.** Las 40 corridas seguidas sin fallo se midieron sobre 1337, o
-sea antes de la generación de proxies: ese número no se ha vuelto a medir.
+**1580 tests.**
 
-**Lo que sigue sin comprobarse, y atraviesa todo lo demás:** desde los bins en
-adelante, **nada se ha usado con el material real de Bruno**. Se midió con
-archivos inventados, `ffprobe` falso y los tres clips de `sample-media/`. Sus
-132 clips no han pasado por aquí. La única excepción es la generación de
-proxies, que sí se corrió contra un clip real de `sample-media/` de punta a
-punta —67 MB → 1.6 MB, mismos cuadros y fps— pero no contra una tarjeta
-entera. Lo anterior a los bins sí se usó de verdad, y de ese uso salieron más
-bugs que de cualquier revisión.
+**Y desde el 2026-08-22 ya se usó de verdad.** Bruno clasificó un shooting
+completo —**205 clips** en tres bins: Sony, dron y Osmo— y lo exportó a
+Premiere. Eso era lo primero de la lista durante dos semanas, y ya no lo es.
 
-**Por eso lo primero de la lista de abajo no es una función nueva:** es correr
-un shooting completo con la app.
+**De ese uso salieron ocho bugs**, ninguno de los cuales había encontrado
+ninguna revisión. Vale la pena tenerlos juntos, porque dicen qué tipo de bug
+sobrevive a una suite de 1500 pruebas:
+
+1. Abrir el proyecto **congelaba la app 34 segundos** — cargaba las 12 fotos
+   de cada uno de los 205 clips.
+2. `S` daba **un cuarto viejo** en cuanto había material de una pasada
+   anterior.
+3. A los cuartos **del 10 en adelante no se llegaba**: la herramienta existía
+   y no se veía.
+4. La hoja ordenaba los cuartos **por abecedario** y el rail por decisión de
+   Bruno; las dos listas se contradecían.
+5. Las flechas **te sacaban del cuarto** en el que trabajabas.
+6. **13 proxies quedaron generados y sin enganchar**, y cada corrida los
+   volvía a saltar.
+7. El plugin **dejó un clip fuera de Premiere** por un hueco en una lista.
+8. Pedir proxies de un segundo bin te obligaba a **esperar y acordarte de
+   volver**.
+
+**El patrón, que es lo que hay que llevarse:** ninguno era un cálculo mal
+hecho. Todos eran **dos partes del programa que decían cosas distintas del
+mismo dato**, o **una herramienta que existía y no se encontraba**. Eso no lo
+ve una prueba unitaria — cada mitad hace exactamente lo que su código dice.
+
+**Lo que sigue sin comprobarse:** repartir la app al equipo. Ninguna de estas
+diez versiones se ha abierto en otra computadora.
 
 ---
 
@@ -176,6 +194,55 @@ Ya no entran. Se comprobó primero que sí pasaba —una carpeta con `DJI_0001.M
 y `DJI_0001.LRF` traía los dos— y Bruno decidió: «no me sirve el LRF si
 usaremos otros proxies». Tampoco se queda como candidato a proxy: ya se había
 medido que no calza cuadro a cuadro.
+
+---
+
+## Lo que se cerró el 2026-08-22
+
+Salió todo de exportar el shooting a Premiere y mirar el resultado.
+
+### 1. Un clip se quedó fuera de Premiere — **arreglado en el plugin**
+
+`[ERROR] 20260817_PIB0028.MP4: Cannot read properties of null (reading
+'name')`. Uno de 205; los demás entraron bien.
+
+`resolveBinChain` pide la lista de lo que hay dentro de un bin y compara
+nombre por nombre. Mientras Premiere está ocupado importando, **esa lista
+puede traer un elemento nulo**, y preguntarle el nombre al hueco tumbaba el
+clip. Por eso falló uno y no todos: es cuestión de pedir la lista en el
+instante equivocado.
+
+Ahora los huecos se saltan, y **el error dice a qué bin iba el clip** — antes
+solo daba el nombre del archivo, y para arrastrarlo a mano había que ir a
+leer el `.cvproj`.
+
+**Plugin 1.1.0.** Se instala aparte de la app; el `.ccx` se arma con
+`./uxp-plugin/empaquetar.sh`.
+
+### 2. Los destacados van con los picks — **decisión de Bruno**
+
+Ya no tienen carpeta propia en Premiere: caen en **Picks**. Un destacado ES un
+pick reforzado, y partirlos obligaba a mirar en dos lados para armar la
+secuencia. No se pierde la distinción: llegan con la **etiqueta dorada**, que
+se ve en el panel de proyecto sin abrir nada.
+
+### 3. El manifest se llama como el proyecto
+
+`⌘E` propone `IAV-2608.17.json` en vez de `manifest.json`. Con varios
+shootings en la carpeta de descargas, eran cinco archivos idénticos que no
+decían de dónde salieron.
+
+### 4. Los proxies, adentro de la carpeta del material
+
+Ver el recuadro de la sección de proxies, más arriba: **revierte a propósito**
+la decisión del 10 de agosto. Retrocompatible; comprobado contra el proyecto
+real de Bruno.
+
+### 5. El registro de versiones
+
+`docs/VERSIONES.md`, de la 1.1 a la 1.10, en palabras de usuario. Bruno lo
+pidió después de diez versiones en tres días: sin él, saber qué trae la que
+tienes instalada era leer sesenta mensajes de commit.
 
 ---
 
@@ -334,15 +401,7 @@ Detalle en `specs/2026-08-18-bins-en-el-deshacer-design.md`.
 
 ## Lo que falta
 
-### 1. Correr un shooting completo con la app — **lo primero**
-
-No es una función nueva y por eso es fácil que se cuele hacia abajo en la
-lista. Pero desde los bins en adelante nada ha pasado por los 132 clips de
-Bruno, y en este proyecto el uso real ha encontrado más bugs que cualquier
-revisión. Cualquier función que se construya antes de esto se construye sobre
-algo sin comprobar.
-
-### 2. Probar el paquete en otra Mac — **bloqueado por hardware, no por código**
+### 1. Probar el paquete en otra Mac — **bloqueado por hardware, no por código**
 
 El `.app` de 175 MB se arma y arranca sin Homebrew; ninguno de sus 214 binarios
 apunta a Homebrew. Va con firma propia, que es gratis y suficiente: **por USB o
@@ -361,20 +420,27 @@ N-API y sirve con cualquier Node; lo único que pasaba es que su instalador se
 salta el paso que lo extrae. Vale la pena recordarlo: un mensaje de error que
 nombra una versión invita a creer que el problema es la versión.
 
-### 3. Crear muchos cuartos de un jalón — **tiene spec, falta plan**
+### 2. Crear muchos cuartos de un jalón — **tiene spec, falta plan**
 
 `specs/2026-08-09-cuartos-rapidos-design.md`: un campo que acepta varios
 separados por coma o salto, autocompletar con los nombres ya usados, y
 plantillas guardadas. Aprobado por Bruno, sin plan ni implementación. Nace de
 que él graba inmuebles y los cuartos se repiten casa tras casa.
 
-### 4. Filtrar por duración
+### 3. Filtrar por duración
 
 El buscador de la hoja ya filtra por nombre, cuarto, estado y bin; lo único
 que no cubre de lo que se ofreció es la duración. Salió de corregir una lista
 mal presentada (ver abajo).
 
-### 5. Escala y velocidad — **medido el 2026-08-10, con su material**
+### 4. Escala y velocidad — **medido el 2026-08-10 y el 22, con su material**
+
+> **Lo más caro NO era lo que decía esta sección.** El 2026-08-22 se midió
+> abrir un proyecto ya guardado —205 clips— y eran **33.9 segundos
+> congelado**: cada clip guarda 12 fotos para escrubear y se cargaban las 12
+> de los 205. Cargando solo la portada bajó a **2.85 s**. Lo de abajo sigue
+> siendo cierto y sigue siendo de la IMPORTACIÓN; esto era de abrir, que
+> pasa muchas más veces.
 
 La interfaz no es el problema: con 132 clips, cargar el proyecto toma 0.15 s,
 reconstruir la hoja 0.07 s, pintar un cuarto a los 132 seleccionados 0.002 s y

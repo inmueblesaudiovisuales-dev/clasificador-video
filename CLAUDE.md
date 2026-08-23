@@ -59,6 +59,15 @@ comentarios del código, que es donde sirve. En el chat, no.
   entonces corre en medio segundo. Comprobado con cinco corridas completas el
   2026-08-08. Si alguna vez vuelve a colgarse, es un bug a resolver, no una
   limitación a esquivar.
+- **El uso real encuentra lo que las pruebas no.** El 2026-08-22 Bruno usó
+  la app con un shooting completo por primera vez —205 clips— y salieron
+  **ocho bugs**, ninguno detectado por 1500 pruebas. El patrón: ninguno era
+  un cálculo mal hecho; todos eran **dos partes del programa diciendo cosas
+  distintas del mismo dato**, o **una herramienta que existía y no se
+  encontraba**. Cada mitad hacía exactamente lo que su código decía. Cuando
+  algo «se siente raro» y las pruebas están verdes, busca ahí. La lista
+  completa está en `docs/superpowers/CONTEXTO-Y-METAS.md`.
+
 - **Verificación visual real, no solo tests**: nunca afirmar que algo se ve
   bien sin haber visto el pixel. El medio depende del artefacto:
   - **Widget de PySide6** — construir una `MainWindow`/widget de prueba, usar
@@ -124,6 +133,47 @@ comentarios del código, que es donde sirve. En el chat, no.
   como propiedad y no `getDisplayName()`. Antes de llamar a algo, imprimir
   `Object.getOwnPropertyNames(Object.getPrototypeOf(obj))` y ver qué hay de
   verdad. La misma trampa está documentada al tope de `importClip.js`.
+- **Dos preguntas distintas: asignar avanza por RODAJE, las flechas por lo
+  que VES.** Teclear un cuarto avanza «al siguiente que no he tocado», que es
+  tiempo — el siguiente que grabaste. `←`/`→` recorren el orden de la hoja,
+  que con «Por cuarto» agrupa. Parecen una inconsistencia y no lo son: si
+  asignar siguiera el orden de la hoja, el clip recién clasificado se iría al
+  final de su grupo y «el siguiente» no tendría nada después — te quedarías
+  parado en el mismo clip. Ya pasó al construirlo, y lo cacharon dos pruebas
+  de la F3. Ver `specs/2026-08-20-las-flechas-siguen-lo-que-ves-design.md`.
+
+- **`S` pone el último cuarto que USASTE, no el del clip anterior.** El
+  camino viejo se separaba de lo que uno espera en cuanto te saltas clips o
+  hay material de una pasada anterior: daba un cuarto viejo. Deshacer NO lo
+  mueve — `⌘Z` revierte el dato, no tu intención.
+
+- **Un solo orden de cuartos, y lo decide Bruno.** El rail y la hoja usan el
+  mismo. La hoja los ordenaba por abecedario, y eso hacía que reordenar
+  —que sí existía— no sirviera de nada. Dos listas del mismo dato que no se
+  hablan valen menos que una sola.
+
+- **En el rail, `⏎` asigna el cuarto; renombrar vive en `F2` y el doble
+  clic.** Lo que uno quiere hacer con un cuarto mientras clasifica es
+  ponérselo a un clip; renombrar es mantenimiento y no se queda con la tecla
+  más obvia.
+
+- **Los proxies van ADENTRO de la carpeta del material** desde el
+  2026-08-22. Revierte a propósito la decisión del 10 de agosto —«al lado,
+  porque adentro ensuciaría la copia de la tarjeta»— con una razón nueva de
+  Bruno: adentro **viajan con el material** al mover la carpeta. Costo que
+  aceptó: la copia de respaldo pesa más. La ubicación vieja se sigue mirando
+  al buscar, así que los proyectos anteriores no regeneran nada.
+
+- **Las tarjetas de la hoja cargan SOLO su portada**, y las otras once fotos
+  cuando el mouse escrubea esa tarjeta. Cargarlas todas al abrir eran 34
+  segundos congelado con 205 clips. No revertir «para simplificar».
+
+- **La app no suena.** `mute=True` en la creación de mpv y `--no-audio` en
+  las miniaturas. Se ofreció una tecla para prenderlo y Bruno la descartó.
+
+- **Los destacados van en la carpeta `Picks` al exportar**, no en una propia:
+  un destacado es un pick reforzado. Se distinguen por la etiqueta dorada.
+
 - **El enfoque `xmeml` (Final Cut Pro 7 XML) está descartado**, no solo
   "obsoleto" — Premiere nunca abre el archivo de video real al importar un
   xmeml, y ese formato no puede declarar rotación. La vía real de entrega es
