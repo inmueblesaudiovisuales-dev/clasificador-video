@@ -62,6 +62,8 @@ con 205 clips son un par de segundos.
 inicio — «Clasificador 1.9». Es lo primero que hay que saber para reportar
 cualquier cosa.
 
+Qué trae cada versión: [docs/VERSIONES.md](docs/VERSIONES.md).
+
 Para armar los dos, ver [docs/DESARROLLO.md](docs/DESARROLLO.md).
 
 ---
