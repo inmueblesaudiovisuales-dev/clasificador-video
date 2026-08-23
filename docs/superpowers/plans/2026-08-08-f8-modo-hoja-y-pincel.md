@@ -1,5 +1,9 @@
 # F8 del rediseño — Modo hoja y pincel — Implementation Plan
 
+> **ENTREGADO.** Las casillas se quedaron sin marcar --se ejecuto antes de que
+> eso fuera costumbre-- pero el trabajo esta en `master` desde su fecha. No es
+> trabajo pendiente.
+
 > **Para quien lo ejecute:** las tareas van con checkbox (`- [ ]`) y el test se
 > escribe **antes** que la implementación, como en los cuatro planes
 > anteriores.

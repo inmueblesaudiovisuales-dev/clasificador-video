@@ -1,5 +1,9 @@
 # ScrubBar interactiva — Implementation Plan
 
+> **ENTREGADO.** Las casillas se quedaron sin marcar --se ejecuto antes de que
+> eso fuera costumbre-- pero el trabajo esta en `master` desde su fecha. No es
+> trabajo pendiente.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Hacer la `ScrubBar` interactiva (seek con click/arrastre de mouse), arreglar que el bracket de IN no aparece hasta que también hay OUT, y mostrar timecode/frame (formato `MM:SS:FF`) de IN/OUT/duración/posición.

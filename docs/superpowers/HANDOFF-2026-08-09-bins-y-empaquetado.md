@@ -1,5 +1,23 @@
 # Handoff — 2026-08-09 — desde el rediseño terminado
 
+> ## ⚠️ DOCUMENTO HISTÓRICO — no describe el estado actual
+>
+> **Es del 2026-08-09.** Lo que dice del ESTADO ya no es cierto; lo que dice
+> del **porqué** de cada decisión sigue siendo la mejor fuente que hay, y por
+> eso se conserva.
+>
+> Concretamente, esto de abajo es **falso hoy**:
+>
+> - «nada de esto se ha usado con el material real de Bruno» — el 2026-08-22
+>   clasificó **205 clips** y los exportó a Premiere. De ese uso salieron
+>   **ocho bugs**, todos ya arreglados.
+> - «1337 tests» — hoy son **1580**.
+> - Los proxies iban **al lado** de la carpeta del material; desde el
+>   2026-08-22 van **adentro**.
+>
+> **El estado al día vive en [`CONTEXTO-Y-METAS.md`](CONTEXTO-Y-METAS.md)**, y
+> qué trajo cada versión en [`../VERSIONES.md`](../VERSIONES.md).
+>
 > **Actualizado el 2026-08-10.** Tres de las cosas que este documento dejaba
 > abiertas ya se cerraron: **los proxies se generan desde la app** (clic
 > derecho en el bin), la **estrella dorada quedó confirmada** dentro de

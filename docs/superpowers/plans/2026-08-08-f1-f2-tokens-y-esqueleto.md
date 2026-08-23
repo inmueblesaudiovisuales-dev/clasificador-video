@@ -1,5 +1,9 @@
 # F1 y F2 del rediseño — Tokens y Esqueleto — Implementation Plan
 
+> **ENTREGADO.** Las casillas se quedaron sin marcar --se ejecuto antes de que
+> eso fuera costumbre-- pero el trabajo esta en `master` desde su fecha. No es
+> trabajo pendiente.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Dejar la app con la paleta y la estructura del mockup, sin restos del

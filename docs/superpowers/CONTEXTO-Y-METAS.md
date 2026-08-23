@@ -5,7 +5,8 @@ usó la app con un shooting completo por primera vez y salieron ocho bugs de
 ese uso. Este documento describe **intención y dirección**, y lleva la cuenta
 de lo hecho y lo que falta — para decisiones técnicas ya tomadas, ver
 `CLAUDE.md`; para qué es la app y cómo correrla, ver `README.md`; para qué
-trajo cada versión en palabras de usuario, ver `docs/VERSIONES.md`.)*
+trajo cada versión en palabras de usuario, ver `docs/VERSIONES.md`; para qué
+specs están construidos y cuál no, ver `specs/LEEME.md`.)*
 
 ## Estado actual
 
@@ -466,7 +467,8 @@ por software ya satura la máquina. Queda medido para no volver a intentarlo.
 de la interfaz. Ahora va de a ocho: **111 clips reales pasaron de 2.8 s a
 0.42 s** de ventana congelada.
 
-Sin medición por encima de los 132 clips.
+Medido después con **205 clips** al abrir un proyecto ya guardado, que es lo
+que más veces pasa: ver el recuadro al principio de esta sección.
 
 ---
 

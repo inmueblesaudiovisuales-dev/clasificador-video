@@ -1,5 +1,9 @@
 # Diseño Visual de la App Externa — Implementation Plan
 
+> **ENTREGADO.** Las casillas se quedaron sin marcar --se ejecuto antes de que
+> eso fuera costumbre-- pero el trabajo esta en `master` desde su fecha. No es
+> trabajo pendiente.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Llevar la app del Clasificador de Video (ya funcional, 124 pruebas en verde) del estilo por defecto de Qt (gris claro, sin tema) al diseño oscuro y pulido que Bruno aprobó en la sesión de brainstorming del 2026-08-06 — y corregir un bug real de tamaño de miniaturas que agrava el problema.

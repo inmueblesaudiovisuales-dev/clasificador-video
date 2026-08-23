@@ -1,5 +1,9 @@
 # Generador xmeml + validación en Premiere — Plan de implementación
 
+> **ENTREGADO.** Las casillas se quedaron sin marcar --se ejecuto antes de que
+> eso fuera costumbre-- pero el trabajo esta en `master` desde su fecha. No es
+> trabajo pendiente.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Construir y probar, de forma aislada de la interfaz gráfica, el generador de xmeml (bins anidados por cuarto/subcuarto, in/out por frame, labels de color Pick/Reject) descrito en `docs/superpowers/specs/2026-08-05-clasificador-video-design.md` §3–§7, y validarlo con un import real en Premiere Pro 2026 antes de construir la interfaz completa (spec §9).

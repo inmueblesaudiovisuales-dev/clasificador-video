@@ -1,5 +1,9 @@
 # App Externa del Clasificador de Video — Fase 2: flujo funcional completo — 2026-08-06
 
+> **ENTREGADO.** Las casillas se quedaron sin marcar --se ejecuto antes de que
+> eso fuera costumbre-- pero el trabajo esta en `master` desde su fecha. No es
+> trabajo pendiente.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Convert the Phase 1 foundation (pure logic + thin UI shell, all tested, 95 tests green) into a usable app: the user opens it, configures rooms, imports real folders of footage, sees embedded video playback, classifies with the keyboard, and exports the manifest the UXP plugin consumes. End state: a real shooting classified end-to-end with nothing but this window.

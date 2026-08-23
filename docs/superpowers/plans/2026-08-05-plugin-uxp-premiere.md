@@ -1,5 +1,9 @@
 # Plugin UXP para Premiere — Plan de implementación
 
+> **ENTREGADO.** Las casillas se quedaron sin marcar --se ejecuto antes de que
+> eso fuera costumbre-- pero el trabajo esta en `master` desde su fecha. No es
+> trabajo pendiente.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Construir el plugin UXP que, al presionar un botón, lee el manifest JSON que el usuario elige y organiza los clips dentro de Premiere Pro (bins anidados, in/out, color de etiqueta, proxy vinculado), usando la API de Premiere ya validada con clips reales en `uxp-test/`.

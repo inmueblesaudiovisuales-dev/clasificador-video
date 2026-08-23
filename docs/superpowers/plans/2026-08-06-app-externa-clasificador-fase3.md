@@ -1,5 +1,9 @@
 # App Externa del Clasificador de Video — Fase 3: pulido y features pendientes — 2026-08-06
 
+> **ENTREGADO.** Las casillas se quedaron sin marcar --se ejecuto antes de que
+> eso fuera costumbre-- pero el trabajo esta en `master` desde su fecha. No es
+> trabajo pendiente.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Completar los 5 features pendientes del informe de fase 2 (§5 "Lo que falta por mejorar") más dos ítems de deuda de UI del spec original: que el usuario pueda ponerle nombre al proyecto desde el diálogo de arranque, que la orientación del manifest se detecte automáticamente del material, que los proxies se vinculen desde la UI con clic derecho, que Ctrl+Z deshaga de verdad (multinivel), que se pueda arrastrar carpetas al panel en vez del botón, y que el filmstrip muestre el punto de color y la barra superior el indicador de autoguardado que pide el spec §3-4.

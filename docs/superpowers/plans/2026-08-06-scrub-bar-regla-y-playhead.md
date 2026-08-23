@@ -1,5 +1,9 @@
 # Regla de ticks y playhead tipo Premiere — Implementation Plan
 
+> **ENTREGADO.** Las casillas se quedaron sin marcar --se ejecuto antes de que
+> eso fuera costumbre-- pero el trabajo esta en `master` desde su fecha. No es
+> trabajo pendiente.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Agregar una regla de marcas (ticks) basada en tiempo real y un playhead con forma de "casita" (como el Source Monitor de Premiere) a la `ScrubBar`, reemplazando la línea plana y el playhead de línea recta actuales.

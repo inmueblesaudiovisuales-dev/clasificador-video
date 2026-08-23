@@ -1,5 +1,9 @@
 # App Externa del Clasificador de Video — Implementation Plan
 
+> **ENTREGADO.** Las casillas se quedaron sin marcar --se ejecuto antes de que
+> eso fuera costumbre-- pero el trabajo esta en `master` desde su fecha. No es
+> trabajo pendiente.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Build the PySide6 desktop app where Bruno classifies real-estate video shoots by room, marks in/out and pick/reject, and exports the JSON manifest that the already-finished Premiere UXP plugin consumes.

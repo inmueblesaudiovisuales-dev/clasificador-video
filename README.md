@@ -249,7 +249,7 @@ igual y no se regenera nada.
 
 **Lo que ganas**, medido con material real: abrir un clip pasa de 201 ms a
 3 ms, saltar de 293 ms a 12 ms, y las portadas de la hoja de 7.7 min a 0.6 min
-con 132 clips.
+con 132 clips (medido en agosto de 2026 sobre el material de un shooting real).
 
 Cada tarjeta lleva una marca **PROXY** abajo a la izquierda, y la barra de
 estado el total: `proxies 720p · 118/128`, o `sin proxies` si no hay ninguno.
