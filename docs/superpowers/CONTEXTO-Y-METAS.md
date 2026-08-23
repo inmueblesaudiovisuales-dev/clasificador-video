@@ -103,6 +103,15 @@ copia de la tarjeta, y al lado la app los reencuentra sola después, porque ya
 busca en las carpetas hermanas). Terminan en `S03` como los de la Sony, así
 que si alguien arrastra esa carpeta como material, el ingest los descarta.
 
+> **Revertido el 2026-08-22.** Los proxies nuevos van **adentro** de la
+> carpeta del material. La razón nueva de Bruno: adentro **viajan con el
+> material** cuando mueve o copia la carpeta, en vez de quedarse huérfanos al
+> lado. El costo que aceptó: la copia de respaldo de la tarjeta pesa más. La
+> ubicación vieja se sigue mirando al buscar, así que los proyectos de antes
+> no regeneran nada — comprobado contra el suyo: 39/39 del dron y 36/36 del
+> Osmo se encuentran donde estaban. Ver
+> `specs/2026-08-22-proxies-adentro-design.md`.
+
 **Comprobado con material real**, no solo con tests: 67 MB → 1.6 MB, mismos
 120 cuadros, mismo fps, y 720x1280 — o sea que escala por el **lado corto** y
 un clip vertical no sale al revés. Idéntico al proxy que escribe la cámara.

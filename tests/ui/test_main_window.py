@@ -4113,8 +4113,12 @@ def test_crear_proxies_los_genera_y_los_engancha_solos(qtbot, monkeypatch, tmp_p
     ]
 
 
-def test_los_proxies_van_a_la_carpeta_de_al_lado(qtbot, monkeypatch, tmp_path):
-    """Adentro ensuciaria la copia de la tarjeta. Bruno lo eligio asi."""
+def test_los_proxies_van_adentro_de_la_carpeta_del_material(qtbot, monkeypatch,
+                                                            tmp_path):
+    """Cambio del 2026-08-22. Este test defendia lo contrario --«al lado,
+    porque adentro ensuciaria la copia de la tarjeta»-- y Bruno revirtio esa
+    decision a proposito: adentro los proxies viajan con el material cuando
+    mueve la carpeta."""
     window, clips = _bin_para_generar(qtbot, monkeypatch, tmp_path)
     _generados(window, monkeypatch)
     nombre = window.bins.to_list()[0]["nombre"]
@@ -4122,8 +4126,23 @@ def test_los_proxies_van_a_la_carpeta_de_al_lado(qtbot, monkeypatch, tmp_path):
     window.generar_proxies_de_bin(nombre)
     _esperar_generacion(window)
 
-    assert (clips.parent / "Proxies" / "C0000S03.mp4").exists()
-    assert not (clips / "Proxies").exists()
+    assert (clips / "Proxies" / "C0000S03.mp4").exists()
+
+
+def test_un_proxy_de_antes_al_lado_no_se_regenera(qtbot, monkeypatch, tmp_path):
+    """Lo que hace retrocompatible el cambio: los proyectos de antes tienen
+    sus proxies al lado, y volver a darle no puede rehacerlos."""
+    window, clips = _bin_para_generar(qtbot, monkeypatch, tmp_path)
+    al_lado = clips.parent / "Proxies"
+    al_lado.mkdir(parents=True, exist_ok=True)
+    (al_lado / "C0000S03.mp4").write_bytes(b"proxy de antes")
+    generados = _generados(window, monkeypatch)
+    nombre = window.bins.to_list()[0]["nombre"]
+
+    window.generar_proxies_de_bin(nombre)
+    _esperar_generacion(window)
+
+    assert not any("C0000" in str(g) for g in generados)
 
 
 def test_volver_a_darle_no_rehace_los_que_ya_estan(qtbot, monkeypatch, tmp_path):

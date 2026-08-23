@@ -15,6 +15,7 @@ el avance es `MainWindow`.
 """
 from __future__ import annotations
 
+import os
 import subprocess
 from pathlib import Path
 
@@ -41,12 +42,69 @@ CARPETA = "Proxies"
 
 
 def carpeta_de_proxies(carpeta_del_bin: Path) -> Path:
-    """Al lado de la carpeta del material, no adentro.
+    """ADENTRO de la carpeta del material. Donde van los proxies nuevos.
 
-    Adentro ensuciaria la copia de la tarjeta, que es justo lo que uno
-    quiere poder volver a copiar tal cual.
+    Cambio del 2026-08-22, y revierte a proposito la decision del 10 de
+    agosto --«al lado, porque adentro ensuciaria la copia de la tarjeta»--.
+    La razon nueva de Bruno: adentro los proxies **viajan con el material**
+    cuando mueve o copia la carpeta a otro disco, en vez de quedarse
+    huerfanos al lado. El costo que acepto, escrito: la copia de respaldo de
+    la tarjeta ahora pesa mas.
+
+    Meter la carpeta adentro NO hace que se reimporten como clips: el ingest
+    toma solo los archivos directos de una carpeta y no baja a las
+    subcarpetas (ver `ingest.encontrar_videos`). Comprobado antes del cambio;
+    era el riesgo grande y no existe.
+    """
+    return carpeta_del_bin / CARPETA
+
+
+def carpeta_al_lado(carpeta_del_bin: Path) -> Path:
+    """Donde vivian los proxies ANTES del 2026-08-22.
+
+    Existe solo para seguir encontrando los de los proyectos de antes. No se
+    escribe aqui salvo que adentro no se pueda (ver `carpeta_para_escribir`).
     """
     return carpeta_del_bin.parent / CARPETA
+
+
+def carpetas_de_proxies(carpeta_del_bin: Path) -> list[Path]:
+    """Donde buscar, EN ORDEN: adentro primero, al lado despues.
+
+    Adentro gana porque es donde van los nuevos: si hay uno ahi, es el que se
+    acaba de hacer.
+    """
+    return [carpeta_de_proxies(carpeta_del_bin), carpeta_al_lado(carpeta_del_bin)]
+
+
+def ruta_de_proxy_existente(original: Path, carpeta_del_bin: Path) -> Path | None:
+    """El proxy de ese clip, este adentro o al lado. `None` si no hay.
+
+    Es lo que hace retrocompatible el cambio de sitio: un proyecto de antes
+    abre igual, sin regenerar nada y sin mover un archivo.
+    """
+    for carpeta in carpetas_de_proxies(carpeta_del_bin):
+        candidato = ruta_de_proxy(original, carpeta)
+        if candidato.exists():
+            return candidato
+    return None
+
+
+def carpeta_para_escribir(carpeta_del_bin: Path) -> Path:
+    """Adentro si se puede, al lado si no.
+
+    El material puede estar en una tarjeta protegida contra escritura, o
+    llena. Antes eso no importaba --se escribia al lado, casi siempre en otro
+    disco-- y ahora si. Quedarse sin proxies por donde iba a ir la carpeta
+    seria peor que ponerla un nivel arriba, que es donde funcionaban hasta
+    ayer.
+    """
+    adentro = carpeta_de_proxies(carpeta_del_bin)
+    if adentro.exists():
+        return adentro
+    if os.access(carpeta_del_bin, os.W_OK):
+        return adentro
+    return carpeta_al_lado(carpeta_del_bin)
 
 
 def ruta_de_proxy(original: Path, carpeta: Path) -> Path:

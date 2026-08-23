@@ -7,10 +7,16 @@ import pytest
 from clasificador_video import proxy_gen
 
 
-def test_la_carpeta_va_al_lado_del_material_no_adentro():
-    """Adentro ensuciaria la copia de la tarjeta, que es lo que uno quiere
-    poder volver a copiar tal cual. Bruno lo eligio asi: «al lado»."""
-    assert proxy_gen.carpeta_de_proxies(Path("/media/DRON")) == Path("/media/Proxies")
+def test_la_carpeta_de_antes_seguia_al_lado_del_material():
+    """Hasta el 2026-08-22 los proxies iban AL LADO, y Bruno lo eligio asi
+    para no ensuciar la copia de la tarjeta. Se revirtio a proposito --ahora
+    van adentro, para que viajen con el material-- pero la ubicacion vieja
+    tiene que seguir existiendo: es donde estan los proxies de todos sus
+    proyectos anteriores.
+    """
+    material = Path("/tarjeta/01. VIDEOS SONY")
+
+    assert proxy_gen.carpeta_al_lado(material) == Path("/tarjeta/Proxies")
 
 
 def test_el_proxy_lleva_el_sufijo_de_proxy_y_sale_en_mp4():
@@ -186,3 +192,84 @@ def test_barrer_parciales_aguanta_una_carpeta_que_no_esta(tmp_path):
     tarjeta desconectada. Que no exista no es un error: no hay nada que
     barrer."""
     assert proxy_gen.barrer_parciales(tmp_path / "no existe") == 0
+
+
+# --- los proxies adentro (spec 2026-08-22-proxies-adentro-design) ---------
+
+
+def test_los_proxies_nuevos_van_adentro_de_la_carpeta_del_material(tmp_path):
+    """Cambio del 2026-08-22, pedido por Bruno: asi los proxies VIAJAN con el
+    material cuando mueve la carpeta, en vez de quedarse huerfanos al lado."""
+    material = tmp_path / "01. VIDEOS SONY"
+    material.mkdir()
+
+    assert proxy_gen.carpeta_de_proxies(material) == material / "Proxies"
+
+
+def test_la_carpeta_de_antes_sigue_teniendo_nombre(tmp_path):
+    """Los proyectos de antes del 2026-08-22 la tienen al lado, y hay que
+    poder nombrarla para seguir encontrandolos."""
+    material = tmp_path / "01. VIDEOS SONY"
+    material.mkdir()
+
+    assert proxy_gen.carpeta_al_lado(material) == tmp_path / "Proxies"
+
+
+def test_un_proxy_de_antes_se_encuentra_donde_estaba(tmp_path):
+    """Lo que hace el cambio retrocompatible: un proyecto viejo abre igual,
+    sin regenerar nada."""
+    material = tmp_path / "clips"
+    material.mkdir()
+    original = material / "C0001.MP4"
+    original.write_bytes(b"x")
+    al_lado = tmp_path / "Proxies"
+    al_lado.mkdir()
+    viejo = proxy_gen.ruta_de_proxy(original, al_lado)
+    viejo.write_bytes(b"proxy")
+
+    assert proxy_gen.ruta_de_proxy_existente(original, material) == viejo
+
+
+def test_si_esta_en_los_dos_lados_gana_el_de_adentro(tmp_path):
+    """Adentro es donde van los nuevos: si hay uno ahi, es el que se acaba de
+    hacer."""
+    material = tmp_path / "clips"
+    material.mkdir()
+    original = material / "C0001.MP4"
+    original.write_bytes(b"x")
+    for carpeta in (tmp_path / "Proxies", material / "Proxies"):
+        carpeta.mkdir()
+        proxy_gen.ruta_de_proxy(original, carpeta).write_bytes(b"proxy")
+
+    encontrado = proxy_gen.ruta_de_proxy_existente(original, material)
+
+    assert encontrado.parent == material / "Proxies"
+
+
+def test_sin_proxy_en_ninguno_de_los_dos_no_se_encuentra_nada(tmp_path):
+    material = tmp_path / "clips"
+    material.mkdir()
+    original = material / "C0001.MP4"
+    original.write_bytes(b"x")
+
+    assert proxy_gen.ruta_de_proxy_existente(original, material) is None
+
+
+def test_si_no_se_puede_escribir_adentro_se_escribe_al_lado(tmp_path):
+    """El material puede estar en una tarjeta protegida o llena. Quedarse sin
+    proxies por donde iba a ir la carpeta seria peor que ponerla un nivel
+    arriba, que es donde funcionaban hasta ayer."""
+    material = tmp_path / "clips"
+    material.mkdir()
+    material.chmod(0o500)                       # se puede leer, no escribir
+    try:
+        assert proxy_gen.carpeta_para_escribir(material) == tmp_path / "Proxies"
+    finally:
+        material.chmod(0o700)
+
+
+def test_si_se_puede_escribir_adentro_se_escribe_adentro(tmp_path):
+    material = tmp_path / "clips"
+    material.mkdir()
+
+    assert proxy_gen.carpeta_para_escribir(material) == material / "Proxies"

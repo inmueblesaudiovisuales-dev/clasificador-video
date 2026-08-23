@@ -2693,13 +2693,20 @@ class MainWindow(QWidget):
         # La carpeta sale del PRIMER clip del bin. Con un bin que junta dos
         # tarjetas de la misma camara, los proxies de las dos terminan en el
         # mismo lugar --al lado de la primera-- en vez de uno por tarjeta.
-        carpeta = proxy_gen.carpeta_de_proxies(self.clips[indices[0]].ruta.parent)
+        material = self.clips[indices[0]].ruta.parent
+        # Donde se ESCRIBEN los nuevos: adentro de la carpeta del material si
+        # se puede, al lado si esa carpeta no se deja escribir (una tarjeta
+        # protegida o llena). Ver `proxy_gen.carpeta_para_escribir`.
+        carpeta = proxy_gen.carpeta_para_escribir(material)
         ya_en_disco, pendientes = [], []
         for i in indices:
             if self.clips[i].ruta_proxy is not None:
                 continue                      # ya enganchado: nada que hacer
-            ruta = proxy_gen.ruta_de_proxy(self.clips[i].ruta, carpeta)
-            if ruta.exists():
+            # y donde se BUSCAN los que ya estan: adentro y al lado. Los
+            # proyectos de antes del 2026-08-22 los tienen al lado, y
+            # rehacerlos serian minutos tirados por un cambio de sitio.
+            ruta = proxy_gen.ruta_de_proxy_existente(self.clips[i].ruta, material)
+            if ruta is not None:
                 ya_en_disco.append((i, ruta)) # generado antes, sin enganchar
             else:
                 pendientes.append(i)

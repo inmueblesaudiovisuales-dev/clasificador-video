@@ -237,8 +237,13 @@ Al terminar todos sale **un** aviso con la cuenta de todo. Cancelar desde el
 menú de un bin cancela solo ese —si era el que corría, el siguiente arranca
 solo— y los demás siguen formados.
 
-Van a una carpeta **`Proxies` al lado** de la del material, para no ensuciar
-la copia de la tarjeta.
+Van a una carpeta **`Proxies` adentro** de la del material, para que viajen
+con ella cuando muevas o copies la carpeta a otro disco. Si esa carpeta no se
+deja escribir —una tarjeta protegida o llena— caen al lado, como antes.
+
+**Los proxies de proyectos anteriores siguen sirviendo.** Hasta agosto de 2026
+iban al lado; la app busca en los dos sitios, así que un proyecto viejo abre
+igual y no se regenera nada.
 
 **Lo que ganas**, medido con material real: abrir un clip pasa de 201 ms a
 3 ms, saltar de 293 ms a 12 ms, y las portadas de la hoja de 7.7 min a 0.6 min
