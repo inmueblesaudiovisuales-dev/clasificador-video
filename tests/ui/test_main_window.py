@@ -4113,12 +4113,30 @@ def test_crear_proxies_los_genera_y_los_engancha_solos(qtbot, monkeypatch, tmp_p
     ]
 
 
-def test_los_proxies_van_adentro_de_la_carpeta_del_material(qtbot, monkeypatch,
-                                                            tmp_path):
-    """Cambio del 2026-08-22. Este test defendia lo contrario --«al lado,
-    porque adentro ensuciaria la copia de la tarjeta»-- y Bruno revirtio esa
-    decision a proposito: adentro los proxies viajan con el material cuando
-    mueve la carpeta."""
+def test_los_proxies_nuevos_van_a_la_subcarpeta_de_la_carpeta_elegida(
+        qtbot, monkeypatch, tmp_path):
+    """Tercera posicion sobre la misma pregunta, y cada una con su razon.
+
+    - **2026-08-10, al lado**: adentro ensuciaria la copia de la tarjeta.
+    - **2026-08-22, adentro**: asi viajan con el material al mover la carpeta.
+    - **2026-08-25, en la carpeta que elige Bruno**, con una SUBCARPETA por
+      material. La razon nueva salio de mirar su proyecto real: el ya tenia
+      `07. PROXIES/02. PROXY DRONE` hecha a mano y vacia, y la app le habia
+      creado un `Proxies/` aparte. El problema no era donde iban los proxies
+      -- era que la app no sabia que el tiene un orden y se lo pisaba.
+
+    Aqui no se contesta la pregunta: el arnes deja los dialogos sin clic, y
+    eso vale como aceptar la propuesta, que es la respuesta que ya viene
+    puesta.
+
+    Y la propuesta es `proxy/` --la carpeta de proxies de la CAMARA, que este
+    arnes crea al lado del material igual que la trae una tarjeta Sony--,
+    porque es la unica que se reconoce ahi. Eso es correcto y la subcarpeta
+    es justo lo que lo hace seguro: los nuestros van a `proxy/clips/` y NO
+    quedan revueltos con los de la camara. Sin ella, `C0000S03.mp4` y el
+    `C0000S03.MP4` de la Sony serian **el mismo archivo** en un disco de Mac,
+    que no distingue mayusculas.
+    """
     window, clips = _bin_para_generar(qtbot, monkeypatch, tmp_path)
     _generados(window, monkeypatch)
     nombre = window.bins.to_list()[0]["nombre"]
@@ -4126,7 +4144,9 @@ def test_los_proxies_van_adentro_de_la_carpeta_del_material(qtbot, monkeypatch,
     window.generar_proxies_de_bin(nombre)
     _esperar_generacion(window)
 
-    assert (clips / "Proxies" / "C0000S03.mp4").exists()
+    nuestro = clips.parent / "proxy" / clips.name / "C0000S03.mp4"
+    assert nuestro.exists()
+    assert window.carpeta_de_proxies == clips.parent / "proxy"
 
 
 def test_un_proxy_de_antes_al_lado_no_se_regenera(qtbot, monkeypatch, tmp_path):

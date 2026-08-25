@@ -180,6 +180,11 @@ def _poblar_ventana(window: MainWindow, data: dict, clips: list[Clip]) -> None:
     # rara en el archivo no pueden desagrupar la hoja sin que nadie lo pida.
     window.set_agrupar_por_cuarto(data.get("agrupar_por_cuarto") is not False)
     window.set_modo_horizontal(data.get("modo_horizontal") is True)
+    # Y donde van los proxies nuevos. Falta en todo proyecto anterior al
+    # 2026-08-25, y ahi `None` significa «nunca me preguntaron»: se escribe
+    # donde se escribia y se sigue buscando en los tres lugares.
+    guardada = data.get("carpeta_de_proxies")
+    window.set_carpeta_de_proxies(Path(guardada) if guardada else None)
     window._refresh_sheet(force_rebuild=True)
     window._resize_video_stage()
     # Revisar PRIMERO y pedir las portadas cuando se sepa qué hay (spec §5).

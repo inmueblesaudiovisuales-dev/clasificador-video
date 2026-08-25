@@ -159,9 +159,8 @@ proyecto**, donde el problema no existe.
    lado.
 10. La pregunta sale **una sola vez** por proyecto.
 
-## Decisiones que faltan confirmar
+## Estado
 
-- **El nombre de la subcarpeta.** El spec dice «igual que la carpeta de
-  material». Bruno las tiene nombradas `02. PROXY DRONE` a mano; esto las
-  haría `02. VIDEO DRONE`. Hay que confirmar que le parece bien antes de
-  construir.
+**Aprobado por Bruno el 2026-08-25**, incluida la última decisión abierta: la
+subcarpeta se llama **igual que la carpeta de material** (`02. VIDEO DRONE`),
+no como las que él tenía nombradas a mano (`02. PROXY DRONE`).

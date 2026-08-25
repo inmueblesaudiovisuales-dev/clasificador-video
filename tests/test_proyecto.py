@@ -353,3 +353,22 @@ def test_el_documento_guarda_si_el_visor_va_ancho():
 
     assert documento()["modo_horizontal"] is False
     assert documento(modo_horizontal=True)["modo_horizontal"] is True
+
+
+def test_la_carpeta_de_proxies_elegida_se_guarda_en_el_proyecto():
+    """Es una preferencia POR PROYECTO, como `agrupar_por_cuarto`: depende
+    de cómo esté armado ese shooting, no del día ni de la computadora."""
+    data = a_dict(proyecto="P", rooms=[], clips=[], bins=BinTree(),
+                  tamanos={}, duraciones={}, rotaciones={},
+                  carpeta_de_proxies=Path("/proyecto/01. ASSETS VIDEO/07. PROXIES"))
+
+    assert data["carpeta_de_proxies"] == "/proyecto/01. ASSETS VIDEO/07. PROXIES"
+
+
+def test_un_proyecto_que_nunca_contesto_no_guarda_carpeta():
+    """Ausente = comportamiento de siempre. Es lo que hace que los proyectos
+    de antes del 2026-08-25 no cambien de sitio por sí solos."""
+    data = a_dict(proyecto="P", rooms=[], clips=[], bins=BinTree(),
+                  tamanos={}, duraciones={}, rotaciones={})
+
+    assert data["carpeta_de_proxies"] is None

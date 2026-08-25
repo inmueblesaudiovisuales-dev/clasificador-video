@@ -157,12 +157,36 @@ comentarios del código, que es donde sirve. En el chat, no.
   ponérselo a un clip; renombrar es mantenimiento y no se queda con la tecla
   más obvia.
 
-- **Los proxies van ADENTRO de la carpeta del material** desde el
-  2026-08-22. Revierte a propósito la decisión del 10 de agosto —«al lado,
-  porque adentro ensuciaría la copia de la tarjeta»— con una razón nueva de
-  Bruno: adentro **viajan con el material** al mover la carpeta. Costo que
-  aceptó: la copia de respaldo pesa más. La ubicación vieja se sigue mirando
-  al buscar, así que los proyectos anteriores no regeneran nada.
+- **Los proxies van a la carpeta que ELIGE Bruno, con una subcarpeta por
+  material**, desde el 2026-08-25. Es la tercera posición sobre la misma
+  pregunta y cada una tuvo su razón: *al lado* (10 ago, no ensuciar la copia
+  de la tarjeta) → *adentro* (22 ago, que viajen con el material) → *donde él
+  diga*. La razón nueva salió de mirar su proyecto real: ya tenía
+  `07. PROXIES/02. PROXY DRONE` hecha a mano y **vacía**, y la app le había
+  creado un `Proxies/` aparte con los 75 del dron. El problema nunca fue
+  dónde iban — era que la app no sabía que él tiene un orden y se lo pisaba.
+  La subcarpeta se llama **igual que la carpeta de material**, no parecido:
+  un nombre que se parece sin ser igual se lee mal, y aquí leerlo mal es
+  enganchar el proxy de otra cámara. **Los tres sitios se siguen mirando al
+  buscar** y no se mueve ni un archivo de lo que ya existe — eso lo pidió
+  Bruno explícitamente. Ver
+  `specs/2026-08-25-carpeta-de-proxies-elegible-design.md`.
+
+- **La app propone la carpeta, nunca la adivina en silencio.** El diálogo
+  llega contestado —con la carpeta que encontró junto al material— pero
+  siempre enseña la ruta antes de escribir. Si adivina mal y lo ves, lo
+  corriges en un clic; si adivina mal callada, te enteras tres semanas
+  después. Es el modo de falla que ya costó una versión entregada rota.
+
+- **`VideoWidget` recupera el clip que se cargó antes de que existiera su
+  contexto de OpenGL.** La ventana arranca en la hoja, con el visor
+  escondido, y `load_clips` abre el primer clip ahí mismo: Qt no crea el
+  contexto de GL hasta que el widget se muestra, así que mpv cargaba el
+  archivo sin dónde dibujarlo y el primer video de cada sesión salía negro.
+  Vive en el widget y no en `MainWindow` a propósito: la ventana no tiene por
+  qué saber cuándo Qt entrega un contexto. Se recupera SOLO el cargado a
+  ciegas — recargar en cada `show()` reiniciaría el clip en cada cruce de
+  hoja a visor.
 
 - **Las tarjetas de la hoja cargan SOLO su portada**, y las otras once fotos
   cuando el mouse escrubea esa tarjeta. Cargarlas todas al abrir eran 34

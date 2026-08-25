@@ -130,7 +130,8 @@ def a_dict(proyecto: str, rooms: list[str], clips: list, bins,
            bytes_conocidos: dict | None = None,
            relativas_conocidas: dict | None = None,
            agrupar_por_cuarto: bool = True,
-           modo_horizontal: bool = False) -> dict:
+           modo_horizontal: bool = False,
+           carpeta_de_proxies: Path | None = None) -> dict:
     """La forma del documento. **Puro: no toca disco.**
 
     Los pesos que salen de aqui son los que ya se sabian (`bytes_conocidos`,
@@ -167,6 +168,17 @@ def a_dict(proyecto: str, rooms: list[str], clips: list, bins,
         # depende de si el shooting es del dron o de la Sony. Apagado por
         # omision: es como se comportaba antes de que existiera.
         "modo_horizontal": bool(modo_horizontal),
+        # Donde van los proxies NUEVOS de este proyecto (spec 2026-08-25).
+        # Es una preferencia por proyecto igual que las dos de arriba: la
+        # respuesta depende de como este armado ese shooting, no del dia ni
+        # de la computadora.
+        #
+        # `None` es un proyecto que nunca contesto la pregunta, y es lo que
+        # hace que los de antes del 2026-08-25 no se cambien de sitio solos:
+        # sin carpeta elegida, `proxy_gen` se comporta exactamente como
+        # antes.
+        "carpeta_de_proxies": (str(carpeta_de_proxies)
+                               if carpeta_de_proxies is not None else None),
     }
 
 

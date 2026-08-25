@@ -9,6 +9,24 @@ primero que hay que saber para reportar cualquier cosa.
 
 ---
 
+## 1.11 — 25 de agosto de 2026
+
+- **El primer video ya se ve al abrir.** Antes el primero de cada sesión salía
+  negro y había que irse al segundo y volver. La app abría el clip mientras el
+  visor todavía estaba escondido detrás de la hoja, así que la imagen se
+  cargaba sin tener dónde dibujarse. Ahora el visor la vuelve a pedir en
+  cuanto enciende.
+- **Tú eliges dónde van los proxies.** La primera vez que creas proxies en un
+  proyecto, la app te pregunta — y llega ya contestada, con la carpeta que
+  encontró junto a tu material y la ruta a la vista. Un clic y listo. Se puede
+  cambiar después desde el menú del bin.
+- **Cada carpeta de material tiene su propia carpeta de proxies adentro.** Ya
+  no caen todos revueltos en un montón: si dos cámaras nombran igual un
+  archivo, ya no se pisan.
+- **Nada se mueve en los proyectos que ya tienes.** La app sigue mirando los
+  tres sitios donde han vivido los proxies, así que abren igual y no
+  regeneran nada.
+
 ## 1.10 — 22 de agosto de 2026
 
 - **Los proxies nuevos van adentro de la carpeta del material**, no al lado.

@@ -695,6 +695,10 @@ class MainWindow(QWidget):
         # se comporta desde la F4, asi que un proyecto viejo abre igual. Ver
         # `docs/superpowers/specs/2026-08-15-agrupar-o-solo-etiquetar-design.md`.
         self._agrupar_por_cuarto = True
+        # Donde van los proxies NUEVOS de este proyecto. `None` = nunca se
+        # pregunto, y entonces todo se comporta como antes del 2026-08-25
+        # (spec `carpeta-de-proxies-elegible`).
+        self._carpeta_de_proxies: Path | None = None
         # modo horizontal: en modo CLIP la hoja se esconde y el video se
         # lleva su ancho. Nace apagado y se guarda en el proyecto. Ver
         # `docs/superpowers/specs/2026-08-15-modo-horizontal-design.md`.
@@ -1985,18 +1989,11 @@ class MainWindow(QWidget):
         # por rafaga de teclas en vez de una vez por tecla.
         self._autosave_timer.start()
 
-    def _write_autosave_now(self) -> None:
-        if self.session_path is None:
-            return
-        # La forma del documento la arma `proyecto.a_dict` y no esta funcion:
-        # antes habia dos --la de aqui y la del modulo-- y dos formas del
-        # mismo documento terminan desincronizandose, con la mitad de las
-        # llaves escribiendose desde un lado y leyendose desde el otro.
-        #
-        # `bytes_conocidos` NO es opcional en la practica: sin el, guardar
-        # con la media desconectada reescribe el archivo sin un solo peso, y
-        # despues ya no hay con que confirmar que un archivo reencontrado es
-        # el que era. Pasa solo, a los pocos segundos de abrir el proyecto.
+    def _datos_del_proyecto(self) -> dict:
+        """El documento del proyecto, armado y sin escribir nada.
+
+        Aparte de `_write_autosave_now` para poder mirarlo sin tocar disco.
+        """
         data = proyecto.a_dict(
             proyecto=self.project_name,
             rooms=self.room_selection.active_rooms(),
@@ -2013,7 +2010,23 @@ class MainWindow(QWidget):
             relativas_conocidas=self._relativas,
             agrupar_por_cuarto=self._agrupar_por_cuarto,
             modo_horizontal=self._modo_horizontal,
+            carpeta_de_proxies=self._carpeta_de_proxies,
         )
+        return data
+
+    def _write_autosave_now(self) -> None:
+        if self.session_path is None:
+            return
+        # La forma del documento la arma `proyecto.a_dict` y no esta funcion:
+        # antes habia dos --la de aqui y la del modulo-- y dos formas del
+        # mismo documento terminan desincronizandose, con la mitad de las
+        # llaves escribiendose desde un lado y leyendose desde el otro.
+        #
+        # `bytes_conocidos` NO es opcional en la practica: sin el, guardar
+        # con la media desconectada reescribe el archivo sin un solo peso, y
+        # despues ya no hay con que confirmar que un archivo reencontrado es
+        # el que era. Pasa solo, a los pocos segundos de abrir el proyecto.
+        data = self._datos_del_proyecto()
         self._relativas = {int(i): str(r) for i, r in data["relativas"].items()}
         # El indicador NO se toca aqui. Antes decia «guardado» apenas se
         # encolaba el trabajo, o sea antes de que nadie hubiera escrito nada:
@@ -2641,6 +2654,9 @@ class MainWindow(QWidget):
                 "Puedes cancelarlos desde el menú de ese bin.",
             )
             return
+        # La pregunta va ANTES del reparto: el reparto ya decide donde se
+        # escribe, y preguntar despues seria preguntar por algo ya resuelto.
+        self._asegurar_carpeta_de_proxies(nombre_de_bin)
         reparto = self._repartir_proxies_del_bin(nombre_de_bin)
         if reparto is None:
             return
@@ -2658,9 +2674,12 @@ class MainWindow(QWidget):
             respuesta = QMessageBox.question(
                 self, "Crear proxies",
                 f"Se van a crear {len(pendientes)} proxies de «{nombre_de_bin}».\n\n"
-                f"Tarda unos {minutos} min y se guardan en «{carpeta.name}», "
-                f"al lado de tus clips. Puedes seguir clasificando mientras "
-                f"corre, y cancelarlo desde el menú del bin.",
+                # la ruta ENTERA, no solo el nombre de la carpeta: desde
+                # que se puede elegir donde van, «Proxies» a secas no dice
+                # cual de todas ni en que disco.
+                f"Tarda unos {minutos} min y se guardan en:\n{carpeta}\n\n"
+                f"Puedes seguir clasificando mientras corre, y cancelarlo "
+                f"desde el menú del bin.",
             )
             if respuesta != QMessageBox.StandardButton.Yes:
                 return
@@ -2674,6 +2693,95 @@ class MainWindow(QWidget):
             return
         self._resumen_de_la_fila = {"creados": 0, "fallidos": []}
         self._arrancar_tanda_de_proxies(nombre_de_bin)
+
+    # --- la carpeta de proxies que elige Bruno (spec 2026-08-25) ----------
+
+    @property
+    def carpeta_de_proxies(self) -> Path | None:
+        """Donde van los proxies NUEVOS, o `None` si nunca se pregunto."""
+        return self._carpeta_de_proxies
+
+    def set_carpeta_de_proxies(self, carpeta: Path | None) -> None:
+        """La elige Bruno y se guarda con el proyecto.
+
+        Cambiarla **no mueve ni un archivo**: los que ya existen se siguen
+        encontrando donde esten --`proxy_gen.carpetas_de_proxies` mira los
+        tres lugares-- y esto solo decide donde se escriben los proximos.
+        """
+        self._carpeta_de_proxies = Path(carpeta) if carpeta is not None else None
+        self._autosave()
+
+    def _carpeta_de_material_del_bin(self, nombre_de_bin: str) -> Path | None:
+        """De donde salio el material de ese bin. `None` si el bin esta vacio."""
+        indices = [i for i in self.bins.clips_de(nombre_de_bin)
+                   if 0 <= i < len(self.clips)]
+        return self.clips[indices[0]].ruta.parent if indices else None
+
+    def _preguntar_por_la_carpeta_de_proxies(self, propuesta: Path) -> Path:
+        """La pregunta, con la respuesta YA puesta.
+
+        Un explorador de archivos en blanco no seria una opcion opcional:
+        seria tarea. Asi que llega contestada con lo que se encontro al lado
+        del material, **y con la ruta a la vista**.
+
+        Eso ultimo no se negocia. Proponer una carpeta esta bien; adivinarla
+        en silencio, no: si adivina mal y lo ves, lo corriges en un clic; si
+        adivina mal callada, te enteras tres semanas despues con los proxies
+        enganchados al material equivocado. Es el mismo modo de falla que ya
+        costo una version entregada rota.
+        """
+        cuadro = QMessageBox(self)
+        cuadro.setWindowTitle("Carpeta de proxies")
+        cuadro.setText("¿Dónde quieres los proxies de este proyecto?")
+        cuadro.setInformativeText(
+            f"Van a ir a:\n\n{propuesta}\n\n"
+            "Adentro se crea una carpeta por cada carpeta de material, para "
+            "que dos cámaras no se pisen. Puedes cambiarlo después desde el "
+            "menú del bin."
+        )
+        esta_bien = cuadro.addButton("Está bien", QMessageBox.ButtonRole.AcceptRole)
+        cuadro.addButton("Escoger otra…", QMessageBox.ButtonRole.ActionRole)
+        cuadro.setDefaultButton(esta_bien)
+        cuadro.exec()
+        if cuadro.clickedButton() is esta_bien or cuadro.clickedButton() is None:
+            # `None` es cerrar el cuadro sin decidir: se toma la propuesta,
+            # que es la respuesta que ya estaba puesta.
+            return propuesta
+        escogida = QFileDialog.getExistingDirectory(
+            self, "Carpeta de proxies", str(propuesta.parent))
+        return Path(escogida) if escogida else propuesta
+
+    def _asegurar_carpeta_de_proxies(self, nombre_de_bin: str) -> None:
+        """Pregunta si todavia no hay respuesta. Una vez por proyecto.
+
+        No hace falta una bandera de «ya pregunte»: contestar SIEMPRE deja
+        una carpeta puesta --aceptar la propuesta tambien-- asi que
+        `_carpeta_de_proxies is None` ya significa «nadie contesto».
+        """
+        if self._carpeta_de_proxies is not None:
+            return
+        material = self._carpeta_de_material_del_bin(nombre_de_bin)
+        if material is None:
+            return
+        self.set_carpeta_de_proxies(
+            self._preguntar_por_la_carpeta_de_proxies(
+                proxy_gen.proponer_carpeta(material))
+        )
+
+    def cambiar_carpeta_de_proxies(self, nombre_de_bin: str) -> None:
+        """El «Cambiar carpeta de proxies…» del menu del bin.
+
+        Vive en el menu del bin porque es donde uno va a buscar cualquier
+        cosa de proxies, aunque el dato sea de todo el proyecto.
+        """
+        material = self._carpeta_de_material_del_bin(nombre_de_bin)
+        if material is None:
+            return
+        actual = self._carpeta_de_proxies or proxy_gen.proponer_carpeta(material)
+        escogida = QFileDialog.getExistingDirectory(
+            self, "Carpeta de proxies", str(actual))
+        if escogida:
+            self.set_carpeta_de_proxies(Path(escogida))
 
     def _repartir_proxies_del_bin(self, nombre_de_bin: str):
         """Reparte los clips del bin en los que hay que ENGANCHAR y los que
@@ -2697,7 +2805,8 @@ class MainWindow(QWidget):
         # Donde se ESCRIBEN los nuevos: adentro de la carpeta del material si
         # se puede, al lado si esa carpeta no se deja escribir (una tarjeta
         # protegida o llena). Ver `proxy_gen.carpeta_para_escribir`.
-        carpeta = proxy_gen.carpeta_para_escribir(material)
+        carpeta = proxy_gen.carpeta_para_escribir(
+            material, elegida=self._carpeta_de_proxies)
         ya_en_disco, pendientes = [], []
         for i in indices:
             if self.clips[i].ruta_proxy is not None:
@@ -2705,7 +2814,8 @@ class MainWindow(QWidget):
             # y donde se BUSCAN los que ya estan: adentro y al lado. Los
             # proyectos de antes del 2026-08-22 los tienen al lado, y
             # rehacerlos serian minutos tirados por un cambio de sitio.
-            ruta = proxy_gen.ruta_de_proxy_existente(self.clips[i].ruta, material)
+            ruta = proxy_gen.ruta_de_proxy_existente(
+                self.clips[i].ruta, material, elegida=self._carpeta_de_proxies)
             if ruta is not None:
                 ya_en_disco.append((i, ruta)) # generado antes, sin enganchar
             else:
@@ -3018,6 +3128,7 @@ class MainWindow(QWidget):
         cabecera.proxies_cleared.connect(self.quitar_proxies_de_bin)
         cabecera.proxies_generate_requested.connect(self.generar_proxies_de_bin)
         cabecera.proxies_generate_cancelled.connect(self.cancelar_generacion_de_proxies)
+        cabecera.proxies_folder_requested.connect(self.cambiar_carpeta_de_proxies)
         cabecera.select_all_requested.connect(self._on_bin_seleccionado)
         cabecera.remove_requested.connect(self._on_bin_quitado)
 

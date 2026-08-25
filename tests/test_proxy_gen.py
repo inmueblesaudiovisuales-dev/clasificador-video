@@ -273,3 +273,151 @@ def test_si_se_puede_escribir_adentro_se_escribe_adentro(tmp_path):
     material.mkdir()
 
     assert proxy_gen.carpeta_para_escribir(material) == material / "Proxies"
+
+
+# --------------------------------------------------------------------------
+# La carpeta elegida (spec 2026-08-25). Los proxies nuevos van a una carpeta
+# que Bruno escoge, con una SUBCARPETA por bin llamada igual que la carpeta
+# del material.
+# --------------------------------------------------------------------------
+
+
+def test_la_subcarpeta_se_llama_igual_que_la_carpeta_del_material():
+    """Decision de Bruno el 2026-08-25. El se las tenia nombradas «02. PROXY
+    DRONE» a mano; se eligio repetir el nombre del material --«02. VIDEO
+    DRONE»-- porque un nombre que se PARECE sin ser igual es un nombre que se
+    puede leer mal, y aqui leerlo mal significa enganchar el proxy de otra
+    camara.
+    """
+    elegida = Path("/proyecto/01. ASSETS VIDEO/07. PROXIES")
+    material = Path("/proyecto/01. ASSETS VIDEO/02. VIDEO DRONE")
+
+    assert (proxy_gen.subcarpeta_del_bin(elegida, material)
+            == elegida / "02. VIDEO DRONE")
+
+
+def test_con_carpeta_elegida_los_nuevos_van_a_su_subcarpeta(tmp_path):
+    material = tmp_path / "02. VIDEO DRONE"
+    material.mkdir()
+    elegida = tmp_path / "07. PROXIES"
+    elegida.mkdir()
+
+    assert (proxy_gen.carpeta_para_escribir(material, elegida=elegida)
+            == elegida / "02. VIDEO DRONE")
+
+
+def test_dos_bins_con_el_mismo_nombre_de_archivo_no_se_pisan(tmp_path):
+    """El segundo problema que resuelve el spec: hoy todos los proxies caen
+    revueltos en un solo monton. Dos tarjetas Sony pueden traer un `PIB0001`
+    cada una, y uno pisaria al otro SIN AVISAR -- el mismo modo de falla de
+    los proxies desenganchados.
+    """
+    elegida = tmp_path / "Proxies"
+    sony_a = tmp_path / "TARJETA A"
+    sony_b = tmp_path / "TARJETA B"
+    for c in (sony_a, sony_b):
+        c.mkdir()
+
+    ruta_a = proxy_gen.ruta_de_proxy(
+        sony_a / "PIB0001.MP4", proxy_gen.subcarpeta_del_bin(elegida, sony_a))
+    ruta_b = proxy_gen.ruta_de_proxy(
+        sony_b / "PIB0001.MP4", proxy_gen.subcarpeta_del_bin(elegida, sony_b))
+
+    assert ruta_a != ruta_b
+
+
+def test_la_carpeta_elegida_se_mira_primero_al_buscar(tmp_path):
+    material = tmp_path / "material"
+    material.mkdir()
+    elegida = tmp_path / "07. PROXIES"
+    original = material / "clip.MP4"
+    original.touch()
+
+    nueva = proxy_gen.subcarpeta_del_bin(elegida, material)
+    nueva.mkdir(parents=True)
+    proxy_gen.ruta_de_proxy(original, nueva).touch()
+
+    assert (proxy_gen.ruta_de_proxy_existente(original, material, elegida=elegida)
+            == proxy_gen.ruta_de_proxy(original, nueva))
+
+
+def test_con_carpeta_elegida_los_de_antes_se_siguen_encontrando(tmp_path):
+    """Retrocompatibilidad: elegir una carpeta NO invalida lo que ya existe.
+    Bruno pidio explicitamente que a los proyectos que ya tiene no se les
+    mueva un solo archivo.
+    """
+    material = tmp_path / "material"
+    material.mkdir()
+    original = material / "clip.MP4"
+    original.touch()
+    # uno de antes de la 1.10: al lado, suelto
+    al_lado = proxy_gen.carpeta_al_lado(material)
+    al_lado.mkdir(parents=True)
+    proxy_gen.ruta_de_proxy(original, al_lado).touch()
+
+    encontrado = proxy_gen.ruta_de_proxy_existente(
+        original, material, elegida=tmp_path / "07. PROXIES")
+
+    assert encontrado == proxy_gen.ruta_de_proxy(original, al_lado)
+
+
+def test_sin_carpeta_elegida_todo_se_comporta_igual_que_antes(tmp_path):
+    """El default no cambia para nadie: un proyecto que nunca contesto la
+    pregunta sigue escribiendo adentro del material, como desde la 1.10."""
+    material = tmp_path / "material"
+    material.mkdir()
+
+    assert (proxy_gen.carpeta_para_escribir(material)
+            == proxy_gen.carpeta_de_proxies(material))
+
+
+def test_si_la_carpeta_elegida_no_se_puede_escribir_se_cae_a_lo_de_hoy(tmp_path):
+    """Quedarse sin proxies porque el disco de la carpeta elegida esta
+    desconectado seria peor que ponerlos donde funcionaban ayer."""
+    material = tmp_path / "material"
+    material.mkdir()
+    elegida = tmp_path / "disco que no esta" / "Proxies"
+
+    assert (proxy_gen.carpeta_para_escribir(material, elegida=elegida)
+            == proxy_gen.carpeta_de_proxies(material))
+
+
+# --------------------------------------------------------------------------
+# Lo que la app PROPONE cuando pregunta. Proponer esta bien; adivinar en
+# silencio, no.
+# --------------------------------------------------------------------------
+
+
+def test_propone_la_carpeta_de_proxies_que_bruno_ya_tenia(tmp_path):
+    """El caso real de `IAV-2608.17-A`: Bruno tenia `07. PROXIES` con sus
+    subcarpetas hechas a mano, y la app le habia creado un `Proxies/` aparte.
+    Se propone la de EL.
+
+    `Proxies/` queda fuera de los candidatos a proposito: no es una
+    convencion suya, es donde la propia app tiraba los archivos antes.
+    """
+    material = tmp_path / "02. VIDEO DRONE"
+    material.mkdir()
+    (tmp_path / "07. PROXIES").mkdir()
+    (tmp_path / "Proxies").mkdir()       # el monton viejo de la app
+
+    assert proxy_gen.proponer_carpeta(material) == tmp_path / "07. PROXIES"
+
+
+def test_sin_ninguna_carpeta_de_proxies_propone_la_de_siempre(tmp_path):
+    material = tmp_path / "material"
+    material.mkdir()
+
+    assert proxy_gen.proponer_carpeta(material) == tmp_path / proxy_gen.CARPETA
+
+
+def test_con_varias_candidatas_no_adivina(tmp_path):
+    """Dos carpetas con «prox» en el nombre y no hay forma de saber cual.
+    Se propone la de siempre y que Bruno decida: la ruta se le enseña
+    igual antes de escribir nada."""
+    material = tmp_path / "material"
+    material.mkdir()
+    (tmp_path / "07. PROXIES").mkdir()
+    (tmp_path / "PROXIES VIEJOS").mkdir()
+
+    assert proxy_gen.proponer_carpeta(material) == tmp_path / proxy_gen.CARPETA

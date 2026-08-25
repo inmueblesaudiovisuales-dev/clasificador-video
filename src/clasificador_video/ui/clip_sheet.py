@@ -831,6 +831,7 @@ class _BinHeader(QWidget):
     proxies_requested = Signal(str)
     proxies_cleared = Signal(str)
     proxies_generate_requested = Signal(str)
+    proxies_folder_requested = Signal(str)
     proxies_generate_cancelled = Signal(str)
     select_all_requested = Signal(str)
     remove_requested = Signal(str)
@@ -1236,6 +1237,15 @@ class _BinHeader(QWidget):
                 lambda: self.proxies_generate_requested.emit(self.nombre)
             )
             menu.addAction(crear)
+
+        # El renglon para cambiar donde van. Vive en el menu del bin --aunque
+        # el dato sea de todo el proyecto-- porque es donde uno va a buscar
+        # cualquier cosa de proxies. Escoger mal no puede quedar amarrado.
+        carpeta = QAction("Cambiar carpeta de proxies…", menu)
+        carpeta.triggered.connect(
+            lambda: self.proxies_folder_requested.emit(self.nombre)
+        )
+        menu.addAction(carpeta)
 
         quitar_proxies = QAction("Quitar proxies de este bin", menu)
         quitar_proxies.triggered.connect(lambda: self.proxies_cleared.emit(self.nombre))
@@ -1901,6 +1911,7 @@ class ClipSheet(QWidget):
         )
         for senal in ("proxies_requested", "proxies_cleared",
                       "proxies_generate_requested", "proxies_generate_cancelled",
+                      "proxies_folder_requested",
                       "select_all_requested", "remove_requested"):
             getattr(self._pegado, senal).connect(
                 lambda nombre, s=senal: self._reenviar_del_pegado(s, nombre)

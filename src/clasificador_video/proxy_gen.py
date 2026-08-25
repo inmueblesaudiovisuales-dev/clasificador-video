@@ -68,37 +68,126 @@ def carpeta_al_lado(carpeta_del_bin: Path) -> Path:
     return carpeta_del_bin.parent / CARPETA
 
 
-def carpetas_de_proxies(carpeta_del_bin: Path) -> list[Path]:
-    """Donde buscar, EN ORDEN: adentro primero, al lado despues.
+def subcarpeta_del_bin(elegida: Path, carpeta_del_bin: Path) -> Path:
+    """Dentro de la carpeta elegida, la subcarpeta de ESE material.
 
-    Adentro gana porque es donde van los nuevos: si hay uno ahi, es el que se
-    acaba de hacer.
+    Se llama IGUAL que la carpeta del material --`02. VIDEO DRONE`, no
+    `02. PROXY DRONE`--. Bruno las tenia nombradas a mano de la segunda forma
+    y eligio la primera el 2026-08-25: un nombre que se PARECE sin ser igual
+    es un nombre que se puede leer mal, y aqui leerlo mal significa enganchar
+    el proxy de otra camara.
+
+    La subcarpeta es ademas lo que impide que dos tarjetas se pisen: dos
+    Sony pueden traer un `PIB0001` cada una, y sueltos en un solo monton uno
+    sobreescribe al otro sin avisar.
     """
-    return [carpeta_de_proxies(carpeta_del_bin), carpeta_al_lado(carpeta_del_bin)]
+    return elegida / carpeta_del_bin.name
 
 
-def ruta_de_proxy_existente(original: Path, carpeta_del_bin: Path) -> Path | None:
-    """El proxy de ese clip, este adentro o al lado. `None` si no hay.
+def carpeta_por_defecto(carpeta_del_bin: Path) -> Path:
+    """La que se PROPONE cuando no hay una carpeta de proxies que reconocer.
 
-    Es lo que hace retrocompatible el cambio de sitio: un proyecto de antes
-    abre igual, sin regenerar nada y sin mover un archivo.
+    Es la misma ruta que `carpeta_al_lado`, pero se usa para otra cosa y por
+    eso tiene nombre propio: aquella dice donde BUSCAR lo viejo, esta dice
+    que ofrecerle a Bruno para lo nuevo. Los archivos nuevos van un nivel mas
+    abajo, en la subcarpeta del bin.
     """
-    for carpeta in carpetas_de_proxies(carpeta_del_bin):
+    return carpeta_del_bin.parent / CARPETA
+
+
+def proponer_carpeta(carpeta_del_bin: Path) -> Path:
+    """Que carpeta ofrecerle a Bruno, para que la pregunta llegue contestada.
+
+    Un explorador de archivos en blanco no es una opcion opcional: es tarea.
+    Asi que se mira si al lado del material ya hay una carpeta de proxies
+    SUYA y se propone esa, con la ruta a la vista.
+
+    `Proxies/` --la de `carpeta_por_defecto`-- queda fuera de los candidatos a
+    proposito: no es una convencion de Bruno, es donde la propia app tiraba
+    los archivos hasta hoy. En su proyecto real conviven las dos, y sin esta
+    exclusion serian dos candidatas, no habria forma de elegir, y se
+    propondria justo la que el no queria.
+
+    Con varias candidatas NO se adivina: se propone la de siempre. Esto
+    nunca escribe nada -- solo elige que enseñar.
+    """
+    padre = carpeta_del_bin.parent
+    defecto = carpeta_por_defecto(carpeta_del_bin)
+    try:
+        candidatas = [d for d in padre.iterdir()
+                      if d.is_dir() and "prox" in d.name.lower()
+                      and d != carpeta_del_bin and d != defecto]
+    except OSError:
+        # el disco del material puede no estar montado; proponer algo es
+        # mejor que reventar la pregunta entera
+        candidatas = []
+    return candidatas[0] if len(candidatas) == 1 else defecto
+
+
+def carpetas_de_proxies(carpeta_del_bin: Path,
+                        elegida: Path | None = None) -> list[Path]:
+    """Donde buscar, EN ORDEN: la elegida, adentro, al lado.
+
+    Los tres lugares se miran siempre, y por eso elegir una carpeta nueva no
+    invalida ni un archivo de los que ya existen. Bruno lo pidio explicito el
+    2026-08-25: a los proyectos que ya tiene, no se les mueve nada.
+
+    `elegida is None` es un proyecto que nunca contesto la pregunta, y ahi la
+    lista es exactamente la de antes.
+    """
+    lugares = []
+    if elegida is not None:
+        lugares.append(subcarpeta_del_bin(elegida, carpeta_del_bin))
+    lugares.append(carpeta_de_proxies(carpeta_del_bin))
+    lugares.append(carpeta_al_lado(carpeta_del_bin))
+    return lugares
+
+
+def ruta_de_proxy_existente(original: Path, carpeta_del_bin: Path,
+                            elegida: Path | None = None) -> Path | None:
+    """El proxy de ese clip, este donde este de los tres lugares. `None` si
+    no hay.
+
+    Es lo que hace retrocompatibles los DOS cambios de sitio: un proyecto de
+    antes abre igual, sin regenerar nada y sin mover un archivo.
+    """
+    for carpeta in carpetas_de_proxies(carpeta_del_bin, elegida):
         candidato = ruta_de_proxy(original, carpeta)
         if candidato.exists():
             return candidato
     return None
 
 
-def carpeta_para_escribir(carpeta_del_bin: Path) -> Path:
-    """Adentro si se puede, al lado si no.
+def _se_puede_escribir(elegida: Path) -> bool:
+    """Si se puede llenar la carpeta elegida, o crearla donde Bruno la puso.
+
+    Mira la carpeta elegida y, si todavia no existe, a su padre -- **un solo
+    nivel, no la cadena entera**. La diferencia importa: subir hasta el
+    primer antepasado que exista haria que `/Volumes/SSD/Proxies` con el SSD
+    desconectado pareciera escribible, porque `/Volumes` existe, y la app
+    inventaria un arbol de carpetas donde deberia estar el disco. Un nivel
+    alcanza para el caso real --aceptar la carpeta propuesta, que todavia no
+    existe-- y no alcanza para inventar un disco.
+    """
+    if elegida.exists():
+        return elegida.is_dir() and os.access(elegida, os.W_OK)
+    padre = elegida.parent
+    return padre.is_dir() and os.access(padre, os.W_OK)
+
+
+def carpeta_para_escribir(carpeta_del_bin: Path,
+                          elegida: Path | None = None) -> Path:
+    """La subcarpeta de la elegida si se puede; si no, adentro; si no, al lado.
 
     El material puede estar en una tarjeta protegida contra escritura, o
-    llena. Antes eso no importaba --se escribia al lado, casi siempre en otro
-    disco-- y ahora si. Quedarse sin proxies por donde iba a ir la carpeta
-    seria peor que ponerla un nivel arriba, que es donde funcionaban hasta
-    ayer.
+    llena, y la carpeta elegida puede estar en un disco que hoy no esta
+    conectado. Quedarse sin proxies por eso seria peor que ponerlos donde
+    funcionaban ayer.
     """
+    if elegida is not None:
+        destino = subcarpeta_del_bin(elegida, carpeta_del_bin)
+        if destino.exists() or _se_puede_escribir(elegida):
+            return destino
     adentro = carpeta_de_proxies(carpeta_del_bin)
     if adentro.exists():
         return adentro

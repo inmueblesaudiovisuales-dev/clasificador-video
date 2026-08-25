@@ -1648,6 +1648,7 @@ def test_el_menu_del_bin_trae_lo_que_dibujo_el_mockup(qtbot):
         "Renombrar bin…",
         "Enlazar proxies…",
         "Crear proxies del bin…",
+        "Cambiar carpeta de proxies…",
         "Quitar proxies de este bin",
         "Seleccionar los 3 clips",
         "Colapsar",

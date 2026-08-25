@@ -25,16 +25,11 @@ parte es la que más vale — evita reabrir discusiones ya cerradas.
 | `2026-08-20-las-flechas-siguen-lo-que-ves-design.md` | ✅ |
 | `2026-08-20-abrir-sin-congelarse-design.md` | ✅ |
 | `2026-08-22-proxies-adentro-design.md` | ✅ |
-| **`2026-08-25-carpeta-de-proxies-elegible-design.md`** | ❌ **NO** — escrito, pendiente de revisión de Bruno |
+| `2026-08-25-carpeta-de-proxies-elegible-design.md` | ✅ |
 
-**Pendientes: `cuartos-rapidos` y `carpeta-de-proxies-elegible`.**
-
-`cuartos-rapidos`: crear muchos cuartos de un jalón,
+**El único pendiente es `cuartos-rapidos`**: crear muchos cuartos de un jalón,
 con autocompletar y plantillas guardadas. Nace de que Bruno graba inmuebles y
 los cuartos se repiten casa tras casa.
-
-`carpeta-de-proxies-elegible` se escribió el 2026-08-25 y todavía tiene
-una decisión abierta al final del documento.
 
 Los specs sin archivo de plan al lado no están a medias: los chicos se
 construyeron directo con TDD, sin pasar por un plan por fases.
