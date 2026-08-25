@@ -97,6 +97,12 @@ class VideoWidget(QOpenGLWidget):
         self._frame_signal = _FrameReadySignal()
         self._frame_signal.frame_ready.connect(self.update)
         self._apagado = False
+        # Qt no crea el contexto de OpenGL hasta que el widget se muestra, y
+        # la app arranca en la hoja --con el visor escondido-- cargando ya el
+        # primer clip. Estas dos lineas son la memoria de ese hueco: ver
+        # `_recuperar_clip_cargado_a_ciegas`.
+        self._gl_listo = False
+        self._ruta_a_ciegas: Path | None = None
 
     @property
     def esta_apagado(self) -> bool:
@@ -167,8 +173,43 @@ class VideoWidget(QOpenGLWidget):
         except AttributeError:
             # el handle de mpv usado no es un mpv.MPV real (p. ej. un doble
             # de pruebas) -- no hay contexto de render que crear.
-            return
-        self._render_ctx.update_cb = self._on_mpv_update
+            pass
+        else:
+            self._render_ctx.update_cb = self._on_mpv_update
+        # Y recien ahora, con el contexto puesto, se rescata lo que se haya
+        # cargado antes de que existiera. Va DESPUES del `try` a proposito:
+        # tambien corre cuando el contexto no se pudo crear, porque lo que
+        # marca es que Qt ya entrego el suyo.
+        self._recuperar_clip_cargado_a_ciegas()
+
+    def _recuperar_clip_cargado_a_ciegas(self) -> None:
+        """Vuelve a pedir el clip que mpv cargo sin tener donde dibujarlo.
+
+        El bug que arregla, reportado por Bruno el 2026-08-25: **el primer
+        video de cada sesion nunca se veia**; bastaba irse al segundo y
+        regresar para que apareciera.
+
+        La causa esta en el ORDEN, no en un calculo mal hecho. La app arranca
+        en la hoja, con el visor escondido, y `load_clips` le manda el primer
+        clip al reproductor ahi mismo. Qt crea el contexto de OpenGL recien
+        cuando el widget se muestra, asi que mpv cargo el archivo **a
+        ciegas** y ese cuadro se perdio. Cruzar al visor destapa el widget
+        pero no vuelve a pedir el clip: la unica cosa que dispara una carga
+        nueva es moverse a otro clip, y por eso ir al segundo y volver lo
+        "arreglaba".
+
+        Se resuelve aqui y no en `MainWindow` porque la ventana no tiene por
+        que saber cuando Qt se digna a crear un contexto de GL. El widget si:
+        es su contexto.
+
+        Se recupera SOLO el que se cargo a ciegas. Recargar siempre que el
+        widget se muestre seria reiniciar el clip cada vez que Bruno cruza de
+        la hoja al visor, que es de las cosas que mas hace.
+        """
+        self._gl_listo = True
+        pendiente, self._ruta_a_ciegas = self._ruta_a_ciegas, None
+        if pendiente is not None:
+            self.player.open(pendiente)
 
     def _on_mpv_update(self) -> None:
         # corre en un hilo de mpv: solo señalizar, nunca pintar aqui.
@@ -193,6 +234,11 @@ class VideoWidget(QOpenGLWidget):
 
     def open_clip(self, path: Path) -> None:
         self.player.open(path)
+        if not self._gl_listo:
+            # Cargado a ciegas: mpv lo tiene, pero no hay donde dibujarlo
+            # todavia. `_recuperar_clip_cargado_a_ciegas` lo vuelve a pedir
+            # en cuanto Qt entregue el contexto.
+            self._ruta_a_ciegas = Path(path)
 
     def cerrar_clip(self) -> None:
         """Deja el visor sin nada. Se usa cuando el proyecto se queda sin

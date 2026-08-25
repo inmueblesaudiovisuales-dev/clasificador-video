@@ -5420,3 +5420,28 @@ def test_exportar_sin_nombre_de_proyecto_cae_en_manifest(qtbot, monkeypatch):
     window._on_export_manifest()
 
     assert sugeridos == ["manifest.json"]
+
+
+def test_el_primer_clip_de_la_sesion_se_carga_a_ciegas(qtbot, tmp_path):
+    """El guardia de alcance del arreglo del primer video negro.
+
+    `VideoWidget` sabe recuperar un clip cargado antes de que existiera el
+    contexto de OpenGL (ver `test_video_widget.py`). Este test prueba la otra
+    mitad, que es la que de verdad falla: **que la app pase por ahi**. La
+    ventana arranca en la hoja, con el visor escondido, y `load_clips` abre
+    el primer clip justo ahi.
+
+    Existe por la 1.4: aquella vez el arreglo estaba bien y las pruebas lo
+    llamaban directo, pero el camino real de la app nunca llegaba a el, y se
+    entrego roto.
+    """
+    window = _window(qtbot)
+    assert window._modo_hoja, "la app arranca en la hoja: es la premisa del bug"
+
+    ruta = tmp_path / "primero.mp4"
+    window.load_clips([Clip(orden=1, ruta=ruta, categoria_path=[], fps=30.0)])
+
+    assert window.video_widget._ruta_a_ciegas == ruta, (
+        "el primer clip se abre con el visor escondido, asi que hay que "
+        "dejarlo anotado para volver a pedirlo cuando el visor encienda"
+    )

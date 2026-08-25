@@ -680,3 +680,60 @@ def test_apagar_no_deja_al_reproductor_a_medias(qtbot):
     widget.apagar()
 
     assert widget.esta_apagado
+
+
+class FakeMpvQueLlevaCuenta(FakeMpv):
+    """Igual que `FakeMpv` pero se acuerda de TODAS las cargas, no solo de
+    la ultima: el bug del primer clip se ve en cuantas veces se pidio.
+    """
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.cargas = []
+
+    def play(self, path):
+        super().play(path)
+        self.cargas.append(path)
+
+
+def test_el_clip_abierto_antes_del_contexto_se_vuelve_a_pedir(qtbot):
+    """El bug del primer video negro, reportado por Bruno el 2026-08-25.
+
+    La app arranca en la hoja, con el visor escondido, y ahi mismo le manda
+    el primer clip al reproductor. Qt no crea el contexto de OpenGL hasta que
+    el widget se muestra, asi que mpv carga el archivo **sin tener donde
+    dibujarlo** y ese cuadro se pierde. Al cruzar al visor nadie le vuelve a
+    pedir el clip: queda negro hasta que te vas a otro y regresas, que es lo
+    unico que dispara una carga nueva.
+
+    El arreglo vive aqui, en el widget, y no en la ventana: la ventana no
+    tiene por que saber cuando Qt se digna a crear un contexto de GL.
+    """
+    widget = VideoWidget(mpv_factory=FakeMpvQueLlevaCuenta)
+    qtbot.addWidget(widget)
+    ruta = Path("/tmp/primer_clip.mp4")
+
+    widget.open_clip(ruta)          # a ciegas: todavia no hubo initializeGL
+    assert widget.player._mpv.cargas == [str(ruta)]
+
+    widget.initializeGL()           # Qt entrega el contexto (el visor aparece)
+
+    assert widget.player._mpv.cargas == [str(ruta), str(ruta)], (
+        "al encenderse el visor hay que volver a pedir el clip que se cargo "
+        "a ciegas, si no se queda negro"
+    )
+
+
+def test_el_clip_abierto_con_contexto_no_se_pide_dos_veces(qtbot):
+    """La otra mitad: recargar SIEMPRE al mostrar el widget seria un
+    reinicio gratis del clip cada vez que Bruno cruza de la hoja al visor.
+    Solo se recupera el que se cargo a ciegas.
+    """
+    widget = VideoWidget(mpv_factory=FakeMpvQueLlevaCuenta)
+    qtbot.addWidget(widget)
+
+    widget.initializeGL()
+    widget.open_clip(Path("/tmp/con_contexto.mp4"))
+    widget.initializeGL()           # Qt puede rehacer el contexto
+
+    assert widget.player._mpv.cargas == ["/tmp/con_contexto.mp4"]
