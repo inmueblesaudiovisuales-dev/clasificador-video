@@ -11,7 +11,7 @@
 > - «nada de esto se ha usado con el material real de Bruno» — el 2026-08-22
 >   clasificó **205 clips** y los exportó a Premiere. De ese uso salieron
 >   **ocho bugs**, todos ya arreglados.
-> - «1337 tests» — hoy son **1580**.
+> - «1337 tests» — hoy son **1602**.
 > - Los proxies iban **al lado** de la carpeta del material; desde el
 >   2026-08-22 van **adentro**.
 >

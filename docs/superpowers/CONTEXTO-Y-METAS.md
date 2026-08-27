@@ -16,7 +16,7 @@ mover.** Llega reproduciendo, se marca con el teclado, se cruza a la hoja de
 contactos, se pinta por lotes y se exporta a Premiere, que arma el proyecto
 solo.
 
-**1580 tests.**
+**1602 tests.**
 
 **Y desde el 2026-08-22 ya se usó de verdad.** Bruno clasificó un shooting
 completo —**205 clips** en tres bins: Sony, dron y Osmo— y lo exportó a
@@ -47,7 +47,7 @@ mismo dato**, o **una herramienta que existía y no se encontraba**. Eso no lo
 ve una prueba unitaria — cada mitad hace exactamente lo que su código dice.
 
 **Lo que sigue sin comprobarse:** repartir la app al equipo. Ninguna de estas
-diez versiones se ha abierto en otra computadora.
+once versiones se ha abierto en otra computadora.
 
 ---
 
@@ -122,14 +122,21 @@ copia de la tarjeta, y al lado la app los reencuentra sola después, porque ya
 busca en las carpetas hermanas). Terminan en `S03` como los de la Sony, así
 que si alguien arrastra esa carpeta como material, el ingest los descarta.
 
-> **Revertido el 2026-08-22.** Los proxies nuevos van **adentro** de la
-> carpeta del material. La razón nueva de Bruno: adentro **viajan con el
-> material** cuando mueve o copia la carpeta, en vez de quedarse huérfanos al
-> lado. El costo que aceptó: la copia de respaldo de la tarjeta pesa más. La
-> ubicación vieja se sigue mirando al buscar, así que los proyectos de antes
-> no regeneran nada — comprobado contra el suyo: 39/39 del dron y 36/36 del
-> Osmo se encuentran donde estaban. Ver
-> `specs/2026-08-22-proxies-adentro-design.md`.
+> **Esto cambió DOS veces después.** El párrafo de arriba describe la primera
+> posición, del 10 de agosto, y ya no es lo que hace la app.
+>
+> **2026-08-22 — adentro.** Razón de Bruno: adentro **viajan con el material**
+> al mover la carpeta. Costo aceptado: la copia de la tarjeta pesa más.
+> Ver `specs/2026-08-22-proxies-adentro-design.md`.
+>
+> **2026-08-25 — donde Bruno diga, con una subcarpeta por material.** La razón
+> nueva salió de mirar su proyecto real: ya tenía `07. PROXIES/02. PROXY
+> DRONE` hecha a mano y **vacía**, y la app le había creado un `Proxies/`
+> aparte con los 75 del dron. El problema nunca fue dónde iban — era que la
+> app no sabía que él tiene un orden y se lo pisaba. La app **propone** la
+> carpeta que encuentra y enseña la ruta; nunca la adivina en silencio.
+> **Los tres sitios se siguen mirando al buscar** y no se mueve ni un archivo.
+> Ver `specs/2026-08-25-carpeta-de-proxies-elegible-design.md`.
 
 **Comprobado con material real**, no solo con tests: 67 MB → 1.6 MB, mismos
 120 cuadros, mismo fps, y 720x1280 — o sea que escala por el **lado corto** y
@@ -239,9 +246,11 @@ Ver el recuadro de la sección de proxies, más arriba: **revierte a propósito*
 la decisión del 10 de agosto. Retrocompatible; comprobado contra el proyecto
 real de Bruno.
 
+**Superado el 2026-08-25** por la carpeta elegible — ver el mismo recuadro.
+
 ### 5. El registro de versiones
 
-`docs/VERSIONES.md`, de la 1.1 a la 1.10, en palabras de usuario. Bruno lo
+`docs/VERSIONES.md`, de la 1.1 a la 1.11, en palabras de usuario. Bruno lo
 pidió después de diez versiones en tres días: sin él, saber qué trae la que
 tienes instalada era leer sesenta mensajes de commit.
 

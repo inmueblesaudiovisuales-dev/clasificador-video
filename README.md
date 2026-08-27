@@ -59,7 +59,7 @@ una ventanita con su nombre y una barra mientras se preparan las portadas —
 con 205 clips son un par de segundos.
 
 **Qué versión tienes:** la app lo dice abajo a la derecha de la pantalla de
-inicio — «Clasificador 1.10». Es lo primero que hay que saber para reportar
+inicio — «Clasificador 1.11». Es lo primero que hay que saber para reportar
 cualquier cosa.
 
 Qué trae cada versión: [docs/VERSIONES.md](docs/VERSIONES.md).
@@ -239,13 +239,19 @@ Al terminar todos sale **un** aviso con la cuenta de todo. Cancelar desde el
 menú de un bin cancela solo ese —si era el que corría, el siguiente arranca
 solo— y los demás siguen formados.
 
-Van a una carpeta **`Proxies` adentro** de la del material, para que viajen
-con ella cuando muevas o copies la carpeta a otro disco. Si esa carpeta no se
-deja escribir —una tarjeta protegida o llena— caen al lado, como antes.
+**Tú eliges dónde van.** La primera vez que creas proxies en un proyecto, la
+app te pregunta — y llega ya contestada, con la carpeta que encontró junto a
+tu material y la ruta a la vista. Un clic y listo. Se cambia después desde el
+menú del bin.
 
-**Los proxies de proyectos anteriores siguen sirviendo.** Hasta agosto de 2026
-iban al lado; la app busca en los dos sitios, así que un proyecto viejo abre
-igual y no se regenera nada.
+Adentro de esa carpeta se hace **una subcarpeta por cada carpeta de
+material**, con su mismo nombre. Así, si dos cámaras nombran igual un archivo,
+no se pisan. Si la carpeta que elegiste no se deja escribir —un disco que hoy
+no está conectado— caen adentro de la del material, y si tampoco, al lado.
+
+**Los proxies de proyectos anteriores siguen sirviendo.** Han vivido en tres
+sitios distintos a lo largo de agosto de 2026 y la app mira los tres, así que
+un proyecto viejo abre igual y no se regenera ni se mueve nada.
 
 **Lo que ganas**, medido con material real: abrir un clip pasa de 201 ms a
 3 ms, saltar de 293 ms a 12 ms, y las portadas de la hoja de 7.7 min a 0.6 min

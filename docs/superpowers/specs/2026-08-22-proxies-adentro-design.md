@@ -1,3 +1,17 @@
+> ## ⚠️ SUPERADO EL 2026-08-25
+>
+> **Lo que este documento decide ya no es lo que hace la app.** Los proxies
+> nuevos NO van adentro de la carpeta del material: van a la carpeta que
+> elige Bruno, con una subcarpeta por material. Ver
+> `2026-08-25-carpeta-de-proxies-elegible-design.md`.
+>
+> Lo que de aquí **sigue vigente**: que la ubicación vieja se siga mirando al
+> buscar, y que no se mueva ni se regenere nada de lo que ya existe. Esa
+> parte no cambió — se le sumó un tercer sitio.
+>
+> Se conserva porque explica por qué se movieron una vez, que es la mitad de
+> por qué se volvieron a mover.
+
 # Los proxies, adentro de la carpeta del material
 
 *(Spec aprobado por Bruno el 2026-08-22. Revierte a propósito una decisión

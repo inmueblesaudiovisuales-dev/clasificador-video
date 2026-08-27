@@ -34,11 +34,14 @@ SUFIJO = "S03"
 
 CARPETA = "Proxies"
 
-# El nombre de la carpeta hermana donde van. Bruno lo eligio asi el
-# 2026-08-10: «al lado». Es ademas como llegan de la camara --`sample-media`
-# separa `clips/` de `proxy/`-- y como la app ya busca en las carpetas
-# hermanas, los vuelve a encontrar sola la proxima vez, aunque sea en otro
-# proyecto.
+# El nombre por omision de la carpeta de proxies. Se usa en dos papeles
+# distintos: `carpeta_al_lado` --donde vivian hasta el 2026-08-22, que se
+# sigue mirando al buscar-- y `carpeta_por_defecto`, que es lo que se le
+# PROPONE a Bruno cuando no hay una carpeta suya que reconocer.
+#
+# Desde el 2026-08-25 los nuevos van a la carpeta que el elige, en una
+# subcarpeta por material. Ver
+# `specs/2026-08-25-carpeta-de-proxies-elegible-design.md`.
 
 
 def carpeta_de_proxies(carpeta_del_bin: Path) -> Path:
