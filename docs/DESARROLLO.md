@@ -43,13 +43,13 @@ confiar en uno nuevo, rómpelo a propósito y confirma que se pone rojo.
 
 ```bash
 .venv/bin/pip install pyinstaller
-.venv/bin/pyinstaller empaque/clasificador.spec --distpath empaque/dist --workpath empaque/build --noconfirm
+.venv/bin/pyinstaller empaque/clipify.spec --distpath empaque/dist --workpath empaque/build --noconfirm
 ./empaque/hacer_dmg.sh
 ```
 
-Sale `empaque/dist/Clasificador-<versión>.dmg`, de unos 72 MB. La versión se
+Sale `empaque/dist/Clipify-<versión>.dmg`, de unos 72 MB. La versión se
 declara **en un solo lugar**: la constante `VERSION` de
-`empaque/clasificador.spec`. El script la lee del `Info.plist` de la app ya
+`empaque/clipify.spec`. El script la lee del `Info.plist` de la app ya
 armada, para que el instalador y la app nunca digan cosas distintas.
 
 Adentro del `.app` viajan `ffprobe`, `ffmpeg`, `mpv` y las 55 librerías de las

@@ -219,8 +219,11 @@ class PantallaInicio(QWidget):
         # de titulo: esta pantalla esta vacia de sobra y no le compite el
         # ancho al video, que con material horizontal es lo que escasea.
         # Vive en `clasificador_video.__version__`, el mismo numero que macOS
-        # muestra en «Obtener informacion».
-        self.version_label = QLabel(f"Clasificador {__version__}")
+        # muestra en «Obtener informacion». Y el nombre de la app va aqui
+        # porque es el unico lugar de adentro donde se lee: en la barra
+        # de titulo el ancho vale mas para el proyecto y sus clips, y el
+        # icono ya dice como se llama.
+        self.version_label = QLabel(f"Clipify {__version__}")
         self.version_label.setObjectName("versionApp")
         botones.addWidget(self.version_label)
         raiz.addLayout(botones)

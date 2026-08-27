@@ -896,6 +896,6 @@ def test_la_receta_del_instalable_lee_esa_misma_version():
     from pathlib import Path
 
     receta = (Path(__file__).resolve().parents[1]
-              / "empaque" / "clasificador.spec").read_text()
+              / "empaque" / "clipify.spec").read_text()
 
     assert "__version__" in receta

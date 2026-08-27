@@ -9,6 +9,24 @@ primero que hay que saber para reportar cualquier cosa.
 
 ---
 
+## 1.12 — 27 de agosto de 2026
+
+- **La app ahora se llama Clipify.** Antes era «Clasificador de Video», que
+  describía la tarea; el nombre nuevo se recuerda. Cambia lo que ves: el
+  nombre en el Finder y en el Dock, el instalador (`Clipify-1.12.dmg`), la
+  pantalla de inicio y el plugin dentro de Premiere.
+- **Y por fin tiene icono propio.** Hasta la 1.11, en el Finder y en el Dock
+  salía un icono genérico que no era de esta app. Ahora trae el suyo: el
+  cuadro ámbar con la palomita, el mismo dibujo que la marquita de la esquina
+  de la ventana.
+- **Tus proyectos y tus recientes siguen igual.** No se movió nada de lo que
+  ya tenías guardado: abres Clipify y encuentras la misma lista de siempre.
+- **Ojo, dos cosas que vas a notar al actualizar:** para macOS, Clipify es una
+  app distinta de la vieja Clasificador, así que **la vieja no se reemplaza
+  sola** — se queda en Aplicaciones hasta que la mandes a la basura. Y si
+  tenías Clasificador en el Dock, ese icono queda muerto: hay que arrastrar
+  el nuevo.
+
 ## 1.11 — 25 de agosto de 2026
 
 - **El primer video ya se ve al abrir.** Antes el primero de cada sesión salía

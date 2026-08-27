@@ -1,4 +1,4 @@
-# Clasificador de Video
+# Clipify
 
 App de escritorio para macOS que hace el paso previo a editar: **ver todo el
 material de un shooting, decidir qué sirve y dejarlo ordenado**, y después
@@ -43,7 +43,7 @@ etiquetas de color, `in`/`out` y proxies enganchados.
 
 ## Instalar
 
-**La app:** abre el `.dmg` y arrastra *Clasificador* a Aplicaciones. No
+**La app:** abre el `.dmg` y arrastra *Clipify* a Aplicaciones. No
 necesita nada más instalado — `ffmpeg`, `ffprobe` y `mpv` viajan adentro.
 
 Si el `.dmg` llegó por internet, la primera vez macOS lo bloquea por venir de
@@ -52,14 +52,14 @@ todos modos*. Pasa una sola vez.
 
 **El plugin de Premiere** (va aparte): cierra Premiere, doble clic al archivo
 `.ccx` y Creative Cloud lo instala solo. Al abrir Premiere aparece en
-`Ventana > Plugins UXP > Clasificador de Video`.
+`Ventana > Plugins UXP > Clipify`.
 
 La app **abre maximizada** y ocupando tu pantalla. Al abrir un proyecto verás
 una ventanita con su nombre y una barra mientras se preparan las portadas —
 con 205 clips son un par de segundos.
 
 **Qué versión tienes:** la app lo dice abajo a la derecha de la pantalla de
-inicio — «Clasificador 1.11». Es lo primero que hay que saber para reportar
+inicio — «Clipify 1.12». Es lo primero que hay que saber para reportar
 cualquier cosa.
 
 Qué trae cada versión: [docs/VERSIONES.md](docs/VERSIONES.md).

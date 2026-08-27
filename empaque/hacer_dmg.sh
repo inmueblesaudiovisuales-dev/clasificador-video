@@ -7,17 +7,17 @@
 # arrastrar una a la otra. No hace falta un programa de instalacion.
 #
 # Uso:  ./empaque/hacer_dmg.sh
-# Sale: empaque/dist/Clasificador-<version>.dmg
+# Sale: empaque/dist/Clipify-<version>.dmg
 set -euo pipefail
 
 RAIZ="$(cd "$(dirname "$0")/.." && pwd)"
 DIST="$RAIZ/empaque/dist"
-APP="$DIST/Clasificador.app"
+APP="$DIST/Clipify.app"
 
 if [ ! -d "$APP" ]; then
   echo "No existe $APP." >&2
   echo "Arma la app primero:" >&2
-  echo "  .venv/bin/pyinstaller empaque/clasificador.spec --distpath empaque/dist --workpath empaque/build --noconfirm" >&2
+  echo "  .venv/bin/pyinstaller empaque/clipify.spec --distpath empaque/dist --workpath empaque/build --noconfirm" >&2
   exit 1
 fi
 
@@ -25,8 +25,8 @@ fi
 # escribiera en los dos lados, tarde o temprano dirian cosas distintas y
 # nadie sabria cual version tiene instalada.
 VERSION="$(defaults read "$APP/Contents/Info.plist" CFBundleShortVersionString)"
-DMG="$DIST/Clasificador-$VERSION.dmg"
-VOLUMEN="Clasificador $VERSION"
+DMG="$DIST/Clipify-$VERSION.dmg"
+VOLUMEN="Clipify $VERSION"
 
 # Carpeta de montaje, aparte de `dist`: lo que este aqui adentro es lo que se
 # ve al abrir el disco, y `dist` tiene ademas la carpeta suelta que arma
@@ -38,7 +38,7 @@ trap 'rm -rf "$ESCENARIO"' EXIT
 # atributos extendidos del paquete. Con `cp -R` la firma puede quedar
 # invalida, y una app con la firma rota no abre en la otra Mac -- que es el
 # unico lugar donde esto importa y el unico donde no lo veriamos a tiempo.
-ditto "$APP" "$ESCENARIO/Clasificador.app"
+ditto "$APP" "$ESCENARIO/Clipify.app"
 ln -s /Applications "$ESCENARIO/Applications"
 
 rm -f "$DMG"

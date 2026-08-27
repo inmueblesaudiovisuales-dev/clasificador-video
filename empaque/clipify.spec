@@ -63,9 +63,16 @@ a = Analysis(
     noarchive=False,
 )
 pyz = PYZ(a.pure)
-exe = EXE(pyz, a.scripts, [], exclude_binaries=True, name="Clasificador",
-          console=False, target_arch=None, codesign_identity=None)
-coll = COLLECT(exe, a.binaries, a.datas, strip=False, upx=False, name="Clasificador")
+# El icono sale de `scripts/hacer_icono.py`, que lo dibuja del mismo
+# codigo que pinta la marquita de la barra de titulo (`ui/marca.py`).
+# Sin esta linea la app se queda con el icono generico de PyInstaller,
+# que fue lo que paso hasta la 1.11.
+ICONO = str(RAIZ / "empaque" / "icono" / "Clipify.icns")
+
+exe = EXE(pyz, a.scripts, [], exclude_binaries=True, name="Clipify",
+          console=False, target_arch=None, codesign_identity=None,
+          icon=ICONO)
+coll = COLLECT(exe, a.binaries, a.datas, strip=False, upx=False, name="Clipify")
 # La version se LEE de `src/clasificador_video/__init__.py`, que es donde
 # vive. macOS la saca de aqui para «Obtener informacion» y para el nombre del
 # `.dmg`, y la pantalla de inicio la lee del mismo lugar -- asi la que ve
@@ -80,8 +87,12 @@ VERSION = re.search(
     (RAIZ / "src" / "clasificador_video" / "__init__.py").read_text(),
 ).group(1)
 
-app = BUNDLE(coll, name="Clasificador.app",
-             bundle_identifier="com.brunogutierrez.clasificador",
+app = BUNDLE(coll, name="Clipify.app", icon=ICONO,
+             # OJO: al cambiar el identificador, macOS trata a Clipify
+             # como una app DISTINTA de la vieja Clasificador -- no la
+             # reemplaza, conviven. La vieja se manda a la basura a
+             # mano; ver el spec del 2026-08-27.
+             bundle_identifier="com.brunogutierrez.clipify",
              version=VERSION,
              info_plist={"NSHighResolutionCapable": True,
                          "LSMinimumSystemVersion": "12.0",

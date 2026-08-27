@@ -178,6 +178,19 @@ comentarios del código, que es donde sirve. En el chat, no.
   corriges en un clic; si adivina mal callada, te enteras tres semanas
   después. Es el modo de falla que ya costó una versión entregada rota.
 
+- **La app se llama Clipify, y su marca se dibuja en un solo lugar.**
+  `ui/marca.py` pinta el cuadro con palomita, y de ahí salen los dos sitios
+  donde se ve: la marquita de la barra de título (`glifo()`, sin fondo — el
+  ámbar lo pone el QSS) y el `.icns` del Finder y el Dock (`icono()`, vía
+  `scripts/hacer_icono.py`). Están juntos a propósito: dos dibujos separados
+  de la misma marca se van pareciendo cada vez menos con cada retoque. La
+  palabra «Clipify» **no** va en la barra de título — ahí el ancho vale más
+  para el proyecto y sus clips, y el icono ya dice cómo se llama. Y NO se
+  renombraron `~/.clasificador_video/`, `~/.cache/clasificador_video/` ni el
+  paquete de Python: renombrar la primera vacía la lista de recientes de
+  Bruno sin explicación, y la segunda tira todas las miniaturas ya hechas.
+  Ver `specs/2026-08-27-clipify-marca-y-nombre-design.md`.
+
 - **`VideoWidget` recupera el clip que se cargó antes de que existiera su
   contexto de OpenGL.** La ventana arranca en la hoja, con el visor
   escondido, y `load_clips` abre el primer clip ahí mismo: Qt no crea el

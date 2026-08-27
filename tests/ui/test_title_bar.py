@@ -144,10 +144,12 @@ def test_los_botones_del_switch_no_toman_el_foco(qtbot):
         assert boton.focusPolicy() == Qt.FocusPolicy.NoFocus
 
 
-def test_el_icono_de_la_app_lleva_el_triangulo_de_play(qtbot):
-    """El mockup dibuja un play adentro del cuadro ambar; la app tenia el
-    cuadro liso. Va como pixmap pintado y no como caracter `▶`: un glifo
-    de fuente no cae igual en todas las maquinas."""
+def test_la_barra_lleva_la_marca_de_clipify(qtbot):
+    """La marquita ámbar de la esquina trae el cuadro con palomita, y sale
+    del mismo módulo que dibuja el icono del Finder (`ui/marca.py`) para
+    que no puedan divergir. Va como pixmap pintado y no como carácter ni
+    como PNG: un glifo de fuente no cae igual en todas las máquinas, y un
+    PNG a 17 px se ve dentado en unas pantallas y suave en otras."""
     bar = _bar(qtbot)
     pixmap = bar.mark.pixmap()
     assert pixmap is not None and not pixmap.isNull()

@@ -321,6 +321,9 @@ def test_la_pantalla_de_inicio_dice_la_version(qtbot):
     qtbot.addWidget(pantalla)
 
     assert clasificador_video.__version__ in pantalla.version_label.text()
+    # el nombre de la app, ademas del numero: la pantalla de inicio es
+    # el unico lugar DENTRO de la app donde se lee como se llama
+    assert "Clipify" in pantalla.version_label.text()
 
 
 # --- la pantalla de carga (spec 2026-08-20-abrir-sin-congelarse) ----------

@@ -31,6 +31,14 @@ PICK_COLOR = "#55c08a"
 STAR_COLOR = "#7ee6b0"     # destacado = pick reforzado, misma familia
 REJECT_COLOR = "#d4696c"
 CURRENT_COLOR = "#e8a33d"  # clip actual y playhead
+
+# El ambar del ICONO de la app, en degradado. Es el mismo ambar de la
+# marca --`CURRENT_COLOR` cae justo en medio de los dos-- pero abierto
+# arriba y abajo para darle volumen en el Dock. Solo lo usa el icono:
+# a 17 px, en la barra de titulo, un degradado de tres tonos repartido
+# en once pixeles no se percibe, y ahi la marca va en plano.
+ICON_AMBER_TOP = "#f2b95e"
+ICON_AMBER_BOTTOM = "#d8901f"
 TRIM_COLOR = "#6d8cf5"     # rango in/out marcado
 
 # --- IDENTIDAD DE CUARTO: apagada a proposito (nunca verde, rojo ni ambar)
