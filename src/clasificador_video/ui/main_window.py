@@ -3312,14 +3312,20 @@ class MainWindow(QWidget):
     def _color_de_bin(self, nombre: str | None) -> str:
         """El tercer canal de color, ni cuarto ni estado (ver `theme.py`).
 
+        Es el color de su CAMARA, el mismo que pinta la marquita de su
+        encabezado y el mismo que va a tener el clip en Premiere. Iba por
+        posicion del bin hasta el 2026-09-08, y eso dejaba al aviso del
+        visor diciendo un color y al encabezado otro sobre el mismo bin --
+        dos partes del programa diciendo cosas distintas del mismo dato,
+        que es de donde salieron los ocho bugs del 2026-08-22.
+
         Un bin que no esta en la lista --«Sin bin», o uno que ya se fue-- se
         pinta con el gris apagado: no es una camara, asi que no lleva
         identidad de camara.
         """
-        nombres = self.bins.nombres()
-        if nombre is None or nombre not in nombres:
+        if nombre is None or nombre not in self.bins.nombres():
             return theme.TEXT_3
-        return theme.bin_color(nombres.index(nombre))
+        return theme.camara_color(self.bins.camara_de(nombre) or SONY)
 
     def _on_bin_seleccionado(self, nombre: str) -> None:
         """«Seleccionar los N clips» del menu del encabezado.

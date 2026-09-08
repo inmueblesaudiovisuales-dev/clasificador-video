@@ -61,3 +61,49 @@ def test_la_seccion_de_sueltos_no_ofrece_camara(qtbot):
     _menu, sub = _submenu_de_camara(cabecera)
 
     assert sub is None
+
+
+def test_cada_camara_tiene_su_color():
+    assert theme.camara_color(SONY) != theme.camara_color(DJI)
+    assert theme.camara_color(DJI) != theme.camara_color(OTRA)
+
+
+def test_una_camara_desconocida_no_truena():
+    """El tema no puede reventar la hoja entera por un valor raro que se
+    coló del autosave."""
+    assert theme.camara_color("🐔") == theme.camara_color(SONY)
+
+
+def test_dos_bins_de_la_misma_camara_se_ven_igual(qtbot):
+    """Y está bien: en Premiere también van a salir del mismo color. Una
+    app que muestra una diferencia que su destino no tiene, miente."""
+    uno, otro = _BinHeader("Sony A"), _BinHeader("Sony B")
+    qtbot.addWidget(uno)
+    qtbot.addWidget(otro)
+
+    uno.set_camara(SONY)
+    otro.set_camara(SONY)
+
+    assert uno.cam_mark.styleSheet() == otro.cam_mark.styleSheet()
+
+
+def test_cambiarle_la_camara_le_cambia_el_color(qtbot):
+    cabecera = _BinHeader("Dron")
+    qtbot.addWidget(cabecera)
+
+    cabecera.set_camara(SONY)
+    con_sony = cabecera.cam_mark.styleSheet()
+    cabecera.set_camara(DJI)
+
+    assert cabecera.cam_mark.styleSheet() != con_sony
+
+
+def test_la_seccion_de_sueltos_se_queda_neutra(qtbot):
+    """«Sin bin» no es una cámara y no puede pintarse como una."""
+    cabecera = _BinHeader("Sin bin", es_bin=False)
+    qtbot.addWidget(cabecera)
+    neutra = cabecera.cam_mark.styleSheet()
+
+    cabecera.set_camara(DJI)
+
+    assert cabecera.cam_mark.styleSheet() == neutra

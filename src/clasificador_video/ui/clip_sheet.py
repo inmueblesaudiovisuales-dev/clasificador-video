@@ -884,10 +884,12 @@ class _BinHeader(QWidget):
         self.chevron = QLabel("▾")
         self.chevron.setObjectName("binChevron")
         # La marca de camara del mockup. Un SOLO glifo para todos los bins:
-        # el mockup ponia `▲` al dron y `■` a la Sony porque sabia que era
-        # cada uno, y la app no lo sabe -- lee una carpeta, no un modelo de
-        # camara. Lo que distingue un bin de otro es el COLOR, que se pone
-        # con `set_posicion`.
+        # el mockup ponia `▲` al dron y `■` a la Sony, y hasta el
+        # 2026-09-08 la app no podia hacerlo porque no sabia de que camara
+        # era cada bin -- leia una carpeta, no un modelo de camara. Ahora si
+        # lo sabe, y lo dice con el COLOR (`set_camara`) y no con el glifo:
+        # el color es el mismo que va a tener el clip en Premiere, y esa
+        # correspondencia vale mas que un triangulo.
         self.cam_mark = QLabel(MARCA_DE_BIN)
         self.cam_mark.setObjectName("binCam")
         self.cam_mark.setAttribute(Qt.WA_StyledBackground, True)
@@ -896,7 +898,7 @@ class _BinHeader(QWidget):
         # La camara del bin. Arranca en el respaldo y la hoja la corrige con
         # `set_camara` en cuanto sabe cual es (via `_aplicar_meta`).
         self._camara = SONY
-        self.set_posicion(0)
+        self.set_camara(SONY) if self.es_bin else self._pintar_neutra()
         self.name_label = QLabel(nombre)
         self.name_label.setObjectName("binName")
         self.name_edit = QLineEdit(nombre)
@@ -955,42 +957,42 @@ class _BinHeader(QWidget):
     # --- datos -----------------------------------------------------------
 
     def set_camara(self, camara: str) -> None:
-        """Guarda la camara del bin. La pinta la tarea siguiente."""
+        """Tiñe la marca con el color de la camara del bin -- el mismo que
+        va a tener el clip en Premiere.
+
+        Antes teñia por POSICION del bin (`set_posicion`), y el comentario
+        de entonces decia por que: «el mockup ponia ▲ al dron y ■ a la Sony
+        porque sabia que era cada uno, y la app no lo sabe -- lee una
+        carpeta, no un modelo de camara». Ahora si lo sabe.
+
+        «Sin bin» se queda NEUTRA: no es una camara, es la vista de los
+        clips que no son de nadie.
+        """
         if camara not in CAMARAS:
             return
         self._camara = camara
-
-    def set_posicion(self, posicion: int | None) -> None:
-        """Tiñe la marca segun el lugar del bin en el orden de importacion.
-
-        Por posicion y no por nombre, igual que los cuartos: renombrar un
-        bin no lo mueve de lugar, asi que tampoco puede cambiarle el color
-        con el que ya lo reconoces.
-
-        `None` la deja NEUTRA, y es lo que usa «Sin bin»: `BIN_PALETTE` es
-        identidad de camara y esa seccion no es una. Con la posicion que le
-        tocaba --`len(_bin_order)`, o sea el final-- se pintaba ademas con el
-        mismo color que le va a tocar al proximo bin que crees.
-        """
+        if not self.es_bin:
+            self._pintar_neutra()
+            return
         # `setStyleSheet` obliga a repolir el widget y es de lo mas caro que
         # hay en Qt: sin la guarda, cada reagrupada lo llamaria por bin.
-        if getattr(self, "_posicion", None) == posicion:
+        if getattr(self, "_camara_pintada", None) == camara:
             return
-        self._posicion = posicion
-        if posicion is None:
-            self.cam_mark.setStyleSheet(
-                f"background-color: {theme.BG_SURFACE_2};"
-                f" color: {theme.TEXT_3};"
-                f" border-radius: 3px; font-size: {theme.FONT_MICRO}px;"
-            )
-            return
-        color = theme.bin_color(posicion)
+        self._camara_pintada = camara
+        color = theme.camara_color(camara)
         # 18% de tinte detras de un glifo aclarado, como el mockup. A plena
         # tinta la marca competiria con la franja de cuarto de la miniatura,
         # que es otro dato.
         self.cam_mark.setStyleSheet(
             f"background-color: {theme.con_alfa_qss(color, theme.BIN_TINT_ALPHA)};"
             f" color: {theme.aclarar(color, theme.BIN_INK_LIGHTEN)};"
+            f" border-radius: 3px; font-size: {theme.FONT_MICRO}px;"
+        )
+
+    def _pintar_neutra(self) -> None:
+        self.cam_mark.setStyleSheet(
+            f"background-color: {theme.BG_SURFACE_2};"
+            f" color: {theme.TEXT_3};"
             f" border-radius: 3px; font-size: {theme.FONT_MICRO}px;"
         )
 
@@ -1033,7 +1035,7 @@ class _BinHeader(QWidget):
             self.proxy_badge.setProperty("estado", estado)
             self.proxy_badge.style().unpolish(self.proxy_badge)
             self.proxy_badge.style().polish(self.proxy_badge)
-        self.set_posicion(otro._posicion)
+        self.set_camara(otro._camara)
         self.set_collapsed(otro._colapsado)
 
     def marcas_texto(self) -> list[str]:
@@ -2529,14 +2531,6 @@ class ClipSheet(QWidget):
             w for w in self._widgets_del_contenido() if isinstance(w, _GroupBlock)
         ]
 
-    def _posicion_de_bin(self, nombre: str) -> int | None:
-        """`None` para la seccion de sueltos: no es una camara, asi que no
-        lleva color de identidad de camara."""
-        if nombre == SIN_BIN:
-            return None
-        return (self._bin_order.index(nombre)
-                if nombre in self._bin_order else len(self._bin_order))
-
     def _orden_de_grupo(self, clave: tuple[str, str]) -> tuple:
         """Primero el bin --por su posicion de importacion-- y adentro los
         cuartos, con «Sin clasificar» arriba porque es la cola de trabajo."""
@@ -2661,7 +2655,6 @@ class ClipSheet(QWidget):
                 cabecera.collapse_toggled.connect(self._on_colapso_pedido)
                 self._bin_headers[nombre] = cabecera
                 cabecera.set_collapsed(nombre in self._colapsados)
-                cabecera.set_posicion(self._posicion_de_bin(nombre))
                 self._aplicar_meta(cabecera)
                 self.bin_header_created.emit(cabecera)
         for nombre in list(self._bin_headers):
@@ -2709,7 +2702,6 @@ class ClipSheet(QWidget):
         self.set_bin_counts(totales)
         for nombre, cabecera in self._bin_headers.items():
             cabecera.set_counts(totales.get(nombre, 0), por_flag.get(nombre, {}))
-            cabecera.set_posicion(self._posicion_de_bin(nombre))
         self._actualizar_renglones_vacios(totales)
         self._actualizar_estado_vacio()
         self._actualizar_encabezado_pegado()

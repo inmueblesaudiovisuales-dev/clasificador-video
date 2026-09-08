@@ -1894,18 +1894,21 @@ def test_la_marca_es_EL_MISMO_glifo_en_todos_los_bins(qtbot):
             == hoja.bin_header_widget("Dron").cam_mark.text())
 
 
-def test_la_marca_se_tiñe_segun_la_posicion_del_bin(qtbot):
-    """Lo que distingue un bin de otro es el COLOR, no el glifo -- y va por
-    posicion, como los cuartos: mismo lugar, mismo color toda la sesion."""
+def test_la_marca_se_tiñe_segun_la_CAMARA_del_bin(qtbot):
+    """Lo que distingue un bin de otro es el COLOR, no el glifo -- y desde
+    el 2026-09-08 dice la CAMARA, no la posicion: es el mismo color que va
+    a tener el clip en Premiere."""
     hoja = ClipSheet()
     qtbot.addWidget(hoja)
     hoja.set_bin_order(["Sony", "Dron"])
     hoja.set_clips([_thumb(0, bin_nombre="Sony"), _thumb(1, bin_nombre="Dron")])
+    hoja.set_bin_meta("Sony", camara="sony")
+    hoja.set_bin_meta("Dron", camara="dji")
 
     primera = hoja.bin_header_widget("Sony").cam_mark.styleSheet()
     segunda = hoja.bin_header_widget("Dron").cam_mark.styleSheet()
     assert primera != segunda
-    assert theme.bin_color(0) != theme.bin_color(1)
+    assert theme.camara_color("sony") != theme.camara_color("dji")
 
 
 def test_la_marca_va_teñida_y_no_a_plena_tinta(qtbot):
@@ -1921,11 +1924,11 @@ def test_la_marca_va_teñida_y_no_a_plena_tinta(qtbot):
 
     hoja_de_estilo = hoja.bin_header_widget("Sony").cam_mark.styleSheet()
     assert f"rgba(" in hoja_de_estilo
-    assert theme.bin_color(0) not in hoja_de_estilo
+    assert theme.camara_color("sony") not in hoja_de_estilo
 
 
 def test_renombrar_el_bin_no_le_cambia_el_color(qtbot):
-    """El color va por posicion, y renombrar no mueve al bin de lugar."""
+    """El color dice la camara, y renombrar un bin no le cambia la camara."""
     hoja = ClipSheet()
     qtbot.addWidget(hoja)
     hoja.set_bin_order(["Sony", "Dron"])
@@ -2502,26 +2505,25 @@ def test_el_encabezado_pegado_copia_si_es_un_bin_de_verdad(qtbot):
 
 
 def test_la_seccion_de_sueltos_no_se_pinta_como_una_camara(qtbot):
-    """`ROOM_PALETTE`/`BIN_PALETTE` son identidad de CAMARA, y «Sin bin» no
-    es una. Peor: le tocaba `len(_bin_order)`, o sea el mismo color que le
-    va a tocar al proximo bin que crees -- dos cosas distintas del mismo
-    color, que es justo lo que la separacion por canal semantico evita.
+    """`ROOM_PALETTE`/`CAMARA_COLORES` son identidad de CAMARA, y «Sin bin»
+    no es una: es la vista de los clips que no son de nadie. Se queda
+    NEUTRA, y ni siquiera `set_camara` puede pintarla -- ver ahi.
     """
     hoja = ClipSheet()
     qtbot.addWidget(hoja)
     hoja.set_bin_order(["Sony"])
     hoja.set_clips([_thumb(0, bin_nombre="Sony"), _thumb(1, bin_nombre="")])
+    hoja.set_bin_meta("Sony", camara="sony")
 
     sueltos = hoja.bin_header_widget(SIN_BIN)
     sony = hoja.bin_header_widget("Sony")
-    assert sueltos._posicion is None
     # el tinte del bin sale como `rgba(...)`, asi que se compara por ahi
-    assert theme.con_alfa_qss(theme.bin_color(0), theme.BIN_TINT_ALPHA) in \
+    assert theme.con_alfa_qss(theme.camara_color("sony"), theme.BIN_TINT_ALPHA) in \
         sony.cam_mark.styleSheet()
     assert not any(
-        theme.con_alfa_qss(theme.bin_color(i), theme.BIN_TINT_ALPHA)
+        theme.con_alfa_qss(theme.camara_color(c), theme.BIN_TINT_ALPHA)
         in sueltos.cam_mark.styleSheet()
-        for i in range(9)
+        for c in ("sony", "dji", "otra")
     )
     assert theme.BG_SURFACE_2 in sueltos.cam_mark.styleSheet()
 

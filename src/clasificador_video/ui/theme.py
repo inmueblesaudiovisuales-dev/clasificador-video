@@ -58,7 +58,20 @@ ROOM_PALETTE = [
 # de tres bins. Que se parezcan a ROOM_PALETTE no es un descuido: el mockup
 # tomo de ahi a proposito, y lo que separa los dos canales es el
 # tratamiento, no la tinta.
-BIN_PALETTE = ["#3e9bc0", "#c0885a", "#7c8794", "#8b7ca8", "#4f9a8e"]
+# El color de cada camara, y es EL MISMO que va a tener el clip en Premiere:
+# Sony azul, dron ambar, cualquier otra morado. Los eligio Bruno --azul y
+# amarillo son los dos mas separados del panel de Premiere, y esa distancia
+# es todo el punto.
+#
+# Reemplazaron a `BIN_PALETTE` en la marquita del encabezado, que pintaba la
+# POSICION del bin. Se acepta que dos tarjetas de la misma camara se vean
+# iguales: en Premiere tambien van a salirlo, y una app que muestra una
+# diferencia que su destino no tiene miente en chiquito.
+CAMARA_COLORES = {
+    "sony": "#3e9bc0",   # azul   → CERULEAN en Premiere
+    "dji": "#c9a227",    # ambar  → MANGO en Premiere
+    "otra": "#8b7ca8",   # morado → VIOLET en Premiere
+}
 BIN_TINT_ALPHA = 46          # el .18 del mockup, en 0-255
 BIN_INK_LIGHTEN = 0.45       # cuanto se aclara el glifo sobre ese tinte
 
@@ -197,9 +210,14 @@ def room_color(index: int) -> str:
     return ROOM_PALETTE[index % len(ROOM_PALETTE)]
 
 
-def bin_color(index: int) -> str:
-    """Color de identidad del bin en la posicion `index`. Ver `BIN_PALETTE`."""
-    return BIN_PALETTE[index % len(BIN_PALETTE)]
+def camara_color(camara: str) -> str:
+    """El color de identidad de una camara. Ver `CAMARA_COLORES`.
+
+    Una camara que no existe cae en la de siempre en vez de reventar: este
+    valor puede venir de un autosave tocado a mano, y un tema que truena se
+    lleva la hoja entera por delante.
+    """
+    return CAMARA_COLORES.get(camara, CAMARA_COLORES["sony"])
 
 
 def aclarar(color_hex: str, factor: float) -> str:
