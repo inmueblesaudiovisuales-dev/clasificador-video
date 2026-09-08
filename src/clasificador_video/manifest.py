@@ -15,6 +15,10 @@ class Clip:
     in_frame: int | None = None
     out_frame: int | None = None
     flag: str = "none"  # "none" | "pick" | "reject"
+    # De que camara salio. Decide su ETIQUETA DE COLOR en Premiere -- la
+    # traduccion camara→color vive del otro lado, en `label.js`, igual que
+    # la de flag→carpeta. Aqui viaja el dato, no la presentacion.
+    camara: str = "sony"
     ruta_proxy: Path | None = None
 
     def to_dict(self) -> dict:
@@ -26,6 +30,7 @@ class Clip:
             "in_frame": self.in_frame,
             "out_frame": self.out_frame,
             "flag": self.flag,
+            "camara": self.camara,
             "ruta_proxy": str(self.ruta_proxy) if self.ruta_proxy is not None else None,
         }
 

@@ -30,6 +30,7 @@ def test_clip_to_dict_usa_las_llaves_exactas_del_manifest():
         "in_frame": 30,
         "out_frame": 200,
         "flag": "pick",
+        "camara": "sony",
         "ruta_proxy": "/shooting/C0012S03.MP4",
     }
 
@@ -147,3 +148,19 @@ def test_un_estado_desconocido_no_inventa_subcarpeta():
                 fps=30.0, flag="lo-que-sea")
 
     assert con_subcarpeta_de_estado(clip).categoria_path == ["Cocina"]
+
+
+def test_el_clip_lleva_su_camara_al_manifiesto():
+    clip = Clip(orden=1, ruta=Path("/x/DJI_0001.MP4"), categoria_path=["Cocina"],
+                fps=59.94, camara="dji")
+
+    assert clip.to_dict()["camara"] == "dji"
+
+
+def test_un_clip_sin_camara_dicha_sale_sony():
+    """El mismo respaldo que en `Bin`: hace falta UNA respuesta, y es la
+    cámara con la que Bruno graba casi todo."""
+    clip = Clip(orden=1, ruta=Path("/x/C0001.MP4"), categoria_path=["Cocina"],
+                fps=59.94)
+
+    assert clip.to_dict()["camara"] == "sony"
