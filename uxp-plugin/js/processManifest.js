@@ -7,6 +7,27 @@ async function processManifest(project, manifest) {
 
   const resultado = { ok: [], errores: [] };
 
+  // Las siete carpetas primero: aunque cinco queden vacias, son el esqueleto
+  // del proyecto de Bruno. Si ya existen, `resolveBinChain` las reusa.
+  await crearEsqueleto(project, rootFolder);
+
+  // Un proyecto de una importacion anterior tiene sus clips fuera de
+  // «02. Clip» y se van a mover. No se duplica ninguno --`importOrReuseClip`
+  // los encuentra por ruta en disco-- pero moverse se mueven, y se avisa
+  // ANTES de tocar nada.
+  const carpetaDeClips = await resolveBinChain(project, rootFolder, [CARPETA_DE_CLIPS]);
+  const porMover = await contarLosQueSeVanAMover(rootFolder, manifest, carpetaDeClips);
+  if (porMover > 0) {
+    logToPanel(
+      porMover + " clip(s) que ya estaban en el proyecto se van a mover a «" +
+      CARPETA_DE_CLIPS + "». No se duplica ninguno."
+    );
+  }
+
+  // El aviso de «no pude renombrar» se da una vez por importacion, no una
+  // por clip. Ver `nombre.js`.
+  reiniciarAvisoDeRenombrar();
+
   for (const clipData of manifest.clips) {
     let nombreArchivo = "(sin ruta)";
     // Se declara AFUERA del try para que el mensaje de error pueda decir a
@@ -21,7 +42,8 @@ async function processManifest(project, manifest) {
         categoryPath = clipData.categoria_path;
       }
 
-      const targetFolder = await resolveBinChain(project, rootFolder, categoryPath);
+      const targetFolder = await resolveBinChain(
+        project, rootFolder, caminoDelClip(categoryPath));
       const clipItem = await importOrReuseClip(project, targetFolder, clipData.ruta);
 
       if (!clipItem) {
@@ -29,6 +51,7 @@ async function processManifest(project, manifest) {
       }
 
       applyCameraLabel(project, clipItem, clipData.camara);
+      applyStarPrefix(project, clipItem, clipData.flag);
 
       if (clipData.in_frame !== null && clipData.out_frame !== null) {
         applyInOut(project, clipItem, clipData.fps, clipData.in_frame, clipData.out_frame);
@@ -39,13 +62,13 @@ async function processManifest(project, manifest) {
       }
 
       resultado.ok.push(nombreArchivo);
-      logToPanel("OK: " + nombreArchivo + " -> " + categoryPath.join(" > "));
+      logToPanel("OK: " + nombreArchivo + " -> " + caminoDelClip(categoryPath).join(" > "));
     } catch (e) {
       // e no siempre es un Error real (ej. la API nativa de Premiere puede
       // rechazar con un string u otro valor sin .message) -- con fallback a
       // String(e) el mensaje nunca queda vacio ni tumba este catch.
       const mensaje = (e && e.message) || String(e);
-      const donde = categoryPath.join(" > ");
+      const donde = caminoDelClip(categoryPath).join(" > ");
       resultado.errores.push({
         archivo: nombreArchivo, mensaje: mensaje, destino: donde,
       });
