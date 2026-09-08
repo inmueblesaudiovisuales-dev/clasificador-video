@@ -162,15 +162,31 @@ cada cosa.
    └ Sin clasificar
 03. AE composition       (vacía)
 04. Musica               (vacía)
-05. Voz IA               (vacía)
-06. Assets adicionales   (vacía)
+05. Voz                  (vacía)
+06. Graficos             (vacía)
+07. Assets adicionales   (vacía)
 ```
 
-Las seis se crean **siempre**, aunque cuatro queden vacías: son el esqueleto
+Las siete se crean **siempre**, aunque cinco queden vacías: son el esqueleto
 del proyecto de Bruno y existen para que él meta cosas ahí, no para que la
 app las llene. Los nombres van tal cual los escribió, con su número y su
 punto — es su convención y Premiere ordena por abecedario, así que el número
 es lo que sostiene el orden.
+
+**Dos vienen de revisar la lista con él el mismo día**, y las dos son sobre
+un nombre que iba a estorbar más tarde:
+
+- **`06. Graficos`** es nueva. Sin ella, los títulos, los lower thirds y el
+  logo del cliente caían revueltos en `Assets adicionales` con todo lo demás.
+  Va antes del cajón de sastre a propósito: un cajón de sastre que no está al
+  final deja de serlo.
+- **`05. Voz`**, no `05. Voz IA`. El nombre de hoy describe de dónde salió la
+  voz, no qué es — y el día que Bruno grabe una locución de verdad, o que el
+  cliente mande la suya, el archivo estaría en una carpeta que dice una
+  mentira. `Voz` aguanta las dos.
+
+Se le ofrecieron otras dos y las descartó: partir `04. Musica` en música y
+SFX, y sacar los `Rejects` de cada cuarto a un solo cajón al final.
 
 **La cámara no hace carpeta.** Bruno: «lo importante de separar las cámaras
 es para el color». Un cuarto grabado con dos cámaras se queda en un solo
