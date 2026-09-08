@@ -469,10 +469,27 @@ Y agrega el método, junto a `_acotar_a`:
 QT_QPA_PLATFORM=offscreen .venv/bin/pytest tests/test_bins.py -q
 QT_QPA_PLATFORM=offscreen .venv/bin/pytest tests/ -q
 ```
-Se espera: todo verde. Si algo se rompe en `test_proyecto.py` o
-`test_app.py`, es porque comparan el diccionario del autosave completo y
-ahora trae `camara` — actualiza esos valores esperados, no le quites la
-llave.
+**Se va a romper uno, y está previsto:**
+`tests/ui/test_main_window_bins.py::test_el_autosave_escribe_los_bins`
+compara el diccionario del autosave completo:
+
+```python
+    assert data["bins"] == [
+        {"nombre": "Dron", "origen": "/dron", "clips": [0, 1]}
+    ]
+```
+
+Actualízalo agregando la llave nueva —**no le quites la comparación
+exacta**, que es justo lo que hace que este test sirva:
+
+```python
+    assert data["bins"] == [
+        {"nombre": "Dron", "origen": "/dron", "clips": [0, 1], "camara": "sony"}
+    ]
+```
+
+Sale `"sony"` porque ese `agregar` se llama sin `rutas`. Si `test_proyecto.py`
+o `test_app.py` comparan lo mismo, actualízalos igual.
 
 - [ ] **Paso 5: commit**
 
@@ -567,45 +584,76 @@ git commit -m "$(printf 'Mandarle la cámara de cada clip al plugin\n\nViaja el 
 
 - [ ] **Paso 1: escribir las pruebas que fallan**
 
-Mira primero cómo arma una ventana `tests/ui/test_main_window_bins.py` (o el
-archivo de UI que exista más parecido) y **copia ese arreglo**, no inventes
-uno nuevo. Crea `tests/ui/test_main_window_camaras.py`:
+Crea `tests/ui/test_main_window_camaras.py`. **Copia el arreglo de ventana
+de `tests/ui/test_main_window_bins.py`** —`FakeMpv`, `_probe_falso` y la
+fixture `ventana`— en vez de inventar uno: sin `FakeMpv` cada ventana abre un
+mpv de verdad con sus hilos, y sin `_probe_falso` los tests lanzan `ffprobe`
+contra rutas que no existen.
 
 ```python
 """La cámara, de punta a punta: se adivina al importar y llega al manifiesto."""
 import json
 from pathlib import Path
 
+import pytest
+
 from clasificador_video.camaras import DJI, OTRA, SONY
+from clasificador_video.manifest import Clip
+from clasificador_video.rooms import RoomSelection
+from clasificador_video.ui.main_window import MainWindow
+
+# Los tres se copian tal cual de test_main_window_bins.py: FakeMpv (la clase
+# completa), _probe_falso y la fixture `ventana`. Están ahí, no los reescribas
+# de memoria.
+from tests.ui.test_main_window_bins import FakeMpv, _probe_falso  # noqa: F401
 
 
-def test_un_bin_importado_del_dron_queda_marcado_como_dron(ventana_con_clips):
-    ventana = ventana_con_clips(["DJI_0001.MP4", "DJI_0002.MP4"], bin="Dron")
+def _clip(i, ruta):
+    return Clip(orden=i + 1, ruta=Path(ruta), categoria_path=[], fps=30.0)
+
+
+@pytest.fixture
+def ventana(qtbot):
+    window = MainWindow(project_name="Casa Jardin", room_selection=RoomSelection(),
+                        video_factory=FakeMpv)
+    window._probe_clip = _probe_falso
+    qtbot.addWidget(window)
+    return window
+
+
+def test_un_bin_importado_del_dron_queda_marcado_como_dron(ventana):
+    ventana.load_clips([_clip(0, "/dron/DJI_0001.MP4"),
+                        _clip(1, "/dron/DJI_0002.MP4")])
+    ventana.bins.agregar("Dron", Path("/dron"), [0, 1],
+                         rutas=[c.ruta for c in ventana.clips])
 
     assert ventana.bins.camara_de("Dron") == DJI
 
 
-def test_un_bin_de_la_sony_queda_como_sony(ventana_con_clips):
-    ventana = ventana_con_clips(["20260817_PIB0016.MP4"], bin="Cámara")
+def test_un_bin_de_la_sony_queda_como_sony(ventana):
+    ventana.load_clips([_clip(0, "/cam/20260817_PIB0016.MP4")])
+    ventana.bins.agregar("Cámara", Path("/cam"), [0],
+                         rutas=[c.ruta for c in ventana.clips])
 
     assert ventana.bins.camara_de("Cámara") == SONY
 
 
-def test_la_camara_del_bin_llega_al_manifiesto(ventana_con_clips, tmp_path):
-    ventana = ventana_con_clips(["DJI_0001.MP4"], bin="Dron")
+def test_la_camara_del_bin_llega_al_manifiesto(ventana, tmp_path):
+    ventana.load_clips([_clip(0, "/dron/DJI_0001.MP4")])
+    ventana.bins.agregar("Dron", Path("/dron"), [0],
+                         rutas=[c.ruta for c in ventana.clips])
     ventana.clips[0].categoria_path = ["Cocina"]
 
     destino = tmp_path / "m.json"
     ventana.escribir_manifest(destino)
 
-    datos = json.loads(destino.read_text())
-    assert datos["clips"][0]["camara"] == "dji"
+    assert json.loads(destino.read_text())["clips"][0]["camara"] == "dji"
 
 
-def test_un_clip_sin_bin_sale_sony(ventana_con_clips, tmp_path):
+def test_un_clip_sin_bin_sale_sony(ventana, tmp_path):
     """Un clip suelto no tiene de dónde sacar la cámara del bin, y tiene que
     llegar con una: sale con el respaldo, no sin campo."""
-    ventana = ventana_con_clips(["C0001.MP4"], bin=None)
+    ventana.load_clips([_clip(0, "/cam/C0001.MP4")])
     ventana.clips[0].categoria_path = ["Cocina"]
 
     destino = tmp_path / "m.json"
@@ -614,10 +662,12 @@ def test_un_clip_sin_bin_sale_sony(ventana_con_clips, tmp_path):
     assert json.loads(destino.read_text())["clips"][0]["camara"] == "sony"
 
 
-def test_la_correccion_a_mano_es_la_que_viaja(ventana_con_clips, tmp_path):
+def test_la_correccion_a_mano_es_la_que_viaja(ventana, tmp_path):
     """Lo que Bruno eligió le gana a lo que la app adivinó. Si no, corregir
     no serviría de nada donde único importa."""
-    ventana = ventana_con_clips(["DJI_0001.MP4"], bin="Dron")
+    ventana.load_clips([_clip(0, "/dron/DJI_0001.MP4")])
+    ventana.bins.agregar("Dron", Path("/dron"), [0],
+                         rutas=[c.ruta for c in ventana.clips])
     ventana.bins.fijar_camara("Dron", OTRA)
     ventana.clips[0].categoria_path = ["Cocina"]
 
@@ -625,36 +675,6 @@ def test_la_correccion_a_mano_es_la_que_viaja(ventana_con_clips, tmp_path):
     ventana.escribir_manifest(destino)
 
     assert json.loads(destino.read_text())["clips"][0]["camara"] == "otra"
-```
-
-Y agrega al `tests/ui/conftest.py` (o al `conftest.py` de `tests/` si el de
-`ui/` no existe) el fixture, **copiando el arreglo de ventana que ya usen
-los otros tests de UI**:
-
-```python
-@pytest.fixture
-def ventana_con_clips(qtbot, tmp_path):
-    """Una ventana con clips de nombres dados, opcionalmente dentro de un bin."""
-    from clasificador_video.manifest import Clip
-    from clasificador_video.ui.main_window import MainWindow
-
-    def armar(nombres, bin=None):
-        rutas = []
-        for n in nombres:
-            ruta = tmp_path / n
-            ruta.write_bytes(b"")
-            rutas.append(ruta)
-        ventana = MainWindow()
-        qtbot.addWidget(ventana)
-        clips = [Clip(orden=i + 1, ruta=r, categoria_path=[], fps=59.94)
-                 for i, r in enumerate(rutas)]
-        ventana.load_clips(clips)
-        if bin is not None:
-            ventana.bins.agregar(bin, tmp_path, list(range(len(clips))),
-                                 rutas=rutas)
-        return ventana
-
-    return armar
 ```
 
 - [ ] **Paso 2: correr y ver que falla**
@@ -928,13 +948,43 @@ Y el manejador, junto a `_on_bin_renombrado`:
         self._autosave()
 ```
 
-Y en el sitio donde la hoja arma la meta de cada bin —busca dónde se llama a
-`set_bin_meta` o donde se llena `_bin_meta` con `origen` y `proxies`— agrega
-la cámara al diccionario, y en `_aplicar_meta` (clip_sheet.py, ~línea 2206)
-agrega la línea:
+Ahora la cámara tiene que llegarle al encabezado. Viaja por el mismo canal
+que el origen y los proxies —`set_bin_meta`—, que existe justo para esto: son
+datos de la VENTANA, y el encabezado se rehace en cada reagrupada.
+
+En `clip_sheet.py`, `set_bin_meta` (línea 2186) gana un parámetro:
+
+```python
+    def set_bin_meta(self, nombre: str, origen: str = "",
+                     proxies: tuple[int, int] | None = None,
+                     resolucion: str | None = None,
+                     camara: str | None = None) -> None:
+```
+
+y dentro, junto a los otros tres:
+
+```python
+        if camara is not None:
+            meta["camara"] = camara
+```
+
+En `_aplicar_meta` (línea 2206), agrega la línea al final:
 
 ```python
         cabecera.set_camara(meta.get("camara", SONY))
+```
+
+Y en `main_window.py`, en la única llamada a `set_bin_meta` (línea 4557),
+pásale la cámara:
+
+```python
+        self.clip_sheet.set_bin_meta(
+            nombre,
+            origen=origen,
+            proxies=(len(con_proxy), len(indices)),
+            resolucion=etiquetas.pop() if len(etiquetas) == 1 else "",
+            camara=self.bins.camara_de(nombre) or SONY,
+        )
 ```
 
 - [ ] **Paso 6: correr la suite entera**
