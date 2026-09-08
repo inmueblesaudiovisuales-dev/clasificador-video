@@ -179,7 +179,7 @@ registrarPrueba(
 
 const CLIP_587 = RUTA_TEST_DIR + "/20260804_PIB0587.MP4";
 
-registrarPrueba("applyFlagLabel: 'pick' pone el label FOREST en el clip", async (project) => {
+registrarPrueba("applyCameraLabel: 'dji' pone el label MANGO en el clip", async (project) => {
   const premierepro = require("premierepro");
   const rootItem = await project.getRootItem();
   const rootFolder = premierepro.FolderItem.cast(rootItem);
@@ -188,63 +188,46 @@ registrarPrueba("applyFlagLabel: 'pick' pone el label FOREST en el clip", async 
   const clip = await importOrReuseClip(project, folder, CLIP_587);
 
   // El clip se reusa entre recargas (importOrReuseClip no reimporta), asi
-  // que si una corrida anterior ya lo dejo en FOREST, "antes" ya seria
-  // FOREST y la comparacion antes/despues no probaria nada. Para que la
-  // prueba sea valida en cualquier corrida, primero se fuerza el label a
-  // ROSE (reject) directamente, y luego se comprueba que applyFlagLabel con
-  // "pick" lo cambia a FOREST.
-  applyFlagLabel(project, clip, "reject");
+  // que si una corrida anterior ya lo dejo en MANGO, "antes" ya seria MANGO
+  // y la comparacion antes/despues no probaria nada. Para que la prueba sea
+  // valida en cualquier corrida, primero se fuerza otro color.
+  applyCameraLabel(project, clip, "sony");
   const indiceAntes = await clip.getColorLabelIndex();
-  applyFlagLabel(project, clip, "pick");
-  const indiceDespues = await clip.getColorLabelIndex();
-
-  const indiceForest = premierepro.Constants.ProjectItemColorLabel.FOREST;
-  const indiceRose = premierepro.Constants.ProjectItemColorLabel.ROSE;
-  const ok = indiceAntes === indiceRose && indiceDespues === indiceForest && indiceDespues !== indiceAntes;
-
-  return {
-    ok: ok,
-    detalle:
-      "indice ROSE esperado=" + indiceRose + ", indice antes (tras forzar reject)=" + indiceAntes +
-      " | indice FOREST esperado=" + indiceForest + ", indice despues (tras pick)=" + indiceDespues,
-  };
-});
-
-registrarPrueba("applyFlagLabel: 'destacado' pone el label MANGO en el clip", async (project) => {
-  const premierepro = require("premierepro");
-  const rootItem = await project.getRootItem();
-  const rootFolder = premierepro.FolderItem.cast(rootItem);
-
-  const folder = await resolveBinChain(project, rootFolder, ["PruebaTask4"]);
-  const clip = await importOrReuseClip(project, folder, CLIP_587);
-
-  // Mismo cuidado que la prueba de 'pick': el clip se reusa entre
-  // recargas, asi que primero se fuerza otro color para que la
-  // comparacion antes/despues pruebe algo.
-  applyFlagLabel(project, clip, "reject");
-  const indiceAntes = await clip.getColorLabelIndex();
-  applyFlagLabel(project, clip, "destacado");
+  applyCameraLabel(project, clip, "dji");
   const indiceDespues = await clip.getColorLabelIndex();
 
   const colores = premierepro.Constants.ProjectItemColorLabel;
-  const indiceMango = colores.MANGO;
-  const ok = indiceMango !== undefined &&
-    indiceAntes === colores.ROSE && indiceDespues === indiceMango;
+  const ok = colores.MANGO !== undefined &&
+    indiceDespues === colores.MANGO && indiceDespues !== indiceAntes;
 
   return {
     ok: ok,
     detalle:
-      indiceMango === undefined
-        ? "MANGO no existe en esta version. Colores disponibles: " + Object.keys(colores).join(", ")
-        : "indice MANGO esperado=" + indiceMango + ", indice despues=" + indiceDespues +
-          " | indice antes (tras forzar reject)=" + indiceAntes,
+      "indice MANGO esperado=" + colores.MANGO + ", despues=" + indiceDespues +
+      " | antes (tras forzar sony)=" + indiceAntes,
   };
 });
 
-// fps del clip de prueba CLIP_588 (dron 4K/60p real, ver Task 5). Se
-// reutiliza tal cual porque el manifest real (Task 8) todavia no exporta
-// fps por clip.
-const FPS_CLIP_588 = 59.94005994005994;
+// LAS DOS QUE FALTAN POR CONFIRMAR EN VIVO. `MANGO` esta comprobado desde el
+// 2026-08-10 (indice 7); `CERULEAN` y `VIOLET` entraron el 2026-09-08 con
+// los colores por camara y nadie los ha visto todavia en la version de
+// Premiere de Bruno. Si esta prueba falla, la guarda de `label.js` ya evita
+// el daño --no toca el clip y dice cuales si existen-- y lo que hay que
+// hacer es escoger el sustituto mas parecido de esa lista.
+registrarPrueba("los tres colores de camara existen en esta version", async (project) => {
+  const premierepro = require("premierepro");
+  const colores = premierepro.Constants.ProjectItemColorLabel;
+  const faltan = Object.keys(LABEL_BY_CAMARA)
+    .map((c) => LABEL_BY_CAMARA[c])
+    .filter((nombre) => colores[nombre] === undefined);
+
+  return {
+    ok: faltan.length === 0,
+    detalle:
+      (faltan.length ? "FALTAN: " + faltan.join(", ") + " | " : "los tres estan | ") +
+      "disponibles: " + Object.keys(colores).map((k) => k + "=" + colores[k]).join(", "),
+  };
+});
 
 registrarPrueba("applyInOut: pone el in/out del clip en los frames pedidos", async (project) => {
   const premierepro = require("premierepro");

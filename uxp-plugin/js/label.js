@@ -1,31 +1,39 @@
-// Los tres estados de la app, traducidos a etiquetas de color de Premiere.
+// De que camara salio el clip, traducido a etiqueta de color de Premiere.
 //
-// `destacado` entro despues que los otros dos: hasta entonces no estaba en
-// esta tabla, asi que los clips con estrella llegaban a Premiere SIN
-// etiqueta, indistinguibles de uno sin marcar. La estrella se perdia en la
-// frontera, que es justo lo que este plugin existe para evitar.
+// ANTES ESTA ETIQUETA DECIA EL ESTADO (pick verde, reject rosa, destacado
+// dorado). Cambio el 2026-09-08: en Premiere un item tiene UNA sola etiqueta
+// de color, y Bruno la quiere para saber de un vistazo de que camara salio
+// cada clip.
 //
-// MANGO es el dorado de la paleta de Premiere -- lo eligio Bruno. Verde y
-// rosa ya estaban tomados por pick y reject.
-const LABEL_BY_FLAG = {
-  pick: "FOREST",
-  reject: "ROSE",
-  destacado: "MANGO",
+// El estado no se pierde: ya viaja en las subcarpetas Picks / Rejects / Sin
+// marcar que arma `con_subcarpeta_de_estado` del lado de la app. El unico
+// que se habria borrado es el DESTACADO --que iba en la misma carpeta que
+// los picks y solo se distinguia por el dorado-- y por eso ahora llega con
+// «★» al inicio del nombre; ver `nombre.js`.
+//
+// Los colores los eligio Bruno: azul y amarillo son los dos mas separados
+// del panel, y esa distancia es todo el punto.
+const LABEL_BY_CAMARA = {
+  sony: "CERULEAN",
+  dji: "MANGO",
+  otra: "VIOLET",
 };
 
-// flag: "pick" | "reject" | "destacado" | "none". Si es "none", no hace nada
-// (no limpia una etiqueta previa a proposito -- no es un caso pedido por el
-// spec).
-function applyFlagLabel(project, clipItem, flag) {
+// camara: "sony" | "dji" | "otra". Un valor que no este en la tabla no toca
+// el clip -- puede venir de un manifiesto de otra version, y pintar
+// «cualquier cosa» es peor que no pintar.
+function applyCameraLabel(project, clipItem, camara) {
   const premierepro = require("premierepro");
-  const labelName = LABEL_BY_FLAG[flag];
+  const labelName = LABEL_BY_CAMARA[camara];
   if (!labelName) return;
 
   const colores = premierepro.Constants.ProjectItemColorLabel;
   // Si la version de Premiere no conoce ese nombre, el valor sale undefined
   // y la accion pondria cualquier cosa. Mejor no tocar el clip y DECIRLO,
   // con la lista de los que si existen: es lo unico que permite corregir el
-  // nombre sin adivinar.
+  // nombre sin adivinar. La guarda es de agosto y se queda tal cual --
+  // `MANGO` esta confirmado en vivo (indice 7, el 2026-08-10), pero
+  // `CERULEAN` y `VIOLET` no, y este es el aviso que lo dira.
   if (colores[labelName] === undefined) {
     logToPanel(
       "El color «" + labelName + "» no existe en esta version de Premiere. " +
@@ -38,6 +46,6 @@ function applyFlagLabel(project, clipItem, flag) {
   runTransaction(
     project,
     () => clipItem.createSetColorLabelAction(colores[labelName]),
-    "Set label " + flag
+    "Set label " + camara
   );
 }

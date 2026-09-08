@@ -28,7 +28,7 @@ async function processManifest(project, manifest) {
         throw new Error("No se pudo importar ni encontrar el clip");
       }
 
-      applyFlagLabel(project, clipItem, clipData.flag);
+      applyCameraLabel(project, clipItem, clipData.camara);
 
       if (clipData.in_frame !== null && clipData.out_frame !== null) {
         applyInOut(project, clipItem, clipData.fps, clipData.in_frame, clipData.out_frame);
