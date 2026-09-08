@@ -1,6 +1,7 @@
 from pathlib import Path
 
 from clasificador_video.bins import BinTree, raiz_comun_de
+from clasificador_video.camaras import DJI, OTRA, SONY
 
 
 def test_un_bin_nuevo_queda_al_final_con_sus_clips():
@@ -303,7 +304,9 @@ def test_un_bin_vacio_se_guarda_sin_origen_inventado():
     arbol = BinTree()
     arbol.crear_vacio("Dron")
 
-    assert arbol.to_list() == [{"nombre": "Dron", "origen": "", "clips": []}]
+    assert arbol.to_list() == [
+        {"nombre": "Dron", "origen": "", "clips": [], "camara": "sony"}
+    ]
 
 
 def test_sumar_material_de_otra_carpeta_sube_el_origen_al_ancestro_comun():
@@ -488,3 +491,96 @@ def test_ninguna_secuencia_de_operaciones_rompe_los_invariantes():
                     assert 0 <= c < cuantos, f"{c} apunta fuera de {cuantos} clips"
                     de_quien[c] = nombre
             assert arbol.mapa_por_clip() == de_quien
+
+
+def test_un_bin_nuevo_adivina_su_camara_de_sus_archivos():
+    arbol = BinTree()
+    arbol.agregar("Dron", Path("/dron"), [0, 1],
+                  rutas=[Path("/dron/DJI_0001.MP4"), Path("/dron/DJI_0002.MP4")])
+
+    assert arbol.camara_de("Dron") == DJI
+
+
+def test_un_bin_sin_rutas_sale_sony():
+    """`crear_vacio` no tiene archivos que mirar todavía."""
+    arbol = BinTree()
+    arbol.crear_vacio("Bin nuevo")
+
+    assert arbol.camara_de("Bin nuevo") == SONY
+
+
+def test_bruno_puede_corregir_la_camara():
+    arbol = BinTree()
+    arbol.agregar("Cámara chica", Path("/x"), [0], rutas=[Path("/x/C0001.MP4")])
+
+    arbol.fijar_camara("Cámara chica", OTRA)
+
+    assert arbol.camara_de("Cámara chica") == OTRA
+
+
+def test_una_camara_invalida_no_entra():
+    """Se ignora en silencio, con el mismo criterio que `renombrar` con un
+    nombre repetido: es entrada inválida del usuario, no un error."""
+    arbol = BinTree()
+    arbol.agregar("Sony", Path("/x"), [0], rutas=[Path("/x/C0001.MP4")])
+
+    arbol.fijar_camara("Sony", "hasselblad")
+
+    assert arbol.camara_de("Sony") == SONY
+
+
+def test_la_camara_de_un_bin_que_no_existe_es_none():
+    assert BinTree().camara_de("Fantasma") is None
+
+
+def test_sumarle_clips_a_un_bin_NO_le_cambia_la_camara():
+    """Este es el que importa. Si sumar recalculara, soltarle a un bin del
+    dron una tarjeta de la Sony le voltearía el color a los 70 que ya
+    tenía -- y peor: le borraría en silencio la corrección que Bruno hizo
+    a mano."""
+    arbol = BinTree()
+    arbol.agregar("Dron", Path("/dron"), [0], rutas=[Path("/dron/DJI_0001.MP4")])
+
+    arbol.sumar("Dron", [1, 2], origen=Path("/sony"))
+
+    assert arbol.camara_de("Dron") == DJI
+
+
+def test_la_camara_sobrevive_a_guardar_y_volver_a_leer():
+    arbol = BinTree()
+    arbol.agregar("Dron", Path("/dron"), [0], rutas=[Path("/dron/DJI_0001.MP4")])
+    arbol.fijar_camara("Dron", OTRA)
+
+    vuelto = BinTree.from_list(arbol.to_list())
+
+    assert vuelto.camara_de("Dron") == OTRA
+
+
+def test_una_sesion_vieja_sin_camara_la_calcula_de_sus_clips():
+    """Nadie pierde el color por actualizar la app."""
+    datos = [{"nombre": "Dron", "origen": "/dron", "clips": [0, 1]}]
+    rutas = [Path("/dron/DJI_0001.MP4"), Path("/dron/DJI_0002.MP4")]
+
+    arbol = BinTree.desde_sesion(datos, rutas=rutas)
+
+    assert arbol.camara_de("Dron") == DJI
+
+
+def test_una_sesion_CON_camara_respeta_lo_que_bruno_puso():
+    """El punto exacto donde un descuido le borra una corrección: si al
+    restaurar se recalculara, cada apertura desharía lo que él eligió."""
+    datos = [{"nombre": "Dron", "origen": "/dron", "clips": [0], "camara": "otra"}]
+
+    arbol = BinTree.desde_sesion(datos, rutas=[Path("/dron/DJI_0001.MP4")])
+
+    assert arbol.camara_de("Dron") == OTRA
+
+
+def test_una_camara_basura_en_el_archivo_se_recalcula():
+    """El autosave se puede tocar a mano. Un valor que no existe no puede
+    quedarse: el encabezado no sabría qué pintar."""
+    datos = [{"nombre": "Dron", "origen": "/dron", "clips": [0], "camara": "🐔"}]
+
+    arbol = BinTree.desde_sesion(datos, rutas=[Path("/dron/DJI_0001.MP4")])
+
+    assert arbol.camara_de("Dron") == DJI

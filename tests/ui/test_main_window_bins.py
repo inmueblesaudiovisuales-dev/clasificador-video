@@ -91,7 +91,7 @@ def test_el_autosave_escribe_los_bins(qtbot, tmp_path, ventana):
 
     data = json.loads((tmp_path / "sesion.json").read_text())
     assert data["bins"] == [
-        {"nombre": "Dron", "origen": "/dron", "clips": [0, 1]}
+        {"nombre": "Dron", "origen": "/dron", "clips": [0, 1], "camara": "sony"}
     ]
 
 

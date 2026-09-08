@@ -14,6 +14,8 @@ import os
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from clasificador_video.camaras import CAMARAS, camara_de_bin
+
 # Carpetas a las que el origen de un bin NUNCA sube. Subir hasta aqui
 # convertiria «señala la carpeta del bin» en «señala tu disco entero», y
 # reencontrar el material tendria que recorrerlo completo.
@@ -62,16 +64,27 @@ class Bin:
     nombre: str
     origen: Path
     clips: list[int] = field(default_factory=list)
+    # De que camara es este bin: decide su color en Premiere y el de su
+    # marquita en la hoja. Se adivina al crearlo y Bruno la corrige desde
+    # el menu del bin; `sumar` NO la recalcula, ver ahi.
+    camara: str = "sony"
 
 
 class BinTree:
     def __init__(self) -> None:
         self._bins: list[Bin] = []
 
-    def agregar(self, nombre: str, origen: Path, clips: list[int]) -> str:
-        """Devuelve el nombre con el que quedo, que puede no ser el pedido."""
+    def agregar(self, nombre: str, origen: Path, clips: list[int],
+                rutas: list[Path] | None = None) -> str:
+        """Devuelve el nombre con el que quedo, que puede no ser el pedido.
+
+        `rutas` son los archivos de esos clips, y sirven para UNA cosa:
+        adivinar la camara. Es opcional porque `crear_vacio` no tiene
+        ninguno todavia.
+        """
         nombre = self._nombre_libre(nombre.strip() or origen.name)
-        self._bins.append(Bin(nombre=nombre, origen=origen, clips=list(clips)))
+        self._bins.append(Bin(nombre=nombre, origen=origen, clips=list(clips),
+                              camara=camara_de_bin(rutas or [])))
         return nombre
 
     def crear_vacio(self, nombre: str) -> str:
@@ -153,6 +166,24 @@ class BinTree:
                 return b.origen
         return None
 
+    def camara_de(self, nombre: str) -> str | None:
+        for b in self._bins:
+            if b.nombre == nombre:
+                return b.camara
+        return None
+
+    def fijar_camara(self, nombre: str, camara: str) -> None:
+        """La corrige a mano. Una camara que no existe se ignora en
+        silencio, con el mismo criterio que `renombrar` con un nombre
+        repetido: es entrada invalida del usuario, no un error del
+        programa."""
+        if camara not in CAMARAS:
+            return
+        for b in self._bins:
+            if b.nombre == nombre:
+                b.camara = camara
+                return
+
     def mapa_por_clip(self) -> dict[int, str]:
         """De indice de clip a nombre de bin, de una sola pasada.
 
@@ -196,6 +227,12 @@ class BinTree:
 
         `origen` es de donde viene el material nuevo, y es opcional: mover
         clips entre bins que ya existen no trae carpeta nueva.
+
+        **La camara NO se recalcula aqui, a proposito.** Soltarle a un bin
+        del dron una tarjeta de la Sony le voltearia el color a los 70 que
+        ya tenia, y peor: le borraria en silencio la correccion que Bruno
+        hizo a mano. La camara se decide al crear el bin y se cambia desde
+        su menu, en ningun otro lado.
         """
         for b in self._bins:
             if b.nombre == nombre:
@@ -265,7 +302,7 @@ class BinTree:
     def to_list(self) -> list[dict]:
         return [
             {"nombre": b.nombre, "origen": self._origen_serializado(b),
-             "clips": list(b.clips)}
+             "clips": list(b.clips), "camara": b.camara}
             for b in self._bins
         ]
 
@@ -304,6 +341,10 @@ class BinTree:
                     nombre=str(d.get("nombre") or ""),
                     origen=Path(str(d.get("origen") or "")),
                     clips=clips,
+                    # Una camara que no existe --archivo tocado a mano, o
+                    # de una version futura-- se marca para recalcular en
+                    # `desde_sesion`, que es quien tiene las rutas.
+                    camara=str(d.get("camara") or ""),
                 )
             )
         return arbol
@@ -328,12 +369,32 @@ class BinTree:
         if datos is not None:
             arbol = cls.from_list(datos)
             arbol._acotar_a(len(rutas))
+            arbol._completar_camaras(rutas)
             return arbol
         arbol = cls()
         if rutas:
             arbol.agregar(rutas[0].parent.name, rutas[0].parent,
-                          list(range(len(rutas))))
+                          list(range(len(rutas))), rutas=rutas)
         return arbol
+
+    def _completar_camaras(self, rutas: list[Path]) -> None:
+        """Le pone camara a los bins que llegaron sin una valida.
+
+        Son dos casos y se tratan igual porque la respuesta es la misma:
+        una sesion de antes de que existieran las camaras (sin la llave), y
+        un autosave tocado a mano con un valor que no existe. En los dos, lo
+        que hay es un bin sin color y lo unico honesto es volver a
+        adivinarlo de sus archivos.
+
+        Lo que NO se toca es un bin con camara valida: ahi puede estar una
+        correccion que Bruno hizo a mano, y recalcularla la desharia en cada
+        apertura -- sin avisar, que es el peor modo de falla de esta app.
+        """
+        for b in self._bins:
+            if b.camara in CAMARAS:
+                continue
+            b.camara = camara_de_bin([rutas[i] for i in b.clips
+                                      if 0 <= i < len(rutas)])
 
     def _acotar_a(self, total_clips: int) -> None:
         """Descarta los indices que ya no caben --sesion corrupta, o de un
