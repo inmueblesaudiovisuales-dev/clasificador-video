@@ -1,15 +1,27 @@
 // Las marcas de estado sobre el nombre del item en el panel de proyecto de
 // Premiere. NO tocan el archivo en disco.
 //
-// Existen porque la etiqueta de color paso a decir la camara (`label.js`).
-// El destacado era el unico estado que solo se distinguia por color --va en
-// la misma carpeta «Picks» que los demas picks, decision del 2026-08-22-- y
-// sin marca propia se perderia en la frontera, que es justo lo que este
-// plugin existe para evitar. El reject lo pidio Bruno despues, el mismo dia:
-// su carpeta ya lo dice, pero fuera de ella --buscando por nombre, o ya
-// arrastrado a la linea de tiempo-- no habia forma de saberlo.
+// Estas marcas son AHORA LA UNICA forma en que el estado cruza a Premiere.
+// Se llego aqui en tres pasos el mismo dia, y conviene leerlos juntos porque
+// cada uno hizo sobrar al siguiente:
+//
+//   1. La etiqueta de color paso a decir la CAMARA (`label.js`), asi que el
+//      destacado --que solo se distinguia por el dorado-- estreno su «★».
+//   2. Bruno pidio lo mismo para el reject, y que esa marca REEMPLAZARA la
+//      carpeta «Rejects».
+//   3. Y luego que se fueran tambien «Picks» y «Sin marcar»: cada cuarto
+//      queda plano, con todos sus clips adentro.
+//
+// El paso 3 dejaba al pick indistinguible de un clip sin ver --era la
+// carpeta la que lo decia-- asi que el pick estreno su «✓». Un clip SIN
+// marca ya no significa «pick»: significa que no lo has visto.
+//
+// El fondo de los tres pasos es el mismo: una carpeta esconde el clip y una
+// marca lo enseña. Y perder un dato al cruzar a Premiere es justo lo que
+// este plugin existe para evitar.
 const PREFIJO_POR_FLAG = {
   destacado: "★ ",
+  pick: "✓ ",
   reject: "✕ ",
 };
 
@@ -69,6 +81,8 @@ function nombreLimpio(nombre) {
 // 1. Es IDEMPOTENTE. Volver a correr la misma clasificacion es un caso
 //    normal --es como se corrige un error-- y sin esto quedaria
 //    «★ ★ ★ C0001.MP4».
+//    Y un clip sin marcar se queda sin marca: no hay prefijo para «none»
+//    a proposito, porque «no lo he visto» no es algo que se anuncie.
 // 2. **Cambia la marca cuando cambia el estado.** Un clip que era reject y
 //    ahora es destacado pierde su «✕» y gana su «★»; uno que dejo de ser
 //    los dos se queda sin marca. Hasta que existio la segunda marca esto
@@ -98,10 +112,12 @@ function applyFlagPrefix(project, clipItem, flag) {
     if (!yaSeAvisoDeRenombrar) {
       yaSeAvisoDeRenombrar = true;
       logToPanel(
-        "No pude marcar los destacados con ★ ni los rejects con ✕: esta " +
-        "version de Premiere no tiene ninguna de estas acciones (" +
-        ACCIONES_DE_RENOMBRAR.join(", ") + "). Se reconocen igual por su " +
-        "carpeta. Lo que si tiene el clip: " +
+        "No pude marcar los clips con ★ / ✓ / ✕: esta version de Premiere " +
+        "no tiene ninguna de estas acciones (" +
+        ACCIONES_DE_RENOMBRAR.join(", ") + "). Los clips llegan bien y en su " +
+        "cuarto, pero SIN NINGUNA marca de estado -- avisale a Bruno, porque " +
+        "es lo unico que distingue un pick de un reject. Lo que si tiene el " +
+        "clip: " +
         Object.getOwnPropertyNames(Object.getPrototypeOf(clipItem)).join(", "),
         true
       );

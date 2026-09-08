@@ -1116,17 +1116,20 @@ registrarPrueba("las marcas de nombre: ★ y ✕ no se enciman", async () => {
 
   const casos = [
     ["C0001.MP4", "destacado", "★ C0001.MP4"],
+    ["C0001.MP4", "pick", "✓ C0001.MP4"],
     ["C0001.MP4", "reject", "✕ C0001.MP4"],
-    ["C0001.MP4", "pick", "C0001.MP4"],
+    // el unico sin marca, y a proposito: «no lo he visto» no se anuncia
     ["C0001.MP4", "none", "C0001.MP4"],
     // idempotente: reimportar el mismo manifiesto no acumula marcas
     ["★ C0001.MP4", "destacado", "★ C0001.MP4"],
     // cambiar de estado cambia la marca, no la agrega
     ["✕ C0001.MP4", "destacado", "★ C0001.MP4"],
     ["★ C0001.MP4", "reject", "✕ C0001.MP4"],
-    ["★ C0001.MP4", "pick", "C0001.MP4"],
+    ["★ C0001.MP4", "pick", "✓ C0001.MP4"],
+    // y de vuelta a cero: le quito todo, se queda pelado
+    ["✓ C0001.MP4", "none", "C0001.MP4"],
     // limpia lo que dejo una version que solo agregaba
-    ["★ ✕ C0001.MP4", "reject", "✕ C0001.MP4"],
+    ["★ ✕ ✓ C0001.MP4", "reject", "✕ C0001.MP4"],
     // una ✕ que escribio Bruno a media frase NO es nuestra
     ["Toma buena ✕ rara.MP4", "pick", "Toma buena ✕ rara.MP4"],
     // ni una al inicio sin el espacio: nuestra marca es «✕ », con espacio

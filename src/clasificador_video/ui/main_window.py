@@ -28,7 +28,7 @@ from clasificador_video.filters import FilterState, cola, contar
 from clasificador_video.history import History, HistoryEntry
 from clasificador_video.ingest import archivos_de_video
 from clasificador_video.keyboard import KeyboardRouter
-from clasificador_video.manifest import Clip, Manifest, con_subcarpeta_de_estado
+from clasificador_video.manifest import Clip, Manifest
 from clasificador_video.player import SPEED_PROFILES
 from clasificador_video.probe import (
     orientacion_de,
@@ -4408,17 +4408,21 @@ class MainWindow(QWidget):
         """Arma el manifiesto y lo escribe. Sin dialogos: es la parte
         probable, y `_on_export_manifest` es la que pregunta.
 
-        Aqui van las tres transformaciones de exportacion, en fila: el
-        rango en orden, la subcarpeta del estado y la camara del bin. Las
-        tres viven en la exportacion y no en la sesion, que guarda lo que el
-        editor marco.
+        Aqui van las dos transformaciones de exportacion, en fila: el rango
+        en orden y la camara del bin. Las dos viven en la exportacion y no en
+        la sesion, que guarda lo que el editor marco.
+
+        Hubo una tercera --la subcarpeta del estado, «Picks»/«Rejects»/«Sin
+        marcar» dentro de cada cuarto-- y se fue el 2026-09-08: el estado lo
+        dicen las marcas del nombre en Premiere, y una carpeta que dice lo
+        mismo que una marca solo esconde el clip.
         """
         camaras = self._camaras_por_clip()
         manifest = Manifest(
             proyecto=self.project_name,
             orientacion=self.orientacion_del_proyecto(),
-            clips=[con_subcarpeta_de_estado(_con_el_rango_en_orden(
-                replace(c, camara=camaras.get(i, SONY))))
+            clips=[_con_el_rango_en_orden(
+                replace(c, camara=camaras.get(i, SONY)))
                 for i, c in enumerate(self.clips)],
         )
         manifest.write_json(destino)

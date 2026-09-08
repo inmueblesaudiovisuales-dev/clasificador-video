@@ -22,16 +22,15 @@ primero que hay que saber para reportar cualquier cosa.
   encabezado de cada bin — es el mismo color que vas a ver en Premiere. Si le
   atinó mal, clic derecho en el encabezado → **Cámara**, y lo que tú elijas
   manda: no se pierde al cerrar el proyecto.
-- **Los destacados llegan con un ★ al inicio del nombre, y los rejects con
-  un ✕.** Siguen reconociéndose sin depender del color, que ahora dice la
-  cámara. Solo cambia el nombre dentro de Premiere; el archivo en tu disco no
-  se toca. Y si cambias de opinión y vuelves a importar, la marca se corrige
-  sola: un clip que era reject y ahora es destacado pierde su ✕ y gana su ★.
-- **Los rejects ya no tienen carpeta propia.** Se quedan sueltos en su
-  cuarto, tachados, así que los ves al abrir el cuarto en vez de escondidos
-  en una carpeta que nunca abres. `Picks` y `Sin marcar` siguen igual: la
-  primera junta los buenos para armar, la segunda es lo que te falta por
-  ver.
+- **Cada cuarto quedó plano, y cada clip dice lo que es en su nombre:** `★`
+  destacado, `✓` pick, `✕` reject, y sin marca los que no has visto. Se
+  fueron las carpetas `Picks`, `Rejects` y `Sin marcar`: abres el cuarto y
+  ves todo lo que grabaste ahí con lo bueno y lo malo señalado, en vez de
+  entrar a tres carpetas para saber qué tienes.
+- **Las marcas solo cambian el nombre dentro de Premiere**, el archivo en tu
+  disco no se toca. Y se corrigen solas: si cambias de opinión y vuelves a
+  importar, un clip que era reject y ahora es destacado pierde su ✕ y gana
+  su ★. Si tú le pusiste otro nombre a un clip, ese no se toca.
 - **El proyecto de Premiere se arma con tus siete carpetas:** `01. Secuencia`,
   `02. Clip`, `03. AE composition`, `04. Musica`, `05. Voz`, `06. Graficos` y
   `07. Assets adicionales`. Todo el material clasificado entra en `02. Clip`,

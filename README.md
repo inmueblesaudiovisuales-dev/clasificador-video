@@ -208,33 +208,29 @@ la segunda:
 Las cinco que quedan vacías se crean igual: están para que tú metas cosas
 ahí. Si ya las tenías en tu proyecto, se reusan — no te llega una segunda.
 
-Dentro de `02. Clip`, cada cuarto reparte sus clips por cómo los marcaste:
+Dentro de `02. Clip` hay una carpeta por cuarto, y ahí van todos sus clips
+juntos. Cada uno dice lo que es con una marca al inicio del nombre:
 
 ```
 02. Clip
   └── Cocina
-        ├── Picks
-        ├── Sin marcar
-        ├── ✕ C0004.MP4       ← los rejects, sueltos y tachados
-        └── ✕ C0009.MP4
+        ├── ★ C0002.MP4      destacado
+        ├── ✓ C0001.MP4      pick
+        ├── ✕ C0004.MP4      reject
+        └── C0007.MP4        sin marca: no lo has visto
 ```
 
-**Los destacados van en Picks**, junto con los demás: un destacado es un pick
-reforzado, y en esa carpeta lo que quieres son los buenos, todos juntos. Los
-reconoces porque llegan con un **★ al inicio del nombre**.
+No hay carpetas por estado. Abres el cuarto y ves todo lo que grabaste ahí,
+con lo bueno y lo malo señalado — en vez de tener que entrar a tres carpetas
+para saber qué tienes.
 
-**Los rejects no tienen carpeta**: se quedan sueltos en su cuarto, con un
-**✕ al inicio del nombre**. Los ves al abrir el cuarto, sin entrar a ninguna
-parte, y sabes de un golpe cuáles no sirven.
+Las marcas solo cambian el nombre dentro de Premiere; **el archivo en tu
+disco no se toca**. Y si cambias de opinión y vuelves a importar, la marca se
+corrige sola: un clip que era reject y ahora es destacado pierde su ✕ y gana
+su ★. Si tú le pusiste otro nombre a un clip, ese no se toca.
 
-Las dos marcas solo cambian el nombre dentro de Premiere; el archivo en tu
-disco no se toca. Y si vuelves a importar la misma clasificación después de
-cambiar de opinión, la marca se corrige sola: un clip que era reject y ahora
-es destacado pierde su ✕ y gana su ★.
-
-Solo aparecen las que tienen algo: un cuarto sin picks no estrena esa
-carpeta. Los clips a los que nunca les pusiste cuarto siguen cayendo juntos
-en **Sin clasificar**.
+Los clips a los que nunca les pusiste cuarto siguen cayendo juntos en
+**Sin clasificar**.
 
 ### El color dice de qué cámara es
 

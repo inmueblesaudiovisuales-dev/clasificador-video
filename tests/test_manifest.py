@@ -2,7 +2,7 @@
 import json
 from pathlib import Path
 
-from clasificador_video.manifest import Clip, Manifest, con_subcarpeta_de_estado
+from clasificador_video.manifest import Clip, Manifest
 
 
 def _clip(**overrides) -> Clip:
@@ -78,91 +78,32 @@ def test_destacado_viaja_en_el_manifest_sin_cambiar_el_contrato():
     assert clip.to_dict()["categoria_path"] == ["Cocina"]
 
 
-# --- la subcarpeta de estado dentro del bin del cuarto ---------------------
+# --- el cuarto es plano: sin subcarpetas de estado ------------------------
+#
+# Hubo un `con_subcarpeta_de_estado` que colgaba «Picks», «Rejects» y «Sin
+# marcar» dentro de cada cuarto. Se fue entero el 2026-09-08: el estado lo
+# dicen ahora las marcas del nombre en Premiere (★ destacado, ✓ pick, ✕
+# reject, nada = sin ver), y una carpeta que dice lo mismo que una marca solo
+# esconde el clip. Ver `nombre.js` y el §9 del spec de ese día.
 
 
-def test_un_pick_cae_en_la_subcarpeta_picks_de_su_cuarto():
-    clip = Clip(orden=1, ruta=Path("/c/A.MP4"), categoria_path=["Cocina"],
-                fps=30.0, flag="pick")
+def test_el_camino_del_clip_es_su_cuarto_y_nada_mas():
+    """Sea cual sea su estado. Es lo que lo deja plano dentro del cuarto."""
+    for flag in ("pick", "reject", "destacado", "none", "lo-que-sea"):
+        clip = Clip(orden=1, ruta=Path("/c/A.MP4"), categoria_path=["Cocina"],
+                    fps=30.0, flag=flag)
 
-    assert con_subcarpeta_de_estado(clip).categoria_path == ["Cocina", "Picks"]
-
-
-def test_cada_estado_tiene_su_subcarpeta():
-    def camino(flag):
-        return con_subcarpeta_de_estado(
-            Clip(orden=1, ruta=Path("/c/A.MP4"), categoria_path=["Cocina"],
-                 fps=30.0, flag=flag)
-        ).categoria_path[-1]
-
-    assert camino("pick") == "Picks"
-    assert camino("none") == "Sin marcar"
+        assert clip.to_dict()["categoria_path"] == ["Cocina"], flag
 
 
-def test_los_rejects_se_quedan_SUELTOS_en_su_cuarto():
-    """Decision de Bruno el 2026-09-08, cuando el reject estreno su «✕» en
-    el nombre: la carpeta «Rejects» sobra si el clip ya viene tachado, y
-    quitarla deja los malos a la vista al abrir el cuarto en vez de
-    escondidos en una carpeta que nadie abre.
-
-    Se queda con el camino del cuarto pelado --sin nada al final--, que es
-    lo que hace que caigan sueltos junto a las subcarpetas «Picks» y «Sin
-    marcar» de ese mismo cuarto.
-    """
-    clip = Clip(orden=1, ruta=Path("/c/A.MP4"), categoria_path=["Cocina"],
-                fps=30.0, flag="reject")
-
-    assert con_subcarpeta_de_estado(clip).categoria_path == ["Cocina"]
-
-
-def test_los_destacados_van_con_los_picks():
-    """Decision de Bruno el 2026-08-22. Un destacado ES un pick, reforzado:
-    partirlos en dos carpetas obligaba a mirar en dos lados para armar la
-    secuencia, y lo que uno quiere ahi son «los buenos».
-
-    No se pierde la distincion: el destacado llega a Premiere con la
-    etiqueta dorada (`MANGO`), que se ve en el panel de proyecto sin abrir
-    nada. Eso ya funcionaba y es lo que hace que esta carpeta sobre.
-    """
-    def camino(flag):
-        return con_subcarpeta_de_estado(
-            Clip(orden=1, ruta=Path("/c/A.MP4"), categoria_path=["Cocina"],
-                 fps=30.0, flag=flag)
-        ).categoria_path[-1]
-
-    assert camino("destacado") == "Picks"
-    assert camino("destacado") == camino("pick")
-
-
-def test_un_clip_sin_cuarto_se_deja_tal_cual():
-    """Su camino vacio es lo que hace que el plugin lo mande a «Sin
-    clasificar», y esa cadena vive alla: escribirla tambien aqui serian dos
+def test_un_clip_sin_cuarto_viaja_con_el_camino_vacio():
+    """Su camino vacío es lo que hace que el plugin lo mande a «Sin
+    clasificar», y esa cadena vive allá: escribirla también aquí serían dos
     lugares diciendo el nombre del mismo bin."""
     clip = Clip(orden=1, ruta=Path("/c/A.MP4"), categoria_path=[], fps=30.0,
                 flag="pick")
 
-    assert con_subcarpeta_de_estado(clip).categoria_path == []
-
-
-def test_no_le_toca_el_camino_al_clip_original():
-    """Devuelve una COPIA: el `categoria_path` que se exporta no es el que la
-    sesion guarda -- si lo mutara, marcar un pick se veria en la app como un
-    cambio de cuarto, y el historial, la hoja y el rail van todos por ahi."""
-    clip = Clip(orden=1, ruta=Path("/c/A.MP4"), categoria_path=["Cocina"],
-                fps=30.0, flag="pick")
-
-    con_subcarpeta_de_estado(clip)
-
-    assert clip.categoria_path == ["Cocina"]
-
-
-def test_un_estado_desconocido_no_inventa_subcarpeta():
-    """Una sesion tocada a mano puede traer cualquier cosa en `flag`. Un bin
-    llamado «None» en el proyecto de Bruno seria peor que no anidar."""
-    clip = Clip(orden=1, ruta=Path("/c/A.MP4"), categoria_path=["Cocina"],
-                fps=30.0, flag="lo-que-sea")
-
-    assert con_subcarpeta_de_estado(clip).categoria_path == ["Cocina"]
+    assert clip.to_dict()["categoria_path"] == []
 
 
 def test_el_clip_lleva_su_camara_al_manifiesto():

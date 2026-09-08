@@ -364,3 +364,66 @@ un `★ ✕` heredado, y los dos nombres con `✕` que son de Bruno y no se toca
 
 Del lado de la app, un test en `test_manifest.py` fija que un reject se
 queda con el camino de su cuarto pelado — que es lo que lo deja suelto.
+
+
+---
+
+## 9. Enmienda final: el cuarto queda plano y el pick estrena marca
+
+**Esta sección corrige el §2, el §4.1 y el §8. Donde se contradigan, manda
+esta.** Es el tercer paso del mismo día sobre la misma pregunta, y los tres
+se leen mejor juntos que por separado.
+
+> «Mejor quita picks también. Solo deja todo dentro de cada cuarto.»
+
+### 9.1 Cómo queda
+
+```
+02. Clip
+  └── Cocina
+        ├── ★ C0002.MP4      destacado
+        ├── ✓ C0001.MP4      pick
+        ├── ✕ C0004.MP4      reject
+        └── C0007.MP4        sin marca: no se ha visto
+```
+
+Se van **las tres** subcarpetas de estado. `con_subcarpeta_de_estado` se
+borró entera, con sus tests: era la última pieza de esa idea.
+
+### 9.2 El pick estrena `✓`, y no es un adorno
+
+Quitar `Picks` dejaba al pick **indistinguible de un clip sin ver** — era la
+carpeta la que lo decía y no había marca que la reemplazara. Eso es perder un
+dato en la frontera, que es exactamente lo que este plugin existe para
+evitar, así que se le señaló a Bruno antes de tocar nada y él escogió darle
+marca propia.
+
+Consecuencia que hay que tener presente: **un clip sin marca ya no significa
+«pick», significa «no lo has visto»**. Es un cambio de significado del
+estado vacío, no solo una carpeta menos.
+
+### 9.3 Por qué los tres pasos son la misma decisión
+
+| Paso | Qué pasó | Qué sobró |
+|---|---|---|
+| 1 | El color pasó a decir la cámara | la etiqueta dorada del destacado → nace `★` |
+| 2 | El reject estrenó `✕` | la carpeta `Rejects` |
+| 3 | Se fueron `Picks` y `Sin marcar` | — y el pick estrenó `✓` para no perderse |
+
+El fondo, en una línea: **una carpeta esconde el clip y una marca lo
+enseña.** Lo que uno quiere al abrir un cuarto es ver qué grabó, con lo bueno
+y lo malo señalado — no elegir entre tres puertas para averiguarlo.
+
+Y es la tercera vez que este repo llega a la misma conclusión: la primera fue
+el 2026-08-22, cuando los destacados perdieron su carpeta propia y se
+quedaron con la etiqueta dorada.
+
+### 9.4 Qué se comprueba
+
+- En el arnés del plugin: doce casos de la marca, incluidos los tres cambios
+  de estado que la reemplazan, el `none` que la quita, y los dos nombres con
+  `✕` de Bruno que no se tocan.
+- En `test_manifest.py`: que el camino de un clip sea su cuarto y nada más,
+  con cualquier estado.
+- En `test_main_window.py`: que exportar no le toque nada a los clips vivos
+  —ni el camino ni la cámara—, ni siquiera exportando dos veces.

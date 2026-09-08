@@ -777,18 +777,22 @@ def test_exportar_escribe_manifest_con_formato_del_plugin(qtbot, monkeypatch, tm
     assert saved["clips"][1]["categoria_path"] == []
     assert saved["clips"][0]["flag"] == "pick"
     assert saved["clips"][0]["in_frame"] == 30
-    # el estado viaja como subcarpeta DENTRO del cuarto: en Premiere el bin
-    # «Sala» tiene adentro «Picks», y ahi cae este clip
-    assert saved["clips"][0]["categoria_path"] == ["Sala", "Picks"]
+    # el camino es el CUARTO Y NADA MAS: en Premiere el bin «Sala» tiene los
+    # clips sueltos adentro. El estado no cuelga de una subcarpeta -- lo dice
+    # la marca del nombre (★/✓/✕), ver `nombre.js`.
+    assert saved["clips"][0]["categoria_path"] == ["Sala"]
 
 
-def test_exportar_no_le_cambia_el_cuarto_a_los_clips_de_la_sesion(
+def test_exportar_no_le_toca_nada_a_los_clips_de_la_sesion(
         qtbot, monkeypatch, tmp_path):
-    """La subcarpeta se agrega SOLO en el archivo que se exporta.
+    """Lo que se exporta sale de una COPIA de cada clip.
 
-    Si tocara a los clips vivos, marcar un pick se veria en la app como un
-    cambio de cuarto: el historial, la hoja, el rail y el autoguardado van
-    todos por `categoria_path[0]`. Y exportar dos veces anidaria dos veces.
+    Guardaba la subcarpeta del estado hasta el 2026-09-08, y hoy guarda la
+    cámara del bin; las dos son transformaciones de exportación, y ninguna
+    puede tocar a los clips vivos. Si lo hicieran, exportar se vería en la
+    app como un cambio en el material -- el historial, la hoja, el rail y el
+    autoguardado van todos por `categoria_path[0]`. Y exportar dos veces
+    aplicaría la transformación dos veces.
     """
     from PySide6.QtWidgets import QMessageBox
     window = _window_with_video(qtbot)
@@ -806,9 +810,11 @@ def test_exportar_no_le_cambia_el_cuarto_a_los_clips_de_la_sesion(
     window.title_bar.export_button.click()      # y otra vez
 
     assert window.clips[0].categoria_path == ["Sala"]
+    assert window.clips[0].camara == "sony"     # el default, no lo que se exportó
     import json
-    assert json.loads(out.read_text())["clips"][0]["categoria_path"] == [
-        "Sala", "Picks"]
+    exportado = json.loads(out.read_text())["clips"][0]
+    assert exportado["categoria_path"] == ["Sala"]
+    assert exportado["flag"] == "pick"
 
 
 def test_exportar_avisa_si_hay_clips_sin_clasificar_sin_bloquear(qtbot, monkeypatch, tmp_path):
