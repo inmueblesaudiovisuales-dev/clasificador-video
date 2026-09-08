@@ -9,7 +9,14 @@ primero que hay que saber para reportar cualquier cosa.
 
 ---
 
-## 1.13 — 8 de septiembre de 2026
+## 2.0 — 8 de septiembre de 2026
+
+Sube a 2.0 y no a 1.13 porque **cambia cómo se ve todo tu material al llegar
+a Premiere**: los colores dicen otra cosa, las carpetas por estado ya no
+existen y los clips llegan con el nombre marcado. Si tienes proyectos a medio
+armar con la versión anterior, el material que ya importaste sigue donde
+está; lo que cambia es lo que importes de aquí en adelante.
+
 
 - **En Premiere, el color de cada clip dice de qué cámara salió.** La Sony
   llega en azul y el dron en amarillo; una tercera cámara, si algún día la
