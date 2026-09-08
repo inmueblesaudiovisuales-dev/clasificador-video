@@ -9,6 +9,32 @@ primero que hay que saber para reportar cualquier cosa.
 
 ---
 
+## 1.13 — 8 de septiembre de 2026
+
+- **En Premiere, el color de cada clip dice de qué cámara salió.** La Sony
+  llega en azul y el dron en amarillo; una tercera cámara, si algún día la
+  hay, en morado. Antes el color decía si era pick o reject, que ya se sabe
+  por la carpeta en la que cae. Con esto, ponerle su LUT a todo el material
+  de una cámara es seleccionar todos los de un color y arrastrarles el
+  preset.
+- **Clipify adivina la cámara sola.** Los archivos del dron traen `DJI` en el
+  nombre, los demás son de la Sony. Lo ves en el puntito de color del
+  encabezado de cada bin — es el mismo color que vas a ver en Premiere. Si le
+  atinó mal, clic derecho en el encabezado → **Cámara**, y lo que tú elijas
+  manda: no se pierde al cerrar el proyecto.
+- **Los destacados llegan con un ★ al inicio del nombre.** Siguen en la
+  carpeta `Picks` con los demás picks, y ahora se reconocen sin depender del
+  color, que ahora dice la cámara. Solo cambia el nombre dentro de Premiere;
+  el archivo en tu disco no se toca, y volver a importar no te deja `★ ★ ★`.
+- **El proyecto de Premiere se arma con tus siete carpetas:** `01. Secuencia`,
+  `02. Clip`, `03. AE composition`, `04. Musica`, `05. Voz`, `06. Graficos` y
+  `07. Assets adicionales`. Todo el material clasificado entra en `02. Clip`,
+  con sus cuartos adentro como siempre. Las que quedan vacías se crean igual,
+  para que metas tus cosas ahí; y si ya las tenías, se reusan.
+- **Si el proyecto ya tenía clips importados, te avisa cuántos se van a mover
+  antes de moverlos.** No se duplica ninguno, pero cambian de lugar, y eso se
+  dice antes y no después.
+
 ## 1.12 — 27 de agosto de 2026
 
 - **La app ahora se llama Clipify.** Antes era «Clasificador de Video», que
