@@ -96,8 +96,23 @@ def test_cada_estado_tiene_su_subcarpeta():
         ).categoria_path[-1]
 
     assert camino("pick") == "Picks"
-    assert camino("reject") == "Rejects"
     assert camino("none") == "Sin marcar"
+
+
+def test_los_rejects_se_quedan_SUELTOS_en_su_cuarto():
+    """Decision de Bruno el 2026-09-08, cuando el reject estreno su «✕» en
+    el nombre: la carpeta «Rejects» sobra si el clip ya viene tachado, y
+    quitarla deja los malos a la vista al abrir el cuarto en vez de
+    escondidos en una carpeta que nadie abre.
+
+    Se queda con el camino del cuarto pelado --sin nada al final--, que es
+    lo que hace que caigan sueltos junto a las subcarpetas «Picks» y «Sin
+    marcar» de ese mismo cuarto.
+    """
+    clip = Clip(orden=1, ruta=Path("/c/A.MP4"), categoria_path=["Cocina"],
+                fps=30.0, flag="reject")
+
+    assert con_subcarpeta_de_estado(clip).categoria_path == ["Cocina"]
 
 
 def test_los_destacados_van_con_los_picks():

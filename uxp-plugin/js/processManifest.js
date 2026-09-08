@@ -51,7 +51,7 @@ async function processManifest(project, manifest) {
       }
 
       applyCameraLabel(project, clipItem, clipData.camara);
-      applyStarPrefix(project, clipItem, clipData.flag);
+      applyFlagPrefix(project, clipItem, clipData.flag);
 
       if (clipData.in_frame !== null && clipData.out_frame !== null) {
         applyInOut(project, clipItem, clipData.fps, clipData.in_frame, clipData.out_frame);

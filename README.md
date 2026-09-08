@@ -214,17 +214,25 @@ Dentro de `02. Clip`, cada cuarto reparte sus clips por cómo los marcaste:
 02. Clip
   └── Cocina
         ├── Picks
-        ├── Rejects
-        └── Sin marcar
+        ├── Sin marcar
+        ├── ✕ C0004.MP4       ← los rejects, sueltos y tachados
+        └── ✕ C0009.MP4
 ```
 
 **Los destacados van en Picks**, junto con los demás: un destacado es un pick
 reforzado, y en esa carpeta lo que quieres son los buenos, todos juntos. Los
-reconoces porque llegan con un **★ al inicio del nombre** en el panel de
-proyecto. Solo cambia el nombre dentro de Premiere; el archivo en tu disco no
-se toca.
+reconoces porque llegan con un **★ al inicio del nombre**.
 
-Solo aparecen las que tienen algo: un cuarto sin rejects no estrena esa
+**Los rejects no tienen carpeta**: se quedan sueltos en su cuarto, con un
+**✕ al inicio del nombre**. Los ves al abrir el cuarto, sin entrar a ninguna
+parte, y sabes de un golpe cuáles no sirven.
+
+Las dos marcas solo cambian el nombre dentro de Premiere; el archivo en tu
+disco no se toca. Y si vuelves a importar la misma clasificación después de
+cambiar de opinión, la marca se corrige sola: un clip que era reject y ahora
+es destacado pierde su ✕ y gana su ★.
+
+Solo aparecen las que tienen algo: un cuarto sin picks no estrena esa
 carpeta. Los clips a los que nunca les pusiste cuarto siguen cayendo juntos
 en **Sin clasificar**.
 

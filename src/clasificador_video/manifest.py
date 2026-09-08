@@ -59,22 +59,32 @@ class Manifest:
 # mentalmente. `pick` y `reject` se quedan en inglés porque así los dice un
 # editor en México, igual que en el resto de la app.
 #
-# De paso, Premiere ordena los bins por abecedario y estos tres caen justo de
-# mejor a peor: Picks, Rejects, Sin marcar.
-#
 # **Los destacados van con los picks**, no en carpeta aparte. Decision de
 # Bruno el 2026-08-22: un destacado ES un pick, reforzado, y partirlos en dos
 # carpetas obligaba a mirar en dos lados para armar la secuencia -- cuando lo
 # que uno quiere ahi son «los buenos», todos juntos.
 #
-# No se pierde la distincion: el destacado llega a Premiere con la etiqueta
-# dorada (`MANGO`, ver `label.js`), que se ve en el panel de proyecto sin
-# abrir nada. Esa etiqueta ya funcionaba, y es lo que hace que la carpeta
-# sobre.
+# **Y los rejects ya no van a ninguna**: se quedan sueltos en su cuarto.
+# Decision de Bruno el 2026-09-08.
+#
+# Las dos decisiones son la misma, tomada dos veces: una marca en el clip
+# vale mas que una carpeta, porque la carpeta esconde y la marca se ve.
+# Hasta el 2026-09-08 esa marca era la etiqueta de color; ahora el color dice
+# la CAMARA y lo que distingue el estado es el nombre -- «★» al destacado y
+# «✕» al reject (ver `nombre.js`). Lo que queda de este diccionario son las
+# dos carpetas que si dicen algo que ninguna marca dice: «Picks», que junta
+# los buenos para armar, y «Sin marcar», que es la cola de trabajo.
 SUBCARPETA_POR_FLAG = {
     "destacado": "Picks",
     "pick": "Picks",
-    "reject": "Rejects",
+    # `None` a proposito, y NO una llave ausente: el reject se queda SUELTO
+    # en la carpeta de su cuarto. Decision de Bruno el 2026-09-08, cuando el
+    # reject estreno su «✕» al inicio del nombre en Premiere (`nombre.js`):
+    # una carpeta «Rejects» y una tacha son dos formas de decir lo mismo, y
+    # de las dos la tacha es la que deja ver el clip sin abrir nada. Escrito
+    # aqui como valor y no borrado de la tabla para que se lea que es una
+    # decision y no un olvido.
+    "reject": None,
     "none": "Sin marcar",
 }
 

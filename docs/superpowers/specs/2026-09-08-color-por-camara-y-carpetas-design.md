@@ -292,3 +292,75 @@ pagada con dos caídas.
 **Verificación visual real**, según `CLAUDE.md`: `grab()` del encabezado de
 dos bins con cámaras distintas, para ver los colores nuevos con los ojos. Si
 no se miró la imagen, no se afirma.
+
+
+---
+
+## 8. Enmienda de la misma tarde: el reject estrena marca y pierde carpeta
+
+**Esta sección corrige el §2 y el §4.1. Donde se contradigan, manda esta.**
+
+Bruno vio funcionando el `★` de los destacados y pidió lo mismo para el otro
+extremo:
+
+> «Podemos poner un icono para rejects? Así como los favoritos tienen
+> estrella, podemos ponerle uno a rejects?»
+
+Y enseguida, la parte que cambia el árbol:
+
+> «Quiero que esta marca reemplace la carpeta de rejects.»
+
+### 8.1 Qué cambia
+
+- El reject llega con **`✕ ` al inicio del nombre** en el panel de proyecto,
+  igual que el destacado con su `★`.
+- **La subcarpeta `Rejects` desaparece.** Los rejects se quedan **sueltos en
+  la carpeta de su cuarto**, junto a las subcarpetas `Picks` y `Sin marcar`:
+
+```
+02. Clip
+  └── Cocina
+        ├── Picks
+        ├── Sin marcar
+        ├── ✕ C0004.MP4
+        └── ✕ C0009.MP4
+```
+
+Bruno escogió «sueltos en su cuarto» sobre las otras dos que se le pusieron
+enfrente (meterlos con los «Sin marcar», o quitar todas las subcarpetas y
+dejar el cuarto plano).
+
+**Costo dicho de frente antes de decidir:** la carpeta `Rejects` dejaba
+ignorar de golpe todo lo malo; sueltos, los malos aparecen a la vista y hay
+que distinguirlos uno por uno. Ese es justamente el punto — la carpeta los
+escondía, y lo que uno quiere al abrir un cuarto es ver qué grabó, con lo
+malo tachado.
+
+### 8.2 La regla del `★` cambia: ahora las marcas se reemplazan
+
+El §5 decía que el `★` **solo se agrega y nunca se quita**, por no renombrar
+clips que Bruno pudo haber renombrado a mano.
+
+**Con dos marcas esa regla se vuelve el bug.** Un clip que era reject y pasa
+a destacado terminaría llamándose `★ ✕ C0001.MP4` — diciendo las dos cosas
+contrarias a la vez.
+
+La regla nueva: **se quita la marca propia del inicio y se pone la que toca.**
+Y solo la propia — un `✕` que Bruno haya escrito a media frase, o al inicio
+sin el espacio que lleva la nuestra, no se toca. Un clip que deja de ser
+reject y de ser destacado se queda sin marca.
+
+Lo demás del §5 se sostiene: sigue siendo idempotente, sigue sin tocar el
+archivo en disco, y si Premiere no dejara renombrar se dice en el panel en
+vez de fallar callado.
+
+### 8.3 Cómo se comprueba
+
+Los casos viven en el arnés del plugin (`autocheck-tests.js`), que es donde
+puede correr esta lógica, y son once: las dos marcas puestas sobre un nombre
+limpio, un pick y un «sin marcar» sin marca, la segunda pasada que no
+acumula, los tres cambios de estado que reemplazan la marca, la limpieza de
+un `★ ✕` heredado, y los dos nombres con `✕` que son de Bruno y no se tocan.
+
+Del lado de la app, un test en `test_manifest.py` fija que un reject se
+queda con el camino de su cuarto pelado — que es lo que lo deja suelto.

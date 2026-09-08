@@ -1,13 +1,20 @@
-// El «★» de los destacados, sobre el nombre del item en el panel de
-// proyecto. NO toca el archivo en disco.
+// Las marcas de estado sobre el nombre del item en el panel de proyecto de
+// Premiere. NO tocan el archivo en disco.
 //
-// Existe porque la etiqueta de color paso a decir la camara (`label.js`), y
-// el destacado era el unico estado que solo se distinguia por color: va en
-// la misma carpeta «Picks» que los demas picks --decision del 2026-08-22, un
-// destacado ES un pick reforzado-- asi que sin marca propia se perderia en
-// la frontera. Que la estrella se pierda al cruzar a Premiere es justo lo
-// que este plugin existe para evitar.
-const PREFIJO_DESTACADO = "★ ";
+// Existen porque la etiqueta de color paso a decir la camara (`label.js`).
+// El destacado era el unico estado que solo se distinguia por color --va en
+// la misma carpeta «Picks» que los demas picks, decision del 2026-08-22-- y
+// sin marca propia se perderia en la frontera, que es justo lo que este
+// plugin existe para evitar. El reject lo pidio Bruno despues, el mismo dia:
+// su carpeta ya lo dice, pero fuera de ella --buscando por nombre, o ya
+// arrastrado a la linea de tiempo-- no habia forma de saberlo.
+const PREFIJO_POR_FLAG = {
+  destacado: "★ ",
+  reject: "✕ ",
+};
+
+// Todas las marcas que este plugin pone, para poder reconocer las suyas.
+const PREFIJOS_PROPIOS = Object.keys(PREFIJO_POR_FLAG).map((f) => PREFIJO_POR_FLAG[f]);
 
 // Los nombres que PODRIA tener la accion de renombrar, en orden de
 // probabilidad. Se buscan en el objeto en vez de llamar al primero a ciegas.
@@ -33,40 +40,68 @@ function reiniciarAvisoDeRenombrar() {
   yaSeAvisoDeRenombrar = false;
 }
 
+// El nombre sin ninguna marca de este plugin al inicio.
+//
+// En bucle a proposito: un nombre que ya venga con «★ ✕ » --de una version
+// anterior que solo agregaba, o de dos pasadas de aquella-- se limpia
+// entero. Solo se quitan las marcas de `PREFIJO_POR_FLAG` y solo al inicio:
+// un «✕» que Bruno haya escrito el mismo a media frase no es nuestro y no se
+// toca.
+function nombreLimpio(nombre) {
+  let limpio = nombre;
+  let seguir = true;
+  while (seguir) {
+    seguir = false;
+    for (const prefijo of PREFIJOS_PROPIOS) {
+      if (limpio.indexOf(prefijo) === 0) {
+        limpio = limpio.slice(prefijo.length);
+        seguir = true;
+      }
+    }
+  }
+  return limpio;
+}
+
 // flag: "pick" | "reject" | "destacado" | "none".
 //
-// DOS REGLAS, y las dos son sobre no hacer daño:
+// LAS REGLAS, y todas son sobre no hacer daño:
 //
 // 1. Es IDEMPOTENTE. Volver a correr la misma clasificacion es un caso
-//    normal --es como se corrige un error-- y sin esta guarda quedaria
+//    normal --es como se corrige un error-- y sin esto quedaria
 //    «★ ★ ★ C0001.MP4».
-// 2. Solo AGREGA, nunca quita. Si un clip dejo de ser destacado, su ★ se
-//    queda. Quitarlo significaria que el plugin renombra clips que Bruno
-//    pudo haber renombrado a mano, y ese daño es peor que un ★ de mas.
-//    Mismo criterio que la etiqueta de color, que a proposito nunca limpia
-//    una previa.
-function applyStarPrefix(project, clipItem, flag) {
-  if (flag !== "destacado") return;
-
+// 2. **Cambia la marca cuando cambia el estado.** Un clip que era reject y
+//    ahora es destacado pierde su «✕» y gana su «★»; uno que dejo de ser
+//    los dos se queda sin marca. Hasta que existio la segunda marca esto
+//    era «solo agrega, nunca quita» --por miedo a renombrar lo que Bruno
+//    renombro a mano-- y con dos marcas ese miedo se volvio el bug: el clip
+//    terminaba con las dos, diciendo dos cosas contrarias a la vez.
+//    Se resuelve quitando SOLO nuestras marcas y SOLO al inicio, que son
+//    las unicas que sabemos que pusimos nosotros. Ver `nombreLimpio`.
+// 3. Si el nombre no cambia, no se abre transaccion: un `⌘Z` de Bruno no
+//    tiene por que gastarse en deshacer un renombre que no renombro nada.
+function applyFlagPrefix(project, clipItem, flag) {
   const nombre = clipItem.name;
   if (typeof nombre !== "string" || !nombre) return;
-  if (nombre.indexOf(PREFIJO_DESTACADO) === 0) return;
+
+  const deseado = (PREFIJO_POR_FLAG[flag] || "") + nombreLimpio(nombre);
+  if (deseado === nombre) return;
 
   const metodo = ACCIONES_DE_RENOMBRAR.find(
     (n) => typeof clipItem[n] === "function"
   );
   if (!metodo) {
-    // No se puede renombrar en esta version. El clip NO se toca y el
-    // destacado llega sin marca -- que es una perdida real, asi que se
-    // dice, con lo que el objeto si tiene para que la proxima version de
-    // esta lista salga de un dato y no de otra suposicion.
+    // No se puede renombrar en esta version. El clip NO se toca y los
+    // destacados y rejects llegan sin marca propia -- que es una perdida
+    // real, asi que se dice, con lo que el objeto si tiene para que la
+    // proxima version de esta lista salga de un dato y no de otra
+    // suposicion.
     if (!yaSeAvisoDeRenombrar) {
       yaSeAvisoDeRenombrar = true;
       logToPanel(
-        "No pude ponerle el ★ a los destacados: esta version de Premiere no " +
-        "tiene ninguna de estas acciones (" + ACCIONES_DE_RENOMBRAR.join(", ") +
-        "). Los destacados llegan sin marca propia, dentro de su carpeta " +
-        "Picks. Lo que si tiene el clip: " +
+        "No pude marcar los destacados con ★ ni los rejects con ✕: esta " +
+        "version de Premiere no tiene ninguna de estas acciones (" +
+        ACCIONES_DE_RENOMBRAR.join(", ") + "). Se reconocen igual por su " +
+        "carpeta. Lo que si tiene el clip: " +
         Object.getOwnPropertyNames(Object.getPrototypeOf(clipItem)).join(", "),
         true
       );
@@ -76,7 +111,7 @@ function applyStarPrefix(project, clipItem, flag) {
 
   runTransaction(
     project,
-    () => clipItem[metodo](PREFIJO_DESTACADO + nombre),
-    "Marcar destacado"
+    () => clipItem[metodo](deseado),
+    "Marcar " + flag
   );
 }

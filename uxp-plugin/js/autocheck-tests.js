@@ -1101,3 +1101,49 @@ registrarPrueba(
     };
   }
 );
+
+// Las marcas de nombre (★ destacado, ✕ reject) son la unica LOGICA PURA del
+// plugin: no le preguntan nada a Premiere, solo arman una cadena. Por eso se
+// prueban con casos y no a ojo -- y por eso esta prueba corre sin necesidad
+// de que haya clips en el proyecto.
+//
+// El caso que mas importa es el de dos marcas a la vez. Hasta que existio la
+// segunda, la regla era «solo agrega, nunca quita», y con dos eso dejaba al
+// clip con «★ ✕ » diciendo dos cosas contrarias.
+registrarPrueba("las marcas de nombre: ★ y ✕ no se enciman", async () => {
+  const deseado = (nombre, flag) =>
+    (PREFIJO_POR_FLAG[flag] || "") + nombreLimpio(nombre);
+
+  const casos = [
+    ["C0001.MP4", "destacado", "★ C0001.MP4"],
+    ["C0001.MP4", "reject", "✕ C0001.MP4"],
+    ["C0001.MP4", "pick", "C0001.MP4"],
+    ["C0001.MP4", "none", "C0001.MP4"],
+    // idempotente: reimportar el mismo manifiesto no acumula marcas
+    ["★ C0001.MP4", "destacado", "★ C0001.MP4"],
+    // cambiar de estado cambia la marca, no la agrega
+    ["✕ C0001.MP4", "destacado", "★ C0001.MP4"],
+    ["★ C0001.MP4", "reject", "✕ C0001.MP4"],
+    ["★ C0001.MP4", "pick", "C0001.MP4"],
+    // limpia lo que dejo una version que solo agregaba
+    ["★ ✕ C0001.MP4", "reject", "✕ C0001.MP4"],
+    // una ✕ que escribio Bruno a media frase NO es nuestra
+    ["Toma buena ✕ rara.MP4", "pick", "Toma buena ✕ rara.MP4"],
+    // ni una al inicio sin el espacio: nuestra marca es «✕ », con espacio
+    ["✕✕ raro", "none", "✕✕ raro"],
+  ];
+
+  const malos = casos
+    .map(([nombre, flag, esperado]) => ({
+      nombre, flag, esperado, dio: deseado(nombre, flag),
+    }))
+    .filter((c) => c.dio !== c.esperado);
+
+  return {
+    ok: malos.length === 0,
+    detalle: malos.length
+      ? malos.map((c) => "«" + c.nombre + "» + " + c.flag + " dio «" + c.dio +
+                         "», esperaba «" + c.esperado + "»").join(" ;; ")
+      : casos.length + " casos, todos bien",
+  };
+});

@@ -215,18 +215,33 @@ comentarios del código, que es donde sirve. En el chat, no.
 - **La app no suena.** `mute=True` en la creación de mpv y `--no-audio` en
   las miniaturas. Se ofreció una tecla para prenderlo y Bruno la descartó.
 
-- **Los destacados van en la carpeta `Picks` al exportar**, no en una propia:
-  un destacado es un pick reforzado. Se distinguen por un **`★` al inicio del
-  nombre** en el panel de proyecto de Premiere — solo el nombre de allá, el
-  archivo en disco no se toca. Ese `★` solo se agrega y nunca se quita:
-  quitarlo significaría renombrar clips que Bruno pudo haber renombrado a
-  mano, y ese daño es peor que un `★` de más.
+- **En Premiere, el estado se dice con una marca en el NOMBRE, no con una
+  carpeta**: `★` al destacado y `✕` al reject, al inicio del nombre del item
+  — solo el nombre de allá, el archivo en disco no se toca. De ahí cuelgan
+  las dos decisiones de carpeta:
+  - **Los destacados van en `Picks`** con los demás picks (2026-08-22): un
+    destacado es un pick reforzado, y partirlos obligaba a mirar en dos
+    lados para armar.
+  - **Los rejects no tienen carpeta** (2026-09-08): se quedan sueltos en su
+    cuarto. Una carpeta `Rejects` y una tacha dicen lo mismo, y de las dos
+    la tacha es la que deja ver el clip sin abrir nada.
+
+  Sobreviven las dos carpetas que dicen algo que ninguna marca dice:
+  `Picks`, que junta los buenos para armar, y `Sin marcar`, que es la cola
+  de trabajo.
+
+  **La marca CAMBIA con el estado, no se acumula.** Se quita la marca propia
+  del inicio antes de poner la nueva, y solo la propia: un `✕` que Bruno
+  escribió a media frase no es nuestro. Con una sola marca la regla era
+  «solo agrega, nunca quita» —por no renombrar lo que él renombró a mano— y
+  al llegar la segunda esa regla se volvió el bug: el clip terminaba con
+  `★ ✕` diciendo dos cosas contrarias.
 
 - **En Premiere, el color de un clip dice su CÁMARA, no su estado**
   (Sony azul, dron amarillo, otra morado). Un item de Premiere tiene una
   sola etiqueta de color y Bruno la quiere para saber de un vistazo de dónde
-  salió cada clip; el estado ya viaja en las subcarpetas
-  `Picks`/`Rejects`/`Sin marcar`. La cámara es propiedad del **bin**, se
+  salió cada clip; el estado viaja por su lado, en la carpeta `Picks` y en
+  las marcas `★`/`✕` del nombre (ver el renglón de arriba). La cámara es propiedad del **bin**, se
   adivina del nombre de los archivos (`DJI` → dron, lo demás → Sony) y se
   corrige desde el menú del bin.
 
