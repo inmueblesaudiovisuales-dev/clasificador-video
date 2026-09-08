@@ -186,10 +186,18 @@ Lo que se aprendió, con el detalle completo en
 Si algún día se retoma, lo que falta no es código sino contestar cómo se
 verifica que el renglón N sigue siendo el LUT correcto.
 
-### 3. La etiqueta dorada de la estrella — **hecha**
+### 3. La etiqueta dorada de la estrella — **hecha, y luego reemplazada**
 
-Comprobado en vivo: `MANGO` existe y es el índice 7, y el clip cambió de
-etiqueta al aplicarlo. La guarda por si otra versión no lo trae se queda.
+Comprobado en vivo el 2026-08-10: `MANGO` existe y es el índice 7, y el clip
+cambió de etiqueta al aplicarlo. La guarda por si otra versión no lo trae se
+queda.
+
+**El 2026-09-08 esa etiqueta dejó de decir el estado y pasó a decir la
+cámara** (Sony azul, dron amarillo, otra morado): en Premiere un item tiene
+un solo color, y Bruno lo quiere para saber de dónde salió cada clip. El
+destacado —el único estado que solo se distinguía por color— llega ahora con
+**★ al inicio del nombre**. Ver
+`specs/2026-09-08-color-por-camara-y-carpetas-design.md`.
 
 De paso salió algo que nadie sabía: **la copia del plugin que Bruno tenía
 instalada era de agosto y no traía el soporte de la estrella**, así que hasta
@@ -231,8 +239,9 @@ leer el `.cvproj`.
 
 Ya no tienen carpeta propia en Premiere: caen en **Picks**. Un destacado ES un
 pick reforzado, y partirlos obligaba a mirar en dos lados para armar la
-secuencia. No se pierde la distinción: llegan con la **etiqueta dorada**, que
-se ve en el panel de proyecto sin abrir nada.
+secuencia. No se pierde la distinción: llegan con un **★ al inicio del
+nombre**, que se ve en el panel de proyecto sin abrir nada. (Fue la etiqueta
+dorada hasta el 2026-09-08, cuando el color pasó a decir la cámara.)
 
 ### 3. El manifest se llama como el proyecto
 

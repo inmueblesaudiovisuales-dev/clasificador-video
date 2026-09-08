@@ -192,22 +192,59 @@ seleccionar sus clips, quitarlo del proyecto.
 a **Importar clasificación…**: arma los bins por cuarto, pone las etiquetas de
 color, aplica los in/out y engancha los proxies.
 
-Dentro de cada cuarto los clips quedan repartidos por cómo los marcaste:
+El proyecto se arma con estas siete carpetas, y todo tu material va dentro de
+la segunda:
 
 ```
-Cocina
-  ├── Picks
-  ├── Rejects
-  └── Sin marcar
+01. Secuencia
+02. Clip          ← aquí entra todo lo que clasificaste
+03. AE composition
+04. Musica
+05. Voz
+06. Graficos
+07. Assets adicionales
+```
+
+Las cinco que quedan vacías se crean igual: están para que tú metas cosas
+ahí. Si ya las tenías en tu proyecto, se reusan — no te llega una segunda.
+
+Dentro de `02. Clip`, cada cuarto reparte sus clips por cómo los marcaste:
+
+```
+02. Clip
+  └── Cocina
+        ├── Picks
+        ├── Rejects
+        └── Sin marcar
 ```
 
 **Los destacados van en Picks**, junto con los demás: un destacado es un pick
 reforzado, y en esa carpeta lo que quieres son los buenos, todos juntos. Los
-reconoces por su **etiqueta dorada** en el panel de proyecto, sin abrir nada.
+reconoces porque llegan con un **★ al inicio del nombre** en el panel de
+proyecto. Solo cambia el nombre dentro de Premiere; el archivo en tu disco no
+se toca.
 
 Solo aparecen las que tienen algo: un cuarto sin rejects no estrena esa
 carpeta. Los clips a los que nunca les pusiste cuarto siguen cayendo juntos
 en **Sin clasificar**.
+
+### El color dice de qué cámara es
+
+Cada clip llega a Premiere con la etiqueta de color de su cámara:
+
+| Cámara | Color |
+|---|---|
+| Sony | azul |
+| DJI (dron) | amarillo |
+| Otra | morado |
+
+La cámara la adivina Clipify del nombre de los archivos —los del dron traen
+`DJI`— y la ves en el puntito de color del encabezado de cada bin, que es el
+mismo que vas a ver en Premiere. Si le atinó mal, clic derecho en el
+encabezado → **Cámara**.
+
+Con esto, ponerle su LUT a todo el material de una cámara es seleccionar
+todos los de un color y arrastrarles el preset.
 
 ---
 

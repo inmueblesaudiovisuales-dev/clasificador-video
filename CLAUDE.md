@@ -113,14 +113,21 @@ comentarios del código, que es donde sirve. En el chat, no.
 - **`QSurfaceFormat` a OpenGL Core 3.3 antes de crear la `QApplication`** —
   mpv necesita Core >= 3.3; el perfil de compatibilidad default de Qt en
   macOS no alcanza (`ui/app.py::configure_gl_surface_format`).
-- **El LUT por bin está parado, y no por falta de código.** Se comprobó
-  dentro de Premiere el 2026-08-10: sí se le pueden colgar efectos al *master
-  clip* sin armar secuencia (`AE.ADBE Lumetri`), pero el parámetro «Input
-  LUT» **no acepta rutas** — es un menú y su valor es el índice del renglón
-  elegido entre los LUTs que Premiere ya tiene instalados. La vía del índice
-  es frágil por diseño: apunta a otro LUT en otra computadora **sin avisar**.
-  Bruno decidió no seguir. Detalle en
-  `docs/superpowers/archive/RESULTADO-2026-08-10-lut-y-estrella-en-premiere.md`.
+- **El LUT por bin está cerrado, y los DOS caminos están medidos.** Sí se le
+  pueden colgar efectos al *master clip* sin armar secuencia
+  (`AE.ADBE Lumetri`), pero:
+  - el parámetro «Input LUT» **no acepta rutas** — es un menú y su valor es
+    el índice del renglón, que apunta a otro LUT en otra computadora **sin
+    avisar** (2026-08-10);
+  - y el parámetro «Blob», que es donde Premiere **sí** guarda la ruta
+    completa del `.cube`, **tumba Premiere al leerlo** y rechaza con
+    «Illegal Parameter type» lo que se le escriba — incluido el bloque
+    original sacado de un `xmeml` de Bruno (2026-09-08).
+
+  No reabrir sin una versión nueva de Premiere: un tercer camino tendría que
+  aparecer en la API, no en nuestro código. Detalle en
+  `archive/RESULTADO-2026-08-10-lut-y-estrella-en-premiere.md` y
+  `archive/RESULTADO-2026-09-08-el-lut-por-la-via-del-blob.md`.
 - **Los `.LRF` del dron no son material ni proxy.** Fuera de
   `VIDEO_EXTENSIONS` por decisión de Bruno: entraban como clips duplicados, y
   como proxy no calzan cuadro a cuadro (contenido corrido 0–5 cuadros,
@@ -209,7 +216,35 @@ comentarios del código, que es donde sirve. En el chat, no.
   las miniaturas. Se ofreció una tecla para prenderlo y Bruno la descartó.
 
 - **Los destacados van en la carpeta `Picks` al exportar**, no en una propia:
-  un destacado es un pick reforzado. Se distinguen por la etiqueta dorada.
+  un destacado es un pick reforzado. Se distinguen por un **`★` al inicio del
+  nombre** en el panel de proyecto de Premiere — solo el nombre de allá, el
+  archivo en disco no se toca. Ese `★` solo se agrega y nunca se quita:
+  quitarlo significaría renombrar clips que Bruno pudo haber renombrado a
+  mano, y ese daño es peor que un `★` de más.
+
+- **En Premiere, el color de un clip dice su CÁMARA, no su estado**
+  (Sony azul, dron amarillo, otra morado). Un item de Premiere tiene una
+  sola etiqueta de color y Bruno la quiere para saber de un vistazo de dónde
+  salió cada clip; el estado ya viaja en las subcarpetas
+  `Picks`/`Rejects`/`Sin marcar`. La cámara es propiedad del **bin**, se
+  adivina del nombre de los archivos (`DJI` → dron, lo demás → Sony) y se
+  corrige desde el menú del bin.
+
+  **Un mismo color pinta la marquita del encabezado, el aviso del visor y el
+  clip en Premiere** — los tres salen de `theme.camara_color`. Antes el
+  encabezado iba por posición del bin y el aviso también, y eran dos cosas
+  distintas del mismo dato. Si algún día se separan otra vez, es un bug.
+
+  Costo aceptado: dos tarjetas de la misma cámara se ven iguales en la hoja.
+  En Premiere también van a salirlo. Ver
+  `specs/2026-09-08-color-por-camara-y-carpetas-design.md`.
+
+- **La estructura del proyecto de Premiere vive en el PLUGIN**
+  (`uxp-plugin/js/estructura.js`), no en el manifiesto: son las siete
+  carpetas de Bruno y el material cuelga de `02. Clip`. Si la app las
+  escribiera en `categoria_path`, esos nombres quedarían repartidos en dos
+  repos y se desincronizarían en el primer cambio de opinión — mismo criterio
+  por el que `con_subcarpeta_de_estado` no vive en la sesión.
 
 - **El enfoque `xmeml` (Final Cut Pro 7 XML) está descartado**, no solo
   "obsoleto" — Premiere nunca abre el archivo de video real al importar un
