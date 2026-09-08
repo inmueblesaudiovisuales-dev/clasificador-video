@@ -23,6 +23,7 @@ from PySide6.QtWidgets import (
 
 from clasificador_video import proxy_gen, proyecto, revinculo
 from clasificador_video.bins import BinTree, raiz_comun_de
+from clasificador_video.camaras import SONY
 from clasificador_video.filters import FilterState, cola, contar
 from clasificador_video.history import History, HistoryEntry
 from clasificador_video.ingest import archivos_de_video
@@ -1893,7 +1894,10 @@ class MainWindow(QWidget):
                 # forma de reencontrarlos en otra computadora
                 self.bins.sumar(nombre_de_bin, indices, origen)
             else:
-                self.bins.agregar(nombre_de_bin, origen, indices)
+                # con las rutas: son lo unico de lo que se puede adivinar la
+                # camara, y este es el instante en que el bin nace.
+                self.bins.agregar(nombre_de_bin, origen, indices,
+                                  rutas=[self.clips[i].ruta for i in indices])
         self._refresh_sheet()
         # solo las portadas de los nuevos: las que ya estan no se rehacen.
         # Y si Bruno acepta crear los proxies primero, no se piden todavia:
@@ -4379,16 +4383,36 @@ class MainWindow(QWidget):
             "JSON (*.json)")
         if not path:
             return
+        self.escribir_manifest(Path(path))
+
+    def escribir_manifest(self, destino: Path) -> None:
+        """Arma el manifiesto y lo escribe. Sin dialogos: es la parte
+        probable, y `_on_export_manifest` es la que pregunta.
+
+        Aqui van las tres transformaciones de exportacion, en fila: el
+        rango en orden, la subcarpeta del estado y la camara del bin. Las
+        tres viven en la exportacion y no en la sesion, que guarda lo que el
+        editor marco.
+        """
+        camaras = self._camaras_por_clip()
         manifest = Manifest(
             proyecto=self.project_name,
             orientacion=self.orientacion_del_proyecto(),
-            # las dos transformaciones de exportacion, en fila: el rango en
-            # orden y la subcarpeta del estado. Las dos viven aqui y no en la
-            # sesion, que guarda lo que el editor marco.
-            clips=[con_subcarpeta_de_estado(_con_el_rango_en_orden(c))
-                   for c in self.clips],
+            clips=[con_subcarpeta_de_estado(_con_el_rango_en_orden(
+                replace(c, camara=camaras.get(i, SONY))))
+                for i, c in enumerate(self.clips)],
         )
-        manifest.write_json(Path(path))
+        manifest.write_json(destino)
+
+    def _camaras_por_clip(self) -> dict[int, str]:
+        """De indice de clip a camara, de una sola pasada por los bins.
+
+        Un clip sin bin no aparece aqui y sale con el respaldo: no hay de
+        donde sacarle una camara, y llegar sin campo seria peor que llegar
+        con la de la camara que Bruno usa casi siempre.
+        """
+        return {i: self.bins.camara_de(nombre) or SONY
+                for i, nombre in self.bins.mapa_por_clip().items()}
 
     def _nombre_sugerido_del_manifest(self) -> str:
         """`IAV-2608.17.json`, no `manifest.json`.
