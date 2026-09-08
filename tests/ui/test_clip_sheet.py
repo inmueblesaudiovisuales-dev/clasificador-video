@@ -1646,6 +1646,7 @@ def test_el_menu_del_bin_trae_lo_que_dibujo_el_mockup(qtbot):
     textos = [a.text() for a in menu.actions() if not a.isSeparator()]
     assert textos == [
         "Renombrar bin…",
+        "Cámara",
         "Enlazar proxies…",
         "Crear proxies del bin…",
         "Cambiar carpeta de proxies…",

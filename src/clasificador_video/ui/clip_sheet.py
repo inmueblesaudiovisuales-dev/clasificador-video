@@ -17,6 +17,7 @@ from PySide6.QtCore import (
 )
 from PySide6.QtGui import (
     QAction,
+    QActionGroup,
     QColor,
     QDrag,
     QFont,
@@ -40,6 +41,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from clasificador_video.camaras import CAMARAS, SONY
 from clasificador_video.filters import FilterState
 from clasificador_video.ingest import archivos_de_video
 from clasificador_video.ui import theme
@@ -827,6 +829,7 @@ class _BinHeader(QWidget):
     """
 
     collapse_toggled = Signal(str)        # nombre del bin
+    camara_changed = Signal(str, str)     # nombre del bin, camara nueva
     rename_requested = Signal(str, str)   # nombre viejo, nombre nuevo
     proxies_requested = Signal(str)
     proxies_cleared = Signal(str)
@@ -840,6 +843,9 @@ class _BinHeader(QWidget):
     # el mockup: pick, destacado, reject
     MARCAS = (("pick", theme.PICK_COLOR), ("destacado", theme.STAR_COLOR),
               ("reject", theme.REJECT_COLOR))
+
+    # Como se llama cada camara en el menu. En el mismo orden que `CAMARAS`.
+    NOMBRE_DE_CAMARA = {"sony": "Sony", "dji": "DJI", "otra": "Otra"}
 
     def __init__(self, nombre: str, parent=None, es_bin: bool = True):
         super().__init__(parent)
@@ -887,6 +893,9 @@ class _BinHeader(QWidget):
         self.cam_mark.setAttribute(Qt.WA_StyledBackground, True)
         self.cam_mark.setFixedSize(14, 14)
         self.cam_mark.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        # La camara del bin. Arranca en el respaldo y la hoja la corrige con
+        # `set_camara` en cuanto sabe cual es (via `_aplicar_meta`).
+        self._camara = SONY
         self.set_posicion(0)
         self.name_label = QLabel(nombre)
         self.name_label.setObjectName("binName")
@@ -944,6 +953,12 @@ class _BinHeader(QWidget):
         fila.addWidget(self.more_button)
 
     # --- datos -----------------------------------------------------------
+
+    def set_camara(self, camara: str) -> None:
+        """Guarda la camara del bin. La pinta la tarea siguiente."""
+        if camara not in CAMARAS:
+            return
+        self._camara = camara
 
     def set_posicion(self, posicion: int | None) -> None:
         """Tiñe la marca segun el lugar del bin en el orden de importacion.
@@ -1216,6 +1231,29 @@ class _BinHeader(QWidget):
         renombrar.setShortcut("F2")
         renombrar.triggered.connect(self.empezar_a_renombrar)
         menu.addAction(renombrar)
+
+        # La camara vive junto a los proxies y el nombre porque las tres son
+        # cosas de la CAMARA entera, no de un clip. Es submenu y no tres
+        # renglones sueltos: son excluyentes entre si y hay que ver cual
+        # esta puesta, que es justo lo que un submenu con palomita dice.
+        camara_menu = QMenu("Cámara", menu)
+        # se guarda en `self` por lo mismo que `self._menu`: sin un dueño en
+        # Python, se recolecta antes de que el menu se dibuje.
+        self._grupo_de_camara = QActionGroup(camara_menu)
+        self._grupo_de_camara.setExclusive(True)
+        for clave in CAMARAS:
+            accion = QAction(self.NOMBRE_DE_CAMARA[clave], camara_menu)
+            accion.setCheckable(True)
+            accion.setChecked(clave == self._camara)
+            # `clave=clave` y no la variable del bucle: sin eso las tres
+            # lambdas comparten la ultima, y las tres pondrian «Otra».
+            accion.triggered.connect(
+                lambda _checked=False, clave=clave:
+                self.camara_changed.emit(self.nombre, clave)
+            )
+            self._grupo_de_camara.addAction(accion)
+            camara_menu.addAction(accion)
+        menu.addMenu(camara_menu)
 
         enlazar = QAction("Enlazar proxies…", menu)
         enlazar.triggered.connect(lambda: self.proxies_requested.emit(self.nombre))
@@ -2185,7 +2223,8 @@ class ClipSheet(QWidget):
 
     def set_bin_meta(self, nombre: str, origen: str = "",
                      proxies: tuple[int, int] | None = None,
-                     resolucion: str | None = None) -> None:
+                     resolucion: str | None = None,
+                     camara: str | None = None) -> None:
         """La carpeta de origen y cuantos proxies engancharon.
 
         Los dos son datos de la VENTANA --la hoja no lee disco ni sondea
@@ -2195,6 +2234,8 @@ class ClipSheet(QWidget):
         meta = self._bin_meta.setdefault(nombre, {})
         if origen:
             meta["origen"] = origen
+        if camara is not None:
+            meta["camara"] = camara
         if proxies is not None:
             meta["proxies"] = proxies
         if resolucion is not None:
@@ -2209,6 +2250,7 @@ class ClipSheet(QWidget):
         cabecera.set_source(meta.get("origen", ""))
         enganchados, total = meta.get("proxies", (0, 0))
         cabecera.set_proxies(enganchados, total, meta.get("resolucion", ""))
+        cabecera.set_camara(meta.get("camara", SONY))
 
     def set_proxy_de_clip(self, index: int, tiene: bool) -> None:
         """`index` es indice de CLIP, no posicion visual: `item_widgets`

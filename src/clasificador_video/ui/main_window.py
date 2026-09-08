@@ -3128,6 +3128,7 @@ class MainWindow(QWidget):
         arrancar: los bins aparecen y desaparecen con las importaciones.
         """
         cabecera.rename_requested.connect(self._on_bin_renombrado)
+        cabecera.camara_changed.connect(self._on_camara_de_bin_cambiada)
         cabecera.proxies_requested.connect(self.adjuntar_proxies_de_bin)
         cabecera.proxies_cleared.connect(self.quitar_proxies_de_bin)
         cabecera.proxies_generate_requested.connect(self.generar_proxies_de_bin)
@@ -3175,6 +3176,18 @@ class MainWindow(QWidget):
         # DESPUES del refresco: el encabezado con el nombre nuevo nace ahi, y
         # nace sin saber que su bin esta generando proxies.
         self._pintar_avance_de_proxies()
+
+    def _on_camara_de_bin_cambiada(self, nombre: str, camara: str) -> None:
+        """Bruno corrigio la camara de un bin.
+
+        No pasa por el historial a proposito: `⌘Z` revierte el dato de los
+        clips --el cuarto, el estado, el rango--, y la camara es una
+        propiedad del bin, como su nombre. Renombrar un bin tampoco se
+        deshace.
+        """
+        self.bins.fijar_camara(nombre, camara)
+        self._refresh_sheet()
+        self._autosave()
 
     def _on_bin_renombrado(self, viejo: str, nuevo: str) -> None:
         """Le pusiste otro nombre al bin desde su encabezado.
@@ -4584,4 +4597,5 @@ class MainWindow(QWidget):
             origen=origen,
             proxies=(len(con_proxy), len(indices)),
             resolucion=etiquetas.pop() if len(etiquetas) == 1 else "",
+            camara=self.bins.camara_de(nombre) or SONY,
         )
