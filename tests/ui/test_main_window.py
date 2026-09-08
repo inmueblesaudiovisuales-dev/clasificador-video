@@ -3951,6 +3951,9 @@ def test_los_trabajos_que_lanza_la_ventana_usan_su_portador(qtbot, tmp_path):
         def waitForDone(self, ms):  # noqa: N802 -- lo llama el closeEvent
             return True
 
+        def clear(self):  # el closeEvent tambien: tira lo que no arranco
+            lanzados.clear()
+
     window._thread_pool = PoolFalso()
     window.load_clips([_clip(1), _clip(2)])
 
@@ -5471,3 +5474,59 @@ def test_el_primer_clip_de_la_sesion_se_carga_a_ciegas(qtbot, tmp_path):
         "el primer clip se abre con el visor escondido, asi que hay que "
         "dejarlo anotado para volver a pedirlo cuando el visor encienda"
     )
+
+
+def test_al_cerrar_no_queda_ningun_mpv_de_miniaturas_vivo(qtbot, monkeypatch, tmp_path):
+    """El bug que dejaba procesos vivos doce dias.
+
+    Al instalar la 2.0 (2026-09-08) habia tres mpv de miniaturas huerfanos
+    --ppid=1, uno por hilo del pool-- arrancados el 27 de agosto. El
+    apagado de ese mpv vivia SOLO en el `finally` del trabajo, o sea dentro
+    del hilo del pool: `closeEvent` esperaba 5 s, se rendia, el proceso de
+    la app terminaba y esos hilos morian de golpe sin llegar nunca a su
+    `finally`. Y el mpv de la tira corre con `--idle=yes`: nadie lo apaga,
+    no se apaga.
+    """
+    import subprocess as sp
+    from PySide6.QtGui import QCloseEvent
+
+    from clasificador_video import thumbnails
+    from clasificador_video.ui import main_window as modulo_ventana
+
+    arrancados: list = []
+    en_vuelo = threading.Event()
+
+    def extraccion_que_no_termina(video, duration_seconds, count, outdir):
+        # como el mpv real: queda vivo hasta que alguien lo apaga, y el
+        # hilo se queda esperandolo.
+        proc = sp.Popen(["sleep", "30"])
+        thumbnails.registrar_extraccion(proc)
+        arrancados.append(proc)
+        en_vuelo.set()
+        proc.wait()
+        return []
+
+    monkeypatch.setattr(modulo_ventana, "extract_thumbnail_strip", extraccion_que_no_termina)
+
+    clip_path = tmp_path / "a.MP4"
+    clip_path.write_bytes(b"contenido de prueba")
+    window = _window_with_video(qtbot, cache_root=tmp_path / "cache")
+    window.load_clips([Clip(orden=1, ruta=clip_path, categoria_path=[], fps=30.0)])
+    # la portada que pide `load_clips` --con el doble del conftest-- deja el
+    # clip marcado como «en vuelo» hasta que su señal llega; sin esperarla,
+    # el barrido de abajo lo saltaria por no encimarle un segundo mpv.
+    qtbot.waitUntil(lambda: not window._miniaturas_en_vuelo, timeout=3000)
+    window._clip_durations[0] = 6.0
+    window._schedule_thumbnails()
+    qtbot.waitUntil(en_vuelo.is_set, timeout=3000)
+
+    window.closeEvent(QCloseEvent())
+
+    try:
+        assert arrancados[0].poll() is not None, "el mpv sobrevivio al cierre"
+        assert thumbnails.procesos_vivos() == []
+    finally:
+        for proc in arrancados:
+            if proc.poll() is None:
+                proc.kill()
+                proc.wait()

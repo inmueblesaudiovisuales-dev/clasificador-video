@@ -3,6 +3,7 @@ from pathlib import Path
 
 import pytest
 
+from clasificador_video import thumbnails
 from clasificador_video.thumbnails import (
     MARCA_DE_COMPLETA,
     ruta_del_socket,
@@ -74,11 +75,14 @@ class _FakeProc:
     def __init__(self):
         self.terminated = False
 
+    def poll(self):
+        return 0 if self.terminated else None
+
     def terminate(self):
         self.terminated = True
 
     def wait(self, timeout=None):
-        pass
+        return 0
 
 
 class _FakeConnection:
@@ -260,3 +264,50 @@ def test_las_miniaturas_se_sacan_sin_audio():
     cmd = build_thumbnail_command(Path("/x/C0001.MP4"), 1.5, Path("/tmp/out"))
 
     assert "--no-audio" in cmd
+
+
+# --- los mpv que quedan vivos ------------------------------------------
+#
+# El mpv de la tira corre con `--idle=yes`: si nadie lo apaga, no se apaga
+# solo nunca. Al instalar la 2.0 (2026-09-08) habia TRES vivos del 27 de
+# agosto -- justo los tres hilos del pool de miniaturas-- doce dias despues
+# de que la app se cerro.
+
+
+def test_la_extraccion_apunta_su_mpv_mientras_corre_y_lo_borra_al_terminar(tmp_path):
+    proc = _FakeProc()
+    vistos = []
+
+    def on_command(command):
+        vistos.append(list(thumbnails.procesos_vivos()))
+        if command[0] == "screenshot-to-file":
+            Path(command[1]).write_bytes(b"fake-jpeg")
+
+    extract_thumbnail_strip(
+        video=tmp_path / "C0012.MP4",
+        duration_seconds=2.0,
+        count=2,
+        outdir=tmp_path / "strip",
+        popen=lambda cmd: proc,
+        connect=lambda socket_path: _FakeConnection(on_command),
+    )
+
+    assert all(proc in vivos for vivos in vistos), "no se apunto mientras corria"
+    assert proc not in thumbnails.procesos_vivos(), "quedo apuntado despues de terminar"
+
+
+def test_terminar_extracciones_apaga_el_mpv_que_su_hilo_no_alcanzo_a_apagar():
+    """El caso real: el hilo del pool muere de golpe al terminar el proceso
+    de la app, sin llegar a su `finally`, y el mpv queda huerfano (ppid=1)."""
+    import subprocess as sp
+
+    proc = sp.Popen(["sleep", "30"])
+    thumbnails.registrar_extraccion(proc)
+    try:
+        assert thumbnails.terminar_extracciones() == 1
+        assert proc.poll() is not None, "el mpv siguio vivo"
+        assert proc not in thumbnails.procesos_vivos()
+    finally:
+        if proc.poll() is None:
+            proc.kill()
+            proc.wait()

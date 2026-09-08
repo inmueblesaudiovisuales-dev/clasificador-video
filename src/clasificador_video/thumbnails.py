@@ -1,6 +1,7 @@
 # src/clasificador_video/thumbnails.py
 from __future__ import annotations
 
+import atexit
 import hashlib
 import json
 import shutil
@@ -8,6 +9,7 @@ import select
 import socket
 import subprocess
 import tempfile
+import threading
 import time
 from pathlib import Path
 from typing import Callable
@@ -33,6 +35,81 @@ def _mpv() -> str:
 # el escrubeo en los primeros clips» -- eran justo los que estaban corriendo
 # al momento de cerrar.
 MARCA_DE_COMPLETA = "completa"
+
+
+# --- Los mpv que estan corriendo ---------------------------------------
+#
+# El mpv de la tira corre con `--idle=yes`: si nadie lo apaga, NO se apaga
+# solo nunca. Y su apagado vivia en un solo lugar --el `finally` de
+# `extract_thumbnail_strip`, o sea dentro del hilo del pool que lo lanzo--,
+# que es justo el lugar al que un cierre no siempre llega: `closeEvent`
+# espera unos segundos a los trabajos en vuelo, se rinde, el proceso de la
+# app termina, y los hilos del pool mueren de golpe a media extraccion. El
+# hijo no muere con ellos: lo adopta el sistema (ppid=1) y ahi se queda.
+#
+# Paso de verdad y no se noto por meses, porque no falla de forma visible:
+# al instalar la 2.0 el 2026-09-08 habia TRES mpv vivos --justo los tres
+# hilos del pool de miniaturas-- arrancados el 27 de agosto, doce dias
+# despues de que la app se cerro, cada uno con su clip abierto.
+#
+# Por eso el apuntador vive AQUI, en el modulo, y no en el hilo: quien
+# cierra puede apagarlos aunque el hilo que los lanzo ya no conteste. Y
+# ademas se apagan solos al terminar el proceso de Python (`atexit`), que
+# cubre los caminos de salida que no pasan por `closeEvent`.
+_mpv_vivos: set[subprocess.Popen] = set()
+_candado_de_vivos = threading.Lock()
+
+
+def registrar_extraccion(proc: subprocess.Popen) -> None:
+    """Apunta un mpv recien lanzado como «esta corriendo»."""
+    with _candado_de_vivos:
+        _mpv_vivos.add(proc)
+
+
+def olvidar_extraccion(proc: subprocess.Popen) -> None:
+    with _candado_de_vivos:
+        _mpv_vivos.discard(proc)
+
+
+def procesos_vivos() -> list[subprocess.Popen]:
+    with _candado_de_vivos:
+        return list(_mpv_vivos)
+
+
+def _apagar(proc: subprocess.Popen) -> None:
+    """Apaga un mpv por las buenas y, si no obedece, por las malas."""
+    if proc.poll() is not None:
+        return
+    try:
+        proc.terminate()
+    except OSError:
+        return   # ya no existe
+    try:
+        proc.wait(timeout=2)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        try:
+            proc.wait(timeout=2)
+        except subprocess.TimeoutExpired:
+            pass
+
+
+def terminar_extracciones() -> int:
+    """Apaga todos los mpv de miniaturas que sigan corriendo.
+
+    Devuelve cuantos habia. Se llama al cerrar la ventana y tambien al
+    terminar el proceso, y apagarlos ademas DESATORA a sus hilos: estan
+    esperando una respuesta por el socket IPC que ya nunca va a llegar.
+    """
+    pendientes = procesos_vivos()
+    for proc in pendientes:
+        _apagar(proc)
+    with _candado_de_vivos:
+        _mpv_vivos.difference_update(pendientes)
+    return len(pendientes)
+
+
+atexit.register(terminar_extracciones)
 
 
 def default_cache_root() -> Path:
@@ -253,6 +330,10 @@ def extract_thumbnail_strip(
     if socket_path.exists():
         socket_path.unlink()
     proc = popen(build_strip_ipc_args(video, socket_path))
+    # Apuntado ANTES de nada: entre lanzarlo y llegar al `finally` de abajo
+    # hay minutos de trabajo, y es exactamente ahi donde un cierre lo dejaba
+    # huerfano (ver `terminar_extracciones`).
+    registrar_extraccion(proc)
     frames: list[Path] = []
     try:
         conn = connect(socket_path)
@@ -269,11 +350,8 @@ def extract_thumbnail_strip(
         finally:
             conn.close()
     finally:
-        proc.terminate()
-        try:
-            proc.wait(timeout=2)
-        except subprocess.TimeoutExpired:
-            proc.kill()
+        _apagar(proc)
+        olvidar_extraccion(proc)
     # La marca se escribe al FINAL y solo si el bucle llego hasta aqui: si
     # algo revento a la mitad, la excepcion sube y este renglon no corre, que
     # es exactamente lo que se quiere -- la tira queda sin marca y la proxima

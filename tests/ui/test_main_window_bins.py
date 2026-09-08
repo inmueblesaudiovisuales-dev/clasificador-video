@@ -290,6 +290,10 @@ class _PoolEspia:
         # la ventana lo llama al cerrarse
         return True
 
+    def clear(self):
+        # tambien al cerrarse: tira lo encolado para no seguir lanzando mpv
+        self.jobs.clear()
+
 
 def test_agregar_material_solo_pide_las_portadas_de_los_clips_nuevos(
         qtbot, tmp_path, monkeypatch, ventana):

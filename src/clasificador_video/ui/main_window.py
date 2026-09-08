@@ -48,6 +48,7 @@ from clasificador_video.thumbnails import (
     default_cache_root,
     extract_thumbnail,
     extract_thumbnail_strip,
+    terminar_extracciones,
 )
 from clasificador_video.ui import theme
 from clasificador_video.ui.aviso_de_media import (
@@ -334,11 +335,17 @@ class _ThumbnailJob(QRunnable):
                 frames = [extract_thumbnail(self.video, 0.5, self.outdir)]
         except Exception:
             frames = None
-        # Sin guarda de `RuntimeError`: el portador vive mientras viva la
-        # ventana, y la ventana no se va sin antes esperar a este trabajo
-        # (ver `SeñalesDeTrabajos`). Si la ventana ya murio, Qt deshizo la
-        # conexion sola y el `emit` no llama a nadie.
-        self.signals.miniatura_lista.emit(self._generation, self.index, frames or None)
+        # Con la ventana viva esto no falla nunca: el portador vive mientras
+        # viva ella, y no se va sin antes esperar a este trabajo (ver
+        # `SeñalesDeTrabajos`). La guarda es por el otro camino, el de
+        # apagar el proceso entero: ahi los mpv se apagan desde `atexit`
+        # --ver `thumbnails.terminar_extracciones`--, este trabajo se
+        # desatora y llega hasta aqui cuando Python ya esta desarmando todo.
+        # No hay nada que avisar y no hay a quien: se calla y se va.
+        try:
+            self.signals.miniatura_lista.emit(self._generation, self.index, frames or None)
+        except RuntimeError:
+            pass
 
 
 def _con_el_rango_en_orden(clip: Clip) -> Clip:
@@ -588,6 +595,9 @@ class MainWindow(QWidget):
         # paralelo no compite con el reproductor embebido.
         self._thread_pool.setMaxThreadCount(3)
         self._thumb_generation = 0
+        # Se levanta en `closeEvent` y ya no baja: a partir de ahi la ventana
+        # no pide trabajo nuevo en segundo plano.
+        self._cerrando = False
         self.session_path: Path | None = None
         self._last_saved_at: float | None = None
         self._clip_durations: dict[int, float] = {}  # indice -> segundos; solo en memoria
@@ -1121,9 +1131,28 @@ class MainWindow(QWidget):
         # encolado. Con 23 clips por delante eso son minutos de app
         # congelada al cerrar, sin decir por que. `clear()` tira lo que no
         # arranco y la bandera corta el que si.
+        self._cerrando = True
         self.cancelar_generacion_de_proxies()
         self._generacion_pool.clear()
         self._generacion_pool.waitForDone(5000)
+        # Las miniaturas: primero se tira lo encolado y despues se APAGAN los
+        # mpv que ya estan corriendo. Los dos pasos hacen falta.
+        #
+        # Sin `clear()`, esperar a que termine la fila es seguir lanzando mpv
+        # nuevos mientras la ventana se cierra -- con 205 clips, cientos.
+        #
+        # Y sin apagar los que corren, `waitForDone` vence a los 5 s (una
+        # tira sola puede tardar mucho mas), el proceso de la app termina, y
+        # cada mpv en vuelo se queda vivo para siempre: corre con
+        # `--idle=yes` y su unico apagado vivia dentro del hilo que murio.
+        # Bruno tenia tres asi, de doce dias antes (ver
+        # `thumbnails.terminar_extracciones`).
+        #
+        # Apagarlos ademas es lo que DESATORA a esos hilos: estan esperando
+        # por el socket IPC una respuesta que ya no va a llegar, asi que el
+        # `waitForDone` de abajo termina en vez de agotar su espera.
+        self._thread_pool.clear()
+        terminar_extracciones()
         self._thread_pool.waitForDone(5000)
         self.video_widget.apagar()
         # al final: quien escucha esto devuelve la pantalla de inicio, y
@@ -3617,7 +3646,12 @@ class MainWindow(QWidget):
         socket al otro. Con los 109 clips de Bruno eso son 109 extracciones
         de mas por cada carpeta que agrega.
         """
-        if not self.clips:
+        if not self.clips or self._cerrando:
+            # `_cerrando`: al cerrar se apagan los mpv en vuelo, y ese apagado
+            # hace que sus trabajos avisen «no hubo tira». Ese aviso llega por
+            # una señal encolada, o sea DESPUES del cierre, y quien lo atiende
+            # vuelve a pedir la miniatura -- un mpv nuevo, sobre una ventana
+            # que ya no existe, y esta vez sin nadie que lo apague.
             return
         if indices is None:
             # material nuevo: invalida las señales stale de la tanda anterior
