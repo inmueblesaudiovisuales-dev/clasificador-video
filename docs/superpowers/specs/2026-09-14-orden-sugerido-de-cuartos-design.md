@@ -225,9 +225,22 @@ aceptó.
 
 ## 10. Cómo se comprueba
 
-**Con pruebas**, lo que es lógica pura. Viven en el arnés del plugin
-(`autocheck-tests.js`), que es donde esta lógica puede correr — mismo lugar y
-mismo criterio que los once casos de las marcas del nombre:
+**Con pruebas**, lo que es lógica pura. Y **corren en el repo con `node`**, no
+en el arnés del plugin:
+
+La lógica del §6 no le pregunta nada a Premiere — compara dos listas de
+cadenas. Meterla en `autocheck-tests.js` la dejaría corriendo solo cuando
+alguien abre Premiere **y** vuelve a prender el arnés (`AUTOCHECK_ACTIVO` está
+en `false` desde que se terminó de construir el plugin, así que hoy los doce
+casos de las marcas del nombre **no corren nunca**). Una comprobación que solo
+corre cuando te acuerdas de prenderla no es una comprobación.
+
+Entonces: la lógica pura vive en un archivo que no hace `require("premierepro")`,
+y un corredor chiquito de Node la ejecuta desde el repo. Lo que sí necesita
+Premiere —leer los bins, la red, el sistema de archivos de UXP— se queda en el
+arnés, que para eso existe.
+
+Los casos:
 
 - La revisión del §6, caso por caso: la lista que cuadra; una a la que le
   falta un cuarto; una que trae uno inventado; una que hace las dos cosas a la
