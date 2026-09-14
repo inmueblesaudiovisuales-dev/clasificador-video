@@ -280,6 +280,35 @@ comentarios del código, que es donde sirve. En el chat, no.
   repos y se desincronizarían en el primer cambio de opinión — mismo criterio
   por el que `con_subcarpeta_de_estado` no vive en la sesión.
 
+- **El orden sugerido se decide por lo que ES cada cuarto, no por el pixel.**
+  Bruno pensaba analizar el video con IA y le preocupaba el costo. No hace
+  falta: el orden de un recorrido sale de los nombres que él teclea, y esos ya
+  están escritos. Viaja texto, no video — y de paso el costo deja de ser un
+  tema. No reabrir la idea de mirar fotogramas sin una razón nueva.
+
+- **La pestaña «Orden sugerido» NO escribe en el proyecto de Premiere.** Ni
+  una carpeta, ni un clip, ni el timeline: solo lee los nombres de los bins de
+  `02. Clip`. Por eso busca la carpeta a mano en vez de usar `resolveBinChain`,
+  que la crearía. Es de lectura entera, y esa es la razón por la que puede
+  vivir dentro del mismo plugin que sí escribe sin dar miedo.
+
+- **La lista del modelo se revisa contra los bins ANTES de enseñarse**, y se
+  compara por igualdad exacta de cadena: nada de `trim`, minúsculas ni quitar
+  acentos. `Recamara 1` contra `Recámara 1` es un cuarto que falta y otro
+  inventado, no un empate — normalizar ahí esconde justo el caso que la
+  revisión existe para atrapar. Si falta o sobra alguno, el panel lo marca en
+  vez de enseñar la lista como si nada: una guía a la que le falta la cocina
+  hace que se te olvide la cocina al editar, y eso no se nota hasta después de
+  entregar. Misma familia que los ocho bugs del 2026-08-22.
+
+- **La lógica pura del plugin se prueba con `node`, no con el arnés.**
+  `node uxp-plugin/pruebas/correr.js` corre sin abrir Premiere. El arnés de
+  `autocheck-tests.js` corre DENTRO de Premiere y está apagado
+  (`AUTOCHECK_ACTIVO = false`), así que sus casos solo se comprueban cuando
+  alguien se acuerda de prenderlo — una comprobación que solo corre cuando te
+  acuerdas no es una comprobación. Allá se queda únicamente lo que de verdad
+  necesita a Premiere: la red, los bins y el disco de UXP.
+
 - **El enfoque `xmeml` (Final Cut Pro 7 XML) está descartado**, no solo
   "obsoleto" — Premiere nunca abre el archivo de video real al importar un
   xmeml, y ese formato no puede declarar rotación. La vía real de entrega es

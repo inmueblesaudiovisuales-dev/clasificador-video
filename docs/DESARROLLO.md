@@ -39,6 +39,32 @@ sospechas que el fallo es nuevo, medir el commit anterior con el mismo número.
 repo: un test que pasaba igual con el arreglo puesto o quitado. Antes de
 confiar en uno nuevo, rómpelo a propósito y confirma que se pone rojo.
 
+### Las pruebas del plugin
+
+El plugin tiene las suyas, y son un comando aparte porque no son Python:
+
+```bash
+node uxp-plugin/pruebas/correr.js
+```
+
+Corren **sin abrir Premiere**: son la lógica pura del orden sugerido —armar
+la pregunta, leer la respuesta del modelo, revisarla contra los cuartos
+reales—, que no le pregunta nada a Premiere ni a la red. Sin dependencias ni
+`npm install`: el corredor lee los archivos del plugin y los evalúa, que es lo
+mismo que hace el navegador con un `<script src>`.
+
+Lo que sí necesita Premiere —los bins, la red, el disco de UXP— vive en el
+arnés de `uxp-plugin/js/autocheck-tests.js`, que corre **dentro** de Premiere
+y está apagado (`AUTOCHECK_ACTIVO = false` en `autocheck.js`). Para correrlo:
+préndelo, recarga el plugin en Premiere y lee
+`/private/tmp/clasificador-autocheck/resultado.json`. Acuérdate de apagarlo
+después.
+
+Y ojo con la asimetría: **lo del arnés no corre solo**. Los casos que viven
+allá solo se comprueban cuando alguien se acuerda de prenderlo, así que
+cualquier lógica que se pueda probar sin Premiere va en el corredor de Node,
+no en el arnés.
+
 ## Empaquetar la app
 
 ```bash

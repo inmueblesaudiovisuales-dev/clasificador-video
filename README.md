@@ -250,6 +250,39 @@ encabezado → **Cámara**.
 Con esto, ponerle su LUT a todo el material de una cámara es seleccionar
 todos los de un color y arrastrarles el preset.
 
+### 6. El orden sugerido de los cuartos
+
+En el mismo panel de Premiere, la pestaña **Orden sugerido** te propone el
+recorrido del video: en qué orden conviene que vayan los cuartos, cada uno con
+una línea corta de por qué va ahí.
+
+Lee solos los cuartos de `02. Clip` —los que ya clasificaste— y arranca
+preguntándote tres cosas: qué tipo de propiedad es, para quién es el video y
+qué hay que lucir. Las contestas de un toque con los botones, las escribes, o
+te las saltas y le das directo a **Dame la lista**.
+
+Cuando ves la lista puedes seguirle hablando —«la alberca al final», «este es
+para redes»— y se rehace. El botón **Copiar** te la deja en el portapapeles.
+
+Tres cosas que vale la pena que sepas:
+
+- **Es una guía para leer. No mueve nada.** No acomoda tus clips, no crea
+  carpetas, no toca el timeline. Solo lee los nombres de tus cuartos.
+- **Si le falta un cuarto o se inventa uno, la pestaña te lo dice** arriba de
+  la lista, y lo inventado sale tachado. Una guía a la que le falta la cocina
+  hace que se te olvide la cocina al editar, y eso no se nota hasta después de
+  entregar.
+- **No vio tu material**, así que no sabe qué hay adentro de tus cuartos —solo
+  por qué uno va antes que otro en un recorrido—. Si algún día te describe una
+  cocina que nunca vio, eso es un error y vale la pena decirlo.
+
+La primera vez te pide una llave de DeepSeek: la pegas una vez y se queda
+guardada. De tu computadora solo salen los nombres de tus cuartos y lo que tú
+escribas — nada de video, archivos ni rutas.
+
+Si abres la pestaña en un proyecto que no salió de Clipify, te lo dice y te
+deja escribir los cuartos a mano.
+
 ---
 
 ## Proxies, en detalle

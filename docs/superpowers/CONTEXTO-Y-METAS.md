@@ -51,6 +51,63 @@ once versiones se ha abierto en otra computadora.
 
 ---
 
+## Lo que se construyó el 2026-09-14
+
+### El orden sugerido de los cuartos — **construido, falta comprobarlo en Premiere**
+
+Pestaña «Orden sugerido» en el panel del plugin: lee los cuartos de
+`02. Clip`, platica con DeepSeek y propone el recorrido del video, cada cuarto
+con una línea de por qué va ahí. Es una **guía para leer**: no acomoda nada,
+no crea carpetas, no toca el timeline.
+
+Sale de un brainstorm cerrado con Bruno el mismo día
+(`HANDOFF-2026-09-14-orden-sugerido-de-cuartos.md` → spec → plan). Él pidió
+ayuda para **editar en la línea del tiempo** y descartó de un tirón los cinco
+caminos que se le ofrecieron —ensamble automático, secuencia por cuarto,
+secuencia de destacados, varios in/out por clip, notas como marcadores—:
+«nada de eso ayudaría».
+
+**El hallazgo que sostiene el diseño:** no hace falta mirar fotogramas. El
+orden de un recorrido se decide por lo que **es** cada cuarto, y eso ya está
+escrito en los nombres que Bruno teclea. Viaja texto, no video, y el costo que
+le preocupaba deja de ser un tema.
+
+**Lo que falta, y es lo único:** comprobar contra Premiere de verdad que el
+plugin puede llamar a la API. El `manifest.json` ya declara el permiso de red
+hacia `api.deepseek.com` y la prueba está escrita en `autocheck-tests.js`,
+pero **nadie la ha corrido**. Si no se puede, el diseño entero cambia de lugar
+—volvería a Clipify, que Bruno descartó por gusto y no por imposibilidad— y
+esa decisión es suya. Bruno ya está enterado.
+
+Lo demás está comprobado: 26 pruebas de lógica pura en verde con
+`node uxp-plugin/pruebas/correr.js`, y el panel visto con los ojos en sus dos
+estados —la lista que cuadra, y la que le falta un cuarto y trae uno
+inventado— dibujado en Chromium con Premiere simulado. Cómo se ve **dentro**
+de Premiere también falta verlo.
+
+**Lo que se descartó, con su razón:**
+
+- **Mirar fotogramas** — el orden no está en el pixel (arriba).
+- **Ordenar los clips dentro de cada cuarto** — Bruno ordenó cuartos entre sí.
+- **El botón «acomodar así»** que reordenaría el rail con la sugerencia — se
+  le ofreció y lo descartó: «no necesariamente armarlo sino armar una guía».
+- **Un segundo plugin** — lo trajo él a la mesa y aceptó el argumento: una
+  sola instalación que mantener.
+- **Una lista fija de reglas en vez de IA** — los cuartos los teclea él cada
+  shooting con nombres libres (`Roof garden`, `Área de lavado`), que es justo
+  donde una lista fija se queda corta.
+- **Guardar la guía en el proyecto de Premiere** — sería escribir en el
+  proyecto, que es lo que la pestaña no hace. Vive en el panel y se copia.
+
+**Y una lección de higiene que salió de construirlo:** el arnés de
+`autocheck-tests.js` corre dentro de Premiere y está apagado desde que se
+terminó el plugin, así que sus doce casos de las marcas del nombre **hoy no
+corren nunca**. Por eso la lógica pura nueva se probó con un corredor de Node
+en el repo. Una comprobación que solo corre cuando te acuerdas de prenderla no
+es una comprobación.
+
+---
+
 ## Lo que se hizo (2026-08-09 y 10)
 
 Tres entregas seguidas, cada una con su spec, su plan y su revisión por fase.

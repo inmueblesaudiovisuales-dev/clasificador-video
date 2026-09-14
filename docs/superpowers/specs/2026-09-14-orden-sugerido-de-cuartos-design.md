@@ -269,4 +269,11 @@ imagen, no se afirma.
 El encabezado del panel todavía dice **«Clasificador de Video»**. La app se
 llama **Clipify** desde el 2026-08-27 y el `manifest.json` ya lo dice; el
 `index.html` se quedó atrás. Como esta pestaña obliga a reescribir ese archivo
-de todos modos, el encabezado se corrige en la misma pasada.
+de todos modos, se arregla en la misma pasada.
+
+**Al construirlo no se renombró: se quitó.** La barra de pestañas ya hace de
+encabezado, y la pestaña del panel dentro de Premiere ya dice «Clipify», así
+que un título más era escribir el nombre dos veces en un panel de 320 px de
+ancho. El mismo criterio que ya se tomó con la barra de título de la app,
+donde «Clipify» tampoco va: ahí el ancho vale más para el proyecto y sus
+clips.
