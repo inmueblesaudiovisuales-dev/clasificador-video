@@ -5531,3 +5531,59 @@ def test_al_cerrar_no_queda_ningun_mpv_de_miniaturas_vivo(qtbot, monkeypatch, tm
                 proc.kill()
                 proc.wait()
 
+
+# --- el playhead no trabaja de gratis (2026-09-13) ------------------------
+#
+# Bruno: «usa muchisima RAM y CPU incluso cuando no la uso». Este tick corre
+# seis veces por segundo toda la sesion --tambien en la hoja, donde el visor
+# ni se ve, y con la app en segundo plano-- y repintaba la barra y el
+# timecode aunque el video llevara media hora parado en el mismo cuadro.
+
+
+def _espiar_repintado(window, monkeypatch) -> list:
+    pintadas = []
+    monkeypatch.setattr(window.scrub_bar, "set_position",
+                        lambda segundos: pintadas.append(segundos))
+    return pintadas
+
+
+def test_el_playhead_no_repinta_con_el_video_parado(qtbot, monkeypatch):
+    window = _a_modo_clip(_window_with_video(qtbot))
+    window.load_clips([_clip(1)])
+    window.video_widget.player.pause()   # el visor abre reproduciendo
+    window._tick_playhead()          # el primero si tiene algo que decir
+
+    pintadas = _espiar_repintado(window, monkeypatch)
+    window._tick_playhead()
+    window._tick_playhead()
+
+    assert pintadas == []
+
+
+def test_el_playhead_repinta_en_cuanto_el_video_se_mueve(qtbot, monkeypatch):
+    window = _a_modo_clip(_window_with_video(qtbot))
+    window.load_clips([_clip(1)])
+    window.video_widget.player.pause()
+    window._tick_playhead()
+
+    pintadas = _espiar_repintado(window, monkeypatch)
+    window.video_stage.video.player._mpv.time_pos = 3.0
+    window._tick_playhead()
+
+    assert pintadas == [3.0]
+
+
+def test_marcar_in_con_el_video_parado_si_repinta(qtbot, monkeypatch):
+    """La manija del rango llega a la pantalla por este tick y por ningun
+    otro: si el tick se saltara el repintado, apretar `I` no se veria hasta
+    mover el video."""
+    window = _a_modo_clip(_window_with_video(qtbot))
+    window.load_clips([_clip(1)])
+    window.video_widget.player.pause()
+    window._tick_playhead()
+
+    pintadas = _espiar_repintado(window, monkeypatch)
+    window.handle_key_press("i")
+    window._tick_playhead()
+
+    assert pintadas != []

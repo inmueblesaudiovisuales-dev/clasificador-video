@@ -814,6 +814,9 @@ class MainWindow(QWidget):
         raiz.addLayout(cuerpo)
         raiz.addWidget(self.status_bar)
 
+        # Lo ultimo que el playhead dibujo. Ver `_tick_playhead`: con el
+        # video parado y esto igual, el tick no tiene nada que hacer.
+        self._firma_del_playhead: tuple | None = None
         self._playhead_timer = QTimer(self)
         self._playhead_timer.setInterval(150)
         self._playhead_timer.timeout.connect(self._tick_playhead)
@@ -1795,6 +1798,19 @@ class MainWindow(QWidget):
     def _tick_playhead(self) -> None:
         if self.current_clip is None:
             return
+        # Con el video pausado y nada marcado de nuevo, no hay una sola cosa
+        # que redibujar -- y esto corre seis veces por segundo TODA la sesion,
+        # tambien con la app en segundo plano y tambien en la hoja, donde el
+        # visor ni se ve. Bruno lo reporto como «usa CPU aunque no la este
+        # usando».
+        #
+        # Se compara TODO lo que el tick dibuja, no solo la posicion: marcar
+        # `I` u `O` con el video parado no mueve el playhead, y su unico
+        # camino a la pantalla es este tick. Comparar de menos dejaba la
+        # manija sin aparecer hasta que algo mas se moviera.
+        if (self.video_widget.player.is_paused
+                and self._firma_del_playhead_ahora() == self._firma_del_playhead):
+            return
         # mpv reporta la duracion de forma ASINCRONA: cuando se abrio el clip
         # todavia no existia, asi que hay que volver a pedirsela. Sin esto la
         # barra se queda en 0 y no dibuja playhead, marcas ni rango -- estuvo
@@ -1813,6 +1829,23 @@ class MainWindow(QWidget):
         if self._auto_reproduciendo and self.video_widget.player.is_paused:
             self._auto_reproduciendo = False
             self.video_stage.badges.set_auto(False)
+        # Al FINAL y volviendo a preguntar, no la firma de la entrada: el
+        # badge de arriba lo cambia este mismo tick, y guardar la firma vieja
+        # obligaba a un repintado de mas en el tick siguiente.
+        self._firma_del_playhead = self._firma_del_playhead_ahora()
+
+    def _firma_del_playhead_ahora(self) -> tuple:
+        """Todo lo que el tick del playhead dibuja, en una sola cosa que se
+        puede comparar. Ver `_tick_playhead`."""
+        clip = self.current_clip
+        return (
+            self.current_index,
+            self.video_widget.player.position,
+            self.video_widget.player.duration,
+            None if clip is None else clip.in_frame,
+            None if clip is None else clip.out_frame,
+            self._auto_reproduciendo,
+        )
 
     def _on_scrub_seek_started(self) -> None:
         self.video_widget.player.pause()
