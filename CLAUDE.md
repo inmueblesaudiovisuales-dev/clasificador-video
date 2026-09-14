@@ -212,6 +212,21 @@ comentarios del código, que es donde sirve. En el chat, no.
   cuando el mouse escrubea esa tarjeta. Cargarlas todas al abrir eran 34
   segundos congelado con 205 clips. No revertir «para simplificar».
 
+- **Y cada foto se guarda al tamaño de la TARJETA, no del archivo**, con un
+  techo de cuántas tiras siguen cargadas (`LIMITE_DE_TIRAS_VIVAS`). Bruno el
+  2026-09-13: «usa muchísima RAM aunque no la esté usando». Medido con su
+  proyecto real de 229 clips: 1.4 GB nada más abrirlo y +41 MB por cada
+  tarjeta escrubeada, que no se devolvían nunca — recorrer la hoja entera
+  llegaba a ~10 GB. Una miniatura de un clip sin proxy mide 3840×2160: 33 MB
+  en memoria para dibujarla en 198 px.
+
+  Se lee con `QImageReader.setScaledSize`, que reduce mientras descomprime:
+  la imagen grande no existe en memoria ni por un instante, y leerla cuesta
+  12 ms en vez de 32. Lo que se paga a cambio es releer del disco cuando la
+  tarjeta CRECE (`apply_width`) o cuando el mouse vuelve a una tira ya
+  soltada; las dos pasan dentro de un gesto y ninguna se siente. Ver
+  `docs/superpowers/archive/RESULTADO-2026-09-13-ram-y-cpu-en-reposo.md`.
+
 - **La app no suena.** `mute=True` en la creación de mpv y `--no-audio` en
   las miniaturas. Se ofreció una tecla para prenderlo y Bruno la descartó.
 
