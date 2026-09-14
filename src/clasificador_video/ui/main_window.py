@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Callable
 
 from PySide6.QtCore import Qt, QObject, QRunnable, QThreadPool, QTimer, Signal
-from PySide6.QtGui import QKeySequence, QPixmap, QShortcut
+from PySide6.QtGui import QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QApplication,
     QFileDialog,
@@ -3816,10 +3816,10 @@ class MainWindow(QWidget):
         # decodificaba las 12 fotos de cada clip, y con 205 clips eso son
         # 2,460 imagenes de golpe en el hilo de la interfaz -- 34 segundos de
         # bolita de arcoiris al abrir el proyecto, medidos.
-        if len(frames) > 1:
-            self.clip_sheet.item_widgets[index].set_tira(frames)
-        else:
-            self.clip_sheet.item_widgets[index].set_pixmap(QPixmap(str(frames[0])))
+        # Por RUTAS tambien cuando hay una sola foto. `QPixmap(ruta)` la
+        # decodifica entera --3840x2160 sin proxy, 33 MB-- para una tarjeta de
+        # 210 px; la tarjeta la lee reducida y ademas puede releerla si crece.
+        self.clip_sheet.item_widgets[index].set_tira(frames)
 
     # ------------------------------------------------------------------
     # acciones

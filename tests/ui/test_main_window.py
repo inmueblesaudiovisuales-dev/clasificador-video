@@ -339,7 +339,7 @@ def test_thumbnail_stale_de_importacion_anterior_se_ignora(qtbot, monkeypatch, t
 
     calls = []
     for w in window.clip_sheet.item_widgets:
-        monkeypatch.setattr(w, "set_pixmap", lambda pixmap, _w=w: calls.append(_w))
+        monkeypatch.setattr(w, "set_tira", lambda rutas, _w=w: calls.append(_w))
 
     window._on_thumbnail_ready(1, 0, [tmp_path / "stale.jpg"])
     assert calls == []
@@ -5530,3 +5530,4 @@ def test_al_cerrar_no_queda_ningun_mpv_de_miniaturas_vivo(qtbot, monkeypatch, tm
             if proc.poll() is None:
                 proc.kill()
                 proc.wait()
+

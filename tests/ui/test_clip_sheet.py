@@ -1139,13 +1139,13 @@ def test_re_aplicar_el_mismo_ancho_no_reescala_la_miniatura(qtbot):
     medido con cProfile, el 40% del costo de una tecla de cuarto."""
     tarjeta = _card_con_frames(qtbot, 12)
     tarjeta.apply_width(150)
-    cache = tarjeta._scaled_cache
-    escalados = dict(cache)
+    foto = tarjeta._frames[tarjeta._poster_index]
+
     tarjeta.apply_width(150)
-    assert tarjeta._scaled_cache is cache        # ni siquiera se recreo
-    assert tarjeta._scaled_cache == escalados
-    tarjeta.apply_width(190)                     # otro ancho SI reescala
-    assert tarjeta._scaled_cache != escalados
+
+    assert tarjeta._frames[tarjeta._poster_index] is foto   # la MISMA foto
+    tarjeta.apply_width(190)                                # otro ancho SI
+    assert tarjeta._frames[tarjeta._poster_index] is not foto
 
 
 # --- la marquesina de seleccion ----------------------------------------------
@@ -3060,3 +3060,83 @@ def test_una_tira_de_una_sola_foto_sigue_funcionando(qtbot, tmp_path):
 
     assert tarjeta.fotos_cargadas() == 1
     assert tarjeta._poster_index == 0
+
+
+# --- la memoria de las miniaturas (2026-09-13) ----------------------------
+#
+# Bruno: «la app usa muchisima RAM y CPU incluso cuando no la uso». Medido
+# con su proyecto real de 229 clips: 1.4 GB nada mas abrirlo, y +41 MB por
+# cada tarjeta escrubeada, que nunca se devuelven. La causa son estas dos
+# cosas juntas: cada foto se guardaba al TAMAÑO DEL ARCHIVO (1280x720 con
+# proxy, 3840x2160 sin el) aunque la tarjeta mida 210 px, y una vez leida no
+# se soltaba nunca.
+
+
+def _foto_en_disco(tmp_path, ancho: int, alto: int, nombre: str) -> Path:
+    pm = QPixmap(ancho, alto)
+    pm.fill(Qt.GlobalColor.darkGray)
+    ruta = tmp_path / nombre
+    pm.save(str(ruta))
+    return ruta
+
+
+def test_la_foto_se_guarda_al_tamano_de_la_tarjeta_no_del_archivo(qtbot, tmp_path):
+    """Una miniatura de 4K en memoria son 33 MB; a tamaño de tarjeta, 0.2."""
+    ruta = _foto_en_disco(tmp_path, 1920, 1080, "strip_00.jpg")
+    tarjeta = _card()
+    qtbot.addWidget(tarjeta)
+    tarjeta.apply_width(210)
+
+    tarjeta.set_tira([ruta])
+
+    foto = tarjeta._frames[0]
+    assert foto.width() <= tarjeta.width() + 1
+    assert foto.height() <= tarjeta.height() + 1
+
+
+def test_al_agrandar_la_tarjeta_la_foto_se_relee_del_disco(qtbot, tmp_path):
+    """Guardar la foto chica no puede costar una miniatura pixeleada: si la
+    tarjeta crece, la foto se vuelve a leer al tamaño nuevo."""
+    ruta = _foto_en_disco(tmp_path, 1920, 1080, "strip_00.jpg")
+    tarjeta = _card()
+    qtbot.addWidget(tarjeta)
+    tarjeta.apply_width(140)
+    tarjeta.set_tira([ruta])
+
+    tarjeta.apply_width(320)
+
+    assert tarjeta._frames[0].width() >= 320
+
+
+def test_la_hoja_suelta_las_tiras_de_las_tarjetas_viejas(qtbot, tmp_path):
+    """Escrubear tarjeta tras tarjeta no puede ir sumando memoria sin techo:
+    con el proyecto real de Bruno eran 41 MB por tarjeta, para siempre."""
+    from clasificador_video.ui.clip_sheet import LIMITE_DE_TIRAS_VIVAS
+
+    rutas = _tira_en_disco(tmp_path)
+    cuantas = LIMITE_DE_TIRAS_VIVAS + 6
+    sheet = _sheet(qtbot, [_clip(n, "Sala") for n in range(cuantas)])
+    for tarjeta in sheet.item_widgets:
+        tarjeta.set_tira(rutas)
+
+    for tarjeta in sheet.item_widgets:
+        for i in range(len(rutas)):
+            tarjeta._show_frame(i)
+
+    cargadas = sum(t.fotos_cargadas() for t in sheet.item_widgets)
+    assert cargadas <= cuantas + LIMITE_DE_TIRAS_VIVAS * len(rutas)
+
+
+def test_la_tarjeta_que_solto_su_tira_sigue_mostrando_su_portada(qtbot, tmp_path):
+    """Soltar las fotos del escrubeo no puede dejar la tarjeta en blanco."""
+    rutas = _tira_en_disco(tmp_path)
+    sheet = _sheet(qtbot, [_clip(1, "Sala")])
+    tarjeta = sheet.item_widgets[0]
+    tarjeta.set_tira(rutas)
+    tarjeta._show_frame(11)
+
+    tarjeta.soltar_tira()
+
+    assert tarjeta.fotos_cargadas() == 1
+    assert tarjeta._shown_index == tarjeta._poster_index
+    assert not tarjeta.image_label.pixmap().isNull()

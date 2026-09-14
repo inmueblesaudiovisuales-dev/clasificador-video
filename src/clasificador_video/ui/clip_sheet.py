@@ -21,6 +21,7 @@ from PySide6.QtGui import (
     QColor,
     QDrag,
     QFont,
+    QImageReader,
     QPainter,
     QPen,
     QPixmap,
@@ -87,6 +88,15 @@ PASOS_DE_TILE = (140, 170, 210, 260, 320)
 # Medirlo sobre una hoja suelta a 1600 px daba otro numero -- el ancho de la
 # hoja nunca es el de la ventana.
 PASO_HOJA = 1
+# Cuantas tarjetas conservan su tira de 12 fotos. Las demas se quedan con su
+# portada y vuelven a leer del disco si el mouse regresa.
+#
+# El techo existe porque sin el la memoria solo sube: cada tarjeta escrubeada
+# se quedaba con sus once fotos extra para siempre, y con el proyecto real de
+# Bruno --229 clips-- eso son 41 MB por tarjeta. Recorrer la hoja entera con
+# el mouse llegaba a ~10 GB. Volver a leer una tira ya vista cuesta lo mismo
+# que la primera vez (unos milisegundos por foto) y pasa dentro del gesto.
+LIMITE_DE_TIRAS_VIVAS = 24
 GAP = 9
 FADE_HEIGHT = 60
 # Cuanto hay que mover el mouse para que un click pase a ser un arrastre. Sin
@@ -450,6 +460,9 @@ class ClipCard(QWidget):
     doble_click = Signal()    # abrir este clip en modo clip (Grid → Loupe)
     arrastre_pedido = Signal(int)  # indice de clip: agarraron esta tarjeta
     soltada = Signal()             # solto el boton encima de esta tarjeta
+    # «acabo de leer una foto de mi tira»: la hoja lleva la cuenta de cuales
+    # tarjetas la tienen viva para soltar las mas viejas (LIMITE_DE_TIRAS_VIVAS)
+    tira_usada = Signal()
 
     def __init__(self, clip: ClipThumbnail, parent=None):
         super().__init__(parent)
@@ -468,7 +481,9 @@ class ClipCard(QWidget):
         self._frames: list = []
         self._hover: float | None = None   # fraccion escrubeada, o None
         self._tinte: str | None = None     # color del rastro del pincel
-        self._scaled_cache: dict[int, object] = {}
+        # El tamaño con el que se leyeron las fotos que hay en `_frames`. Si
+        # la tarjeta crece, ese tamaño se queda corto y hay que releerlas.
+        self._tamano_de_las_fotos: QSize = QSize()
         self._poster_index = 0
         self._shown_index: int | None = None
         self._estilo_actual: str | None = None
@@ -578,8 +593,8 @@ class ClipCard(QWidget):
 
     def set_pixmap(self, pixmap) -> None:
         self._rutas = []          # ya viene cargada: no hay nada que leer
-        self._frames = [pixmap]
-        self._scaled_cache = {}
+        self._frames = [self._a_la_medida(pixmap)]
+        self._tamano_de_las_fotos = self._tamano_visible()
         self._poster_index = 0
         self._shown_index = None
         self._show_frame(0)
@@ -600,7 +615,7 @@ class ClipCard(QWidget):
             return
         self._rutas = list(rutas)
         self._frames = [None] * len(self._rutas)
-        self._scaled_cache = {}
+        self._tamano_de_las_fotos = self._tamano_visible()
         # 25% y no el del medio: en un recorrido el primer frame suele ser una
         # puerta o movimiento borroso, y el del medio puede ser cualquier cosa.
         # Es el MISMO punto donde el video arranca al abrirlo (F6), asi que la
@@ -620,12 +635,21 @@ class ClipCard(QWidget):
         # esto en las 128 tarjetas, y sin la guarda cada una tiraba su cache y
         # volvia a escalar su miniatura: medido con cProfile, el 40% del costo
         # de una tecla de cuarto se iba en reescalar imagenes identicas.
-        if (ancho, alto) == (self.width(), self.height()) and self._scaled_cache:
+        if (ancho, alto) == (self.width(), self.height()):
             return
         self.setFixedSize(ancho, alto)
-        self._scaled_cache = {}
         indice = self._shown_index
         self._shown_index = None
+        # Las fotos que hay en memoria estan a la medida de ANTES. Si la
+        # tarjeta crecio, esa medida se queda corta y se vuelven a leer del
+        # disco al tamaño nuevo -- guardarlas grandes «por si acaso» es
+        # justamente lo que costaba los gigabytes.
+        if self._rutas and not self._alcanza_el_tamano_leido():
+            self._frames = [None] * len(self._frames)
+            self._tamano_de_las_fotos = self._tamano_visible()
+        elif self._frames:
+            self._frames = [None if f is None else self._a_la_medida(f)
+                            for f in self._frames]
         if self._frames:
             self._show_frame(indice if indice is not None else self._poster_index)
 
@@ -635,12 +659,101 @@ class ClipCard(QWidget):
         Es lo que permite abrir sin cargar la tira entera. Lo que no se pudo
         leer queda anotado como un `QPixmap` vacio, para no reintentarlo en
         cada movimiento del mouse.
+
+        Se lee YA REDUCIDA al tamaño de la tarjeta (`_leer_a_la_medida`). Es
+        el arreglo del 2026-09-13: antes se guardaba la foto del tamaño del
+        archivo --1280x720 con proxy, 3840x2160 sin el-- para mostrarla en una
+        tarjeta de 210 px. Con los 229 clips de Bruno eso era 1.4 GB de RAM
+        nada mas abrir el proyecto.
         """
         foto = self._frames[index]
         if foto is None and index < len(self._rutas):
-            foto = QPixmap(str(self._rutas[index]))
+            foto = self._leer_a_la_medida(self._rutas[index])
             self._frames[index] = foto
+            if index != self._poster_index:
+                self.tira_usada.emit()
         return foto
+
+    def _tamano_visible(self) -> QSize:
+        return QSize(max(self.width(), 1), max(self.height(), 1))
+
+    def _alcanza_el_tamano_leido(self) -> bool:
+        """Si las fotos que hay en memoria siguen sirviendo para el tamaño de
+        ahora. Achicar la tarjeta no obliga a releer: reescalar hacia abajo se
+        ve bien. Agrandarla si, o la miniatura sale pixeleada."""
+        leido = self._tamano_de_las_fotos
+        if not leido.isValid() or leido.isEmpty():
+            return False
+        ahora = self._tamano_visible()
+        return leido.width() >= ahora.width() and leido.height() >= ahora.height()
+
+    def _leer_a_la_medida(self, ruta) -> QPixmap:
+        """Lee el JPEG del cache pidiendole al decodificador el tamaño chico.
+
+        `setScaledSize` no es un `scaled()` disfrazado: el decodificador de
+        JPEG reduce mientras descomprime, asi que nunca existe en memoria la
+        imagen de 4K completa -- ni siquiera por un instante.
+        """
+        lector = QImageReader(str(ruta))
+        lector.setAutoTransform(True)
+        origen = lector.size()
+        destino = self._tamano_de_lectura(origen)
+        if destino is not None:
+            lector.setScaledSize(destino)
+        imagen = lector.read()
+        if imagen.isNull():
+            return QPixmap()      # ilegible: anotado y no se reintenta
+        return self._a_la_medida(QPixmap.fromImage(imagen))
+
+    def _tamano_de_lectura(self, origen: QSize) -> QSize | None:
+        """El tamaño con el que pedirle la foto al decodificador: el mas chico
+        que todavia CUBRE la tarjeta, que es como se muestra
+        (`KeepAspectRatioByExpanding`). `None` cuando la foto ya es mas chica
+        que la tarjeta -- agrandarla al leer no agrega un solo detalle."""
+        if not origen.isValid() or origen.isEmpty():
+            return None
+        visible = self._tamano_visible()
+        escala = max(visible.width() / origen.width(),
+                     visible.height() / origen.height())
+        if escala >= 1.0:
+            return None
+        return QSize(max(1, round(origen.width() * escala)),
+                     max(1, round(origen.height() * escala)))
+
+    def _a_la_medida(self, foto: QPixmap) -> QPixmap:
+        """La foto tal como se va a ver: cubriendo la tarjeta, sin sobrar.
+
+        Guardar la foto ya a esta medida --y no el original- es lo que baja la
+        memoria de 33 MB por foto a 0.2. Lo que se pierde es poder agrandar la
+        tarjeta sin volver al disco, y eso lo resuelve `apply_width`.
+        """
+        if foto is None or foto.isNull():
+            return foto
+        visible = self._tamano_visible()
+        if (foto.width() == visible.width() or foto.height() == visible.height()) \
+                and foto.width() >= visible.width() and foto.height() >= visible.height():
+            return foto
+        return foto.scaled(
+            visible.width(), visible.height(),
+            Qt.AspectRatioMode.KeepAspectRatioByExpanding,
+            Qt.TransformationMode.SmoothTransformation,
+        )
+
+    def soltar_tira(self) -> None:
+        """Suelta las fotos del escrubeo y se queda con la portada.
+
+        Lo pide la hoja cuando esta tarjeta deja de estar entre las ultimas
+        que se escrubearon (`LIMITE_DE_TIRAS_VIVAS`). No se borra la portada:
+        la tarjeta tiene que seguir viendose igual.
+        """
+        if len(self._frames) <= 1:
+            return
+        portada = self._frames[self._poster_index]
+        self._frames = [None] * len(self._frames)
+        self._frames[self._poster_index] = portada
+        if self._shown_index != self._poster_index:
+            self._shown_index = None
+            self._show_frame(self._poster_index)
 
     def fotos_cargadas(self) -> int:
         """Cuantas fotos de la tira estan en memoria. Existe para las
@@ -648,22 +761,20 @@ class ClipCard(QWidget):
         return sum(1 for f in self._frames if f is not None)
 
     def _show_frame(self, index: int) -> None:
+        """Pone en pantalla la foto `index`.
+
+        Ya no hay un segundo cache de fotos escaladas: `_frame` las entrega a
+        la medida de la tarjeta. Eran dos copias de la misma imagen -- la
+        grande que nadie miraba y la chica que se dibujaba.
+        """
         if index == self._shown_index or not self._frames:
             return
         if not 0 <= index < len(self._frames):
             return
-        scaled = self._scaled_cache.get(index)
-        if scaled is None:
-            foto = self._frame(index)
-            if foto is None or foto.isNull():
-                return
-            scaled = foto.scaled(
-                max(self.width(), 1), max(self.height(), 1),
-                Qt.AspectRatioMode.KeepAspectRatioByExpanding,
-                Qt.TransformationMode.SmoothTransformation,
-            )
-            self._scaled_cache[index] = scaled
-        self.image_label.setPixmap(scaled)
+        foto = self._frame(index)
+        if foto is None or foto.isNull():
+            return
+        self.image_label.setPixmap(foto)
         self._shown_index = index
 
     def resizeEvent(self, event) -> None:  # noqa: N802 -- override de Qt
@@ -1767,6 +1878,10 @@ class ClipSheet(QWidget):
         self._congelado = False
         self._pincel_activo = False
         self._blocks: dict[tuple[str, str], _GroupBlock] = {}
+        # Las ultimas tarjetas que escrubeaste, de la mas vieja a la mas
+        # reciente. Son las unicas que conservan su tira de 12 fotos: ver
+        # `LIMITE_DE_TIRAS_VIVAS`.
+        self._tiras_vivas: list[ClipCard] = []
         # el orden de los bins es el de IMPORTACION, no el alfabetico: es el
         # orden en que entro el material y el que siguen las flechas.
         self._bin_order: list[str] = []
@@ -2348,11 +2463,24 @@ class ClipSheet(QWidget):
         """
         card = ClipCard(clip)
         card.indice = index
+        card.tira_usada.connect(lambda c=card: self._anotar_tira_viva(c))
         card.clicked.connect(lambda mods, i=index: self._on_card_clicked(i, mods))
         card.doble_click.connect(lambda i=index: self.clip_activated.emit(i))
         card.arrastre_pedido.connect(self._on_arrastre_pedido)
         card.soltada.connect(self._on_card_released)
         return card
+
+    def _anotar_tira_viva(self, card: "ClipCard") -> None:
+        """Esta tarjeta acaba de leer una foto de su tira: pasa al frente de
+        la fila, y la mas vieja suelta la suya.
+
+        La cuenta vive en la hoja y no en la tarjeta porque el limite es del
+        conjunto: una tarjeta sola no sabe cuantas otras estan cargadas.
+        """
+        self._tiras_vivas = [c for c in self._tiras_vivas if c is not card]
+        self._tiras_vivas.append(card)
+        while len(self._tiras_vivas) > LIMITE_DE_TIRAS_VIVAS:
+            self._tiras_vivas.pop(0).soltar_tira()
 
     def set_clips(self, clips: list[ClipThumbnail]) -> None:
         for card in self.item_widgets:
@@ -2360,6 +2488,9 @@ class ClipSheet(QWidget):
         for block in self._blocks.values():
             self._desechar(block)
         self.item_widgets = []
+        # Estas tarjetas ya no existen: quedarse con el apuntador es hablarle
+        # despues a un objeto de C++ que Qt ya borro.
+        self._tiras_vivas = []
         self._blocks = {}
         for index, clip in enumerate(clips):
             self.item_widgets.append(self._nueva_tarjeta(clip, index))
