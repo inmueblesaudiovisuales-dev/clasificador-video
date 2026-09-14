@@ -84,3 +84,52 @@ material sin proxy también se siente distinto.
 La imagen. Comparadas pixel a pixel, la miniatura leída en chico y la
 escalada desde el original difieren **1.46 de 255 por canal** — invisible.
 Verificado también mirando la hoja real con las 229 tarjetas puestas.
+
+---
+
+# Y lo que de verdad calienta la Mac (mismo día)
+
+Bruno, después de leer lo de arriba: «solo quiero que no se caliente mi mac
+al usarse ni use demasiada RAM innecesaria». Así que se midió el calor, que
+no es lo mismo que la memoria.
+
+Todo medido con material real de la FX30 (4K HEVC, clips de ~6 s):
+
+| qué está haciendo la app | CPU |
+|---|---|
+| quieta, con el video parado | ~0 |
+| teclear un cuarto (229 clips en la hoja) | 26–77 ms, una vez |
+| moverse con las flechas | 17 ms |
+| reproduciendo un proxy | 21 % de un núcleo |
+| reproduciendo el original 4K | 27 % de un núcleo |
+| **sacar las 12 miniaturas de UN clip 4K** | **50 s de CPU** |
+| sacar las 12 miniaturas desde el proxy | 2.6 s de CPU |
+
+O sea: usar la app no calienta nada. Lo que calienta es **importar un rodaje
+sin proxies** — 229 clips × 50 s son tres horas de CPU, repartidas en tres
+hilos, y eso sí prende el ventilador un buen rato.
+
+Los 50 segundos eran por decodificar en software, decisión del 2026-08-06
+para que tres extracciones en paralelo no le quitaran VideoToolbox al
+reproductor. El costo de esa prudencia nunca se había medido.
+
+| cómo se decodifica la tira | reloj | CPU |
+|---|---|---|
+| software (lo de antes) | 6.5 s | 50.4 s |
+| `videotoolbox-copy` | 6.2 s | **18.7 s** |
+| `videotoolbox` a secas | 6.9 s | 52.7 s |
+
+`videotoolbox` a secas da lo mismo que no ponerlo porque necesita una
+superficie de GPU donde dejar el cuadro, y `--vo=null` no tiene ninguna: mpv
+se cae a software sin avisar. La variante `-copy` trae el cuadro de vuelta a
+memoria, que es justo lo que hace falta para escribirlo a disco.
+
+Y el miedo original se probó en vivo, con la app abierta: **con el visor
+reproduciendo y tres extracciones en paralelo, el video avanzó 1.00×** — sin
+trabarse un cuadro. Las fotos salen iguales (4 de 255 de diferencia media,
+sobre una imagen que se ve a 200 px).
+
+Lo que queda por hacer, si algún día pesa: las 229 tarjetas existen todas
+aunque veas 30, y eso son **131 MB** y casi todos los 17 s del arranque. Es
+el único pedazo de RAM que sobra de verdad — el resto (~500 MB) son Python,
+Qt y mpv antes de que exista un solo clip.
