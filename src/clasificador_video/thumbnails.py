@@ -211,8 +211,8 @@ def ruta_del_socket(outdir: Path) -> Path:
 
 
 def build_strip_ipc_args(video: Path, socket_path: Path) -> list[str]:
-    """mpv en modo idle, sin salida de video (--vo=null) ni hwdec, con un
-    socket de control IPC -- una sola sesion sobre la que se mandan varios
+    """mpv en modo idle, sin salida de video (--vo=null), decodificando con el
+    chip, y con un socket de control IPC -- una sola sesion sobre la que se mandan varios
     seek + captura, en vez de relanzar mpv por cada frame de la tira.
 
     Medido en vivo el 2026-08-06 con clips reales de la Sony FX30 (4K
@@ -227,7 +227,31 @@ def build_strip_ipc_args(video: Path, socket_path: Path) -> list[str]:
         _mpv(),
         "--no-config",
         "--idle=yes",
-        "--hwdec=no",
+        # --- por que el chip, y por que en la variante `-copy` -------------
+        #
+        # Esto decodificaba por software a proposito desde el 2026-08-06, para
+        # que tres extracciones en paralelo no le quitaran VideoToolbox al
+        # reproductor. El costo de esa prudencia nunca se habia medido: son
+        # **50 segundos de CPU por clip** para sacarle 12 cuadros a un 4K HEVC
+        # --ocho nucleos al tope durante seis segundos-- y un rodaje de 229
+        # clips sin proxies son tres horas de CPU. Eso es el ventilador.
+        #
+        # Medido el 2026-09-13 sobre material real de la FX30:
+        #   software (lo de antes) .... 6.5 s de reloj, 50.4 s de CPU
+        #   videotoolbox-copy ......... 6.2 s de reloj, 18.7 s de CPU
+        #   videotoolbox a secas ...... 6.9 s de reloj, 52.7 s de CPU
+        #
+        # `videotoolbox` a secas NO SIRVE aqui y por eso da lo mismo que no
+        # ponerlo: necesita una superficie de GPU donde dejar el cuadro, y con
+        # `--vo=null` no hay ninguna, asi que mpv se cae a software en
+        # silencio. La variante `-copy` trae el cuadro de vuelta a memoria, que
+        # es justo lo que hace falta para escribirlo a disco.
+        #
+        # Y el miedo original se midio en vivo: con el visor reproduciendo y
+        # TRES extracciones en paralelo, el video avanzo 1.00x -- o sea sin
+        # trabarse ni un cuadro. Si algun dia no estuviera disponible, mpv se
+        # cae a software solo, que es exactamente el comportamiento de antes.
+        "--hwdec=videotoolbox-copy",
         "--vo=null",
         f"--input-ipc-server={socket_path}",
         str(video),

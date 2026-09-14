@@ -66,9 +66,21 @@ def test_build_strip_ipc_args_usa_vo_null_y_socket_ipc():
     assert cmd[0].endswith("mpv")
     assert "--idle=yes" in cmd
     assert "--vo=null" in cmd
-    assert "--hwdec=no" in cmd
     assert "--input-ipc-server=/tmp/x/mpv.sock" in cmd
     assert cmd[-1] == "/shooting/C0012.MP4"
+
+
+def test_la_tira_decodifica_con_el_chip_y_en_su_variante_copy():
+    """Los 12 cuadros de un clip 4K costaban 50 SEGUNDOS de CPU por clip
+    decodificando por software -- con un rodaje entero eso es el ventilador
+    encendido un buen rato. Con el chip son 18.7 (medido el 2026-09-13).
+
+    Tiene que ser la variante `-copy`: `--vo=null` no tiene superficie de GPU
+    donde recibir el cuadro, asi que `videotoolbox` a secas se cae a software
+    sin avisar -- y medido dio los mismos 52 s que no ponerlo."""
+    cmd = build_strip_ipc_args(video=Path("/shooting/C0012.MP4"), socket_path=Path("/tmp/x/mpv.sock"))
+    assert "--hwdec=videotoolbox-copy" in cmd
+    assert "--hwdec=no" not in cmd
 
 
 class _FakeProc:
