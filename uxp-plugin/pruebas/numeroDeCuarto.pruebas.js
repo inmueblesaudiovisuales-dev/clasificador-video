@@ -78,5 +78,19 @@ module.exports = function (ctx) {
         return { ok: r === false, detalle: String(r) };
       },
     },
+    {
+      nombre: "caminoDelClip numera el cuarto segun la guia",
+      fn: () => {
+        const r = ctx.caminoDelClip(["Cocina", "Picks"], ["Fachada", "Cocina"]);
+        return { ok: r.join(" > ") === "02. Clip > 02. Cocina > Picks", detalle: r.join(" > ") };
+      },
+    },
+    {
+      nombre: "sin guia, caminoDelClip deja el cuarto sin numero",
+      fn: () => {
+        const r = ctx.caminoDelClip(["Cocina"], []);
+        return { ok: r.join(" > ") === "02. Clip > Cocina", detalle: r.join(" > ") };
+      },
+    },
   ];
 };

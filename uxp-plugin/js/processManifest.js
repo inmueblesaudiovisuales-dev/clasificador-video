@@ -24,6 +24,13 @@ async function processManifest(project, manifest) {
     );
   }
 
+  // Los cuartos en el orden que Bruno acepto en Clipify, o vacio si este
+  // proyecto no trae guia. Un manifest sin guia crea las carpetas sin
+  // numero, igual que siempre.
+  const ordenDeLaGuia = ((manifest.guia && manifest.guia.orden) || []).map(
+    (r) => r.cuarto
+  );
+
   // El aviso de «no pude renombrar» se da una vez por importacion, no una
   // por clip. Ver `nombre.js`.
   reiniciarAvisoDeRenombrar();
@@ -42,8 +49,16 @@ async function processManifest(project, manifest) {
         categoryPath = clipData.categoria_path;
       }
 
-      const targetFolder = await resolveBinChain(
-        project, rootFolder, caminoDelClip(categoryPath));
+      // El PRIMER segmento es el cuarto y es el unico que lleva numero,
+      // asi que pasa por `resolverCuarto` --que renumera la carpeta que ya
+      // existe en vez de crear una segunda--. Lo que cuelgue debajo sigue
+      // por el camino de siempre.
+      const camino = caminoDelClip(categoryPath, ordenDeLaGuia);
+      const carpetaDelCuarto = await resolverCuarto(
+        project, carpetaDeClips, camino[1]);
+      const targetFolder = camino.length > 2
+        ? await resolveBinChain(project, carpetaDelCuarto, camino.slice(2))
+        : carpetaDelCuarto;
       const clipItem = await importOrReuseClip(project, targetFolder, clipData.ruta);
 
       if (!clipItem) {
@@ -62,13 +77,13 @@ async function processManifest(project, manifest) {
       }
 
       resultado.ok.push(nombreArchivo);
-      logToPanel("OK: " + nombreArchivo + " -> " + caminoDelClip(categoryPath).join(" > "));
+      logToPanel("OK: " + nombreArchivo + " -> " + camino.join(" > "));
     } catch (e) {
       // e no siempre es un Error real (ej. la API nativa de Premiere puede
       // rechazar con un string u otro valor sin .message) -- con fallback a
       // String(e) el mensaje nunca queda vacio ni tumba este catch.
       const mensaje = (e && e.message) || String(e);
-      const donde = caminoDelClip(categoryPath).join(" > ");
+      const donde = caminoDelClip(categoryPath, ordenDeLaGuia).join(" > ");
       resultado.errores.push({
         archivo: nombreArchivo, mensaje: mensaje, destino: donde,
       });
