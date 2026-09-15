@@ -59,17 +59,28 @@ El hallazgo que sí toca a Clipify: **la narración sigue siempre el mismo orden
 que la imagen**, en los 12. El patrón de recorrido y el de guion son el mismo,
 así que el orden que sugiera la pestaña es también el orden de lo que se dice.
 
-## Las tres preguntas abiertas
+## Las tres preguntas, ya contestadas
 
-1. **Los tres videos sin narración son los tres de agosto.** ¿Dejó de narrar o
-   esos clientes los pidieron sin voz? Sin contestar.
-2. **La pestaña se queda corta con los tipos de propiedad.** Ofrece Casa,
-   Departamento, Terreno y Local; en los 15 salieron además **quinta de campo**
-   y **hospedaje**. Estudio IAV ya maneja doce tipos. Hay que decidir si se
-   amplía la lista de Clipify y a cuáles.
+Las tres las cerró Bruno el mismo 2026-09-14. Quedan aquí con su respuesta
+porque las tres tocan el diseño.
+
+1. **Los tres videos sin narración son los tres de agosto.** No dejó de narrar:
+   **algunos clientes los piden sin voz.** Entonces no hay corte temporal que
+   respetar —no es que a partir de agosto edite distinto— y los tres entran al
+   patrón con el mismo peso que los demás. La narración es una petición del
+   cliente, no una etapa suya.
+2. **La pestaña se queda corta con los tipos de propiedad.** Se amplía a
+   **seis: Casa, Departamento, Terreno, Local, Quinta de campo y Hospedaje.**
+   Son exactamente los que salieron en los 15 entregables de 2026 —casa 6,
+   departamento 3, terreno 2, quinta 2, local 1, hospedaje 1—. Se le ofreció
+   una lista larga con los tipos del rubro que hoy no le salieron (oficina,
+   bodega, edificio, penthouse, loft, rancho) y **escogió los seis suyos**.
+   Mismo criterio que el resto del proyecto: la lista sale de su material, no
+   de lo que podría pasar. Es un quinto cambio en la pestaña, encima de los
+   cuatro del §6 del spec.
 3. **La presentadora y los videos largos son de marzo a mayo.** Bruno ya
    contestó que **depende del cliente**, así que esos tres se quedan con el
-   mismo peso que los demás. Anotado, ya no es pregunta.
+   mismo peso que los demás.
 
 ## Lo que sigue
 
