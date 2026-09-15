@@ -4513,6 +4513,31 @@ class MainWindow(QWidget):
         self._cuartos_de_la_guia = self.room_selection.active_rooms()
         self._sync_rooms()
 
+    def guia_quedo_vieja(self) -> bool:
+        """¿La guia guardada habla de otros cuartos que los que hay?
+
+        Se comparan los NOMBRES, no el orden: mover un cuarto de lugar no
+        cambia que cuartos hay, y avisar ahi seria una alarma que suena por
+        nada -- y las alarmas que suenan por nada se aprenden a ignorar.
+        """
+        if self.guia_actual is None or not self._cuartos_de_la_guia:
+            return False
+        return set(self._cuartos_de_la_guia) != set(self.room_selection.active_rooms())
+
+    def aviso_de_guia_vieja(self) -> str:
+        """El aviso en palabras de Bruno, o "" si no hay nada que decir."""
+        if not self.guia_quedo_vieja():
+            return ""
+        antes = set(self._cuartos_de_la_guia)
+        ahora = self.room_selection.active_rooms()
+        nuevos = [c for c in ahora if c not in antes]
+        idos = [c for c in self._cuartos_de_la_guia if c not in set(ahora)]
+        if nuevos:
+            return "Tu guía es de antes de agregar " + ", ".join(nuevos) + "."
+        if idos:
+            return "Tu guía todavía habla de " + ", ".join(idos) + "."
+        return "Tu guía es de antes de cambiar los cuartos."
+
     def _guia_para_el_manifest(self):
         """La guia en la forma que viaja, o `None`.
 
@@ -4533,6 +4558,18 @@ class MainWindow(QWidget):
         )
 
     def _on_export_manifest(self) -> None:
+        # Se AVISA, no se decide solo: misma regla que el dialogo de
+        # proxies, la app propone y nunca adivina en silencio.
+        aviso = self.aviso_de_guia_vieja()
+        if aviso:
+            respuesta = QMessageBox.question(
+                self, "Tu guía quedó vieja",
+                aviso + "\n\n¿La exportas así, o la vuelves a armar?",
+                QMessageBox.Yes | QMessageBox.No,
+            )
+            if respuesta == QMessageBox.No:
+                self._abrir_pantalla_de_guia()
+                return
         unclassified = [c for c in self.clips if not c.categoria_path]
         if unclassified:
             QMessageBox.warning(

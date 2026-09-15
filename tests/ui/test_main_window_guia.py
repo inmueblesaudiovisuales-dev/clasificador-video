@@ -88,3 +88,45 @@ def test_un_fallo_de_red_no_impide_exportar(ventana, tmp_path, monkeypatch):
     destino = tmp_path / "m.json"
     ventana.escribir_manifest(destino)
     assert destino.exists()
+
+
+def _con_guia(ventana, cuartos):
+    """La ventana con una guia ya aceptada sobre esos cuartos."""
+    ventana.guia_actual = logica.Respuesta(
+        ok=True, recorrido="x",
+        lista=[logica.Renglon(cuarto=c) for c in cuartos],
+    )
+    ventana.aceptar_orden_de_la_guia(list(cuartos))
+
+
+def test_la_guia_queda_vieja_al_agregar_un_cuarto(ventana):
+    ventana.room_selection.add("Sala")
+    _con_guia(ventana, ["Sala"])
+    assert not ventana.guia_quedo_vieja()
+
+    ventana.room_selection.add("Terraza")
+    assert ventana.guia_quedo_vieja()
+
+
+def test_el_aviso_dice_cual_cuarto_se_agrego(ventana):
+    ventana.room_selection.add("Sala")
+    _con_guia(ventana, ["Sala"])
+    ventana.room_selection.add("Terraza")
+    assert "Terraza" in ventana.aviso_de_guia_vieja()
+
+
+def test_sin_guia_no_hay_nada_que_avisar(ventana):
+    ventana.room_selection.add("Sala")
+    assert not ventana.guia_quedo_vieja()
+    assert ventana.aviso_de_guia_vieja() == ""
+
+
+def test_reordenar_a_mano_no_deja_vieja_la_guia(ventana):
+    # Mover un cuarto de lugar no cambia QUE cuartos hay. Avisar ahi seria
+    # una alarma que suena por nada, y las alarmas que suenan por nada se
+    # aprenden a ignorar.
+    for c in ["Sala", "Cocina"]:
+        ventana.room_selection.add(c)
+    _con_guia(ventana, ["Sala", "Cocina"])
+    ventana.room_selection.move("Cocina", -1)
+    assert not ventana.guia_quedo_vieja()
