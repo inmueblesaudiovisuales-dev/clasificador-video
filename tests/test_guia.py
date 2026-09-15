@@ -28,6 +28,31 @@ def test_el_contexto_lleva_lo_que_bruno_contesto():
     assert "la alberca" in texto
 
 
+def test_el_prompt_deja_repetir_un_cuarto():
+    # En los 15 entregables de Bruno siempre se repite alguno, y en 14 de 15
+    # el cuarto con el que abre vuelve a salir.
+    texto = guia.prompt_de_sistema(["Aérea", "Sala"], patron="")
+    assert "las veces que haga falta" in texto
+    assert "ninguno de más" not in texto
+
+
+def test_el_prompt_pide_decir_por_que_se_repite():
+    texto = guia.prompt_de_sistema(["Aérea"], patron="")
+    assert "otra vez" in texto
+
+
+def test_el_prompt_sigue_pidiendo_que_esten_todos():
+    # Repetir es libre; saltarse un cuarto no. Un cuarto que no sale ni una
+    # vez es material que se te olvida al editar.
+    texto = guia.prompt_de_sistema(["Aérea", "Sala"], patron="")
+    assert "al menos una vez" in texto
+
+
+def test_el_prompt_pide_pasos_y_no_cuartos():
+    texto = guia.prompt_de_sistema(["Sala"], patron="")
+    assert "paso" in texto.lower()
+
+
 def test_el_contexto_sirve_aunque_no_conteste_nada():
     # El boton esta activo desde el primer momento: un cuerpo roto aqui
     # seria un boton que no funciona.

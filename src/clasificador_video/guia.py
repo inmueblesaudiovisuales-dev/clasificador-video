@@ -58,6 +58,11 @@ def prompt_de_sistema(cuartos: list[str], patron: str) -> str:
     modelo describiendo una cocina que no vio («la cocina integral con
     cubierta de granito») es exactamente el modo de falla que este repo
     lleva un mes evitando: adivinar en silencio y sonar seguro.
+
+    LO QUE SE PIDE SON PASOS, NO CUARTOS: un recorrido real repite --Bruno
+    abre y cierra con la misma aérea-- y una lista de cuartos no puede
+    decir eso dos veces. Por eso la respuesta es un guion de pasos donde un
+    cuarto puede aparecer varias veces, cada una con su propia razón.
     """
     partes = [
         "Eres el asistente de un editor de video mexicano que hace recorridos de",
@@ -74,12 +79,18 @@ def prompt_de_sistema(cuartos: list[str], patron: str) -> str:
         "- Si no tienes una razón de recorrido que dar, da la genérica. No rellenes",
         "  con detalles.",
         "",
+        "Lo que devuelves es un GUION: los PASOS del video en orden, no una lista",
+        "de cuartos. Un mismo cuarto puede salir las veces que haga falta -- este",
+        "editor abre con una aérea y cierra con otra, y las dos son la misma",
+        "carpeta. Cuando un cuarto vuelva a salir, dilo en su línea: qué cambia esa",
+        "vez («otra vez, ahora de salida y más larga»).",
+        "",
         "Los cuartos son EXACTAMENTE estos, y los devuelves escritos igual --con sus",
         "acentos, sus mayúsculas y sus números tal cual--, sin corregir nada, sin",
         "agrupar, sin partir ninguno en dos y sin agregar ninguno que no esté:",
         "\n".join("- " + c for c in cuartos),
         "",
-        "Tienen que estar TODOS y ninguno de más.",
+        "Todos tienen que salir al menos una vez. Ninguno que no esté en la lista.",
     ]
 
     if patron.strip():
@@ -102,7 +113,8 @@ def prompt_de_sistema(cuartos: list[str], patron: str) -> str:
         ' "orden": [{"cuarto": "<nombre tal cual>", "porque": "<una línea corta>",',
         '            "fuera_del_patron": false}]}',
         "",
-        "Sin texto antes ni después. Escribe en español de México, de tú, y corto.",
+        "Cada objeto de \"orden\" es UN PASO del video, en orden. Sin texto antes ni",
+        "después. Escribe en español de México, de tú, y corto.",
     ]
     return "\n".join(partes)
 
