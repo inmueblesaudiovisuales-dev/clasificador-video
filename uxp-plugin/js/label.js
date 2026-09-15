@@ -36,7 +36,7 @@ function applyCameraLabel(project, clipItem, camara) {
   // `CERULEAN` y `VIOLET` no, y este es el aviso que lo dira.
   if (colores[labelName] === undefined) {
     logToPanel(
-      "El color «" + labelName + "» no existe en esta version de Premiere. " +
+      "El color «" + labelName + "» no existe en esta versión de Premiere. " +
       "Disponibles: " + Object.keys(colores).join(", "),
       true
     );

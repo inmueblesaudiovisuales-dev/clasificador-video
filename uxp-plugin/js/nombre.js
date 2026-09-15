@@ -112,11 +112,11 @@ function applyFlagPrefix(project, clipItem, flag) {
     if (!yaSeAvisoDeRenombrar) {
       yaSeAvisoDeRenombrar = true;
       logToPanel(
-        "No pude marcar los clips con ★ / ✓ / ✕: esta version de Premiere " +
+        "No pude marcar los clips con ★ / ✓ / ✕: esta versión de Premiere " +
         "no tiene ninguna de estas acciones (" +
         ACCIONES_DE_RENOMBRAR.join(", ") + "). Los clips llegan bien y en su " +
-        "cuarto, pero SIN NINGUNA marca de estado -- avisale a Bruno, porque " +
-        "es lo unico que distingue un pick de un reject. Lo que si tiene el " +
+        "cuarto, pero SIN NINGUNA marca de estado -- avísale a Bruno, porque " +
+        "es lo único que distingue un pick de un reject. Lo que sí tiene el " +
         "clip: " +
         Object.getOwnPropertyNames(Object.getPrototypeOf(clipItem)).join(", "),
         true

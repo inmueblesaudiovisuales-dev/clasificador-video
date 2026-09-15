@@ -8,13 +8,13 @@ async function importarManifestDesdeArchivo() {
 
   const project = await premierepro.Project.getActiveProject();
   if (!project) {
-    logToPanel("No hay ningun proyecto abierto en Premiere. Abre uno y vuelve a intentar.", true);
+    logToPanel("No hay ningún proyecto abierto en Premiere. Abre uno y vuelve a intentar.", true);
     return;
   }
 
   const archivo = await uxpFs.getFileForOpening({ types: ["json"] });
   if (!archivo) {
-    logToPanel("Cancelado, no se eligio ningun archivo.");
+    logToPanel("Cancelado, no se eligió ningún archivo.");
     return;
   }
 
@@ -22,7 +22,7 @@ async function importarManifestDesdeArchivo() {
   try {
     manifest = JSON.parse(await archivo.read());
   } catch (e) {
-    logToPanel("El archivo elegido no es una clasificacion valida: " + e.message, true);
+    logToPanel("El archivo elegido no es una clasificación válida: " + e.message, true);
     return;
   }
 
@@ -35,8 +35,8 @@ async function importarManifestDesdeArchivo() {
   const material = await revisarMaterialDisponible(manifest);
   if (material.faltantes.length === manifest.clips.length) {
     logToPanel(
-      "No se encontro NINGUNO de los " + manifest.clips.length +
-        " archivos de video. Revisa que el disco con el material este conectado.",
+      "No se encontró NINGUNO de los " + manifest.clips.length +
+        " archivos de video. Revisa que el disco con el material esté conectado.",
       true
     );
     return;
@@ -44,7 +44,7 @@ async function importarManifestDesdeArchivo() {
   if (material.faltantes.length > 0) {
     logToPanel(
       "Faltan " + material.faltantes.length + " de " + manifest.clips.length +
-        " archivos; se importara el resto. Primero que falta: " + material.faltantes[0],
+        " archivos; se importará el resto. Primero que falta: " + material.faltantes[0],
       true
     );
   }

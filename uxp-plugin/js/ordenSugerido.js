@@ -30,30 +30,30 @@ const MODELO = "deepseek-chat";
 function promptDeSistema(cuartos) {
   return [
     "Eres el asistente de un editor de video mexicano que hace recorridos de",
-    "propiedades en venta o renta. Tu trabajo es proponer EN QUE ORDEN deben ir",
+    "propiedades en venta o renta. Tu trabajo es proponer EN QUÉ ORDEN deben ir",
     "los cuartos en el video: el recorrido que debe llevar el espectador.",
     "",
-    "NO viste el material. No sabes que hay adentro de ningun cuarto, como se ve",
-    "ni con que se grabo. Por eso:",
-    "- La linea de cada cuarto dice POR QUE VA AHI en el recorrido, no que hay",
-    "  adentro. «Se entra por aqui» sirve; «la cocina integral con cubierta de",
+    "NO viste el material. No sabes qué hay adentro de ningún cuarto, cómo se ve",
+    "ni con qué se grabó. Por eso:",
+    "- La línea de cada cuarto dice POR QUÉ VA AHÍ en el recorrido, no qué hay",
+    "  adentro. «Se entra por aquí» sirve; «la cocina integral con cubierta de",
     "  granito» es inventado y no se vale.",
-    "- Solo hablas de esta propiedad en concreto si el editor te lo conto el",
-    "  mismo en la conversacion.",
-    "- Si no tienes una razon de recorrido que dar, da la generica. No rellenes",
+    "- Solo hablas de esta propiedad en concreto si el editor te lo contó él",
+    "  mismo en la conversación.",
+    "- Si no tienes una razón de recorrido que dar, da la genérica. No rellenes",
     "  con detalles.",
     "",
     "Los cuartos son EXACTAMENTE estos, y los devuelves escritos igual --con sus",
-    "acentos, sus mayusculas y sus numeros tal cual--, sin corregir nada, sin",
-    "agrupar, sin partir ninguno en dos y sin agregar ninguno que no este:",
+    "acentos, sus mayúsculas y sus números tal cual--, sin corregir nada, sin",
+    "agrupar, sin partir ninguno en dos y sin agregar ninguno que no esté:",
     cuartos.map((c) => "- " + c).join("\n"),
     "",
-    "Tienen que estar TODOS y ninguno de mas.",
+    "Tienen que estar TODOS y ninguno de más.",
     "",
     "Contestas SOLO con JSON, con esta forma exacta:",
-    '{"orden": [{"cuarto": "<nombre tal cual>", "porque": "<una linea corta>"}]}',
+    '{"orden": [{"cuarto": "<nombre tal cual>", "porque": "<una línea corta>"}]}',
     "",
-    "Sin texto antes ni despues. Escribe en espanol de Mexico, de tu, y corto.",
+    "Sin texto antes ni después. Escribe en español de México, de tú, y corto.",
   ].join("\n");
 }
 
@@ -107,7 +107,7 @@ function cuerpoDelRequest(cuartos, respuestas, conversacion) {
 function leerRespuesta(texto) {
   const crudo = String(texto == null ? "" : texto).trim();
   if (!crudo) {
-    return { ok: false, lista: [], error: "El modelo no contesto nada." };
+    return { ok: false, lista: [], error: "El modelo no contestó nada." };
   }
 
   const json = recortarJson(crudo);
@@ -115,7 +115,7 @@ function leerRespuesta(texto) {
     return {
       ok: false,
       lista: [],
-      error: "El modelo contesto con texto en vez de la lista.",
+      error: "El modelo contestó con texto en vez de la lista.",
     };
   }
 
@@ -130,7 +130,7 @@ function leerRespuesta(texto) {
     return {
       ok: false,
       lista: [],
-      error: "La respuesta llego con otra forma: no trae la lista de cuartos.",
+      error: "La respuesta llegó con otra forma: no trae la lista de cuartos.",
     };
   }
 
@@ -141,7 +141,7 @@ function leerRespuesta(texto) {
       return {
         ok: false,
         lista: [],
-        error: "La lista trae un renglon sin nombre de cuarto.",
+        error: "La lista trae un renglón sin nombre de cuarto.",
       };
     }
     // El porque SI puede faltar: Bruno lo pidio, pero si el modelo no lo
@@ -236,11 +236,11 @@ function avisosDeLaRevision(revision) {
   }
   if (revision.inventados.length) {
     avisos.push(
-      "Esto no es tuyo, se lo invento: " + revision.inventados.join(", ") + "."
+      "Esto no es tuyo, se lo inventó: " + revision.inventados.join(", ") + "."
     );
   }
   if (revision.repetidos.length) {
-    avisos.push("Repitio: " + revision.repetidos.join(", ") + ".");
+    avisos.push("Repitió: " + revision.repetidos.join(", ") + ".");
   }
   return avisos;
 }

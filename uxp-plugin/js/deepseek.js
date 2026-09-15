@@ -18,7 +18,7 @@ const DEEPSEEK_URL = "https://api.deepseek.com/v1/chat/completions";
 // un estado ambiguo.
 async function pedirOrden(llave, cuerpo) {
   if (!llave) {
-    throw new Error("Falta la llave de DeepSeek. Pegala aqui arriba y vuelve a intentar.");
+    throw new Error("Falta la llave de DeepSeek. Pégala aquí arriba y vuelve a intentar.");
   }
 
   let respuesta;
@@ -37,28 +37,28 @@ async function pedirOrden(llave, cuerpo) {
     // segundo es el riesgo del §8.
     throw new Error(
       "No se pudo llegar a DeepSeek. Revisa tu internet; si sigue igual, puede ser " +
-        "que Premiere no este dejando salir al plugin. (" + e.message + ")"
+        "que Premiere no esté dejando salir al plugin. (" + e.message + ")"
     );
   }
 
   if (respuesta.status === 401 || respuesta.status === 403) {
-    throw new Error("La llave no sirve o ya no es valida. Pega otra aqui arriba.");
+    throw new Error("La llave no sirve o ya no es válida. Pega otra aquí arriba.");
   }
   if (respuesta.status === 402) {
-    throw new Error("La cuenta de DeepSeek se quedo sin saldo.");
+    throw new Error("La cuenta de DeepSeek se quedó sin saldo.");
   }
   if (respuesta.status === 429) {
     throw new Error("DeepSeek va saturado ahorita. Espera un momento y vuelve a intentar.");
   }
   if (!respuesta.ok) {
-    throw new Error("DeepSeek contesto con un error (" + respuesta.status + ").");
+    throw new Error("DeepSeek contestó con un error (" + respuesta.status + ").");
   }
 
   let datos;
   try {
     datos = await respuesta.json();
   } catch (e) {
-    throw new Error("DeepSeek contesto algo que no se pudo leer.");
+    throw new Error("DeepSeek contestó algo que no se pudo leer.");
   }
 
   const texto =
@@ -67,7 +67,7 @@ async function pedirOrden(llave, cuerpo) {
       : "";
 
   if (!texto) {
-    throw new Error("DeepSeek contesto vacio. Vuelve a intentar.");
+    throw new Error("DeepSeek contestó vacío. Vuelve a intentar.");
   }
 
   return texto;

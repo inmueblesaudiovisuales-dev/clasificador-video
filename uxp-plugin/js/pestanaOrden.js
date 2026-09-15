@@ -15,19 +15,19 @@
 const PREGUNTAS = [
   {
     id: "propiedad",
-    texto: "¿Que tipo de propiedad es?",
+    texto: "¿Qué tipo de propiedad es?",
     opciones: ["Casa", "Departamento", "Terreno", "Local"],
     varios: false,
   },
   {
     id: "para",
-    texto: "¿Para quien es el video?",
+    texto: "¿Para quién es el video?",
     opciones: ["Redes", "Portafolio", "Cliente directo", "Portal inmobiliario"],
     varios: true,
   },
   {
     id: "lucir",
-    texto: "¿Que hay que lucir?",
+    texto: "¿Qué hay que lucir?",
     opciones: [],
     varios: false,
   },
@@ -122,7 +122,7 @@ async function refrescarCuartos() {
   const premierepro = require("premierepro");
   const project = await premierepro.Project.getActiveProject();
   if (!project) {
-    caja.textContent = "No hay ningun proyecto abierto en Premiere.";
+    caja.textContent = "No hay ningún proyecto abierto en Premiere.";
     return;
   }
 
@@ -132,7 +132,7 @@ async function refrescarCuartos() {
     const texto = document.createElement("div");
     texto.className = "tenue";
     texto.textContent =
-      "Encontre " + estadoOrden.cuartos.length + " cuartos en «" + CARPETA_DE_CLIPS + "»: " +
+      "Encontré " + estadoOrden.cuartos.length + " cuartos en «" + CARPETA_DE_CLIPS + "»: " +
       estadoOrden.cuartos.join(", ");
     caja.appendChild(texto);
     return;
@@ -144,8 +144,8 @@ async function refrescarCuartos() {
   const aviso = document.createElement("div");
   aviso.className = "tenue";
   aviso.textContent =
-    "Este proyecto no tiene la carpeta «" + CARPETA_DE_CLIPS + "», asi que no se de donde " +
-    "sacar los cuartos. Escribelos aqui, uno por renglon:";
+    "Este proyecto no tiene la carpeta «" + CARPETA_DE_CLIPS + "», así que no sé de dónde " +
+    "sacar los cuartos. Escríbelos aquí, uno por renglón:";
   const campo = document.createElement("textarea");
   campo.rows = 6;
   campo.id = "orden-cuartos-mano";
@@ -185,7 +185,7 @@ function seccionPreguntas() {
     // valvula para cuando ninguna respuesta de las de a un toque sirve.
     const libre = document.createElement("input");
     libre.type = "text";
-    libre.placeholder = pregunta.opciones.length ? "…o escribelo" : "Escribelo aqui";
+    libre.placeholder = pregunta.opciones.length ? "…o escríbelo" : "Escríbelo aquí";
     libre.style.marginTop = "4px";
     libre.addEventListener("input", () => {
       if (pregunta.varios) {
@@ -245,7 +245,7 @@ async function pedirLaLista(mensajeNuevo) {
 
   if (!estadoOrden.cuartos.length) {
     caja.innerHTML = "";
-    caja.appendChild(avisoDe("Primero necesito saber que cuartos hay."));
+    caja.appendChild(avisoDe("Primero necesito saber qué cuartos hay."));
     return;
   }
 
@@ -357,7 +357,7 @@ async function copiarLaGuia(lista, revision, caja) {
     const area = document.createElement("textarea");
     area.rows = 8;
     area.value = texto;
-    caja.appendChild(tenue("No pude usar el portapapeles. Copialo de aqui:"));
+    caja.appendChild(tenue("No pude usar el portapapeles. Cópialo de aquí:"));
     caja.appendChild(area);
   }
 }
