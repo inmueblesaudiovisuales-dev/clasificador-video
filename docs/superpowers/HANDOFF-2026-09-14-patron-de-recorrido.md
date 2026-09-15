@@ -82,9 +82,21 @@ porque las tres tocan el diseño.
    contestó que **depende del cliente**, así que esos tres se quedan con el
    mismo peso que los demás.
 
+## El cambio de rumbo del mismo día
+
+Bruno leyó el spec descrito en voz alta y preguntó por qué la guía se arma en
+Premiere si los cuartos nacen en Clipify. **Tiene razón y el diseño se movió.**
+Está escrito en
+[`specs/2026-09-14-guia-de-edicion-en-clipify-design.md`](specs/2026-09-14-guia-de-edicion-en-clipify-design.md):
+la guía se arma en Clipify con su propio botón, viaja congelada en el manifest,
+y el panel de Premiere solo la lee. Las carpetas de cuartos llegan numeradas en
+ese orden.
+
+El patrón de recorrido **no cambia en nada** — cambia dónde se usa.
+
 ## Lo que sigue
 
-1. Que Bruno lea el spec y lo apruebe o lo corrija.
+1. Que Bruno lea los specs y los apruebe o los corrija.
 2. Con eso, **el paso 5**: convertir las 15 fichas en el documento del patrón
    (§5 del spec) — prosa natural, **sin cuentas y sin justificarse**, con su
    lista de orden. Es la regla que más pidió y la más fácil de romper.

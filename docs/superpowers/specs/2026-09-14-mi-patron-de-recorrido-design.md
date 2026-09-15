@@ -5,6 +5,15 @@ Modifica la pestaña «Orden sugerido» que se acababa de construir ese mismo
 día — ver `2026-09-14-orden-sugerido-de-cuartos-design.md`, que sigue
 vigente en todo lo que este documento no toca.)*
 
+
+> **⚠️ Superado en parte el 2026-09-14 por
+> [`2026-09-14-guia-de-edicion-en-clipify-design.md`](2026-09-14-guia-de-edicion-en-clipify-design.md).**
+> **Al patrón no le pasa nada: cambia DÓNDE se usa.** Los cuatro cambios del
+> §6 de aquí ya no son a la pestaña de Premiere, sino a la pantalla nueva de
+> Clipify, y el quinto —los seis tipos de propiedad— sale del handoff. Todo lo
+> demás de este documento sigue en pie: cómo se saca el patrón, que es uno
+> solo, que se escribe sin cuentas, y que entra como base y no como regla.
+
 ## 1. De dónde salió
 
 La pestaña «Orden sugerido» ya existe y funciona, pero sugiere **el orden de

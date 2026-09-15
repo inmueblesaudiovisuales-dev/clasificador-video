@@ -6,6 +6,14 @@ documento **es** el resultado de la plática y no se reabre aquí: este spec lo
 convierte en algo construible y resuelve los detalles de ejecución que el
 handoff dejó abiertos a propósito.)*
 
+
+> **⚠️ Superado en parte el 2026-09-14 por
+> [`2026-09-14-guia-de-edicion-en-clipify-design.md`](2026-09-14-guia-de-edicion-en-clipify-design.md).**
+> La guía ya no se pide desde Premiere: se arma en Clipify antes de exportar y
+> viaja congelada en el manifest. El panel del plugin solo la lee. Lo que este
+> documento conserva vigente está listado en el §7 de aquél — sobre todo la
+> revisión de la lista, que no se toca.
+
 ## 1. De dónde salió
 
 Bruno preguntó de qué forma el proyecto podría ayudarle a **editar en la línea
