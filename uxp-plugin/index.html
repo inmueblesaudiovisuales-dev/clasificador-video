@@ -1,31 +1,128 @@
 <meta charset="utf-8">
 <style>
-  body { font-family: sans-serif; font-size: 13px; }
-  .barra-pestanas { display: flex; border-bottom: 1px solid #3a3a3a; }
+  /* El panel vive DENTRO de Premiere, asi que se viste como Premiere: grises
+     planos, controles chicos, texto discreto. El unico color propio es el
+     ambar de Clipify (`theme.ICON_AMBER_TOP`), y solo donde hay que decidir
+     algo -- la pestana activa, el chip prendido, el boton que de verdad
+     aprietas. Un panel que grita distinto a la app que lo hospeda se lee como
+     un pegote, y este vive pegado a la ventana de proyecto todo el dia.
+
+     Los controles se pintan A MANO porque el default del sistema son cajas
+     BLANCAS: sobre el gris de Premiere eran lo mas llamativo del panel, mas
+     que el texto. Bruno, viendolo en vivo: «la interface esta horrible». */
+  :root {
+    --tinta: #d6d6d6;         /* texto normal */
+    --tinta-2: #9a9a9a;       /* etiquetas y explicaciones */
+    --tinta-3: #6f6f6f;       /* lo que casi no importa */
+    --linea: #3a3a3a;
+    --hueco: #1c1c1c;         /* fondo de campos: mas oscuro que el panel */
+    --control: #3a3a3a;       /* botones en reposo */
+    --control-2: #484848;     /* botones con el mouse encima */
+    --ambar: #f0b429;
+    --ambar-tinta: #1a1204;   /* texto sobre ambar */
+    --alarma: #e06c75;
+  }
+
+  body {
+    font-family: -apple-system, "Segoe UI", sans-serif;
+    font-size: 12px; color: var(--tinta); margin: 0;
+  }
+
+  /* --- Pestanas ------------------------------------------------ */
+  .barra-pestanas { display: flex; border-bottom: 1px solid var(--linea); }
   .pestana {
-    padding: 8px 14px; cursor: pointer; border: none; background: none;
-    color: #b8b8b8; font-size: 13px; border-bottom: 2px solid transparent;
+    padding: 7px 12px; cursor: pointer; border: none; background: none;
+    color: var(--tinta-2); font-size: 12px; border-bottom: 2px solid transparent;
   }
-  .pestana.activa { color: #f0b429; border-bottom-color: #f0b429; }
-  .hoja { padding: 10px; }
+  .pestana:hover { color: var(--tinta); }
+  .pestana.activa { color: var(--ambar); border-bottom-color: var(--ambar); }
+
+  .hoja { padding: 10px 12px 14px; }
   .oculto { display: none; }
+
+  /* --- Controles ----------------------------------------------- */
+  input[type="text"], textarea {
+    width: 100%; box-sizing: border-box;
+    background: var(--hueco); color: var(--tinta);
+    border: 1px solid var(--linea); border-radius: 3px;
+    padding: 5px 7px; font: inherit;
+  }
+  input[type="text"]:focus, textarea:focus { outline: none; border-color: #5a5a5a; }
+  input[type="text"]::placeholder, textarea::placeholder { color: var(--tinta-3); }
+  textarea { resize: vertical; min-height: 58px; }
+
+  button {
+    background: var(--control); color: var(--tinta);
+    border: 1px solid var(--linea); border-radius: 3px;
+    padding: 5px 11px; font: inherit; cursor: pointer;
+  }
+  button:hover:not(:disabled) { background: var(--control-2); }
+  button:disabled { opacity: .45; cursor: default; }
+
+  /* El que de verdad aprietas en cada pestana. Uno por pantalla: si todos
+     fueran ambar, el ambar dejaria de decir nada. */
+  button.principal {
+    background: var(--ambar); color: var(--ambar-tinta);
+    border-color: var(--ambar); font-weight: 600;
+  }
+  button.principal:hover:not(:disabled) { background: #ffc648; }
+
+  /* El de junto a un dato, chiquito y sin peso: «Cambiar» la llave. */
+  button.discreto {
+    background: none; border-color: transparent; color: var(--tinta-3);
+    padding: 2px 6px; text-decoration: underline;
+  }
+  button.discreto:hover { background: none; color: var(--tinta); }
+
+  /* --- La llave ------------------------------------------------- */
+  /* Se pone una vez en la vida. Ocupa un renglon y se calla. */
+  .llave { font-size: 11px; color: var(--tinta-3); margin-bottom: 12px; }
+
+  /* --- Preguntas ------------------------------------------------ */
+  .pregunta { margin-bottom: 12px; }
+  .pregunta > label {
+    display: block; margin-bottom: 5px; color: var(--tinta-2);
+  }
   .chip {
-    display: inline-block; margin: 2px 4px 2px 0; padding: 4px 10px;
-    border: 1px solid #555; border-radius: 12px; cursor: pointer; color: #d0d0d0;
+    display: inline-block; margin: 0 4px 4px 0; padding: 3px 9px;
+    background: var(--control); border: 1px solid var(--linea);
+    border-radius: 11px; cursor: pointer; color: var(--tinta-2);
+    font-size: 11px; user-select: none;
   }
-  .chip.prendido { border-color: #f0b429; color: #f0b429; }
-  .pregunta { margin-bottom: 10px; }
-  .pregunta > label { display: block; margin-bottom: 4px; color: #b8b8b8; }
+  .chip:hover { background: var(--control-2); color: var(--tinta); }
+  .chip.prendido {
+    background: rgba(240, 180, 41, .16);
+    border-color: var(--ambar); color: var(--ambar);
+  }
+
+  /* --- La guia -------------------------------------------------- */
+  #orden-resultado { margin-top: 14px; }
+  .guia { border-top: 1px solid var(--linea); padding-top: 10px; }
+  .renglon-cuarto { margin-bottom: 7px; line-height: 1.45; }
+  .renglon-cuarto .nombre { color: #ffffff; }
+  .renglon-cuarto .porque { color: var(--tinta-2); }
+  /* Tachado y en rojo: se ENSENA lo que se invento, no se borra callado --
+     ver el §6 del spec. */
+  .renglon-cuarto.inventado .nombre { text-decoration: line-through; color: var(--alarma); }
+  .renglon-cuarto.inventado .porque { color: var(--tinta-3); }
+
   .aviso {
-    border-left: 3px solid #e06c75; padding: 6px 10px; margin-bottom: 10px;
-    color: #e0a0a0;
+    border-left: 2px solid var(--alarma);
+    background: rgba(224, 108, 117, .09);
+    padding: 6px 9px; margin-bottom: 8px; border-radius: 0 3px 3px 0;
+    color: #efb3b8;
   }
-  .renglon-cuarto { margin-bottom: 6px; }
-  .renglon-cuarto .nombre { color: #e8e8e8; }
-  .renglon-cuarto .porque { color: #999; }
-  .renglon-cuarto.inventado .nombre { text-decoration: line-through; color: #e06c75; }
-  input[type="text"], textarea { width: 100%; box-sizing: border-box; }
-  .tenue { color: #888; }
+
+  .tenue { color: var(--tinta-2); line-height: 1.45; }
+
+  /* --- La pestana de importar ----------------------------------- */
+  #status { margin-top: 8px; color: var(--tinta-2); }
+  #log-list {
+    margin-top: 10px; font-size: 11px; line-height: 1.5;
+    max-height: 400px; overflow-y: auto;
+    border-top: 1px solid var(--linea); padding-top: 8px;
+    color: var(--tinta-2);
+  }
 </style>
 
 <div class="barra-pestanas">
@@ -34,9 +131,9 @@
 </div>
 
 <div class="hoja" id="hoja-importar">
-  <button id="importar" disabled>Importar clasificación…</button>
-  <div id="status" style="margin-top: 8px;">Listo.</div>
-  <div id="log-list" style="margin-top: 8px; font-size: 12px; max-height: 400px; overflow-y: auto;"></div>
+  <button class="principal" id="importar" disabled>Importar clasificación…</button>
+  <div id="status">Listo.</div>
+  <div id="log-list"></div>
 </div>
 
 <div class="hoja oculto" id="hoja-orden"></div>

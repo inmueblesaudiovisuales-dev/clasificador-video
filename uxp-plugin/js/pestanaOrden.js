@@ -62,7 +62,7 @@ async function abrirPestanaOrden(hoja) {
 function seccionLlave() {
   const caja = document.createElement("div");
   caja.id = "orden-llave";
-  caja.style.marginBottom = "12px";
+  caja.className = "llave";
   return caja;
 }
 
@@ -73,10 +73,10 @@ async function refrescarLlave() {
 
   if (llave) {
     const texto = document.createElement("span");
-    texto.className = "tenue";
-    texto.textContent = "Llave de DeepSeek: " + llaveTapada(llave) + "  ";
+    texto.textContent = "Llave de DeepSeek: " + llaveTapada(llave) + " ";
     const cambiar = document.createElement("button");
-    cambiar.textContent = "Cambiar";
+    cambiar.className = "discreto";
+    cambiar.textContent = "cambiar";
     cambiar.addEventListener("click", async () => {
       await borrarLlave();
       await refrescarLlave();
@@ -94,7 +94,7 @@ async function refrescarLlave() {
   campo.placeholder = "sk-...";
   const guardar = document.createElement("button");
   guardar.textContent = "Guardar";
-  guardar.style.marginTop = "4px";
+  guardar.style.marginTop = "5px";
   guardar.addEventListener("click", async () => {
     if (!campo.value.trim()) return;
     await guardarLlave(campo.value);
@@ -200,6 +200,7 @@ function seccionPreguntas() {
   // ver es el camino mas corto a que no use la pestana.
   const dame = document.createElement("button");
   dame.id = "orden-dame";
+  dame.className = "principal";
   dame.textContent = "Dame la lista";
   dame.addEventListener("click", () => pedirLaLista());
   caja.appendChild(dame);
@@ -293,6 +294,13 @@ async function pedirLaLista(mensajeNuevo) {
 function dibujarLaGuia(caja, lista, revision) {
   // Los avisos van ARRIBA de la lista y no abajo: si van abajo, se leen
   // despues de haberle creido a la lista.
+  // Todo lo que sale del modelo va dentro de `.guia`, que es lo que le pone
+  // la linea de arriba: separa lo que TU contestaste de lo que EL contesto.
+  const guia = document.createElement("div");
+  guia.className = "guia";
+  caja.appendChild(guia);
+  caja = guia;
+
   for (const aviso of avisosDeLaRevision(revision)) {
     caja.appendChild(avisoDe(aviso));
   }
@@ -321,7 +329,7 @@ function dibujarLaGuia(caja, lista, revision) {
 
   const copiar = document.createElement("button");
   copiar.textContent = "Copiar";
-  copiar.style.marginTop = "10px";
+  copiar.style.marginTop = "12px";
   copiar.addEventListener("click", () => copiarLaGuia(lista, revision, caja));
   caja.appendChild(copiar);
 
@@ -329,7 +337,7 @@ function dibujarLaGuia(caja, lista, revision) {
   const seguir = document.createElement("input");
   seguir.type = "text";
   seguir.placeholder = "Dile que cambiar: «la alberca al final»…";
-  seguir.style.marginTop = "10px";
+  seguir.style.marginTop = "8px";
   seguir.addEventListener("keydown", (e) => {
     if (e.key === "Enter" && seguir.value.trim()) {
       pedirLaLista(seguir.value.trim());
