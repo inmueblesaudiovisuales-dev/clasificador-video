@@ -190,10 +190,19 @@ class PantallaGuia(QWidget):
         da al mismo renglon.
         """
         renglones = []
+        vistos = set()
         for i, r in enumerate(respuesta.lista, start=1):
             # El numero va escrito y no en un <ol>: el de la lista se pierde
             # al copiar el texto, y el orden es justo lo que uno copia.
             partes = [f"{i}. <b>{escape(r.cuarto)}</b>"]
+            if r.cuarto in vistos:
+                # SOLO de la segunda vez en adelante. Marcar tambien la
+                # primera diria que algo pasa con ella, y no pasa nada: el
+                # que vuelve es el segundo.
+                partes.append(
+                    f'<span style="color: {theme.TEXT_2};"> (otra vez)</span>'
+                )
+            vistos.add(r.cuarto)
             if r.porque:
                 color = theme.TEXT if r.fuera_del_patron else theme.TEXT_3
                 cursiva = " font-style: italic;" if r.fuera_del_patron else ""
@@ -217,10 +226,13 @@ class PantallaGuia(QWidget):
     @staticmethod
     def _texto(respuesta: logica.Respuesta, revision: logica.Revision) -> str:
         renglones = []
+        vistos = set()
         for i, r in enumerate(respuesta.lista, start=1):
+            otra = "  (otra vez)" if r.cuarto in vistos else ""
+            vistos.add(r.cuarto)
             marca = "  (este no es tuyo)" if r.cuarto in revision.inventados else ""
             porque = (" — " + r.porque) if r.porque else ""
-            renglones.append(f"{i}. {r.cuarto}{porque}{marca}")
+            renglones.append(f"{i}. {r.cuarto}{otra}{porque}{marca}")
         partes = []
         if respuesta.recorrido:
             partes.append(respuesta.recorrido)

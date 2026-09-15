@@ -142,3 +142,37 @@ def test_mientras_arma_el_boton_de_cerrar_tambien_se_apaga(qtbot):
         logica.Revision(),
     )
     assert p.cerrar_button.isEnabled()
+
+
+def test_un_cuarto_repetido_sale_marcado_la_segunda_vez(qtbot):
+    p = _pantalla(qtbot)
+    p.mostrar_respuesta(
+        logica.Respuesta(
+            ok=True, recorrido="x",
+            lista=[logica.Renglon("Aérea", "abres"),
+                   logica.Renglon("Sala"),
+                   logica.Renglon("Aérea", "cierras")],
+        ),
+        logica.Revision(),
+    )
+    texto = p.texto_del_resultado()
+    # La PRIMERA no se marca: marcarla diría que algo pasa con ella.
+    assert texto.index("otra vez") > texto.index("Sala")
+    assert texto.count("otra vez") == 1
+
+
+def test_los_pasos_se_numeran_todos(qtbot):
+    p = _pantalla(qtbot)
+    p.mostrar_respuesta(
+        logica.Respuesta(
+            ok=True, recorrido="x",
+            lista=[logica.Renglon("Aérea"), logica.Renglon("Sala"),
+                   logica.Renglon("Aérea")],
+        ),
+        logica.Revision(),
+    )
+    texto = p.texto_del_resultado()
+    # Tres pasos, no dos cuartos.
+    assert "1. Aérea" in texto
+    assert "2. Sala" in texto
+    assert "3. Aérea" in texto
