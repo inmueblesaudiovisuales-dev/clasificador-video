@@ -202,3 +202,89 @@ def test_sin_llave_la_guia_manda_a_configuracion(ventana, monkeypatch):
 
     aviso = ventana._pantalla_guia.avisos_label.text()
     assert "onfiguración" in aviso
+
+
+# --- El rail y la guía tienen que decir lo MISMO ----------------------
+# Bug del 2026-09-15: si la lista se saltaba un cuarto y Bruno la aceptaba,
+# el rail se quedaba con los tres y al manifest viajaban dos. Dos partes del
+# programa diciendo cosas distintas del mismo dato.
+
+def test_el_cuarto_que_la_guia_se_salto_igual_viaja(ventana):
+    for c in ["Fachada", "Cocina", "Terraza"]:
+        ventana.room_selection.add(c)
+    ventana.guia_actual = logica.Respuesta(
+        ok=True, recorrido="x",
+        lista=[logica.Renglon("Fachada", "se entra aquí"), logica.Renglon("Cocina")],
+    )
+    ventana.aceptar_orden_de_la_guia(["Fachada", "Cocina"])
+
+    viaja = [r.cuarto for r in ventana._guia_para_el_manifest().orden]
+    assert viaja == ventana.room_selection.active_rooms()
+    assert viaja == ["Fachada", "Cocina", "Terraza"]
+
+
+def test_el_cuarto_agregado_no_pierde_su_razon(ventana):
+    # El que SÍ traía razón la conserva; el que se agregó al final no
+    # estrena una inventada.
+    for c in ["Fachada", "Terraza"]:
+        ventana.room_selection.add(c)
+    ventana.guia_actual = logica.Respuesta(
+        ok=True, recorrido="x", lista=[logica.Renglon("Fachada", "se entra aquí")],
+    )
+    ventana.aceptar_orden_de_la_guia(["Fachada"])
+
+    renglones = ventana._guia_para_el_manifest().orden
+    assert renglones[0].porque == "se entra aquí"
+    assert renglones[1].cuarto == "Terraza"
+    assert renglones[1].porque == ""
+
+
+def test_un_cuarto_inventado_no_viaja_al_manifest(ventana):
+    # No está en el rail, así que no puede estar en la guía que se exporta:
+    # en Premiere sería una carpeta de un cuarto que no existe.
+    ventana.room_selection.add("Fachada")
+    ventana.guia_actual = logica.Respuesta(
+        ok=True, recorrido="x",
+        lista=[logica.Renglon("Fachada"), logica.Renglon("Bodega", "me la inventé")],
+    )
+    ventana.aceptar_orden_de_la_guia(["Fachada", "Bodega"])
+
+    viaja = [r.cuarto for r in ventana._guia_para_el_manifest().orden]
+    assert viaja == ["Fachada"]
+
+
+# --- El aviso de la guía vieja tiene que saltar SIEMPRE ---------------
+# Bug del 2026-09-15: solo funcionaba si le dabas a «Usar este orden». Si te
+# gustaba el orden como estaba y no le picabas, el aviso no salía nunca.
+
+def test_avisa_aunque_no_se_haya_apretado_usar_este_orden(ventana, monkeypatch):
+    monkeypatch.setattr(
+        "clasificador_video.ui.main_window.ia.preguntar",
+        lambda llave, cuerpo, url=None: '{"recorrido": "x", "orden": [{"cuarto": "Sala"}]}',
+    )
+    monkeypatch.setattr("clasificador_video.ui.main_window.llave.leer", lambda: "sk-1234abcd")
+
+    ventana.room_selection.add("Sala")
+    ventana.pedir_guia({"lucir": "", "propiedad": "Casa"})  # NO se acepta el orden
+    assert not ventana.guia_quedo_vieja()
+
+    ventana.room_selection.add("Terraza")
+    assert ventana.guia_quedo_vieja()
+    assert "Terraza" in ventana.aviso_de_guia_vieja()
+
+
+def test_la_guia_se_guarda_sin_esperar_a_que_la_aceptes(ventana, monkeypatch):
+    # Armarla y cerrar Clipify no la puede perder: pedirla cuesta una
+    # llamada, y volver y no encontrarla es pagarla dos veces.
+    monkeypatch.setattr(
+        "clasificador_video.ui.main_window.ia.preguntar",
+        lambda llave, cuerpo, url=None: '{"recorrido": "Abres por fuera.", "orden": [{"cuarto": "Sala"}]}',
+    )
+    monkeypatch.setattr("clasificador_video.ui.main_window.llave.leer", lambda: "sk-1234abcd")
+
+    ventana.room_selection.add("Sala")
+    ventana.pedir_guia({"lucir": "", "propiedad": "Casa"})
+
+    guardado = ventana._datos_del_proyecto()["guia"]
+    assert guardado["recorrido"] == "Abres por fuera."
+    assert guardado["cuartos_de_entonces"] == ["Sala"]

@@ -4534,6 +4534,16 @@ class MainWindow(QWidget):
         revision = logica_guia.revisar_lista(
             respuesta.lista, self.room_selection.active_rooms())
         self.guia_actual = respuesta if respuesta.ok else None
+        if respuesta.ok:
+            # DESDE QUE SE ENSEÑA, no desde que se acepta. Antes esto vivía
+            # solo en `aceptar_orden_de_la_guia`, así que si a Bruno le
+            # gustaba el orden como ya estaba y no apretaba «Usar este
+            # orden», el aviso de «tu guía quedó vieja» no salía NUNCA --
+            # que es justo el caso para el que se hizo.
+            self._cuartos_de_la_guia = self.room_selection.active_rooms()
+            # Y se guarda ya: pedirla cuesta una llamada, y cerrar Clipify
+            # sin haberla aceptado no la puede tirar.
+            self._autosave()
         if self._pantalla_guia is not None:
             self._pantalla_guia.mostrar_respuesta(respuesta, revision)
 
@@ -4541,7 +4551,33 @@ class MainWindow(QWidget):
         """Ese orden pasa a ser EL orden: rail, hoja y Premiere."""
         self.room_selection.reordenar(list(orden))
         self._cuartos_de_la_guia = self.room_selection.active_rooms()
+        self.guia_actual = self._guia_cuadrada_con_el_rail()
         self._sync_rooms()
+
+    def _guia_cuadrada_con_el_rail(self):
+        """La guía contando EXACTAMENTE los cuartos que hay, en su orden.
+
+        Aceptar una guía a la que le falta un cuarto dejaba al rail con tres
+        y al manifest con dos: dos partes del programa diciendo cosas
+        distintas del mismo dato, que es la familia de los ocho bugs del
+        2026-08-22. En Premiere se veía como un cuarto suelto sin número y
+        una guía que no lo mencionaba.
+
+        Los que la lista se saltó entran al final y **sin razón inventada**:
+        que estén es el dato, por qué van ahí no lo dijo nadie. Y los que el
+        modelo se sacó de la manga se caen, porque no están en el rail y en
+        Premiere serían la carpeta de un cuarto que no existe.
+        """
+        if self.guia_actual is None or not self.guia_actual.ok:
+            return self.guia_actual
+        porque_de = {r.cuarto: r for r in self.guia_actual.lista}
+        lista = [
+            porque_de.get(c) or logica_guia.Renglon(cuarto=c)
+            for c in self.room_selection.active_rooms()
+        ]
+        return logica_guia.Respuesta(
+            ok=True, recorrido=self.guia_actual.recorrido, lista=lista
+        )
 
     def _guia_para_la_sesion(self):
         """La guia como se guarda en el `.cvproj`, o `None`.
