@@ -170,3 +170,35 @@ def test_un_proyecto_viejo_sin_guia_abre_igual(ventana):
     ventana.restaurar_guia(None)
     assert ventana.guia_actual is None
     assert not ventana.guia_quedo_vieja()
+
+
+def test_guardar_la_llave_desde_configuracion(ventana, tmp_path, monkeypatch):
+    destino = tmp_path / "llave.json"
+    monkeypatch.setattr("clasificador_video.ui.main_window.llave.RUTA", destino)
+
+    ventana.guardar_llave("sk-1234abcd")
+    from clasificador_video import llave as mod
+
+    assert mod.leer(destino) == "sk-1234abcd"
+
+
+def test_quitar_la_llave_desde_configuracion(ventana, tmp_path, monkeypatch):
+    destino = tmp_path / "llave.json"
+    monkeypatch.setattr("clasificador_video.ui.main_window.llave.RUTA", destino)
+
+    ventana.guardar_llave("sk-1234abcd")
+    ventana.borrar_llave()
+    from clasificador_video import llave as mod
+
+    assert mod.leer(destino) == ""
+
+
+def test_sin_llave_la_guia_manda_a_configuracion(ventana, monkeypatch):
+    # El mensaje tiene que decir QUE HACER, no solo que falta algo.
+    monkeypatch.setattr("clasificador_video.ui.main_window.llave.leer", lambda: "")
+    ventana.room_selection.add("Sala")
+    ventana._abrir_pantalla_de_guia()
+    ventana.pedir_guia({"lucir": "", "propiedad": "Casa"})
+
+    aviso = ventana._pantalla_guia.avisos_label.text()
+    assert "onfiguración" in aviso

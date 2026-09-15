@@ -136,6 +136,12 @@ Premiere solo la lee. De este lado se reparte así, y el corte es a propósito
 | `llave.py` | Guardar y leer la llave en `~/.clasificador_video/llave.json`. |
 | `ia.py` | La llamada HTTP, y nada más. Cambiar de proveedor es este archivo. |
 | `ui/pantalla_guia.py` | La pantalla: dos preguntas, el resultado, «Usar este orden». |
+| `ui/pantalla_config.py` | La pantalla de configuración. Hoy, un ajuste: la llave. |
+
+Las dos pantallas —la guía y la configuración— son **widgets hijos de la
+ventana, no `QDialog` modales**. El diálogo de configuración que abría con
+`exec()` colgaba la suite bajo `offscreen` y murió con la F3; ese camino no se
+reabre.
 
 **`MI-PATRON.md` es el único dueño de ese texto.** Es el archivo que Bruno
 edita a mano cuando algo no le cuadra, y de ahí sale lo que viaja en el

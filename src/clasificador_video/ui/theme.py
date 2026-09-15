@@ -586,6 +586,60 @@ def build_stylesheet() -> str:
         color: {TEXT_3};
     }}
 
+    /* ---------------- la pantalla de configuracion ------------------ */
+    /* Se parece a la de la guia a proposito: son las dos pantallas que se
+       abren ENCIMA de la ventana, y que se vean iguales dice que las dos se
+       cierran igual. */
+
+    QWidget#pantallaConfig {{
+        background-color: {BG_SURFACE_0};
+        border: 1px solid {LINE};
+        border-radius: 10px;
+    }}
+    QLabel#configTitulo {{
+        color: {TEXT};
+        font-size: 15px;
+        font-weight: 600;
+    }}
+    QLabel#configSubtitulo {{
+        color: {TEXT_2};
+    }}
+    QLabel#configEstado {{
+        color: {TEXT};
+    }}
+    QLabel#configDonde {{
+        color: {TEXT_3};
+    }}
+    QLineEdit#configLlave {{
+        background-color: {BG_SURFACE_1};
+        border: 1px solid {LINE};
+        border-radius: 6px;
+        color: {TEXT};
+        padding: 6px 8px;
+    }}
+    QLineEdit#configLlave:focus {{
+        border-color: {TEXT_3};
+    }}
+    QPushButton#configGuardar, QPushButton#configQuitar,
+    QPushButton#configCerrar {{
+        background-color: {BG_SURFACE_2};
+        border: 1px solid {LINE};
+        border-radius: 6px;
+        color: {TEXT};
+        padding: 6px 14px;
+    }}
+    QPushButton#configGuardar:hover, QPushButton#configQuitar:hover,
+    QPushButton#configCerrar:hover {{
+        background-color: {LINE};
+    }}
+    /* «Quitarla» sin nada que quitar. Apagado se lee «existe, pero no
+       aqui», igual que el «Ancho» del rail. */
+    QPushButton#configQuitar:disabled {{
+        background-color: {BG_SURFACE_0};
+        border-color: {LINE_SOFT};
+        color: {TEXT_3};
+    }}
+
     /* ---------------- la pantalla de la guia de edicion ------------- */
 
     QWidget#pantallaGuia {{

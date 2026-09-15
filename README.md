@@ -286,10 +286,16 @@ Cuatro cosas que vale la pena que sepas:
   —«tu guía es de antes de agregar la Terraza»— y tú decides si la exportas
   así o la vuelves a armar.
 
-La primera vez hace falta una llave de DeepSeek: se pega una vez y se queda
-guardada en tu computadora, en `~/.clasificador_video/`. No va en el proyecto
-de Premiere ni viaja con el material. De tu computadora solo salen los nombres
-de tus cuartos y lo que tú escribas — nada de video, archivos ni rutas.
+Para que la guía funcione hace falta una llave de DeepSeek. Se pone una vez,
+en **Configuración** —el botón de la barra de arriba—: la pegas, le das
+**Guardar** y ahí se queda. Se guarda en tu computadora, en
+`~/.clasificador_video/`; no va en el proyecto de Premiere ni viaja con el
+material, y nunca se enseña entera en pantalla. Desde ahí también puedes
+quitarla.
+
+De tu computadora solo salen los nombres de tus cuartos y lo que tú escribas —
+nada de video, archivos ni rutas. Y sin llave todo lo demás funciona igual: lo
+único que no se puede es armar la guía.
 
 Si se cae el internet o falla, te lo dice y **no te bloquea nada**: exportar
 sigue funcionando, nada más sin guía. Y si abres la pestaña en Premiere con un

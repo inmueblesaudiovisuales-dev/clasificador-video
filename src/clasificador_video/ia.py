@@ -33,7 +33,10 @@ def preguntar(llave: str, cuerpo: dict, url: str = URL) -> str:
     lo enseña y **no bloquea nada**: exportar sigue funcionando sin guía.
     """
     if not str(llave or "").strip():
-        raise ErrorDeIA("Falta la llave. Pégala aquí arriba y vuelve a intentar.")
+        raise ErrorDeIA(
+            "Falta la llave. Ponla en Configuración —el engrane de la barra "
+            "de arriba— y vuelve a intentar."
+        )
 
     peticion = request.Request(
         url,

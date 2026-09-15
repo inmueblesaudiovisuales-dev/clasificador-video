@@ -63,6 +63,7 @@ from clasificador_video.ui.aviso_de_media import (
     Renglon,
 )
 from clasificador_video.ui.clip_sheet import SIN_BIN, ClipSheet, ClipThumbnail
+from clasificador_video.ui.pantalla_config import PantallaConfig
 from clasificador_video.ui.pantalla_guia import PantallaGuia
 from clasificador_video.ui.room_palette import RoomPalette
 from clasificador_video.ui.room_rail import RoomRail
@@ -722,6 +723,7 @@ class MainWindow(QWidget):
         # La guia armada, si es que se armo. `None` es lo normal.
         self.guia_actual = None
         self._pantalla_guia = None
+        self._pantalla_config = None
         # Los cuartos que habia cuando se acepto la guia. Con esto se
         # sabe si quedo vieja (§11 del spec).
         self._cuartos_de_la_guia: list[str] = []
@@ -731,6 +733,7 @@ class MainWindow(QWidget):
         self.title_bar.set_project(project_name, 0)
         self.title_bar.export_requested.connect(self._on_export_manifest)
         self.title_bar.guia_requested.connect(self._abrir_pantalla_de_guia)
+        self.title_bar.config_requested.connect(self._abrir_configuracion)
         self.title_bar.mode_toggled.connect(self.alternar_modo_hoja)
         self.title_bar.modo_horizontal_cambiado.connect(
             self._on_modo_horizontal_cambiado)
@@ -4470,6 +4473,31 @@ class MainWindow(QWidget):
     # ------------------------------------------------------------------
     # la guia de edicion
     # ------------------------------------------------------------------
+
+    def _abrir_configuracion(self) -> None:
+        """La pantalla de configuracion, encima de la ventana.
+
+        Hija y no modal, por lo mismo que la de la guia: el dialogo de
+        configuracion que abria con `exec()` colgaba la suite bajo
+        `offscreen` y murio con la F3. Ese camino no se reabre.
+        """
+        if self._pantalla_config is None:
+            self._pantalla_config = PantallaConfig(self)
+            self._pantalla_config.llave_guardada.connect(self.guardar_llave)
+            self._pantalla_config.llave_borrada.connect(self.borrar_llave)
+            self._pantalla_config.cerrada.connect(self._pantalla_config.hide)
+        # Se relee del disco cada vez que se abre y no se cachea: la llave
+        # se puede haber puesto desde otra ventana de Clipify.
+        self._pantalla_config.cargar(llave.leer())
+        self._pantalla_config.setGeometry(self.rect().adjusted(110, 80, -110, -80))
+        self._pantalla_config.show()
+        self._pantalla_config.raise_()
+
+    def guardar_llave(self, valor: str) -> None:
+        llave.guardar(valor)
+
+    def borrar_llave(self) -> None:
+        llave.borrar()
 
     def _abrir_pantalla_de_guia(self) -> None:
         """La pantalla de la guia, encima de la ventana.

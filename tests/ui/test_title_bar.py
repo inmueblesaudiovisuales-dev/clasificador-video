@@ -239,3 +239,12 @@ def test_exportar_sigue_siendo_un_clic(qtbot):
     qtbot.addWidget(barra)
     with qtbot.waitSignal(barra.export_requested):
         barra.export_button.click()
+
+
+def test_el_boton_de_configuracion_existe_y_avisa(qtbot):
+    from clasificador_video.ui.title_bar import TitleBar
+
+    barra = TitleBar()
+    qtbot.addWidget(barra)
+    with qtbot.waitSignal(barra.config_requested):
+        barra.config_button.click()
