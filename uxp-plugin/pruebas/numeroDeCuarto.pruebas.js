@@ -94,3 +94,47 @@ module.exports = function (ctx) {
     },
   ];
 };
+
+// Los casos de `esCarpeta`, que es lo que evita que el plugin le cambie el
+// nombre a un clip de Bruno. Logica pura: el `cast` de Premiere se sustituye
+// aqui, que es justo lo que se puede probar sin Premiere.
+module.exports.carpetas = function (ctx) {
+  const cast = (item) => (item && item.esFolder ? item : null);
+  return [
+    {
+      // EL BUG DEL 2026-09-15: un clip suelto dentro de «02. Clip» que se
+      // llame igual que un cuarto se tomaba por carpeta, y el plugin le
+      // RENOMBRABA -- escribiendo sobre algo que no es suyo.
+      nombre: "un clip con nombre de cuarto NO es la carpeta del cuarto",
+      fn: () => {
+        const r = ctx.carpetaDelCuarto(
+          [{ name: "Cocina", esFolder: false }], "03. Cocina", cast);
+        return { ok: r === null, detalle: String(r && r.name) };
+      },
+    },
+    {
+      nombre: "la carpeta con otro numero si es la misma",
+      fn: () => {
+        const carpeta = { name: "05. Cocina", esFolder: true };
+        const r = ctx.carpetaDelCuarto(
+          [{ name: "Cocina", esFolder: false }, carpeta], "03. Cocina", cast);
+        return { ok: r === carpeta, detalle: String(r && r.name) };
+      },
+    },
+    {
+      nombre: "sin carpeta del cuarto devuelve null",
+      fn: () => {
+        const r = ctx.carpetaDelCuarto(
+          [{ name: "04. Comedor", esFolder: true }], "03. Cocina", cast);
+        return { ok: r === null, detalle: String(r && r.name) };
+      },
+    },
+    {
+      nombre: "un hueco de getItems no tumba la busqueda",
+      fn: () => {
+        const r = ctx.carpetaDelCuarto([null, undefined], "03. Cocina", cast);
+        return { ok: r === null, detalle: String(r) };
+      },
+    },
+  ];
+};

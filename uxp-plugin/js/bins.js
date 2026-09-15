@@ -53,8 +53,11 @@ async function resolverCuarto(project, carpetaDeClips, nombreConNumero) {
   const premierepro = require("premierepro");
 
   const items = (await carpetaDeClips.getItems()) || [];
-  const existente = items.find(
-    (i) => i && esElMismoCuarto(i.name, nombreConNumero)
+  // Solo CARPETAS: un clip suelto llamado igual que un cuarto no es su
+  // carpeta, y tomarlo por tal hacia que el plugin le renombrara. Ver
+  // `carpetaDelCuarto` en `numeroDeCuarto.js`.
+  const existente = carpetaDelCuarto(
+    items, nombreConNumero, premierepro.FolderItem.cast
   );
 
   if (existente) {
@@ -79,7 +82,7 @@ async function resolverCuarto(project, carpetaDeClips, nombreConNumero) {
         );
       }
     }
-    return premierepro.FolderItem.cast(existente);
+    return existente;
   }
 
   return await resolveBinChain(project, carpetaDeClips, [nombreConNumero]);

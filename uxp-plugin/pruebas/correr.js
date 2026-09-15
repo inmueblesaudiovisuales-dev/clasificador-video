@@ -45,7 +45,8 @@ for (const archivo of ARCHIVOS) {
   vm.runInContext(fs.readFileSync(ruta, "utf8"), contexto, { filename: archivo });
 }
 
-const casos = require("./numeroDeCuarto.pruebas.js")(contexto);
+const pruebas = require("./numeroDeCuarto.pruebas.js");
+const casos = [].concat(pruebas(contexto), pruebas.carpetas(contexto));
 
 let fallidas = 0;
 for (const { nombre, fn } of casos) {

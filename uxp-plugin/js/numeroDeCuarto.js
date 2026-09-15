@@ -35,3 +35,24 @@ function sinNumero(nombre) {
 function esElMismoCuarto(unNombre, otroNombre) {
   return sinNumero(unNombre) === sinNumero(otroNombre);
 }
+
+// La CARPETA de un cuarto entre los items de «02. Clip», o null.
+//
+// EL BUG QUE ESTO EVITA (2026-09-15): la busqueda anterior solo miraba el
+// nombre, asi que un CLIP suelto llamado igual que un cuarto se tomaba por
+// su carpeta -- y el plugin le cambiaba el nombre a «03. Cocina». Renombrar
+// un clip de Bruno es escribir sobre algo que no es nuestro, que es la misma
+// regla de las marcas de estado y del prefijo numerico.
+//
+// `cast` se recibe en vez de sacarlo de `premierepro` para que esto sea
+// logica pura y se pueda probar sin Premiere. Quien llama le pasa
+// `premierepro.FolderItem.cast`.
+function carpetaDelCuarto(items, nombreConNumero, cast) {
+  for (const item of items || []) {
+    if (!item) continue;              // getItems() devuelve huecos al importar
+    const carpeta = cast(item);
+    if (!carpeta) continue;           // es un clip, no una carpeta
+    if (esElMismoCuarto(item.name, nombreConNumero)) return carpeta;
+  }
+  return null;
+}
