@@ -21,6 +21,24 @@ MODELO = "deepseek-chat"
 # razonamiento cuesta y tarda más para la misma respuesta.
 
 
+@dataclass
+class Renglon:
+    cuarto: str
+    porque: str = ""
+    # Que el modelo se haya apartado del patrón de Bruno EN ESTE cuarto.
+    # No es un reproche ni estadística: es el aviso del §4.a del spec, para
+    # que un cambio de orden no se le pase de largo.
+    fuera_del_patron: bool = False
+
+
+@dataclass
+class Respuesta:
+    ok: bool
+    recorrido: str = ""
+    lista: list[Renglon] = field(default_factory=list)
+    error: str = ""
+
+
 def prompt_de_sistema(cuartos: list[str], patron: str) -> str:
     """Lo que se le dice al modelo.
 
@@ -104,3 +122,96 @@ def cuerpo_del_request(cuartos: list[str], respuestas: dict, patron: str) -> dic
             {"role": "user", "content": contexto_de_respuestas(respuestas or {})},
         ],
     }
+
+
+def leer_respuesta(texto: str | None) -> Respuesta:
+    """Saca la guía de lo que sea que haya contestado el modelo.
+
+    **Nunca revienta**: una respuesta fea es un caso normal, no una
+    excepción. Devuelve una `Respuesta` y quien llama decide qué enseñar.
+
+    Lo que NO se hace es adivinar una lista donde no la hay. Media lista es
+    peor que ninguna: una guía a la que le falta la cocina hace que se te
+    olvide la cocina al editar.
+    """
+    crudo = ("" if texto is None else str(texto)).strip()
+    if not crudo:
+        return Respuesta(ok=False, error="El modelo no contestó nada.")
+
+    recorte = _recortar_json(crudo)
+    if not recorte:
+        return Respuesta(ok=False, error="El modelo contestó con texto en vez de la guía.")
+
+    try:
+        datos = json.loads(recorte)
+    except (json.JSONDecodeError, ValueError):
+        return Respuesta(ok=False, error="La respuesta del modelo no se pudo leer.")
+
+    if not isinstance(datos, dict) or not isinstance(datos.get("orden"), list):
+        return Respuesta(
+            ok=False,
+            error="La respuesta llegó con otra forma: no trae la lista de cuartos.",
+        )
+
+    lista: list[Renglon] = []
+    for renglon in datos["orden"]:
+        if not isinstance(renglon, dict):
+            return Respuesta(ok=False, error="La lista trae un renglón que no se entiende.")
+        cuarto = renglon.get("cuarto")
+        cuarto = cuarto.strip() if isinstance(cuarto, str) else ""
+        if not cuarto:
+            return Respuesta(ok=False, error="La lista trae un renglón sin nombre de cuarto.")
+        porque = renglon.get("porque")
+        lista.append(
+            Renglon(
+                cuarto=cuarto,
+                porque=porque.strip() if isinstance(porque, str) else "",
+                fuera_del_patron=bool(renglon.get("fuera_del_patron")),
+            )
+        )
+
+    if not lista:
+        return Respuesta(ok=False, error="El modelo devolvió una lista vacía.")
+
+    recorrido = datos.get("recorrido")
+    return Respuesta(
+        ok=True,
+        recorrido=recorrido.strip() if isinstance(recorrido, str) else "",
+        lista=lista,
+    )
+
+
+def _recortar_json(texto: str) -> str:
+    """El primer objeto JSON que haya dentro de un texto.
+
+    Cuenta llaves en vez de usar una expresión regular porque el JSON anida
+    y una regular no sabe contar; y se salta las llaves que van DENTRO de
+    una cadena, que es lo que rompería con un cuarto llamado «Sala {grande}».
+    """
+    inicio = texto.find("{")
+    if inicio == -1:
+        return ""
+
+    nivel = 0
+    en_cadena = False
+    escapado = False
+
+    for i in range(inicio, len(texto)):
+        c = texto[i]
+        if en_cadena:
+            if escapado:
+                escapado = False
+            elif c == "\\":
+                escapado = True
+            elif c == '"':
+                en_cadena = False
+            continue
+        if c == '"':
+            en_cadena = True
+        elif c == "{":
+            nivel += 1
+        elif c == "}":
+            nivel -= 1
+            if nivel == 0:
+                return texto[inicio:i + 1]
+    return ""
