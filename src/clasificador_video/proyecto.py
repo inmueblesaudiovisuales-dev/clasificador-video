@@ -131,7 +131,8 @@ def a_dict(proyecto: str, rooms: list[str], clips: list, bins,
            relativas_conocidas: dict | None = None,
            agrupar_por_cuarto: bool = True,
            modo_horizontal: bool = False,
-           carpeta_de_proxies: Path | None = None) -> dict:
+           carpeta_de_proxies: Path | None = None,
+           guia: dict | None = None) -> dict:
     """La forma del documento. **Puro: no toca disco.**
 
     Los pesos que salen de aqui son los que ya se sabian (`bytes_conocidos`,
@@ -179,6 +180,16 @@ def a_dict(proyecto: str, rooms: list[str], clips: list, bins,
         # antes.
         "carpeta_de_proxies": (str(carpeta_de_proxies)
                                if carpeta_de_proxies is not None else None),
+        # La guía de edición, tal como se armó. `None` es un proyecto que
+        # nunca la pidió, y es lo que hace que los de antes de hoy abran
+        # igual que siempre.
+        #
+        # Guarda ADEMÁS los cuartos que había cuando se armó
+        # (`cuartos_de_entonces`): es lo único con lo que se puede saber que
+        # la guía quedó vieja porque Bruno agregó un cuarto después (§11 del
+        # spec). Sin ese dato habría que adivinarlo, y adivinar en silencio
+        # es justo lo que esta app no hace.
+        "guia": guia,
     }
 
 

@@ -372,3 +372,28 @@ def test_un_proyecto_que_nunca_contesto_no_guarda_carpeta():
                   tamanos={}, duraciones={}, rotaciones={})
 
     assert data["carpeta_de_proxies"] is None
+
+
+def test_la_guia_se_guarda_y_vuelve(tmp_path):
+    guia = {
+        "recorrido": "Abres por fuera.",
+        "orden": [{"cuarto": "Sala", "porque": "x", "fuera_del_patron": False}],
+        # Los cuartos que habia cuando se armo: con esto se sabe si la guia
+        # quedo vieja (§11 del spec).
+        "cuartos_de_entonces": ["Sala"],
+    }
+    data = a_dict(
+        proyecto="Casa Lomas", rooms=["Sala"], clips=[], bins=BinTree(),
+        tamanos={}, duraciones={}, rotaciones={}, guia=guia,
+    )
+    destino = tmp_path / "x.cvproj"
+    guardar(destino, data)
+    assert abrir(destino)["guia"] == guia
+
+
+def test_un_proyecto_sin_guia_sigue_siendo_valido(tmp_path):
+    data = a_dict(
+        proyecto="Casa Lomas", rooms=["Sala"], clips=[], bins=BinTree(),
+        tamanos={}, duraciones={}, rotaciones={},
+    )
+    assert data["guia"] is None
