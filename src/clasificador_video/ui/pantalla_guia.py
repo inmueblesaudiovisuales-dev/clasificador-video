@@ -43,6 +43,7 @@ class PantallaGuia(QWidget):
 
     guia_pedida = Signal(dict)   # {"lucir": str, "propiedad": str}
     orden_aceptado = Signal(list)  # los cuartos, en el orden aceptado
+    cerrada = Signal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -52,6 +53,9 @@ class PantallaGuia(QWidget):
         # caso que `SegmentedControl`.
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         self._respuesta: logica.Respuesta | None = None
+        # Mientras el modelo piensa, Esc no cierra: la respuesta llegaria a
+        # una pantalla escondida y se veria como si no hubiera pasado nada.
+        self._armando = False
 
         raiz = QVBoxLayout(self)
         raiz.setContentsMargins(24, 20, 24, 20)
@@ -85,10 +89,17 @@ class PantallaGuia(QWidget):
         self.usar_button.setEnabled(False)
         self.usar_button.clicked.connect(self._al_usar)
 
+        # Se abre encima de la ventana, asi que tiene que traer por donde
+        # salir. Sin esto la unica salida era cerrar la app.
+        self.cerrar_button = QPushButton("Cerrar")
+        self.cerrar_button.setObjectName("guiaCerrar")
+        self.cerrar_button.clicked.connect(self.cerrada.emit)
+
         fila = QHBoxLayout()
         fila.addWidget(self.armar_button)
         fila.addWidget(self.usar_button)
         fila.addStretch(1)
+        fila.addWidget(self.cerrar_button)
         raiz.addLayout(fila)
 
         # Los avisos van ARRIBA del resultado: son lo que hay que leer antes
@@ -120,11 +131,27 @@ class PantallaGuia(QWidget):
 
     # --- lo que llegó -------------------------------------------------
 
+    def keyPressEvent(self, event) -> None:
+        """Esc cierra, que es lo que uno intenta primero.
+
+        Menos a media llamada: ahi la respuesta llegaria a una pantalla
+        escondida y se veria como si nunca hubiera pasado nada.
+        """
+        if event.key() == Qt.Key.Key_Escape and not self._armando:
+            self.cerrada.emit()
+            return
+        super().keyPressEvent(event)
+
     def armando(self) -> None:
         """Mientras el modelo piensa. Una espera sin aviso se lee como una
         app trabada, y ésta puede durar veinte segundos."""
+        self._armando = True
         self.armar_button.setEnabled(False)
         self.usar_button.setEnabled(False)
+        # Tambien el de cerrar: si Esc no cierra mientras arma, este no
+        # puede verse apretable. Lo que se ve y lo que se puede hacer tienen
+        # que ser la misma cosa.
+        self.cerrar_button.setEnabled(False)
         self.avisos_label.setText("Armando la guía…")
         self.resultado.setPlainText("")
 
@@ -132,7 +159,9 @@ class PantallaGuia(QWidget):
                           revision: logica.Revision) -> None:
         """Enseña la guía, o el error. **Nunca media lista.**"""
         self._respuesta = respuesta if respuesta.ok else None
+        self._armando = False
         self.armar_button.setEnabled(True)
+        self.cerrar_button.setEnabled(True)
 
         if not respuesta.ok:
             self.avisos_label.setText(respuesta.error)

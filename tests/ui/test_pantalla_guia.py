@@ -97,3 +97,48 @@ def test_usar_este_orden_emite_el_orden(qtbot):
     with qtbot.waitSignal(p.orden_aceptado) as blocker:
         p.usar_button.click()
     assert blocker.args[0] == ["Fachada", "Sala"]
+
+
+# --- Se tiene que poder cerrar ---------------------------------------
+# Bug del 2026-09-15: la pantalla se abría encima de la ventana y ahí se
+# quedaba. Sin botón de cerrar y sin Esc, la única salida era cerrar la app.
+
+def test_tiene_por_donde_cerrarse(qtbot):
+    p = _pantalla(qtbot)
+    with qtbot.waitSignal(p.cerrada):
+        p.cerrar_button.click()
+
+
+def test_escape_tambien_la_cierra(qtbot):
+    from PySide6.QtCore import Qt
+
+    p = _pantalla(qtbot)
+    p.show()
+    with qtbot.waitSignal(p.cerrada):
+        qtbot.keyClick(p, Qt.Key.Key_Escape)
+
+
+def test_escape_no_la_cierra_mientras_arma(qtbot):
+    # A media llamada, Esc cerraría la pantalla y la respuesta llegaría a
+    # una pantalla escondida: se ve como si no hubiera pasado nada.
+    from PySide6.QtCore import Qt
+
+    p = _pantalla(qtbot)
+    p.show()
+    p.armando()
+    with qtbot.assertNotEmitted(p.cerrada):
+        qtbot.keyClick(p, Qt.Key.Key_Escape)
+
+
+def test_mientras_arma_el_boton_de_cerrar_tambien_se_apaga(qtbot):
+    # Si Esc no cierra, el botón tampoco puede: lo que se ve y lo que se
+    # puede hacer tienen que ser la misma cosa.
+    p = _pantalla(qtbot)
+    p.armando()
+    assert not p.cerrar_button.isEnabled()
+
+    p.mostrar_respuesta(
+        logica.Respuesta(ok=False, error="No se pudo armar la guía: no hay internet."),
+        logica.Revision(),
+    )
+    assert p.cerrar_button.isEnabled()

@@ -4561,6 +4561,7 @@ class MainWindow(QWidget):
             self._pantalla_guia = PantallaGuia(self)
             self._pantalla_guia.guia_pedida.connect(self.pedir_guia)
             self._pantalla_guia.orden_aceptado.connect(self.aceptar_orden_de_la_guia)
+            self._pantalla_guia.cerrada.connect(self._pantalla_guia.hide)
         self._pantalla_guia.setGeometry(self.rect().adjusted(80, 60, -80, -60))
         self._pantalla_guia.show()
         self._pantalla_guia.raise_()
@@ -4605,6 +4606,10 @@ class MainWindow(QWidget):
         self._cuartos_de_la_guia = self.room_selection.active_rooms()
         self.guia_actual = self._guia_cuadrada_con_el_rail()
         self._sync_rooms()
+        # Ya hizo lo suyo: dejarla encima obliga a cerrarla a mano para ver
+        # el rail que se acaba de reacomodar, que es lo que uno quiere ver.
+        if self._pantalla_guia is not None:
+            self._pantalla_guia.hide()
 
     def _guia_cuadrada_con_el_rail(self):
         """La guía contando EXACTAMENTE los cuartos que hay, en su orden.
