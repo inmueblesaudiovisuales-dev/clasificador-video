@@ -15,6 +15,7 @@
     --tinta-2: #9a9a9a;       /* etiquetas y explicaciones */
     --tinta-3: #6f6f6f;       /* lo que casi no importa */
     --linea: #3a3a3a;
+    --panel: #2b2b2b;         /* el gris del panel, declarado y no heredado */
     --hueco: #1c1c1c;         /* fondo de campos: mas oscuro que el panel */
     --control: #3a3a3a;       /* botones en reposo */
     --control-2: #484848;     /* botones con el mouse encima */
@@ -23,9 +24,14 @@
     --alarma: #e06c75;
   }
 
+  /* El fondo se declara AQUI y no se hereda del host. Premiere tiene cuatro
+     niveles de brillo en sus preferencias, y sin esto un tema claro dejaba el
+     texto blanco sobre blanco: la lista de cuartos desaparecia entera. Se vio
+     pasar al sacar la captura en un navegador, que tampoco trae fondo. */
   body {
     font-family: -apple-system, "Segoe UI", sans-serif;
     font-size: 12px; color: var(--tinta); margin: 0;
+    background: var(--panel);
   }
 
   /* --- Pestanas ------------------------------------------------ */
@@ -99,7 +105,7 @@
   #orden-resultado { margin-top: 14px; }
   .guia { border-top: 1px solid var(--linea); padding-top: 10px; }
   .renglon-cuarto { margin-bottom: 7px; line-height: 1.45; }
-  .renglon-cuarto .nombre { color: #ffffff; }
+  .renglon-cuarto .nombre { color: #f4f4f4; }
   .renglon-cuarto .porque { color: var(--tinta-2); }
   /* Tachado y en rojo: se ENSENA lo que se invento, no se borra callado --
      ver el §6 del spec. */
