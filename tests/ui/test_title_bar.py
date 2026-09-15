@@ -219,3 +219,23 @@ def test_el_boton_ancho_no_se_deja_apretar_en_la_hoja(qtbot):
 
     bar.set_modo_hoja(False)
     assert bar.visor_button.isEnabled()
+
+
+def test_el_boton_de_la_guia_existe_y_avisa(qtbot):
+    from clasificador_video.ui.title_bar import TitleBar
+
+    barra = TitleBar()
+    qtbot.addWidget(barra)
+    assert "Guía" in barra.guia_button.text()
+    with qtbot.waitSignal(barra.guia_requested):
+        barra.guia_button.click()
+
+
+def test_exportar_sigue_siendo_un_clic(qtbot):
+    # La guia tiene su PROPIO boton: exportar no gana un paso.
+    from clasificador_video.ui.title_bar import TitleBar
+
+    barra = TitleBar()
+    qtbot.addWidget(barra)
+    with qtbot.waitSignal(barra.export_requested):
+        barra.export_button.click()
