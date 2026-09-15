@@ -49,3 +49,52 @@ function applyCameraLabel(project, clipItem, camara) {
     "Set label " + camara
   );
 }
+
+// El color del bin de un cuarto que ya montaste entero.
+//
+// EL CHOQUE, RESUELTO A PROPOSITO: arriba de este archivo esta escrito que en
+// Premiere el color dice la CAMARA. Eso vale para los CLIPS, que es donde se
+// decidio y donde Bruno lo usa para arrastrarle el LUT a toda una camara de
+// un jalon. Un BIN no es un clip y nunca tuvo color, asi que ahi queda libre
+// para decir otra cosa: si ya lo montaste.
+//
+// Y el verde NO entra en la paleta de camaras -- CERULEAN, MANGO y VIOLET
+// siguen siendo de ellas. Un color que ya significara una camara diciendo
+// ademas «montado» seria el mismo error con otro disfraz.
+const LABEL_MONTADO = "FOREST";
+
+function pintarBinMontado(project, binItem, montado) {
+  const premierepro = require("premierepro");
+  const colores = premierepro.Constants.ProjectItemColorLabel;
+  const destino = montado ? colores[LABEL_MONTADO] : colores.NONE;
+
+  // Ni la documentacion de Adobe ni la suerte: si esta version no conoce el
+  // color, no se pinta nada y se dice UNA vez, con lo que si existe. Mismo
+  // trato que `applyCameraLabel`.
+  if (destino === undefined) {
+    avisarUnaVezDelVerde(colores);
+    return;
+  }
+  if (typeof binItem.createSetColorLabelAction !== "function") {
+    avisarUnaVezDelVerde(colores);
+    return;
+  }
+  runTransaction(
+    project,
+    () => binItem.createSetColorLabelAction(destino),
+    (montado ? "Marcar montado " : "Desmarcar ") + binItem.name
+  );
+}
+
+let yaSeAvisoDelVerde = false;
+
+function avisarUnaVezDelVerde(colores) {
+  if (yaSeAvisoDelVerde) return;
+  yaSeAvisoDelVerde = true;
+  logToPanel(
+    "No pude pintar las carpetas de lo que ya montaste: esta versión de " +
+      "Premiere no lo permite. Las palomitas del panel siguen funcionando. " +
+      "Colores que sí tiene: " + Object.keys(colores).join(", "),
+    true
+  );
+}
