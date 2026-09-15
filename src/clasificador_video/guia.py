@@ -65,12 +65,12 @@ def prompt_de_sistema(cuartos: list[str], patron: str) -> str:
     """
     partes = [
         "Eres el asistente de un editor de video mexicano que hace recorridos de",
-        "propiedades en venta o renta. Tu trabajo es proponer EN QUÉ ORDEN deben ir",
-        "los cuartos en el video: el recorrido que debe llevar el espectador.",
+        "propiedades en venta o renta. Tu trabajo es armar, PASO A PASO, el",
+        "recorrido que debe llevar el espectador por la propiedad.",
         "",
         "NO viste el material. No sabes qué hay adentro de ningún cuarto, cómo se ve",
         "ni con qué se grabó. Por eso:",
-        "- La línea de cada cuarto dice POR QUÉ VA AHÍ en el recorrido, no qué hay",
+        "- La línea de cada paso dice POR QUÉ VA AHÍ en el recorrido, no qué hay",
         "  adentro. «Se entra por aquí» sirve; «la cocina integral con cubierta de",
         "  granito» es inventado y no se vale.",
         "- Solo hablas de esta propiedad en concreto si el editor te lo contó él",

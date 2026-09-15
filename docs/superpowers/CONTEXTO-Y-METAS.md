@@ -101,7 +101,7 @@ pintándose de verde cuando un cuarto queda completo. Detalle en
    si Premiere de verdad **deja pintar un bin de color** para que el verde de
    «montado» se vea.
 
-Lo demás está comprobado: 1719 pruebas de Python y 12 de Node en verde, y las
+Lo demás está comprobado: 1766 pruebas de Python y 32 de Node en verde, y las
 cuatro pantallas vistas con los ojos —la de Clipify vacía y con una guía que
 se salió del patrón, y el panel de Premiere con guía y sin ella, a 320 px, que
 es el ancho mínimo del panel.

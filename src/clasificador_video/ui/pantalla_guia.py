@@ -222,19 +222,3 @@ class PantallaGuia(QWidget):
             partes.append("<p>" + escape(respuesta.recorrido) + "</p>")
         partes.append("<p>" + "<br>".join(renglones) + "</p>")
         return "".join(partes)
-
-    @staticmethod
-    def _texto(respuesta: logica.Respuesta, revision: logica.Revision) -> str:
-        renglones = []
-        vistos = set()
-        for i, r in enumerate(respuesta.lista, start=1):
-            otra = "  (otra vez)" if r.cuarto in vistos else ""
-            vistos.add(r.cuarto)
-            marca = "  (este no es tuyo)" if r.cuarto in revision.inventados else ""
-            porque = (" — " + r.porque) if r.porque else ""
-            renglones.append(f"{i}. {r.cuarto}{otra}{porque}{marca}")
-        partes = []
-        if respuesta.recorrido:
-            partes.append(respuesta.recorrido)
-        partes.append("\n".join(renglones))
-        return "\n\n".join(partes)

@@ -414,15 +414,6 @@ def _con_el_rango_en_orden(clip: Clip) -> Clip:
     return replace(clip, in_frame=clip.out_frame, out_frame=clip.in_frame)
 
 
-def _sin_repetir(nombres: list) -> list:
-    """Los nombres una sola vez, en el orden de la PRIMERA aparición.
-
-    `dict.fromkeys` conserva el orden de inserción desde Python 3.7, y es
-    el orden de la primera vez -- que es justo el que hace falta.
-    """
-    return list(dict.fromkeys(nombres or []))
-
-
 def _gigas_del_volumen(ruta: Path) -> int | None:
     """El `· 214 GB` de la barra de estado. En GB decimales, que es como
     viene etiquetada la tarjeta.
@@ -4613,12 +4604,10 @@ class MainWindow(QWidget):
         """Ese guion pasa a mandar: el rail, la hoja y Premiere.
 
         El guion trae PASOS y puede repetir un cuarto; el rail no puede.
-        Así que al rail se le pasa la lista sin repetir, en el orden de la
-        PRIMERA aparición -- el mismo criterio con el que el plugin numera
-        la carpeta de ese cuarto. Si los dos no usaran el mismo, el rail y
-        Premiere acabarían diciendo cosas distintas del mismo dato.
+        `reordenar` es quien filtra los repetidos -- se le pasa el guion
+        tal cual, con todo y sus pasos repetidos.
         """
-        self.room_selection.reordenar(_sin_repetir(orden))
+        self.room_selection.reordenar(orden)
         self._cuartos_de_la_guia = self.room_selection.active_rooms()
         self.guia_actual = self._guia_cuadrada_con_el_rail()
         self._sync_rooms()

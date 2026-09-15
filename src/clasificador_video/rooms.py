@@ -85,11 +85,12 @@ class RoomSelection:
         clips.
 
         Tampoco duplica: el guion de la guia SI repite un cuarto (se abre
-        con una aerea y se cierra con otra, misma carpeta), y esa lista
-        repetida llega hasta aca sin que nadie mas la filtre. Un cuarto dos
-        veces en el rail serian dos teclas para el mismo lugar, asi que solo
-        se queda su primera aparicion -- `dict.fromkeys` conserva el orden
-        de insercion, que es el orden de esa primera vez.
+        con una aerea y se cierra con otra, misma carpeta), y es ESTA
+        funcion la que garantiza que no entre repetido al rail, venga la
+        lista de donde venga. Un cuarto dos veces en el rail serian dos
+        teclas para el mismo lugar, asi que solo se queda su primera
+        aparicion -- `dict.fromkeys` conserva el orden de insercion, que es
+        el orden de esa primera vez.
 
         Y como el orden ES la asignacion de teclas, esto le cambia el atajo
         a casi todos. Es lo que Bruno pidio al aceptar la guia: un solo

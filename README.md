@@ -287,7 +287,10 @@ Cinco cosas que vale la pena que sepas:
   que acomoda son tus cuartos, y solo si le das a «Usar este orden».
 - **Las palomitas viven en tu computadora, no en el proyecto de Premiere.**
   Si le pasas el proyecto a alguien más, no lo acompañan — se quedan en tu
-  máquina.
+  máquina. El verde de la carpeta sí viaja con el proyecto, porque vive
+  adentro de él: por eso puedes ver de un vistazo qué cuartos ya montaste
+  aunque abras el proyecto en otra computadora, aunque ahí ya no veas las
+  palomitas de cada paso.
 - **Si le falta un cuarto o se inventa uno, te lo dice** arriba de la lista.
   Una guía a la que le falta la cocina hace que se te olvide la cocina al
   editar, y eso no se nota hasta después de entregar.
