@@ -9,6 +9,8 @@ Spec: docs/superpowers/specs/2026-09-14-guia-de-edicion-en-clipify-design.md
 """
 from __future__ import annotations
 
+from html import escape
+
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QHBoxLayout,
@@ -20,6 +22,7 @@ from PySide6.QtWidgets import (
 )
 
 from clasificador_video import guia as logica
+from clasificador_video.ui import theme
 from clasificador_video.ui.segmented import SegmentedControl
 
 # Los seis que de verdad salieron en los entregables de 2026 de Bruno. No son
@@ -129,11 +132,49 @@ class PantallaGuia(QWidget):
             return
 
         self.avisos_label.setText("\n".join(logica.avisos_de_la_revision(revision)))
-        self.resultado.setPlainText(self._texto(respuesta, revision))
+        # Va en HTML y no en texto plano por UNA razon: el renglon que se
+        # salio del patron tiene que VERSE distinto. En plano los tres
+        # renglones salian iguales y el aviso se perdia -- se vio en la
+        # captura del 2026-09-14, que es para lo que existe mirar el pixel.
+        self.resultado.setHtml(self._html(respuesta, revision))
         self.usar_button.setEnabled(True)
 
     def texto_del_resultado(self) -> str:
         return self.resultado.toPlainText()
+
+    @staticmethod
+    def _html(respuesta: logica.Respuesta, revision: logica.Revision) -> str:
+        """La guia dibujada, con el renglon fuera del patron destacado.
+
+        El resto de las razones van apagadas y esa va en claro y en cursiva:
+        es informacion que solo tenia la IA, y es lo unico de la lista que
+        hay que leer con atencion. Mismo trato que el panel de Premiere le
+        da al mismo renglon.
+        """
+        renglones = []
+        for i, r in enumerate(respuesta.lista, start=1):
+            # El numero va escrito y no en un <ol>: el de la lista se pierde
+            # al copiar el texto, y el orden es justo lo que uno copia.
+            partes = [f"{i}. <b>{escape(r.cuarto)}</b>"]
+            if r.porque:
+                color = theme.TEXT if r.fuera_del_patron else theme.TEXT_3
+                cursiva = " font-style: italic;" if r.fuera_del_patron else ""
+                partes.append(
+                    f'<span style="color: {color};{cursiva}"> — '
+                    f"{escape(r.porque)}</span>"
+                )
+            if r.cuarto in revision.inventados:
+                partes.append(
+                    f'<span style="color: {theme.REJECT_COLOR};">'
+                    "  (este no es tuyo)</span>"
+                )
+            renglones.append("".join(partes))
+
+        partes = []
+        if respuesta.recorrido:
+            partes.append("<p>" + escape(respuesta.recorrido) + "</p>")
+        partes.append("<p>" + "<br>".join(renglones) + "</p>")
+        return "".join(partes)
 
     @staticmethod
     def _texto(respuesta: logica.Respuesta, revision: logica.Revision) -> str:
