@@ -17,3 +17,35 @@ def test_sin_documento_devuelve_vacio(tmp_path: Path):
 
 def test_el_documento_de_verdad_esta_en_su_lugar():
     assert patron.leer().strip() != ""
+
+
+def test_en_la_app_empaquetada_el_patron_sigue_ahi(tmp_path, monkeypatch):
+    """El bug del 2026-09-15: `docs/` no viaja en el `.dmg`.
+
+    La ruta del repo --tres carpetas arriba de este archivo-- no existe
+    dentro del paquete de PyInstaller, así que `leer()` devolvía "" y la
+    guía salía con el orden de manual en vez del de Bruno. Y en silencio:
+    no fallaba, solo salía genérica.
+    """
+    import sys
+
+    empaquetada = tmp_path / "MEIPASS"
+    (empaquetada / "docs" / "patron-de-recorrido").mkdir(parents=True)
+    (empaquetada / "docs" / "patron-de-recorrido" / "MI-PATRON.md").write_text(
+        "Abres por fuera.", encoding="utf-8"
+    )
+    monkeypatch.setattr(sys, "_MEIPASS", str(empaquetada), raising=False)
+    monkeypatch.setattr(sys, "frozen", True, raising=False)
+
+    assert patron.leer() == "Abres por fuera."
+
+
+def test_el_patron_va_en_la_receta_de_empaquetado():
+    """Y que la receta de verdad lo incluya. Sin esto, el arreglo de arriba
+    busca un archivo que nadie copió."""
+    from pathlib import Path
+
+    receta = Path(__file__).resolve().parents[1] / "empaque" / "clipify.spec"
+    texto = receta.read_text(encoding="utf-8")
+    assert "patron-de-recorrido" in texto
+    assert "datas=[]" not in texto

@@ -9,9 +9,33 @@ Sin Qt.
 """
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 
-RUTA = Path(__file__).resolve().parents[2] / "docs" / "patron-de-recorrido" / "MI-PATRON.md"
+RELATIVA = Path("docs") / "patron-de-recorrido" / "MI-PATRON.md"
+
+
+def _ruta() -> Path:
+    """Donde está el documento, corriendo del repo o de la app instalada.
+
+    NO ES LO MISMO, y dar por hecho que sí costó un bug callado: la ruta del
+    repo --tres carpetas arriba de este archivo-- no existe dentro del
+    paquete, así que en el `.dmg` el patrón no se encontraba y la guía salía
+    con el orden de manual en vez del de Bruno. Sin fallar, nada más
+    genérica, que es la peor forma de fallar.
+
+    PyInstaller deja lo que copió en `sys._MEIPASS`; la receta de
+    `empaque/clipify.spec` mete el documento ahí con esta misma ruta
+    relativa, para que las dos formas de correr busquen en el mismo sitio.
+    """
+    base = getattr(sys, "_MEIPASS", None)
+    if base:
+        return Path(base) / RELATIVA
+    return Path(__file__).resolve().parents[2] / RELATIVA
+
+
+# Se mantiene el nombre de antes: es lo que el resto del repo conoce.
+RUTA = Path(__file__).resolve().parents[2] / RELATIVA
 
 
 def leer(ruta: Path | None = None) -> str:
@@ -22,7 +46,7 @@ def leer(ruta: Path | None = None) -> str:
     aquí dejaría a Bruno sin poder pedir la guía por un archivo de
     documentación.
     """
-    destino = RUTA if ruta is None else ruta
+    destino = _ruta() if ruta is None else ruta
     try:
         return destino.read_text(encoding="utf-8")
     except OSError:
