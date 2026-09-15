@@ -1236,28 +1236,36 @@ registrarPrueba("cuartosDeLosBins lee los cuartos y se salta «Sin clasificar»"
   await resolveBinChain(project, rootFolder, [CARPETA_DE_CLIPS, "PruebaOrden Cocina"]);
   await resolveBinChain(project, rootFolder, [CARPETA_DE_CLIPS, "Sin clasificar"]);
 
-  const cuartos = await cuartosDeLosBins(project);
+  const { hayCarpeta, cuartos } = await cuartosDeLosBins(project);
 
   const traeLosDos =
     cuartos.indexOf("PruebaOrden Fachada") !== -1 && cuartos.indexOf("PruebaOrden Cocina") !== -1;
   const sinElCajon = cuartos.indexOf("Sin clasificar") === -1;
 
   return {
-    ok: traeLosDos && sinElCajon,
-    detalle: "devolvio [" + cuartos.join(", ") + "]",
+    ok: hayCarpeta && traeLosDos && sinElCajon,
+    detalle: "hayCarpeta=" + hayCarpeta + ", devolvio [" + cuartos.join(", ") + "]",
   };
 });
 
 // Un proyecto que no salio de Clipify no es un error: es alguien abriendo la
 // pestana en un proyecto cualquiera, y tiene que devolver vacio sin tronar y
 // SIN crear la carpeta que no encontro.
+//
+// Lo que se comprueba aqui y no se puede comprobar sin Premiere: que
+// `hayCarpeta` diga la VERDAD sobre este proyecto. El texto que sale de eso
+// ya esta cubierto en el corredor de Node (`mensajeDeCuartos`), y la mentira
+// que unio a los dos casos --decir «no tiene la carpeta» de una carpeta vacia
+// -- es el bug que Bruno vio en vivo el 2026-09-14.
 registrarPrueba("sin «02. Clip» devuelve vacio y no crea nada", async (project) => {
-  const cuartos = await cuartosDeLosBins(project);
+  const lectura = await cuartosDeLosBins(project);
   // En un proyecto que SI tiene «02. Clip» esta prueba no aplica; se reporta
   // como informativa en vez de fallar, porque el estado del proyecto de
   // pruebas no esta en nuestras manos.
   return {
-    ok: Array.isArray(cuartos),
-    detalle: "devolvio un arreglo de " + cuartos.length + " (si hay «02. Clip» en este proyecto, es lo esperado)",
+    ok: Array.isArray(lectura.cuartos) && typeof lectura.hayCarpeta === "boolean",
+    detalle:
+      "hayCarpeta=" + lectura.hayCarpeta + ", " + lectura.cuartos.length +
+      " cuartos (si hay «02. Clip» en este proyecto, hayCarpeta=true es lo esperado)",
   };
 });

@@ -126,34 +126,27 @@ async function refrescarCuartos() {
     return;
   }
 
-  estadoOrden.cuartos = await cuartosDeLosBins(project);
+  const lectura = await cuartosDeLosBins(project);
+  estadoOrden.cuartos = lectura.cuartos;
 
-  if (estadoOrden.cuartos.length) {
-    const texto = document.createElement("div");
-    texto.className = "tenue";
-    texto.textContent =
-      "Encontré " + estadoOrden.cuartos.length + " cuartos en «" + CARPETA_DE_CLIPS + "»: " +
-      estadoOrden.cuartos.join(", ");
-    caja.appendChild(texto);
-    return;
-  }
+  // El texto lo decide `mensajeDeCuartos` y no este archivo: que «no existe»
+  // y «esta vacia» se digan distinto es una regla, y las reglas viven donde
+  // se pueden comprobar sin abrir Premiere.
+  const dicho = mensajeDeCuartos(lectura);
 
-  // Un proyecto que no salio de Clipify: no es un error, es alguien abriendo
-  // la pestana en un proyecto cualquiera. Se dice con esas palabras y se le
-  // deja teclearlos.
-  const aviso = document.createElement("div");
-  aviso.className = "tenue";
-  aviso.textContent =
-    "Este proyecto no tiene la carpeta «" + CARPETA_DE_CLIPS + "», así que no sé de dónde " +
-    "sacar los cuartos. Escríbelos aquí, uno por renglón:";
+  const texto = document.createElement("div");
+  texto.className = "tenue";
+  texto.textContent = dicho.texto;
+  caja.appendChild(texto);
+
+  if (!dicho.pedirlosAMano) return;
+
   const campo = document.createElement("textarea");
   campo.rows = 6;
   campo.id = "orden-cuartos-mano";
   campo.addEventListener("input", () => {
     estadoOrden.cuartos = cuartosTecleados(campo.value);
   });
-
-  caja.appendChild(aviso);
   caja.appendChild(campo);
 }
 

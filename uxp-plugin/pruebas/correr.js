@@ -23,7 +23,16 @@ const raiz = path.join(__dirname, "..");
 // Solo archivos que NO hacen `require("premierepro")` ni tocan la red al
 // cargarse. `llave.js` entra porque sus funciones de disco piden `require`
 // cuando se LLAMAN, no cuando se evalua el archivo -- y aqui no se llaman.
-const ARCHIVOS = ["js/ordenSugerido.js", "js/llave.js"];
+// `estructura.js` entra porque de ahi sale el nombre de «02. Clip», y
+// `cuartosDelProyecto.js` por lo mismo: su `require("premierepro")`
+// vive DENTRO de la funcion que lee los bins, no al tope del archivo, asi
+// que el texto del mensaje se puede comprobar sin Premiere.
+const ARCHIVOS = [
+  "js/estructura.js",
+  "js/ordenSugerido.js",
+  "js/llave.js",
+  "js/cuartosDelProyecto.js",
+];
 
 const contexto = vm.createContext({ console });
 

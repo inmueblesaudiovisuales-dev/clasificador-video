@@ -186,6 +186,19 @@ Dos casos que hay que atender y no son el mismo:
   cuartos a mano**, uno por renglón. De ahí para adelante todo funciona igual,
   incluida la revisión del §6, que compara contra lo que él tecleó.
 
+  **Pero son DOS casos y se dicen distinto** (corregido el 2026-09-14, viéndolo
+  en Premiere de verdad). Los dos terminan en una lista vacía, y la primera
+  versión los contestó con la misma frase: «Este proyecto no tiene la carpeta
+  02. Clip». El proyecto de Bruno **sí la tenía**, vacía, y el panel le dijo
+  que no. Un mensaje que dice algo falso sobre el proyecto que tienes enfrente
+  es de la misma familia que los ocho bugs del 2026-08-22: dos partes del
+  programa diciendo cosas distintas del mismo dato.
+
+  Por eso `cuartosDeLosBins` devuelve `{hayCarpeta, cuartos}` y no solo la
+  lista: sin los dos datos, el panel tiene que adivinar cuál de los dos casos
+  es. El texto lo arma `mensajeDeCuartos`, que es función pura y se comprueba
+  con `node`, sin abrir Premiere.
+
 ## 8. El riesgo que se prueba PRIMERO
 
 **Que Premiere deje al plugin hablar por internet.**

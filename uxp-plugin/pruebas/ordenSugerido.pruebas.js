@@ -340,5 +340,49 @@ module.exports = function (ctx) {
         return { ok: t === "", detalle: JSON.stringify(t) };
       },
     },
+    // ---------------------------------------------------------------
+    // mensajeDeCuartos -- «no existe» y «esta vacia» NO son lo mismo
+    // ---------------------------------------------------------------
+    {
+      // El bug que Bruno vio en vivo el 2026-09-14: su proyecto SI tenia la
+      // carpeta «02. Clip», vacia, y el panel le dijo que no la tenia. Dos
+      // partes del programa diciendo cosas distintas del mismo dato, que es
+      // la familia de bug que mas caro ha salido en este repo.
+      nombre: "con la carpeta vacia el mensaje no dice que la carpeta no existe",
+      fn: () => {
+        const m = ctx.mensajeDeCuartos({ hayCarpeta: true, cuartos: [] });
+        return {
+          ok: m.pedirlosAMano === true && !/no tiene la carpeta/i.test(m.texto),
+          detalle: JSON.stringify(m),
+        };
+      },
+    },
+    {
+      nombre: "con la carpeta vacia el mensaje dice que esta vacia",
+      fn: () => {
+        const m = ctx.mensajeDeCuartos({ hayCarpeta: true, cuartos: [] });
+        return { ok: /sin cuartos adentro|no tiene cuartos/i.test(m.texto), detalle: m.texto };
+      },
+    },
+    {
+      nombre: "sin la carpeta el mensaje si dice que no esta",
+      fn: () => {
+        const m = ctx.mensajeDeCuartos({ hayCarpeta: false, cuartos: [] });
+        return {
+          ok: m.pedirlosAMano === true && /no tiene la carpeta/i.test(m.texto),
+          detalle: JSON.stringify(m),
+        };
+      },
+    },
+    {
+      nombre: "con cuartos no se piden a mano y se enlistan",
+      fn: () => {
+        const m = ctx.mensajeDeCuartos({ hayCarpeta: true, cuartos: ["Sala", "Cocina"] });
+        return {
+          ok: m.pedirlosAMano === false && /Sala, Cocina/.test(m.texto) && /2/.test(m.texto),
+          detalle: JSON.stringify(m),
+        };
+      },
+    },
   ];
 };
