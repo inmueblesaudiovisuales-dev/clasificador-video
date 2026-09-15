@@ -324,22 +324,41 @@ no quería justificaciones, y contestó que sí las dos.
 - **Ordenar los clips dentro de cada cuarto.** Sigue fuera, igual que en el
   spec anterior.
 
-## 9. El riesgo que se prueba primero
+## 9. El orden del trabajo
 
-**Que Gemini reconozca los cuartos de verdad.** Todo el diseño descansa en que
-una ficha por video sea confiable; si Gemini confunde una recámara con una
-sala, el patrón sale mal y **no hay forma de notarlo mirando el resultado** —
-un orden equivocado se lee igual de bien que uno correcto.
+Lo puso Bruno cuando se le propuso empezar por probar Gemini: «primero tú
+haces la lista, yo te digo cuáles son y luego los buscamos. Gemini es hasta
+después».
 
-**Se prueba con tres videos antes de construir el resto**: se corren, y Bruno
-mira las tres fichas contra los videos que él editó. Él es la única
-verificación posible aquí, porque es el único que sabe qué había en cada
-cuarto.
+**Y es el orden correcto.** La propuesta de arrancar por Gemini venía de una
+costumbre buena —probar primero lo que puede tumbar el diseño— aplicada mal:
+armar la lista **no cuesta nada**, no comprime, no baja, no sube. Poner una
+prueba técnica antes de un paso gratis solo retrasa el paso gratis.
+
+1. **La lista.** El programa lee Drive y saca los 35 con su enlace.
+2. **Bruno poda** (§4.b.1). Aquí se cae a los de verdad, que pueden ser
+   bastantes menos de 35.
+3. **Buscar en el disco** los que quedaron, y reportar los que no aparecen.
+4. **Probar Gemini con tres**, ya sabiendo cuáles son los buenos.
+5. **El resto**: comprimir los demás, analizarlos, sacar el patrón.
+
+### 9.1 El riesgo sigue siendo Gemini, y por eso va en el paso 4
+
+**Que reconozca los cuartos de verdad.** Todo descansa en que una ficha por
+video sea confiable; si confunde una recámara con una sala, el patrón sale mal
+y **no hay forma de notarlo mirando el resultado** — un orden equivocado se lee
+igual de bien que uno correcto.
+
+Se prueban tres videos y **Bruno mira las tres fichas** contra los videos que
+él editó. Él es la única verificación posible: es el único que sabe qué había
+en cada cuarto.
+
+Va en el paso 4 y no en el 5 por una razón que sí se sostiene: **antes de las
+tres horas de compresión de los 35**. Tres videos se comprimen en minutos.
 
 **Si falla**, lo que cambia es de dónde salen los cuartos, no el resto del
-diseño: habría que sacarlos de otro lado (los nombres de los bins de los
-proyectos de Premiere de cada entrega, si es que existen) en vez del video.
-Eso se le avisa antes de gastar las tres horas de compresión.
+diseño: habría que sacarlos de otro lado —los nombres de los bins de los
+proyectos de Premiere de cada entrega, si es que existen— en vez del video.
 
 ## 10. Cómo se comprueba
 
@@ -357,7 +376,8 @@ Eso se le avisa antes de gastar las tres horas de compresión.
   ejemplo, incluido el caso de un tipo de propiedad con un solo video —que
   **no** debe producir una excepción en el documento.
 
-**Contra Gemini de verdad:** el spike del §9, antes que nada.
+**Contra Gemini de verdad:** la prueba de los tres videos del §9.1, en su
+lugar del orden — después de la lista y de la poda, antes de comprimir los 35.
 
 **Verificación visual real**, según `CLAUDE.md`: captura de la pestaña con la
 pregunta de «para quién» ya quitada y la de «qué lucir» al frente, y captura
