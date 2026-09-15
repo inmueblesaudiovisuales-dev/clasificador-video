@@ -309,6 +309,22 @@ comentarios del código, que es donde sirve. En el chat, no.
   acuerdas no es una comprobación. Allá se queda únicamente lo que de verdad
   necesita a Premiere: la red, los bins y el disco de UXP.
 
+- **La guía de edición se arma en Clipify, no en Premiere.** Los cuartos
+  nacen ahí, así que preguntar del otro lado obligaba a leer el reflejo en
+  vez del original. La guía viaja congelada en el manifest y el panel solo
+  la lee: sin llave, sin red, sin esperas. **Las carpetas de cuartos llegan
+  numeradas** y al importar se reconoce el cuarto **sin su número** — sin
+  eso, una segunda pasada con otro orden parte un cuarto en dos carpetas sin
+  avisar. El número es presentación y lo pone el plugin: no viaja en
+  `categoria_path`, mismo corte que `camara`→color. Ver
+  `specs/2026-09-14-guia-de-edicion-en-clipify-design.md`.
+
+- **El patrón de recorrido vive en `docs/patron-de-recorrido/MI-PATRON.md` y
+  ése es su único dueño.** Entra al prompt de la guía como punto de partida,
+  no como regla. Se escribe **sin cuentas y sin justificarse**: las cuentas
+  se hacen para decidir qué entra y se quedan fuera del documento — Bruno ya
+  sabe cómo edita, el documento no tiene que convencerlo.
+
 - **El enfoque `xmeml` (Final Cut Pro 7 XML) está descartado**, no solo
   "obsoleto" — Premiere nunca abre el archivo de video real al importar un
   xmeml, y ese formato no puede declarar rotación. La vía real de entrega es

@@ -250,38 +250,50 @@ encabezado → **Cámara**.
 Con esto, ponerle su LUT a todo el material de una cámara es seleccionar
 todos los de un color y arrastrarles el preset.
 
-### 6. El orden sugerido de los cuartos
+### 6. La guía de edición
 
-En el mismo panel de Premiere, la pestaña **Orden sugerido** te propone el
-recorrido del video: en qué orden conviene que vayan los cuartos, cada uno con
-una línea corta de por qué va ahí.
+Cuando ya terminaste de clasificar, el botón **Guía de edición** —junto al de
+exportar— te arma el recorrido del video: un párrafo de cómo recorrerla y la
+lista de tus cuartos en el orden que conviene, cada uno con una línea corta de
+por qué va ahí.
 
-Lee solos los cuartos de `02. Clip` —los que ya clasificaste— y arranca
-preguntándote tres cosas: qué tipo de propiedad es, para quién es el video y
-qué hay que lucir. Las contestas de un toque con los botones, las escribes, o
-te las saltas y le das directo a **Dame la lista**.
+Te pregunta dos cosas. La de arriba es la que importa: **qué quieres lucir**,
+y ahí escribes lo que se te ocurra —«la alberca y la terraza», «la cocina
+quedó chica, no la luzcas»—. Abajo, de un toque, **qué tipo de propiedad es**.
+Las dos te las puedes saltar.
 
-Cuando ves la lista puedes seguirle hablando —«la alberca al final», «este es
-para redes»— y se rehace. El botón **Copiar** te la deja en el portapapeles.
+Cuando ves la guía, **Usar este orden** acomoda tus cuartos en ese orden —en
+el rail, en la hoja y en Premiere, que es uno solo— y la guarda. Si no te
+convence, cambias lo que quieres lucir y la vuelves a pedir.
 
-Tres cosas que vale la pena que sepas:
+De ahí en adelante **la guía viaja sola**: sale en el archivo que exportas y
+la ves en Premiere, en la pestaña **Guía de edición** del panel. Y tus
+carpetas de cuartos llegan numeradas en ese orden: `01. Fachada`,
+`02. Cocina`. Si importas más clips del mismo rodaje y el orden cambió, se le
+cambia el número a la carpeta que ya tienes — no se crea una segunda.
 
-- **Es una guía para leer. No mueve nada.** No acomoda tus clips, no crea
-  carpetas, no toca el timeline. Solo lee los nombres de tus cuartos.
-- **Si le falta un cuarto o se inventa uno, la pestaña te lo dice** arriba de
-  la lista, y lo inventado sale tachado. Una guía a la que le falta la cocina
-  hace que se te olvide la cocina al editar, y eso no se nota hasta después de
-  entregar.
+Cuatro cosas que vale la pena que sepas:
+
+- **Es una guía para leer. No mueve tus clips.** Lo único que acomoda son tus
+  cuartos, y solo si le das a «Usar este orden».
+- **Si le falta un cuarto o se inventa uno, te lo dice** arriba de la lista.
+  Una guía a la que le falta la cocina hace que se te olvide la cocina al
+  editar, y eso no se nota hasta después de entregar.
 - **No vio tu material**, así que no sabe qué hay adentro de tus cuartos —solo
   por qué uno va antes que otro en un recorrido—. Si algún día te describe una
   cocina que nunca vio, eso es un error y vale la pena decirlo.
+- **Si armaste la guía y después agregaste un cuarto**, al exportar te avisa
+  —«tu guía es de antes de agregar la Terraza»— y tú decides si la exportas
+  así o la vuelves a armar.
 
-La primera vez te pide una llave de DeepSeek: la pegas una vez y se queda
-guardada. De tu computadora solo salen los nombres de tus cuartos y lo que tú
-escribas — nada de video, archivos ni rutas.
+La primera vez hace falta una llave de DeepSeek: se pega una vez y se queda
+guardada en tu computadora, en `~/.clasificador_video/`. No va en el proyecto
+de Premiere ni viaja con el material. De tu computadora solo salen los nombres
+de tus cuartos y lo que tú escribas — nada de video, archivos ni rutas.
 
-Si abres la pestaña en un proyecto que no salió de Clipify, te lo dice y te
-deja escribir los cuartos a mano.
+Si se cae el internet o falla, te lo dice y **no te bloquea nada**: exportar
+sigue funcionando, nada más sin guía. Y si abres la pestaña en Premiere con un
+proyecto que no trae una, te lo dice con esas palabras.
 
 ---
 

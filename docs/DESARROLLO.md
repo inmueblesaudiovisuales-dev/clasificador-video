@@ -47,11 +47,14 @@ El plugin tiene las suyas, y son un comando aparte porque no son Python:
 node uxp-plugin/pruebas/correr.js
 ```
 
-Corren **sin abrir Premiere**: son la lógica pura del orden sugerido —armar
-la pregunta, leer la respuesta del modelo, revisarla contra los cuartos
-reales—, que no le pregunta nada a Premiere ni a la red. Sin dependencias ni
-`npm install`: el corredor lee los archivos del plugin y los evalúa, que es lo
-mismo que hace el navegador con un `<script src>`.
+Corren **sin abrir Premiere**: son la lógica pura del plugin —hoy, el prefijo
+numérico de las carpetas de cuartos (`numeroDeCuarto.js`) y el camino de un
+clip (`estructura.js`)—, que no le pregunta nada a Premiere ni a la red. Sin
+dependencias ni `npm install`: el corredor lee los archivos del plugin y los
+evalúa, que es lo mismo que hace el navegador con un `<script src>`.
+
+Aquí vivían también los casos del orden sugerido. Se mudaron a
+`tests/test_guia.py` el 2026-09-14, cuando la guía se mudó a Clipify.
 
 Lo que sí necesita Premiere —los bins, la red, el disco de UXP— vive en el
 arnés de `uxp-plugin/js/autocheck-tests.js`, que corre **dentro** de Premiere
@@ -115,9 +118,31 @@ empaque/                    receta de PyInstaller y armado del .dmg
 scripts/                    utilidades sueltas
 sample-media/               clips reales para pruebas a mano (no versionado)
 docs/                       esto
+  patron-de-recorrido/      cómo edita Bruno, en prosa, y sus datos
   superpowers/              specs, planes, mockups e historia del proyecto
     archive/                lo que ya se cerró
 ```
+
+### Los archivos de la guía de edición
+
+La guía se arma en Clipify y viaja congelada en el manifest; el panel de
+Premiere solo la lee. De este lado se reparte así, y el corte es a propósito
+—lo que piensa se prueba sin red y sin abrir la app—:
+
+| Archivo | De qué se encarga |
+|---|---|
+| `patron.py` | Leer `docs/patron-de-recorrido/MI-PATRON.md` y entregarlo como texto. |
+| `guia.py` | Lo que PIENSA: arma el prompt, lee la respuesta, revisa la lista. Sin Qt, sin red, sin disco. |
+| `llave.py` | Guardar y leer la llave en `~/.clasificador_video/llave.json`. |
+| `ia.py` | La llamada HTTP, y nada más. Cambiar de proveedor es este archivo. |
+| `ui/pantalla_guia.py` | La pantalla: dos preguntas, el resultado, «Usar este orden». |
+
+**`MI-PATRON.md` es el único dueño de ese texto.** Es el archivo que Bruno
+edita a mano cuando algo no le cuadra, y de ahí sale lo que viaja en el
+prompt. No hay copia en ningún otro lado: dos copias del mismo dato que se
+editan por separado se desincronizan en el primer cambio de opinión. Y se
+escribe **sin cuentas y sin justificarse** — las cuentas se hacen para decidir
+qué entra y se quedan fuera.
 
 Dos reglas de nombres que valen la pena:
 
