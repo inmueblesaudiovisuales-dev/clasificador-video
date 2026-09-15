@@ -39,6 +39,16 @@ class Respuesta:
     error: str = ""
 
 
+@dataclass
+class Revision:
+    faltan: list[str] = field(default_factory=list)
+    inventados: list[str] = field(default_factory=list)
+    repetidos: list[str] = field(default_factory=list)
+
+    def limpia(self) -> bool:
+        return not (self.faltan or self.inventados or self.repetidos)
+
+
 def prompt_de_sistema(cuartos: list[str], patron: str) -> str:
     """Lo que se le dice al modelo.
 
@@ -215,3 +225,49 @@ def _recortar_json(texto: str) -> str:
             if nivel == 0:
                 return texto[inicio:i + 1]
     return ""
+
+
+def revisar_lista(lista: list[Renglon], cuartos_reales: list[str]) -> Revision:
+    """La lista tiene que traer TODOS los cuartos y ninguno inventado.
+
+    Si el modelo se salta uno o se saca uno de la manga, la pantalla lo
+    MARCA en vez de enseñar la lista como si nada. Por qué tan en serio: una
+    guía a la que le falta la cocina hace que se te olvide la cocina al
+    editar, y eso no se nota hasta después de entregar. Misma familia que
+    los ocho bugs del 2026-08-22.
+
+    SE COMPARA POR IGUALDAD EXACTA. Nada de `strip`, `lower` ni quitar
+    acentos: «Recamara 1» y «Recámara 1» son un cuarto que falta y otro
+    inventado, no un empate.
+    """
+    propuestos = [r.cuarto for r in (lista or [])]
+    reales = list(cuartos_reales or [])
+
+    faltan = [c for c in reales if c not in propuestos]
+    inventados = [
+        c for i, c in enumerate(propuestos)
+        if c not in reales and propuestos.index(c) == i
+    ]
+    repetidos = [
+        c for i, c in enumerate(propuestos)
+        if propuestos.index(c) == i and propuestos.count(c) > 1
+    ]
+    return Revision(faltan=faltan, inventados=inventados, repetidos=repetidos)
+
+
+def avisos_de_la_revision(revision: Revision) -> list[str]:
+    """Lo que hay que decirle a Bruno antes de que lea la lista, en sus
+    palabras. Vacío cuando no hay nada que decir."""
+    avisos = []
+    if revision.faltan:
+        avisos.append(
+            "Le falta un cuarto: " + revision.faltan[0] + "."
+            if len(revision.faltan) == 1
+            else "Le faltan " + str(len(revision.faltan)) + " cuartos: "
+            + ", ".join(revision.faltan) + "."
+        )
+    if revision.inventados:
+        avisos.append("Esto no es tuyo, se lo inventó: " + ", ".join(revision.inventados) + ".")
+    if revision.repetidos:
+        avisos.append("Repitió: " + ", ".join(revision.repetidos) + ".")
+    return avisos

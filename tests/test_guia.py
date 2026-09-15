@@ -115,3 +115,52 @@ def test_no_contestar_nada_es_un_error_con_nombre():
     r = guia.leer_respuesta("")
     assert not r.ok
     assert r.error
+
+
+def _renglones(*nombres):
+    return [guia.Renglon(cuarto=n) for n in nombres]
+
+
+def test_una_lista_que_cuadra_no_marca_nada():
+    r = guia.revisar_lista(_renglones("Fachada", "Sala"), ["Sala", "Fachada"])
+    assert not r.faltan and not r.inventados and not r.repetidos
+
+
+def test_un_cuarto_que_el_modelo_se_salto_sale_como_faltante():
+    # El caso que le da razon de ser a todo esto.
+    r = guia.revisar_lista(_renglones("Fachada"), ["Fachada", "Cocina"])
+    assert r.faltan == ["Cocina"]
+    assert not r.inventados
+
+
+def test_un_cuarto_inventado_sale_marcado():
+    r = guia.revisar_lista(_renglones("Fachada", "Bodega"), ["Fachada"])
+    assert r.inventados == ["Bodega"]
+
+
+def test_el_acento_no_se_perdona():
+    # Un `.strip().lower()` de mas esconderia justo esto.
+    r = guia.revisar_lista(_renglones("Recamara 1"), ["Recámara 1"])
+    assert r.faltan == ["Recámara 1"]
+    assert r.inventados == ["Recamara 1"]
+
+
+def test_un_cuarto_repetido_se_marca_aparte():
+    # No es invento ni falta, pero en un recorrido significa pasar dos veces
+    # por el mismo lugar.
+    r = guia.revisar_lista(_renglones("Sala", "Cocina", "Sala"), ["Sala", "Cocina"])
+    assert r.repetidos == ["Sala"]
+    assert not r.faltan and not r.inventados
+
+
+def test_los_avisos_estan_en_palabras_de_bruno():
+    r = guia.revisar_lista(_renglones("Fachada", "Bodega"), ["Fachada", "Cocina"])
+    avisos = guia.avisos_de_la_revision(r)
+    assert any("Cocina" in a for a in avisos)
+    assert any("Bodega" in a for a in avisos)
+    assert not any("null" in a or "None" in a for a in avisos)
+
+
+def test_sin_nada_que_decir_no_hay_avisos():
+    r = guia.revisar_lista(_renglones("Sala"), ["Sala"])
+    assert guia.avisos_de_la_revision(r) == []
