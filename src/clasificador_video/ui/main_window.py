@@ -21,14 +21,15 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from clasificador_video import proxy_gen, proyecto, revinculo
+from clasificador_video import guia as logica_guia
+from clasificador_video import ia, llave, patron, proxy_gen, proyecto, revinculo
 from clasificador_video.bins import BinTree, raiz_comun_de
 from clasificador_video.camaras import SONY
 from clasificador_video.filters import FilterState, cola, contar
 from clasificador_video.history import History, HistoryEntry
 from clasificador_video.ingest import archivos_de_video
 from clasificador_video.keyboard import KeyboardRouter
-from clasificador_video.manifest import Clip, Manifest
+from clasificador_video.manifest import Clip, Guia, Manifest, RenglonDeGuia
 from clasificador_video.player import SPEED_PROFILES
 from clasificador_video.probe import (
     orientacion_de,
@@ -61,6 +62,7 @@ from clasificador_video.ui.aviso_de_media import (
     Renglon,
 )
 from clasificador_video.ui.clip_sheet import SIN_BIN, ClipSheet, ClipThumbnail
+from clasificador_video.ui.pantalla_guia import PantallaGuia
 from clasificador_video.ui.room_palette import RoomPalette
 from clasificador_video.ui.room_rail import RoomRail
 from clasificador_video.ui.status_bar import StatusBar
@@ -716,11 +718,18 @@ class MainWindow(QWidget):
         self._modo_horizontal = False
         # guarda de reentrada de `_refresh_sheet` (ver ahi el porque)
         self._refrescando_hoja = False
+        # La guia armada, si es que se armo. `None` es lo normal.
+        self.guia_actual = None
+        self._pantalla_guia = None
+        # Los cuartos que habia cuando se acepto la guia. Con esto se
+        # sabe si quedo vieja (§11 del spec).
+        self._cuartos_de_la_guia: list[str] = []
 
         # ---------------- las tres filas ----------------
         self.title_bar = TitleBar()
         self.title_bar.set_project(project_name, 0)
         self.title_bar.export_requested.connect(self._on_export_manifest)
+        self.title_bar.guia_requested.connect(self._abrir_pantalla_de_guia)
         self.title_bar.mode_toggled.connect(self.alternar_modo_hoja)
         self.title_bar.modo_horizontal_cambiado.connect(
             self._on_modo_horizontal_cambiado)
@@ -4456,6 +4465,73 @@ class MainWindow(QWidget):
         self._resize_video_stage()
         self._autosave()
 
+    # ------------------------------------------------------------------
+    # la guia de edicion
+    # ------------------------------------------------------------------
+
+    def _abrir_pantalla_de_guia(self) -> None:
+        """La pantalla de la guia, encima de la ventana.
+
+        No es un QDialog modal, mismo criterio que la paleta de cuartos: un
+        modal roba el teclado y hay que cerrarlo para seguir. Es hija de la
+        ventana y se muestra encima.
+        """
+        if self._pantalla_guia is None:
+            self._pantalla_guia = PantallaGuia(self)
+            self._pantalla_guia.guia_pedida.connect(self.pedir_guia)
+            self._pantalla_guia.orden_aceptado.connect(self.aceptar_orden_de_la_guia)
+        self._pantalla_guia.setGeometry(self.rect().adjusted(80, 60, -80, -60))
+        self._pantalla_guia.show()
+        self._pantalla_guia.raise_()
+
+    def pedir_guia(self, respuestas: dict) -> None:
+        """Le pide la guia al modelo y la ensena.
+
+        **Nunca revienta hacia afuera**: un fallo de red se dice y ya. La
+        app sigue exportando sin guia, que es un manifest perfectamente
+        valido.
+        """
+        cuartos = self.room_selection.active_rooms()
+        cuerpo = logica_guia.cuerpo_del_request(cuartos, respuestas, patron.leer())
+        try:
+            crudo = ia.preguntar(llave.leer(), cuerpo)
+        except ia.ErrorDeIA as e:
+            self._mostrar_guia(logica_guia.Respuesta(ok=False, error=str(e)))
+            return
+        self._mostrar_guia(logica_guia.leer_respuesta(crudo))
+
+    def _mostrar_guia(self, respuesta) -> None:
+        revision = logica_guia.revisar_lista(
+            respuesta.lista, self.room_selection.active_rooms())
+        self.guia_actual = respuesta if respuesta.ok else None
+        if self._pantalla_guia is not None:
+            self._pantalla_guia.mostrar_respuesta(respuesta, revision)
+
+    def aceptar_orden_de_la_guia(self, orden: list) -> None:
+        """Ese orden pasa a ser EL orden: rail, hoja y Premiere."""
+        self.room_selection.reordenar(list(orden))
+        self._cuartos_de_la_guia = self.room_selection.active_rooms()
+        self._sync_rooms()
+
+    def _guia_para_el_manifest(self):
+        """La guia en la forma que viaja, o `None`.
+
+        Los avisos de la revision NO viajan: Bruno ya los vio en la pantalla
+        y decidio exportar de todos modos. Lo que si viaja es
+        `fuera_del_patron`, que es informacion que solo tenia la IA.
+        """
+        if self.guia_actual is None or not self.guia_actual.ok:
+            return None
+        return Guia(
+            recorrido=self.guia_actual.recorrido,
+            orden=[
+                RenglonDeGuia(
+                    cuarto=r.cuarto, porque=r.porque, fuera_del_patron=r.fuera_del_patron
+                )
+                for r in self.guia_actual.lista
+            ],
+        )
+
     def _on_export_manifest(self) -> None:
         unclassified = [c for c in self.clips if not c.categoria_path]
         if unclassified:
@@ -4491,6 +4567,7 @@ class MainWindow(QWidget):
             clips=[_con_el_rango_en_orden(
                 replace(c, camara=camaras.get(i, SONY)))
                 for i, c in enumerate(self.clips)],
+            guia=self._guia_para_el_manifest(),
         )
         manifest.write_json(destino)
 
