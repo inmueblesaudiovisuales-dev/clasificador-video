@@ -899,3 +899,27 @@ def test_la_receta_del_instalable_lee_esa_misma_version():
               / "empaque" / "clipify.spec").read_text()
 
     assert "__version__" in receta
+
+
+def test_la_guia_del_proyecto_vuelve_al_abrirlo(tmp_path, monkeypatch):
+    """El §9 del spec: cerrar Clipify y volver no pierde la guía."""
+    from clasificador_video import app as mod
+    from clasificador_video import proyecto
+    from clasificador_video.bins import BinTree
+
+    data = proyecto.a_dict(
+        proyecto="Casa Lomas", rooms=["Sala"], clips=[], bins=BinTree(),
+        tamanos={}, duraciones={}, rotaciones={},
+        guia={
+            "recorrido": "Abres por fuera.",
+            "orden": [{"cuarto": "Sala", "porque": "x", "fuera_del_patron": False}],
+            "cuartos_de_entonces": ["Sala"],
+        },
+    )
+    destino = tmp_path / "Casa Lomas.cvproj"
+    proyecto.guardar(destino, data)
+
+    ventana = mod.abrir_proyecto(destino, video_factory=_FakeMpv,
+                                 recientes_path=tmp_path / "recientes.json")
+    assert ventana is not None
+    assert ventana.guia_actual.recorrido == "Abres por fuera."

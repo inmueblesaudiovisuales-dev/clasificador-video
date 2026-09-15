@@ -1,6 +1,7 @@
 # src/clasificador_video/ui/main_window.py
 from __future__ import annotations
 
+import json
 import shutil
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -2086,6 +2087,7 @@ class MainWindow(QWidget):
             agrupar_por_cuarto=self._agrupar_por_cuarto,
             modo_horizontal=self._modo_horizontal,
             carpeta_de_proxies=self._carpeta_de_proxies,
+            guia=self._guia_para_la_sesion(),
         )
         return data
 
@@ -4512,6 +4514,42 @@ class MainWindow(QWidget):
         self.room_selection.reordenar(list(orden))
         self._cuartos_de_la_guia = self.room_selection.active_rooms()
         self._sync_rooms()
+
+    def _guia_para_la_sesion(self):
+        """La guia como se guarda en el `.cvproj`, o `None`.
+
+        Lleva ADEMAS `cuartos_de_entonces`, que el manifest no manda: es lo
+        unico con lo que se puede saber, al reabrir, que la guia quedo vieja
+        porque Bruno agrego un cuarto despues. Sin ese dato habria que
+        adivinarlo, y adivinar en silencio es justo lo que esta app no hace.
+        """
+        guia = self._guia_para_el_manifest()
+        if guia is None:
+            return None
+        datos = guia.to_dict()
+        datos["cuartos_de_entonces"] = list(self._cuartos_de_la_guia)
+        return datos
+
+    def restaurar_guia(self, datos) -> None:
+        """La guia que traia el proyecto al abrirlo. `None` es lo normal.
+
+        Un documento roto se trata como si no hubiera guia, mismo criterio
+        que el resto de la sesion: quedarse sin guia es una molestia y
+        reventar al abrir es un proyecto que no se puede abrir.
+        """
+        self.guia_actual = None
+        self._cuartos_de_la_guia = []
+        if not isinstance(datos, dict):
+            return
+        respuesta = logica_guia.leer_respuesta(json.dumps(datos))
+        if not respuesta.ok:
+            return
+        self.guia_actual = respuesta
+        entonces = datos.get("cuartos_de_entonces")
+        self._cuartos_de_la_guia = (
+            [str(c) for c in entonces] if isinstance(entonces, list)
+            else [r.cuarto for r in respuesta.lista]
+        )
 
     def guia_quedo_vieja(self) -> bool:
         """¿La guia guardada habla de otros cuartos que los que hay?

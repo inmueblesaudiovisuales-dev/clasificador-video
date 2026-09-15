@@ -130,3 +130,43 @@ def test_reordenar_a_mano_no_deja_vieja_la_guia(ventana):
     _con_guia(ventana, ["Sala", "Cocina"])
     ventana.room_selection.move("Cocina", -1)
     assert not ventana.guia_quedo_vieja()
+
+
+def test_la_guia_se_guarda_en_el_documento_del_proyecto(ventana):
+    # El §9 del spec: cerrar Clipify y volver no la pierde.
+    ventana.room_selection.add("Sala")
+    _con_guia(ventana, ["Sala"])
+
+    guardado = ventana._datos_del_proyecto()["guia"]
+    assert guardado["recorrido"] == "x"
+    assert guardado["orden"][0]["cuarto"] == "Sala"
+    # Y los cuartos que habia entonces, que es lo unico con que se sabe que
+    # la guia quedo vieja.
+    assert guardado["cuartos_de_entonces"] == ["Sala"]
+
+
+def test_sin_guia_el_documento_la_trae_en_nulo(ventana):
+    assert ventana._datos_del_proyecto()["guia"] is None
+
+
+def test_la_guia_vuelve_al_abrir_el_proyecto(ventana):
+    ventana.restaurar_guia({
+        "recorrido": "Abres por fuera.",
+        "orden": [{"cuarto": "Sala", "porque": "se entra aquí",
+                   "fuera_del_patron": False}],
+        "cuartos_de_entonces": ["Sala"],
+    })
+    ventana.room_selection.add("Sala")
+
+    assert ventana.guia_actual.recorrido == "Abres por fuera."
+    assert not ventana.guia_quedo_vieja()
+    # Y sigue avisando si despues se agrega un cuarto, que es para lo que
+    # `cuartos_de_entonces` viaja.
+    ventana.room_selection.add("Terraza")
+    assert "Terraza" in ventana.aviso_de_guia_vieja()
+
+
+def test_un_proyecto_viejo_sin_guia_abre_igual(ventana):
+    ventana.restaurar_guia(None)
+    assert ventana.guia_actual is None
+    assert not ventana.guia_quedo_vieja()

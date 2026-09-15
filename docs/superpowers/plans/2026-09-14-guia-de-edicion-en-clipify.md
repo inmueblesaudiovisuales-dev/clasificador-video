@@ -1444,6 +1444,19 @@ git add src/clasificador_video/proyecto.py tests/test_proyecto.py
 git commit -m "Guardar la guía con el proyecto, junto a los cuartos que había"
 ```
 
+> **Al ejecutarla (2026-09-14) faltaba la otra mitad.** La tarea pone el
+> parámetro en `a_dict`, pero **nadie se lo pasaba y nadie lo leía**:
+> `_datos_del_proyecto` no mandaba la guía y `app.py` no la restauraba al
+> abrir. Con solo esta tarea, el §9 del spec —«la guía se guarda en la
+> sesión, así que cerrar Clipify y volver no la pierde»— no se cumplía: se
+> perdía al cerrar.
+>
+> Lo que faltaba se hizo en el mismo commit que la Tarea 21:
+> `_guia_para_la_sesion()` (que agrega `cuartos_de_entonces`, el dato que el
+> manifest **no** manda), `restaurar_guia()` y su llamada en `app.py`.
+> Un documento roto se trata como si no hubiera guía: quedarse sin guía es
+> una molestia, reventar al abrir es un proyecto que no se puede abrir.
+
 ---
 
 ### Tarea 10: Reordenar los cuartos
