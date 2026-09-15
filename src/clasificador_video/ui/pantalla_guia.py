@@ -120,10 +120,19 @@ class PantallaGuia(QWidget):
 
     # --- lo que llegó -------------------------------------------------
 
+    def armando(self) -> None:
+        """Mientras el modelo piensa. Una espera sin aviso se lee como una
+        app trabada, y ésta puede durar veinte segundos."""
+        self.armar_button.setEnabled(False)
+        self.usar_button.setEnabled(False)
+        self.avisos_label.setText("Armando la guía…")
+        self.resultado.setPlainText("")
+
     def mostrar_respuesta(self, respuesta: logica.Respuesta,
                           revision: logica.Revision) -> None:
         """Enseña la guía, o el error. **Nunca media lista.**"""
         self._respuesta = respuesta if respuesta.ok else None
+        self.armar_button.setEnabled(True)
 
         if not respuesta.ok:
             self.avisos_label.setText(respuesta.error)

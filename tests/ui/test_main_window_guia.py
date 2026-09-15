@@ -14,6 +14,16 @@ from clasificador_video.ui.main_window import MainWindow
 from test_main_window_bins import FakeMpv, _probe_falso
 
 
+def _pedir_y_esperar(qtbot, ventana, respuestas):
+    """Pide la guía y espera a que conteste el hilo.
+
+    La llamada corre FUERA del hilo de la interfaz desde el 2026-09-15, así
+    que la respuesta ya no llega dentro de `pedir_guia`: llega por señal.
+    """
+    with qtbot.waitSignal(ventana._señales_de_trabajos.guia_lista, timeout=3000):
+        ventana.pedir_guia(respuestas)
+
+
 def _clip(i, ruta):
     return Clip(orden=i + 1, ruta=Path(ruta), categoria_path=[], fps=30.0)
 
@@ -28,7 +38,7 @@ def ventana(qtbot):
     return window
 
 
-def test_pedir_la_guia_manda_los_cuartos_de_la_sesion(ventana, monkeypatch):
+def test_pedir_la_guia_manda_los_cuartos_de_la_sesion(qtbot, ventana, monkeypatch):
     visto = {}
 
     def falso_preguntar(llave, cuerpo, url=None):
@@ -39,7 +49,7 @@ def test_pedir_la_guia_manda_los_cuartos_de_la_sesion(ventana, monkeypatch):
     monkeypatch.setattr("clasificador_video.ui.main_window.llave.leer", lambda: "sk-1234abcd")
 
     ventana.room_selection.add("Sala")
-    ventana.pedir_guia({"lucir": "la alberca", "propiedad": "Casa"})
+    _pedir_y_esperar(qtbot, ventana, {"lucir": "la alberca", "propiedad": "Casa"})
 
     sistema = visto["cuerpo"]["messages"][0]["content"]
     assert "- Sala" in sistema
@@ -73,7 +83,7 @@ def test_sin_guia_el_manifest_sale_igual_que_siempre(ventana, tmp_path):
     assert json.loads(destino.read_text())["guia"] is None
 
 
-def test_un_fallo_de_red_no_impide_exportar(ventana, tmp_path, monkeypatch):
+def test_un_fallo_de_red_no_impide_exportar(qtbot, ventana, tmp_path, monkeypatch):
     from clasificador_video.ia import ErrorDeIA
 
     def cae(llave, cuerpo, url=None):
@@ -83,7 +93,7 @@ def test_un_fallo_de_red_no_impide_exportar(ventana, tmp_path, monkeypatch):
     monkeypatch.setattr("clasificador_video.ui.main_window.llave.leer", lambda: "sk-1234abcd")
 
     ventana.room_selection.add("Sala")
-    ventana.pedir_guia({"lucir": "", "propiedad": "Casa"})  # no revienta
+    _pedir_y_esperar(qtbot, ventana, {"lucir": "", "propiedad": "Casa"})  # no revienta
 
     destino = tmp_path / "m.json"
     ventana.escribir_manifest(destino)
@@ -193,12 +203,12 @@ def test_quitar_la_llave_desde_configuracion(ventana, tmp_path, monkeypatch):
     assert mod.leer(destino) == ""
 
 
-def test_sin_llave_la_guia_manda_a_configuracion(ventana, monkeypatch):
+def test_sin_llave_la_guia_manda_a_configuracion(qtbot, ventana, monkeypatch):
     # El mensaje tiene que decir QUE HACER, no solo que falta algo.
     monkeypatch.setattr("clasificador_video.ui.main_window.llave.leer", lambda: "")
     ventana.room_selection.add("Sala")
     ventana._abrir_pantalla_de_guia()
-    ventana.pedir_guia({"lucir": "", "propiedad": "Casa"})
+    _pedir_y_esperar(qtbot, ventana, {"lucir": "", "propiedad": "Casa"})
 
     aviso = ventana._pantalla_guia.avisos_label.text()
     assert "onfiguración" in aviso
@@ -257,7 +267,7 @@ def test_un_cuarto_inventado_no_viaja_al_manifest(ventana):
 # Bug del 2026-09-15: solo funcionaba si le dabas a «Usar este orden». Si te
 # gustaba el orden como estaba y no le picabas, el aviso no salía nunca.
 
-def test_avisa_aunque_no_se_haya_apretado_usar_este_orden(ventana, monkeypatch):
+def test_avisa_aunque_no_se_haya_apretado_usar_este_orden(qtbot, ventana, monkeypatch):
     monkeypatch.setattr(
         "clasificador_video.ui.main_window.ia.preguntar",
         lambda llave, cuerpo, url=None: '{"recorrido": "x", "orden": [{"cuarto": "Sala"}]}',
@@ -265,7 +275,7 @@ def test_avisa_aunque_no_se_haya_apretado_usar_este_orden(ventana, monkeypatch):
     monkeypatch.setattr("clasificador_video.ui.main_window.llave.leer", lambda: "sk-1234abcd")
 
     ventana.room_selection.add("Sala")
-    ventana.pedir_guia({"lucir": "", "propiedad": "Casa"})  # NO se acepta el orden
+    _pedir_y_esperar(qtbot, ventana, {"lucir": "", "propiedad": "Casa"})  # NO se acepta
     assert not ventana.guia_quedo_vieja()
 
     ventana.room_selection.add("Terraza")
@@ -273,7 +283,7 @@ def test_avisa_aunque_no_se_haya_apretado_usar_este_orden(ventana, monkeypatch):
     assert "Terraza" in ventana.aviso_de_guia_vieja()
 
 
-def test_la_guia_se_guarda_sin_esperar_a_que_la_aceptes(ventana, monkeypatch):
+def test_la_guia_se_guarda_sin_esperar_a_que_la_aceptes(qtbot, ventana, monkeypatch):
     # Armarla y cerrar Clipify no la puede perder: pedirla cuesta una
     # llamada, y volver y no encontrarla es pagarla dos veces.
     monkeypatch.setattr(
@@ -283,8 +293,57 @@ def test_la_guia_se_guarda_sin_esperar_a_que_la_aceptes(ventana, monkeypatch):
     monkeypatch.setattr("clasificador_video.ui.main_window.llave.leer", lambda: "sk-1234abcd")
 
     ventana.room_selection.add("Sala")
-    ventana.pedir_guia({"lucir": "", "propiedad": "Casa"})
+    _pedir_y_esperar(qtbot, ventana, {"lucir": "", "propiedad": "Casa"})
 
     guardado = ventana._datos_del_proyecto()["guia"]
     assert guardado["recorrido"] == "Abres por fuera."
     assert guardado["cuartos_de_entonces"] == ["Sala"]
+
+
+# --- La llamada NO puede congelar la ventana -------------------------
+# Bug del 2026-09-15: `ia.preguntar` corría en el hilo de la interfaz, con
+# 60 segundos de espera. Desde que le dabas a «Armar la guía» hasta que
+# contestaba, Clipify se quedaba tieso; y sin internet, hasta un minuto.
+
+def test_pedir_la_guia_devuelve_de_inmediato(qtbot, ventana, monkeypatch):
+    import threading
+    import time
+
+    hilos = {}
+    suelta = threading.Event()
+
+    def lenta(llave, cuerpo, url=None):
+        hilos["trabajo"] = threading.current_thread().name
+        suelta.wait(3)
+        return '{"recorrido": "x", "orden": [{"cuarto": "Sala"}]}'
+
+    monkeypatch.setattr("clasificador_video.ui.main_window.ia.preguntar", lenta)
+    monkeypatch.setattr("clasificador_video.ui.main_window.llave.leer", lambda: "sk-1234abcd")
+    ventana.room_selection.add("Sala")
+
+    arranque = time.monotonic()
+    ventana.pedir_guia({"lucir": "", "propiedad": "Casa"})
+    # La ventana sigue suya: `pedir_guia` no espera a nadie.
+    assert time.monotonic() - arranque < 0.5
+
+    suelta.set()
+    qtbot.waitSignal(ventana._señales_de_trabajos.guia_lista, timeout=3000).wait()
+    assert hilos["trabajo"] != threading.current_thread().name
+
+
+def test_mientras_arma_la_pantalla_lo_dice(qtbot, ventana, monkeypatch):
+    # Una espera sin aviso se lee como una app trabada.
+    monkeypatch.setattr(
+        "clasificador_video.ui.main_window.ia.preguntar",
+        lambda llave, cuerpo, url=None: '{"recorrido": "x", "orden": [{"cuarto": "Sala"}]}',
+    )
+    monkeypatch.setattr("clasificador_video.ui.main_window.llave.leer", lambda: "sk-1234abcd")
+    ventana.room_selection.add("Sala")
+    ventana._abrir_pantalla_de_guia()
+
+    with qtbot.waitSignal(ventana._señales_de_trabajos.guia_lista, timeout=3000):
+        ventana.pedir_guia({"lucir": "", "propiedad": "Casa"})
+        assert not ventana._pantalla_guia.armar_button.isEnabled()
+        assert "rmando" in ventana._pantalla_guia.avisos_label.text()
+
+    assert ventana._pantalla_guia.armar_button.isEnabled()

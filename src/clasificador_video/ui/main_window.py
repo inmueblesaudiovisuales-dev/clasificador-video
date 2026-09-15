@@ -221,6 +221,49 @@ class _AutosaveWriteJob(QRunnable):
         self._señales.guardado_listo.emit()
 
 
+class _GuiaJob(QRunnable):
+    """Le pide la guia al modelo FUERA del hilo de la interfaz.
+
+    Antes `pedir_guia` llamaba directo y esperaba ahi mismo: entre que Bruno
+    apretaba «Armar la guia» y que el modelo contestaba --diez o veinte
+    segundos-- Clipify se quedaba tieso, y sin internet se quedaba asi hasta
+    el minuto que dura la espera de `ia.py`. Una app que no responde se lee
+    como una app muerta.
+
+    No crea ningun objeto de Qt: recibe el portador compartido de la
+    ventana, por el segfault que documenta `SeñalesDeTrabajos`.
+
+    **No revienta nunca**: un fallo es una `Respuesta` con su error dicho en
+    palabras, igual que una respuesta fea. Una excepcion que sube desde un
+    hilo del pool no la atrapa nadie.
+    """
+
+    def __init__(self, llave_de_la_api: str, cuerpo: dict,
+                 señales: "SeñalesDeTrabajos"):
+        super().__init__()
+        self._llave = llave_de_la_api
+        self._cuerpo = cuerpo
+        self._señales = señales
+
+    def run(self) -> None:
+        try:
+            crudo = ia.preguntar(self._llave, self._cuerpo)
+        except ia.ErrorDeIA as error:
+            self._señales.guia_lista.emit(
+                logica_guia.Respuesta(ok=False, error=str(error))
+            )
+            return
+        except Exception as error:  # noqa: BLE001 -- ver el docstring
+            self._señales.guia_lista.emit(
+                logica_guia.Respuesta(
+                    ok=False,
+                    error="No se pudo armar la guía: " + str(error),
+                )
+            )
+            return
+        self._señales.guia_lista.emit(logica_guia.leer_respuesta(crudo))
+
+
 # Cuantos `ffprobe` a la vez al importar. Ocho porque es donde la medicion
 # se aplana: con 40 clips reales de la FX30, en serie 1.06 s, con 4 en
 # paralelo 0.26 s y con 8 en paralelo 0.14 s. Son procesos aparte esperando
@@ -264,6 +307,7 @@ class SeñalesDeTrabajos(QObject):
     miniatura_lista = Signal(int, int, object)  # generation, indice, list[Path] | None
     proxy_sondeado = Signal(int, int, object)   # generation, indice, info | None
     guardado_listo = Signal()
+    guia_lista = Signal(object)                 # logica_guia.Respuesta
     guardado_fallo = Signal(str)                # el motivo, tal como lo dio el SO
     pesos_medidos = Signal(int, object)         # generacion de indices, {clip: bytes}
     # los clips cuyo archivo ya no esta, y los proxies perdidos. Se revisa
@@ -553,12 +597,19 @@ class MainWindow(QWidget):
         self._señales_de_trabajos.guardado_listo.connect(self._on_guardado_listo)
         self._señales_de_trabajos.guardado_fallo.connect(self._on_guardado_fallo)
         self._señales_de_trabajos.pesos_medidos.connect(self._on_pesos_medidos)
+        self._señales_de_trabajos.guia_lista.connect(self._mostrar_guia)
         self._señales_de_trabajos.media_revisada.connect(self._on_media_revisada)
         self._señales_de_trabajos.proxy_generado.connect(self._on_proxy_generado)
         # hijo de la ventana A PROPOSITO: su destructor espera a los trabajos
         # en vuelo, y esa espera es lo que impide que una señal llegue
         # cuando la ventana ya no puede atenderla.
         self._thread_pool = QThreadPool(self)
+        # La guia tiene el SUYO, de un hilo: es una espera de red de decenas
+        # de segundos y encolarla detras de las portadas --o encolar las
+        # portadas detras de ella-- deja a una de las dos sin llegar. Hijo
+        # de la ventana, igual que los otros.
+        self._guia_pool = QThreadPool(self)
+        self._guia_pool.setMaxThreadCount(1)
         # La revisión de media tiene el SUYO, y no es un lujo: el otro pool
         # se llena con las portadas --tres hilos, un trabajo por clip-- y el
         # aviso que le dice a Bruno «tu material no está» quedaba encolado
@@ -4523,12 +4574,13 @@ class MainWindow(QWidget):
         """
         cuartos = self.room_selection.active_rooms()
         cuerpo = logica_guia.cuerpo_del_request(cuartos, respuestas, patron.leer())
-        try:
-            crudo = ia.preguntar(llave.leer(), cuerpo)
-        except ia.ErrorDeIA as e:
-            self._mostrar_guia(logica_guia.Respuesta(ok=False, error=str(e)))
-            return
-        self._mostrar_guia(logica_guia.leer_respuesta(crudo))
+        if self._pantalla_guia is not None:
+            self._pantalla_guia.armando()
+        # DEVUELVE DE INMEDIATO. La respuesta llega por `guia_lista`, que
+        # esta conectada a `_mostrar_guia`.
+        self._guia_pool.start(
+            _GuiaJob(llave.leer(), cuerpo, self._señales_de_trabajos)
+        )
 
     def _mostrar_guia(self, respuesta) -> None:
         revision = logica_guia.revisar_lista(
