@@ -148,7 +148,7 @@ def _renglones(*nombres):
 
 def test_una_lista_que_cuadra_no_marca_nada():
     r = guia.revisar_lista(_renglones("Fachada", "Sala"), ["Sala", "Fachada"])
-    assert not r.faltan and not r.inventados and not r.repetidos
+    assert not r.faltan and not r.inventados
 
 
 def test_un_cuarto_que_el_modelo_se_salto_sale_como_faltante():
@@ -170,12 +170,34 @@ def test_el_acento_no_se_perdona():
     assert r.inventados == ["Recamara 1"]
 
 
-def test_un_cuarto_repetido_se_marca_aparte():
-    # No es invento ni falta, pero en un recorrido significa pasar dos veces
-    # por el mismo lugar.
-    r = guia.revisar_lista(_renglones("Sala", "Cocina", "Sala"), ["Sala", "Cocina"])
-    assert r.repetidos == ["Sala"]
-    assert not r.faltan and not r.inventados
+def test_repetir_un_cuarto_ya_no_es_un_aviso():
+    # Abre con la aérea y cierra con la aérea: es cómo edita, no un error.
+    r = guia.revisar_lista(
+        _renglones("Aérea", "Sala", "Aérea"), ["Aérea", "Sala"]
+    )
+    assert r.limpia()
+    assert guia.avisos_de_la_revision(r) == []
+
+
+def test_la_revision_ya_no_sabe_de_repetidos():
+    # El campo se fue entero: dejarlo vacío «por si acaso» invita a que
+    # alguien lo vuelva a llenar.
+    assert not hasattr(guia.Revision(), "repetidos")
+
+
+def test_un_faltante_sigue_avisando_aunque_haya_repetidos():
+    r = guia.revisar_lista(
+        _renglones("Aérea", "Aérea"), ["Aérea", "Cocina"]
+    )
+    assert r.faltan == ["Cocina"]
+    assert any("Cocina" in a for a in guia.avisos_de_la_revision(r))
+
+
+def test_un_inventado_sigue_avisando_aunque_haya_repetidos():
+    r = guia.revisar_lista(
+        _renglones("Aérea", "Bodega", "Aérea"), ["Aérea"]
+    )
+    assert r.inventados == ["Bodega"]
 
 
 def test_los_avisos_estan_en_palabras_de_bruno():
