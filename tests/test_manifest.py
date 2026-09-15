@@ -120,3 +120,48 @@ def test_un_clip_sin_camara_dicha_sale_sony():
                 fps=59.94)
 
     assert clip.to_dict()["camara"] == "sony"
+
+
+from clasificador_video.manifest import Guia, RenglonDeGuia  # noqa: E402
+
+
+def test_un_manifest_sin_guia_no_trae_el_bloque():
+    # Si Bruno nunca apreto el boton, o si se cayo la red, todo lo demas
+    # funciona igual.
+    d = Manifest(proyecto="Casa Lomas", orientacion="horizontal").to_dict()
+    assert d["guia"] is None
+
+
+def test_la_guia_viaja_entera():
+    guia = Guia(
+        recorrido="Abres por fuera.",
+        orden=[
+            RenglonDeGuia(cuarto="Fachada", porque="se entra aquí"),
+            RenglonDeGuia(cuarto="Alberca", porque="la subí", fuera_del_patron=True),
+        ],
+    )
+    d = Manifest(proyecto="X", orientacion="horizontal", guia=guia).to_dict()
+    assert d["guia"]["recorrido"] == "Abres por fuera."
+    assert [r["cuarto"] for r in d["guia"]["orden"]] == ["Fachada", "Alberca"]
+    assert d["guia"]["orden"][1]["fuera_del_patron"] is True
+
+
+def test_los_avisos_de_la_revision_NO_viajan():
+    # Los de «le falta la cocina» son de la pantalla de Clipify: Bruno ya
+    # los vio y decidio exportar de todos modos. Mandarlos a Premiere seria
+    # repetirle una advertencia que ya contesto. Lo que si viaja es
+    # `fuera_del_patron`, que es otra cosa.
+    guia = Guia(recorrido="x", orden=[RenglonDeGuia(cuarto="Sala")])
+    d = Manifest(proyecto="X", orientacion="horizontal", guia=guia).to_dict()
+    assert "avisos" not in d["guia"]
+
+
+def test_categoria_path_sigue_sin_numero():
+    # El numero es presentacion y lo pone el plugin. Meterlo aqui lo
+    # volveria parte del NOMBRE del cuarto.
+    from pathlib import Path
+
+    from clasificador_video.manifest import Clip
+
+    c = Clip(orden=0, ruta=Path("/x/a.mp4"), categoria_path=["Cocina"], fps=30.0)
+    assert c.to_dict()["categoria_path"] == ["Cocina"]

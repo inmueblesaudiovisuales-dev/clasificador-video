@@ -36,16 +36,52 @@ class Clip:
 
 
 @dataclass
+class RenglonDeGuia:
+    cuarto: str
+    porque: str = ""
+    # Que el modelo se apartó del patrón de Bruno en ESTE cuarto. Viaja
+    # porque es lo que el panel de Premiere marca: es información que solo
+    # tenía la IA. Los avisos de la revisión --«le falta la cocina»-- NO
+    # viajan: ésos Bruno ya los vio en Clipify y decidió.
+    fuera_del_patron: bool = False
+
+    def to_dict(self) -> dict:
+        return {
+            "cuarto": self.cuarto,
+            "porque": self.porque,
+            "fuera_del_patron": self.fuera_del_patron,
+        }
+
+
+@dataclass
+class Guia:
+    """La guía de edición, congelada. El plugin la LEE y nunca la pide."""
+
+    recorrido: str = ""
+    orden: list[RenglonDeGuia] = field(default_factory=list)
+
+    def to_dict(self) -> dict:
+        return {
+            "recorrido": self.recorrido,
+            "orden": [r.to_dict() for r in self.orden],
+        }
+
+
+@dataclass
 class Manifest:
     proyecto: str
     orientacion: str
     clips: list[Clip] = field(default_factory=list)
+    # `None` es un proyecto sin guía, y es un caso normal: Bruno nunca
+    # apretó el botón, o se cayó la red. Todo lo demás funciona igual.
+    guia: Guia | None = None
 
     def to_dict(self) -> dict:
         return {
             "proyecto": self.proyecto,
             "orientacion": self.orientacion,
             "clips": [c.to_dict() for c in self.clips],
+            "guia": self.guia.to_dict() if self.guia is not None else None,
         }
 
     def write_json(self, path: Path) -> None:
