@@ -40,6 +40,27 @@ def test_en_la_app_empaquetada_el_patron_sigue_ahi(tmp_path, monkeypatch):
     assert patron.leer() == "Abres por fuera."
 
 
+def test_el_patron_habla_de_la_aerea_de_en_medio():
+    # Lo que Bruno dijo el 2026-09-15 y el documento no tenía.
+    texto = patron.leer()
+    assert "a media casa" in texto
+
+
+def test_el_patron_cierra_con_dos_aereas():
+    texto = patron.leer()
+    assert "de lejos" in texto
+
+
+def test_el_patron_sigue_sin_cuentas():
+    # La regla del §5.1 del spec del patrón, comprobada y no confiada.
+    import re
+
+    texto = patron.leer()
+    assert not re.search(
+        r"[0-9]+ ?%|\([0-9]+ (videos|casos)\)|la mayoría|de cada", texto
+    )
+
+
 def test_el_patron_va_en_la_receta_de_empaquetado():
     """Y que la receta de verdad lo incluya. Sin esto, el arreglo de arriba
     busca un archivo que nadie copió."""
