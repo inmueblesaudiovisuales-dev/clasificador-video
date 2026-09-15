@@ -29,6 +29,7 @@ const raiz = path.join(__dirname, "..");
 // que el texto del mensaje se puede comprobar sin Premiere.
 const ARCHIVOS = [
   "js/estructura.js",
+  "js/numeroDeCuarto.js",
   "js/ordenSugerido.js",
   "js/llave.js",
   "js/cuartosDelProyecto.js",
@@ -45,7 +46,10 @@ for (const archivo of ARCHIVOS) {
   vm.runInContext(fs.readFileSync(ruta, "utf8"), contexto, { filename: archivo });
 }
 
-const casos = require("./ordenSugerido.pruebas.js")(contexto);
+const casos = [].concat(
+  require("./ordenSugerido.pruebas.js")(contexto),
+  require("./numeroDeCuarto.pruebas.js")(contexto)
+);
 
 let fallidas = 0;
 for (const { nombre, fn } of casos) {
