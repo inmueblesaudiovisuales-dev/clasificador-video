@@ -70,13 +70,19 @@ function pintarBinMontado(project, binItem, montado) {
 
   // Ni la documentacion de Adobe ni la suerte: si esta version no conoce el
   // color, no se pinta nada y se dice UNA vez, con lo que si existe. Mismo
-  // trato que `applyCameraLabel`.
+  // trato que `applyCameraLabel`. Pero aqui hay DOS causas distintas -- que
+  // falte el verde (`FOREST`) o que falte el gris de despintar (`NONE`) -- y
+  // el aviso tiene que nombrar la que de verdad paso: si solo falta `NONE`,
+  // decir «no lo permite» es mentira, porque pintar SI funciona.
   if (destino === undefined) {
-    avisarUnaVezDelVerde(colores);
+    avisarUnaVezDelVerde(colores, montado ? "FOREST" : "NONE");
     return;
   }
   if (typeof binItem.createSetColorLabelAction !== "function") {
-    avisarUnaVezDelVerde(colores);
+    // Aqui la causa es otra: no falta el color, falta el metodo. Se avisa
+    // con la misma bandera de "metodo" para las dos direcciones -- pintar y
+    // despintar comparten el mismo `createSetColorLabelAction`.
+    avisarUnaVezDelVerde(colores, "metodo");
     return;
   }
   runTransaction(
@@ -86,14 +92,23 @@ function pintarBinMontado(project, binItem, montado) {
   );
 }
 
-let yaSeAvisoDelVerde = false;
+// Una bandera POR CAUSA, no una sola global: si ya avisamos que falta
+// `FOREST`, eso no dice nada de si falta `NONE` -- son dos preguntas
+// distintas a la misma version de Premiere, y una banderita compartida
+// dejaria la segunda causa muda para siempre despues de la primera.
+const yaSeAvisoDelVerde = {};
 
-function avisarUnaVezDelVerde(colores) {
-  if (yaSeAvisoDelVerde) return;
-  yaSeAvisoDelVerde = true;
+function avisarUnaVezDelVerde(colores, causa) {
+  if (yaSeAvisoDelVerde[causa]) return;
+  yaSeAvisoDelVerde[causa] = true;
+
+  const razon =
+    causa === "metodo"
+      ? "esta versión de Premiere no tiene cómo pintarle color a una carpeta"
+      : "esta versión de Premiere no tiene el color «" + causa + "»";
   logToPanel(
-    "No pude pintar las carpetas de lo que ya montaste: esta versión de " +
-      "Premiere no lo permite. Las palomitas del panel siguen funcionando. " +
+    "No pude pintar las carpetas de lo que ya montaste: " + razon + ". " +
+      "Las palomitas del panel siguen funcionando. " +
       "Colores que sí tiene: " + Object.keys(colores).join(", "),
     true
   );

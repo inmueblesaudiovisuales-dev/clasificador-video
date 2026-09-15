@@ -16,7 +16,7 @@
 let pestanaArmada = false;
 let avanceActual = [];
 
-async function abrirPestanaOrden(hoja) {
+async function abrirPestanaOrden() {
   if (pestanaArmada) return;
   pestanaArmada = true;
   await repintarGuia();
@@ -24,6 +24,13 @@ async function abrirPestanaOrden(hoja) {
 
 // Vuelve a pintar la pestana con la guia y el avance de ahora. Se llama al
 // abrirla, al importar un manifest nuevo y despues de cada palomita.
+//
+// TAMBIEN recalcula el color de los bins: el spec dice que ese color se
+// recalcula del archivo cada vez que se abre el panel, asi que no puede
+// vivir solo del lado de `palomear`. El orden importa -- `cuadrarAvance`
+// primero, pintar despues -- porque `pintarLosBinsMontados` lee
+// `avanceActual`, y pintar con el avance viejo pintaria lo que ya no es
+// cierto.
 async function repintarGuia() {
   const hoja = document.getElementById("hoja-orden");
   if (!hoja || !pestanaArmada) return;
@@ -35,6 +42,7 @@ async function repintarGuia() {
   // avance falso, y eso es peor que ninguno.
   avanceActual = cuadrarAvance(crudo, guion);
 
+  if (guion.length) await pintarLosBinsMontados(guion);
   dibujarGuia(hoja, guia, avanceActual);
 }
 
@@ -157,7 +165,8 @@ async function palomear(paso, montado) {
   const guion = ((guiaImportada() || {}).orden) || [];
   avanceActual = conPaso(avanceActual, guion, paso, montado);
   await guardarAvance(proyectoImportado(), avanceActual);
-  await pintarLosBinsMontados(guion);
+  // El color se pinta dentro de `repintarGuia`, que ya se llama abajo -- no
+  // hay que llamarlo dos veces desde aqui.
   await repintarGuia();
 }
 
@@ -171,9 +180,18 @@ async function pintarLosBinsMontados(guion) {
 
   const rootItem = await project.getRootItem();
   const rootFolder = premierepro.FolderItem.cast(rootItem);
-  const carpetaDeClips = await resolveBinChain(project, rootFolder, [
-    CARPETA_DE_CLIPS,
-  ]);
+  // NUNCA `resolveBinChain`: esa crea la carpeta si no existe, y aqui solo
+  // estamos LEYENDO. Si el proyecto al frente no es el de Clipify -- otro
+  // proyecto abierto sin querer -- no hay «02. Clip» que buscar, y crearlo
+  // vacio seria escribir sobre un proyecto que no pedimos tocar. Misma regla
+  // que ya vive en la pestana de orden sugerido, documentada en el CLAUDE.md
+  // del repo.
+  const itemsRaiz = (await rootFolder.getItems()) || [];
+  const carpetaDeClips = carpetaDelCuarto(
+    itemsRaiz, CARPETA_DE_CLIPS, premierepro.FolderItem.cast
+  );
+  if (!carpetaDeClips) return;
+
   const montados = cuartosMontados(avanceActual, guion);
   const orden = guion.map((r) => r.cuarto);
   // Cada cuarto UNA vez, aunque el guion lo repita: son ocho carpetas, no
@@ -183,9 +201,12 @@ async function pintarLosBinsMontados(guion) {
 
   const items = (await carpetaDeClips.getItems()) || [];
   for (const cuarto of cuartos) {
+    // Sin numero: `carpetaDelCuarto` ya lo quita de los dos lados con
+    // `esElMismoCuarto`, asi que pasarlo con numero o sin el encuentra la
+    // misma carpeta. Buscar por el nombre pelon es lo que de verdad importa
+    // -- la carpeta se encuentra tenga el numero que tenga.
     const bin = carpetaDelCuarto(
-      items, conNumero(cuarto, orden.indexOf(cuarto) + 1),
-      premierepro.FolderItem.cast
+      items, cuarto, premierepro.FolderItem.cast
     );
     if (bin) pintarBinMontado(project, bin, montados.indexOf(cuarto) !== -1);
   }

@@ -19,7 +19,12 @@ function _nombreDeArchivo(proyecto) {
   // Lo que no sea letra, numero, guion o espacio se vuelve "_": el nombre
   // del proyecto lo escribe Bruno y puede traer "/" -- que en un nombre de
   // archivo es otra carpeta.
-  const limpio = String(proyecto || "sin-nombre").replace(/[^\w \-]/g, "_");
+  //
+  // `\w` en JavaScript es SOLO ASCII, asi que sin `À-ſ` (que cubre las
+  // vocales acentuadas y la eñe del español) "Casa Álamos" y "Casa Olamos"
+  // limpiarian igual y se pisarian el avance en el mismo archivo -- dos
+  // rodajes distintos perdiendo sus palomitas sin ningun aviso.
+  const limpio = String(proyecto || "sin-nombre").replace(/[^\w \-À-ſ]/g, "_");
   return limpio + ".json";
 }
 
