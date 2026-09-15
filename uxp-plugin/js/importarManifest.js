@@ -2,12 +2,22 @@
 // y nunca la pide: se armo en Clipify y viaja congelada.
 let guiaDelManifest = null;
 
+// De que rodaje es la guia que se esta enseñando. Sin esto, abrir Premiere
+// tres semanas despues no dice si la guia es la del proyecto que tienes
+// enfrente.
+let proyectoDelManifest = "";
+
 function guardarGuia(manifest) {
   guiaDelManifest = (manifest && manifest.guia) || null;
+  proyectoDelManifest = (manifest && manifest.proyecto) || "";
 }
 
 function guiaImportada() {
   return guiaDelManifest;
+}
+
+function proyectoImportado() {
+  return proyectoDelManifest;
 }
 
 // Flujo completo del boton: elegir archivo -> validar -> revisar material ->
