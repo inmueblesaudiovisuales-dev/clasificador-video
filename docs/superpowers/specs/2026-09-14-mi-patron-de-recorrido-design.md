@@ -62,8 +62,10 @@ Cliente / Entregables / VIDEO / archivo.mp4`), más **11 de febrero a abril**
 en el acomodo viejo de antes del 26 de abril. **Total: 35**, no 33 como se
 dijo al principio de la plática.
 
-De esos 35 **no todos entran** — ver el §4.b.1, que es el paso que salió de
-mirar la lista con Bruno.
+De esos 35, **solo 28 tienen archivo**: las otras siete carpetas `Entregables`
+están creadas y vacías —se arman al abrir el proyecto y se llenan después, y
+los cuatro de septiembre siguen en proceso—. Y de los 28, **Bruno dejó 15**
+(§4.b.2). **8.8 GB**, que es lo que de verdad hay que comprimir.
 
 Y Bruno los tiene **todos en un disco suyo**. Entonces no se baja nada: Drive
 solo dice *cuál* archivo de cada proyecto fue el entregado, y los bytes salen
@@ -76,10 +78,8 @@ Cada renglón es una respuesta explícita de Bruno, en el orden en que las dio.
 1. **La versión entregada cambia de proyecto en proyecto** — en unos entregó
    el largo horizontal y en otros el reel vertical. No hay regla que sacarle
    al nombre del archivo.
-2. **Dos patrones separados**, uno para el largo y uno para el reel. Un reel
-   de 30 segundos y un recorrido de 3 minutos no pueden compartir patrón: en
-   uno caben cinco cuartos y en el otro quince. Revolverlos daría un promedio
-   que no describe a ninguno.
+2. **Un solo patrón.** Se acordó primero que fueran dos —uno para el largo y
+   uno para el reel— y se revirtió al ver la lista real. Ver el §3.bis.
 3. **Los videos salen del disco de Bruno**, no de Drive.
 4. **El disco NO está acomodado igual que Drive**, pero **los nombres son los
    mismos**. De ahí sale cómo se casan (§4.b).
@@ -104,6 +104,30 @@ Cada renglón es una respuesta explícita de Bruno, en el orden en que las dio.
 13. **Bruno poda la lista antes de que se comprima nada**, en lista plana y con
     un enlace a Drive por renglón. Se descartó que el programa señalara
     sospechosos. Ver el §4.b.1.
+
+## 3.bis Un patrón y no dos, y por qué se revirtió
+
+La decisión de partir en dos venía de un argumento que sigue en pie: **un reel
+de 30 segundos y un recorrido de 3 minutos no pueden compartir patrón** — en
+uno caben cinco cuartos y en el otro quince, y revolverlos da un promedio que
+no describe a ninguno.
+
+Lo que estaba mal era **por dónde se partía**. Al leer la lista de entregables,
+los nombres de archivo decían `16x9` y `9x16`, y se dio por hecho que ésa era
+la línea. **No lo es.** Bruno, viendo la lista: «el patrón de los horizontales
+es igual que verticales. Solo grabado horizontal».
+
+La línea verdadera es la **duración**, no la forma del cuadro. Y ahí la lista
+decide sola: de los 15 videos que Bruno dejó, **uno solo es reel**. Uno no es
+un patrón.
+
+Entonces: **un patrón, de los 14 largos.** El reel se analiza igual —su ficha
+entra al montón— pero no genera un patrón propio ni manda sobre nada. Si algún
+año hay reels suficientes, la partición vuelve, y vuelve por duración.
+
+Es el mismo error que el repo ya cometió antes y tiene escrito: **dos cosas que
+se parecen en el nombre no son la misma cosa.** Aquí `9x16` se parecía a «reel»
+lo suficiente para que nadie lo revisara.
 
 ## 4. Las tres piezas
 
@@ -173,6 +197,29 @@ respuesta de Drive (`viewUrl`), así que no cuesta nada.
 sobre una lista más larga, y volverle a preguntar por los mismos 35 renglones
 es hacerle repetir un trabajo que ya hizo.
 
+#### 4.b.2 El resultado de la primera poda
+
+Se corrió a mano el 2026-09-14, sobre los 28 con archivo. Bruno los marcó
+todos. **Quedaron 15, 8.8 GB.**
+
+Lo que dejó fuera y por qué importa que quedara escrito:
+
+- **De Mireya Gómez dejó el REEL y tiró el largo.** Es el caso que enseña que
+  «el entregable» no se puede deducir del tamaño ni del nombre: el archivo de
+  1 GB se fue y el de 244 MB se quedó.
+- **Las dos `SECUENCIA`**, que no traían código de proyecto.
+- **Los dos de `2605.20`** («completo» y «corto»), los dos de `2602.18`
+  (normal y narrado), `2602.14`, `2603.29`, `2603.05`.
+- **Los verticales de `2604.17` y `2603.18-1`**, dejando el 16x9 de cada uno.
+- **`IAV-2606.07-A` de Manuel Abraham**, confirmado aparte: antes había dicho
+  que de ese proyecto el bueno era justo ése, y al ver la lista lo dejó fuera.
+  Se le preguntó y contestó «fuera».
+
+**Y lo que NO se puede deducir todavía:** de 5 de los 15, el nombre no dice si
+son horizontales o verticales. Eso sale de `ffprobe` cuando el disco esté
+conectado, no de adivinar. Después del §3.bis ya no cambia ninguna decisión,
+pero el dato sí entra a la ficha de cada video.
+
 ### 4.c Aligerar
 
 Cada video pasa por ffmpeg con `h264_videotoolbox`, **lado corto 480**, audio
@@ -233,8 +280,8 @@ ti:
 > **Tu orden:** fachada aérea → entrada → sala → comedor → cocina → recámaras
 > → baños → patio → alberca → aérea de salida
 
-Y uno de cada uno **por formato** (largo y reel), con las excepciones por tipo
-de propiedad **solo donde hubo material suficiente**.
+Uno solo (§3.bis), con las excepciones por tipo de propiedad **solo donde hubo
+material suficiente**.
 
 ### 5.1 Lo que el documento NO lleva, y por qué
 
@@ -313,6 +360,8 @@ no quería justificaciones, y contestó que sí las dos.
 - **Escoger una muestra.** El costo no lo justifica (§2.b): se analizan los 33.
 - **Bajarle los fps.** No ahorra nada (§2.a).
 - **Las versiones «sin voz».** Son el mismo corte (§4.a).
+- **Un patrón por formato de cuadro.** El 16x9 y el 9x16 llevan el mismo
+  recorrido (§3.bis).
 - **Ocho patrones, uno por formato y tipo.** Salen de cuatro videos cada uno
   (§3.11).
 - **Que el documento lleve cuentas o se justifique** (§5.1).
