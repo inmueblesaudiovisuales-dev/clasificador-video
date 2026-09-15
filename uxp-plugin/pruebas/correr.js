@@ -22,8 +22,11 @@ const raiz = path.join(__dirname, "..");
 
 // Solo archivos que NO hacen `require("premierepro")` ni tocan la red al
 // cargarse. `estructura.js` entra porque de ahi sale el nombre de
-// «02. Clip» y `caminoDelClip`, y `numeroDeCuarto.js` porque es logica pura
-// entera: poner, quitar y comparar el prefijo «NN. » de las carpetas.
+// «02. Clip» y `caminoDelClip`, `numeroDeCuarto.js` porque es logica pura
+// entera: poner, quitar y comparar el prefijo «NN. » de las carpetas, y
+// `avance.js` porque tambien es logica pura entera: que pasos del guion ya
+// estan montados, sin tocar el disco (eso vive en `avanceDisco.js`, que se
+// queda afuera).
 //
 // Aqui entraban tambien `ordenSugerido.js`, `llave.js` y
 // `cuartosDelProyecto.js`. Se fueron el 2026-09-14 con la pestana que
@@ -32,6 +35,7 @@ const raiz = path.join(__dirname, "..");
 const ARCHIVOS = [
   "js/estructura.js",
   "js/numeroDeCuarto.js",
+  "js/avance.js",
 ];
 
 const contexto = vm.createContext({ console });
@@ -46,7 +50,11 @@ for (const archivo of ARCHIVOS) {
 }
 
 const pruebas = require("./numeroDeCuarto.pruebas.js");
-const casos = [].concat(pruebas(contexto), pruebas.carpetas(contexto));
+const casos = [].concat(
+  pruebas(contexto),
+  pruebas.carpetas(contexto),
+  require("./avance.pruebas.js")(contexto)
+);
 
 let fallidas = 0;
 for (const { nombre, fn } of casos) {
