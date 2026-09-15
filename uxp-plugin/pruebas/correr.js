@@ -21,18 +21,17 @@ const vm = require("vm");
 const raiz = path.join(__dirname, "..");
 
 // Solo archivos que NO hacen `require("premierepro")` ni tocan la red al
-// cargarse. `llave.js` entra porque sus funciones de disco piden `require`
-// cuando se LLAMAN, no cuando se evalua el archivo -- y aqui no se llaman.
-// `estructura.js` entra porque de ahi sale el nombre de «02. Clip», y
-// `cuartosDelProyecto.js` por lo mismo: su `require("premierepro")`
-// vive DENTRO de la funcion que lee los bins, no al tope del archivo, asi
-// que el texto del mensaje se puede comprobar sin Premiere.
+// cargarse. `estructura.js` entra porque de ahi sale el nombre de
+// «02. Clip» y `caminoDelClip`, y `numeroDeCuarto.js` porque es logica pura
+// entera: poner, quitar y comparar el prefijo «NN. » de las carpetas.
+//
+// Aqui entraban tambien `ordenSugerido.js`, `llave.js` y
+// `cuartosDelProyecto.js`. Se fueron el 2026-09-14 con la pestana que
+// preguntaba: la guia se arma en Clipify y sus casos viven ahora en
+// `tests/test_guia.py`.
 const ARCHIVOS = [
   "js/estructura.js",
   "js/numeroDeCuarto.js",
-  "js/ordenSugerido.js",
-  "js/llave.js",
-  "js/cuartosDelProyecto.js",
 ];
 
 const contexto = vm.createContext({ console });
@@ -46,10 +45,7 @@ for (const archivo of ARCHIVOS) {
   vm.runInContext(fs.readFileSync(ruta, "utf8"), contexto, { filename: archivo });
 }
 
-const casos = [].concat(
-  require("./ordenSugerido.pruebas.js")(contexto),
-  require("./numeroDeCuarto.pruebas.js")(contexto)
-);
+const casos = require("./numeroDeCuarto.pruebas.js")(contexto);
 
 let fallidas = 0;
 for (const { nombre, fn } of casos) {

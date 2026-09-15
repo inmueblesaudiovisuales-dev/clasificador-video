@@ -9,10 +9,7 @@
   },
   "manifestVersion": 5,
   "requiredPermissions": {
-    "localFileSystem": "fullAccess",
-    "network": {
-      "domains": ["https://api.deepseek.com"]
-    }
+    "localFileSystem": "fullAccess"
   },
   "entrypoints": [
     {
