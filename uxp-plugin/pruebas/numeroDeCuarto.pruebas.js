@@ -92,6 +92,25 @@ module.exports = function (ctx) {
         return { ok: r.join(" > ") === "02. Clip > Cocina", detalle: r.join(" > ") };
       },
     },
+    {
+      // EL CASO DE LA AEREA: abre el guion y lo cierra, y es UN solo bin.
+      // Su carpeta lleva el numero de la PRIMERA vez. Ya funcionaba; esto
+      // lo deja clavado para que nadie lo "arregle".
+      nombre: "un cuarto repetido se numera por su PRIMERA aparicion",
+      fn: () => {
+        const guion = ["Aerea", "Fachada", "Sala", "Aerea", "Aerea"];
+        const r = ctx.caminoDelClip(["Aerea"], guion);
+        return { ok: r.join(" > ") === "02. Clip > 01. Aerea", detalle: r.join(" > ") };
+      },
+    },
+    {
+      nombre: "los demas cuartos no se corren por la repeticion",
+      fn: () => {
+        const guion = ["Aerea", "Fachada", "Sala", "Aerea"];
+        const r = ctx.caminoDelClip(["Sala"], guion);
+        return { ok: r.join(" > ") === "02. Clip > 03. Sala", detalle: r.join(" > ") };
+      },
+    },
   ];
 };
 
