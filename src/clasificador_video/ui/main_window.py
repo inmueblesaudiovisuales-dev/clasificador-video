@@ -414,6 +414,15 @@ def _con_el_rango_en_orden(clip: Clip) -> Clip:
     return replace(clip, in_frame=clip.out_frame, out_frame=clip.in_frame)
 
 
+def _sin_repetir(nombres: list) -> list:
+    """Los nombres una sola vez, en el orden de la PRIMERA aparición.
+
+    `dict.fromkeys` conserva el orden de inserción desde Python 3.7, y es
+    el orden de la primera vez -- que es justo el que hace falta.
+    """
+    return list(dict.fromkeys(nombres or []))
+
+
 def _gigas_del_volumen(ruta: Path) -> int | None:
     """El `· 214 GB` de la barra de estado. En GB decimales, que es como
     viene etiquetada la tarjeta.
@@ -4601,8 +4610,15 @@ class MainWindow(QWidget):
             self._pantalla_guia.mostrar_respuesta(respuesta, revision)
 
     def aceptar_orden_de_la_guia(self, orden: list) -> None:
-        """Ese orden pasa a ser EL orden: rail, hoja y Premiere."""
-        self.room_selection.reordenar(list(orden))
+        """Ese guion pasa a mandar: el rail, la hoja y Premiere.
+
+        El guion trae PASOS y puede repetir un cuarto; el rail no puede.
+        Así que al rail se le pasa la lista sin repetir, en el orden de la
+        PRIMERA aparición -- el mismo criterio con el que el plugin numera
+        la carpeta de ese cuarto. Si los dos no usaran el mismo, el rail y
+        Premiere acabarían diciendo cosas distintas del mismo dato.
+        """
+        self.room_selection.reordenar(_sin_repetir(orden))
         self._cuartos_de_la_guia = self.room_selection.active_rooms()
         self.guia_actual = self._guia_cuadrada_con_el_rail()
         self._sync_rooms()
@@ -4612,28 +4628,30 @@ class MainWindow(QWidget):
             self._pantalla_guia.hide()
 
     def _guia_cuadrada_con_el_rail(self):
-        """La guía contando EXACTAMENTE los cuartos que hay, en su orden.
+        """El guion contando sólo cuartos que existen, con sus repeticiones.
 
-        Aceptar una guía a la que le falta un cuarto dejaba al rail con tres
-        y al manifest con dos: dos partes del programa diciendo cosas
-        distintas del mismo dato, que es la familia de los ocho bugs del
-        2026-08-22. En Premiere se veía como un cuarto suelto sin número y
-        una guía que no lo mencionaba.
+        Dos reglas, y son distintas:
 
-        Los que la lista se saltó entran al final y **sin razón inventada**:
-        que estén es el dato, por qué van ahí no lo dijo nadie. Y los que el
-        modelo se sacó de la manga se caen, porque no están en el rail y en
-        Premiere serían la carpeta de un cuarto que no existe.
+        - **Los pasos se conservan tal cual**, repeticiones incluidas. Cada
+          paso trae SU razón: la aérea de abrir no dice lo mismo que la de
+          cerrar, y quedarse con una sola perdía la mitad de la guía.
+        - **Los cuartos que el guion no mencionó entran al final**, una vez
+          y sin razón inventada. Perderlos dejaría al rail con un cuarto que
+          la guía no nombra, y en Premiere una carpeta sin número suelta.
+
+        Y un cuarto inventado se cae: no está en el rail, y en Premiere
+        sería la carpeta de un cuarto que no existe.
         """
         if self.guia_actual is None or not self.guia_actual.ok:
             return self.guia_actual
-        porque_de = {r.cuarto: r for r in self.guia_actual.lista}
-        lista = [
-            porque_de.get(c) or logica_guia.Renglon(cuarto=c)
-            for c in self.room_selection.active_rooms()
+        reales = self.room_selection.active_rooms()
+        pasos = [r for r in self.guia_actual.lista if r.cuarto in reales]
+        nombrados = {r.cuarto for r in pasos}
+        pasos += [
+            logica_guia.Renglon(cuarto=c) for c in reales if c not in nombrados
         ]
         return logica_guia.Respuesta(
-            ok=True, recorrido=self.guia_actual.recorrido, lista=lista
+            ok=True, recorrido=self.guia_actual.recorrido, lista=pasos
         )
 
     def _guia_para_la_sesion(self):

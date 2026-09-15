@@ -263,6 +263,52 @@ def test_un_cuarto_inventado_no_viaja_al_manifest(ventana):
     assert viaja == ["Fachada"]
 
 
+def test_el_rail_pone_el_cuarto_repetido_donde_sale_la_PRIMERA_vez(ventana):
+    for c in ["Sala", "Aérea", "Cocina"]:
+        ventana.room_selection.add(c)
+    ventana.guia_actual = logica.Respuesta(
+        ok=True, recorrido="x",
+        lista=[logica.Renglon("Aérea"), logica.Renglon("Cocina"),
+               logica.Renglon("Sala"), logica.Renglon("Aérea")],
+    )
+    ventana.aceptar_orden_de_la_guia(
+        ["Aérea", "Cocina", "Sala", "Aérea"]
+    )
+    # Una sola vez, y en el lugar de la primera: es el mismo criterio con el
+    # que el plugin numera su carpeta.
+    assert ventana.room_selection.active_rooms() == ["Aérea", "Cocina", "Sala"]
+
+
+def test_el_guion_que_viaja_CONSERVA_las_repeticiones(ventana):
+    for c in ["Sala", "Aérea"]:
+        ventana.room_selection.add(c)
+    ventana.guia_actual = logica.Respuesta(
+        ok=True, recorrido="x",
+        lista=[logica.Renglon("Aérea", "abres"), logica.Renglon("Sala"),
+               logica.Renglon("Aérea", "cierras, más larga")],
+    )
+    ventana.aceptar_orden_de_la_guia(["Aérea", "Sala", "Aérea"])
+
+    pasos = ventana._guia_para_el_manifest().orden
+    assert [r.cuarto for r in pasos] == ["Aérea", "Sala", "Aérea"]
+    # Y cada paso conserva SU razón: la de abrir no es la de cerrar.
+    assert pasos[0].porque == "abres"
+    assert pasos[2].porque == "cierras, más larga"
+
+
+def test_un_cuarto_que_el_guion_no_menciona_sigue_entrando_al_final(ventana):
+    for c in ["Aérea", "Terraza"]:
+        ventana.room_selection.add(c)
+    ventana.guia_actual = logica.Respuesta(
+        ok=True, recorrido="x",
+        lista=[logica.Renglon("Aérea"), logica.Renglon("Aérea")],
+    )
+    ventana.aceptar_orden_de_la_guia(["Aérea", "Aérea"])
+
+    pasos = [r.cuarto for r in ventana._guia_para_el_manifest().orden]
+    assert pasos == ["Aérea", "Aérea", "Terraza"]
+
+
 # --- El aviso de la guía vieja tiene que saltar SIEMPRE ---------------
 # Bug del 2026-09-15: solo funcionaba si le dabas a «Usar este orden». Si te
 # gustaba el orden como estaba y no le picabas, el aviso no salía nunca.
