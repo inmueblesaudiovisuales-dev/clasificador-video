@@ -56,10 +56,14 @@ de un dólar y no cambia ninguna decisión.)*
 
 ### 2.c El disco tampoco es problema, porque no hay que bajar nada
 
-Se contaron los entregables en el Drive de Bruno: **~24 proyectos de mayo a
+Se contaron los entregables en el Drive de Bruno: **24 proyectos de mayo a
 septiembre** en el acomodo actual (`2026 / 08. Agosto / IAV-2608.17-A —
-Cliente / Entregables / VIDEO / archivo.mp4`), más unos **9 de enero a abril**
-en el acomodo viejo de antes del 26 de abril. **Total: ~33.**
+Cliente / Entregables / VIDEO / archivo.mp4`), más **11 de febrero a abril**
+en el acomodo viejo de antes del 26 de abril. **Total: 35**, no 33 como se
+dijo al principio de la plática.
+
+De esos 35 **no todos entran** — ver el §4.b.1, que es el paso que salió de
+mirar la lista con Bruno.
 
 Y Bruno los tiene **todos en un disco suyo**. Entonces no se baja nada: Drive
 solo dice *cuál* archivo de cada proyecto fue el entregado, y los bytes salen
@@ -97,6 +101,9 @@ Cada renglón es una respuesta explícita de Bruno, en el orden en que las dio.
     algunos de uno. Un patrón sacado de un video es una anécdota.
 12. **El documento NO lleva cuentas ni se justifica.** Es el §5, y es el
     cambio más importante de todos los que pidió.
+13. **Bruno poda la lista antes de que se comprima nada**, en lista plana y con
+    un enlace a Drive por renglón. Se descartó que el programa señalara
+    sospechosos. Ver el §4.b.1.
 
 ## 4. Las tres piezas
 
@@ -126,13 +133,45 @@ Bruno conecta el disco y apunta a una carpeta. El programa busca **cada
 archivo por su nombre exacto**, recursivamente, esté donde esté. El nombre es
 el único dato que sobrevive al cambio de acomodo, y por eso es el que se usa.
 
-**Y enseña la lista antes de tocar nada:** «encontré 30 de 33; estos tres no
+**Y enseña la lista antes de tocar nada:** «encontré 30 de 35; estos cinco no
 aparecen». Los que falten se bajan de Drive, y **solo ésos**.
 
 Esto es la regla que ya está escrita en `CLAUDE.md` con otras palabras: *la
 app propone, nunca adivina en silencio*. Un programa que empareja mal un
 archivo y no lo dice mete el video de otra propiedad al patrón, y eso no se
 nota nunca.
+
+#### 4.b.1 Bruno poda la lista, y ese paso no es opcional
+
+Salió de enseñarle la lista de 35 en la plática, y **cambió el diseño en el
+acto**. Hay tres razones para que un renglón no entre, y **ninguna se puede
+adivinar desde el archivo**:
+
+1. **Era una prueba.** Palabras de Bruno: «muchos de esos clientes no existen
+   y eran solo pruebas». Se ven en la lista —`Chulo Perez`, `dani`, `danis2`—
+   pero el nombre no es prueba de nada: un cliente puede llamarse así.
+2. **Está repetido porque se reagendó el rodaje.** Dos carpetas, dos fechas,
+   **una sola propiedad**. Si entran las dos, esa propiedad pesa el doble en
+   el patrón y nadie lo nota. Bruno lo trajo él: «hay unos repetidos que
+   reagendamos».
+3. **Es la versión que no era.** Un proyecto puede tener 16x9 y 9x16 y haberse
+   entregado uno solo. Corregido en vivo sobre la lista: el de **Alberto
+   Valles** es solo el `16X9`, y el de **Manuel Abraham 2606.07** es solo
+   `IAV-2606.07-A.mp4` —no el `2606-07 v17.mp4`—.
+
+Entonces: **lista plana, y Bruno tacha.** Se le ofreció que el programa
+señalara a los sospechosos —mismo cliente con fechas cercanas— y **lo
+descartó**: conoce sus proyectos mejor que cualquier regla que le pongamos, y
+una marca equivocada le haría desconfiar de las buenas.
+
+**Cada renglón lleva su enlace a la carpeta de Drive.** Es lo que pidió, y es
+lo que hace que el paso funcione de verdad: sin abrir el video no se distingue
+un reagendado de dos propiedades del mismo cliente. El dato ya viene en la
+respuesta de Drive (`viewUrl`), así que no cuesta nada.
+
+**Y lo tachado se recuerda.** El año que entra la herramienta se corre otra vez
+sobre una lista más larga, y volverle a preguntar por los mismos 35 renglones
+es hacerle repetir un trabajo que ya hizo.
 
 ### 4.c Aligerar
 
@@ -278,6 +317,10 @@ no quería justificaciones, y contestó que sí las dos.
   (§3.11).
 - **Que el documento lleve cuentas o se justifique** (§5.1).
 - **Que la lista sea obligatoria.** Manda la IA (§3.6).
+- **Que el programa señale los proyectos repetidos.** Bruno los tacha él
+  (§4.b.1).
+- **Que el programa decida qué fue una prueba.** No se puede saber desde el
+  archivo (§4.b.1).
 - **Ordenar los clips dentro de cada cuarto.** Sigue fuera, igual que en el
   spec anterior.
 
@@ -305,6 +348,9 @@ Eso se le avisa antes de gastar las tres horas de compresión.
 - Que las versiones «sin voz» / «sin narración» se descarten y la buena no.
 - Que el material en bruto (`DJI_…`) nunca entre a la lista.
 - Que un proyecto con archivo dudoso salga **marcado**, no adivinado.
+- Que cada renglón de la lista salga con su enlace de Drive (§4.b.1).
+- Que lo que Bruno tachó una vez no vuelva a aparecer en la siguiente corrida,
+  y que un proyecto nuevo sí aparezca.
 - Que el emparejamiento con el disco sea por nombre exacto, y que lo que no se
   encuentra se reporte en vez de saltarse callado.
 - Que las cuentas del §4.e den lo que deben sobre fichas inventadas de
