@@ -153,9 +153,31 @@ lista **marcado como dudoso** y Bruno decide.
 
 ### 4.b Casar con el disco
 
-Bruno conecta el disco y apunta a una carpeta. El programa busca **cada
-archivo por su nombre exacto**, recursivamente, esté donde esté. El nombre es
-el único dato que sobrevive al cambio de acomodo, y por eso es el que se usa.
+Bruno conecta el disco y apunta a una carpeta. El programa cruza **por tamaño
+exacto en bytes**, recursivamente, esté donde esté el archivo. **El nombre es
+una pista, no la llave.**
+
+Se diseñó al revés —emparejar por nombre exacto, «el único dato que sobrevive
+al cambio de acomodo»— y la primera corrida real, el 2026-09-14, lo tumbó con
+dos casos de los cinco que encontró:
+
+- **Dos archivos distintos con el mismo nombre.** `IAV-2608.20-A_1.mp4` existe
+  dos veces dentro del mismo proyecto: 972,200,249 bytes suelto en la carpeta y
+  otro de 146 MB adentro de `07. ENTREGABLES`. Por nombre, el programa agarra
+  el primero que encuentre — y una de cada dos veces sería el equivocado, sin
+  avisar.
+- **El archivo bueno con otro nombre.** El `IAV-2607.13-A.mp4` de Drive vive en
+  el disco como `IAV-2607.13-A-_1.mp4`, con un guion y un `_1` de más. Por
+  nombre no existe; por bytes es idéntico.
+
+El tamaño en bytes viene en la respuesta de Drive y no cuesta nada leerlo del
+disco. Dos archivos de video distintos que pesen **exactamente** lo mismo al
+byte es prácticamente imposible; dos que se llamen igual, ya se vio que no.
+
+**Cuidado con las unidades al comparar.** Drive reporta bytes; el Finder
+enseña MiB. Los 972 MB de Drive son 927 MB del Finder, y al mirarlos en
+columnas parecen archivos distintos. La comparación va en bytes crudos,
+siempre, sin convertir.
 
 **Y enseña la lista antes de tocar nada:** «encontré 30 de 35; estos cinco no
 aparecen». Los que falten se bajan de Drive, y **solo ésos**.
@@ -419,8 +441,10 @@ proyectos de Premiere de cada entrega, si es que existen— en vez del video.
 - Que cada renglón de la lista salga con su enlace de Drive (§4.b.1).
 - Que lo que Bruno tachó una vez no vuelva a aparecer en la siguiente corrida,
   y que un proyecto nuevo sí aparezca.
-- Que el emparejamiento con el disco sea por nombre exacto, y que lo que no se
-  encuentra se reporte en vez de saltarse callado.
+- Que el emparejamiento con el disco sea **por bytes**, y en particular los dos
+  casos reales: dos archivos con el mismo nombre y distinto peso, y el archivo
+  bueno guardado con otro nombre. Que lo que no se encuentra se reporte en vez
+  de saltarse callado.
 - Que las cuentas del §4.e den lo que deben sobre fichas inventadas de
   ejemplo, incluido el caso de un tipo de propiedad con un solo video —que
   **no** debe producir una excepción en el documento.
