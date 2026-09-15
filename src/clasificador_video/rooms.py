@@ -84,13 +84,20 @@ class RoomSelection:
         porque perder un cuarto aqui es perder la clasificacion de sus
         clips.
 
+        Tampoco duplica: el guion de la guia SI repite un cuarto (se abre
+        con una aerea y se cierra con otra, misma carpeta), y esa lista
+        repetida llega hasta aca sin que nadie mas la filtre. Un cuarto dos
+        veces en el rail serian dos teclas para el mismo lugar, asi que solo
+        se queda su primera aparicion -- `dict.fromkeys` conserva el orden
+        de insercion, que es el orden de esa primera vez.
+
         Y como el orden ES la asignacion de teclas, esto le cambia el atajo
         a casi todos. Es lo que Bruno pidio al aceptar la guia: un solo
         orden, el mismo en el rail, en la hoja y en Premiere.
         """
         if not nuevo_orden:
             return
-        conocidos = [c for c in nuevo_orden if c in self._order]
+        conocidos = [c for c in dict.fromkeys(nuevo_orden) if c in self._order]
         resto = [c for c in self._order if c not in conocidos]
         self._order = conocidos + resto
 

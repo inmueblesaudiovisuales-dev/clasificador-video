@@ -309,6 +309,35 @@ def test_un_cuarto_que_el_guion_no_menciona_sigue_entrando_al_final(ventana):
     assert pasos == ["Aérea", "Aérea", "Terraza"]
 
 
+def test_repetido_inventado_y_faltante_todo_junto(ventana):
+    # Lo que llega de verdad: la pantalla emite la lista tal cual la devolvió
+    # el modelo, sin filtrar nada. Las tres reglas tienen que convivir en una
+    # sola llamada, que es donde se romperían sin que nadie lo note.
+    for c in ["Aérea", "Sala", "Terraza"]:
+        ventana.room_selection.add(c)
+    ventana.guia_actual = logica.Respuesta(
+        ok=True, recorrido="x",
+        lista=[logica.Renglon("Aérea", "abres"),
+               logica.Renglon("Bodega", "me la inventé"),
+               logica.Renglon("Sala"),
+               logica.Renglon("Aérea", "cierras")],
+    )
+    ventana.aceptar_orden_de_la_guia(
+        ["Aérea", "Bodega", "Sala", "Aérea"]
+    )
+
+    # El rail: sin el inventado, sin repetir, y la Terraza --que el guion se
+    # saltó-- no se pierde.
+    assert ventana.room_selection.active_rooms() == ["Aérea", "Sala", "Terraza"]
+    # El guion que viaja: conserva las dos aéreas con SU razón cada una, tira
+    # el inventado y mete la Terraza al final sin razón inventada.
+    pasos = ventana._guia_para_el_manifest().orden
+    assert [r.cuarto for r in pasos] == ["Aérea", "Sala", "Aérea", "Terraza"]
+    assert pasos[0].porque == "abres"
+    assert pasos[2].porque == "cierras"
+    assert pasos[3].porque == ""
+
+
 # --- El aviso de la guía vieja tiene que saltar SIEMPRE ---------------
 # Bug del 2026-09-15: solo funcionaba si le dabas a «Usar este orden». Si te
 # gustaba el orden como estaba y no le picabas, el aviso no salía nunca.

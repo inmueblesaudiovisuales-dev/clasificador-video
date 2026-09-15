@@ -199,3 +199,16 @@ def test_reordenar_con_una_lista_vacia_no_mueve_nada():
         r.add(c)
     r.reordenar([])
     assert r.active_rooms() == ["Sala", "Cocina"]
+
+
+def test_reordenar_no_mete_un_cuarto_dos_veces_al_rail():
+    # El guion de la guía SÍ repite cuartos --se abre con una aérea y se
+    # cierra con otra-- y esa lista llega hasta aquí. Pero el orden del rail
+    # es la asignación de teclas: un cuarto dos veces serían dos teclas para
+    # el mismo lugar. `add` e `insert_at` ya cuidan esta regla; `reordenar`
+    # no lo hacía.
+    r = RoomSelection()
+    for c in ["Sala", "Aérea"]:
+        r.add(c)
+    r.reordenar(["Aérea", "Sala", "Aérea"])
+    assert r.active_rooms() == ["Aérea", "Sala"]

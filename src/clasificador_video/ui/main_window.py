@@ -4641,6 +4641,16 @@ class MainWindow(QWidget):
 
         Y un cuarto inventado se cae: no está en el rail, y en Premiere
         sería la carpeta de un cuarto que no existe.
+
+        Corre DESPUÉS de `reordenar` en `aceptar_orden_de_la_guia`, y cuenta
+        con que ya se llamó: lee `reales` de `active_rooms()`, y ese orden
+        es el que decide dónde caen los cuartos que el guion no mencionó
+        (al final, en SU orden). Hoy da lo mismo llamarla antes o después
+        porque `reordenar` es una partición estable -- no le cambia el
+        orden relativo a lo que ya trae el rail --, pero eso es un detalle
+        de esa función, no de ésta. Si `reordenar` cambiara de criterio (por
+        ejemplo a orden alfabético), este método seguiría leyendo el rail
+        ya reacomodado y se rompería en silencio, no aquí.
         """
         if self.guia_actual is None or not self.guia_actual.ok:
             return self.guia_actual
