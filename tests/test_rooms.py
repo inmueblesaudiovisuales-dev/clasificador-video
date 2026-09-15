@@ -164,3 +164,38 @@ def test_mover_a_un_cuarto_que_no_existe_no_hace_nada():
     seleccion.mover_a("Alberca", 0)
 
     assert seleccion.active_rooms() == ["Fachada"]
+
+
+def test_reordenar_deja_los_cuartos_en_el_orden_pedido():
+    r = RoomSelection()
+    for c in ["Sala", "Cocina", "Fachada"]:
+        r.add(c)
+    r.reordenar(["Fachada", "Cocina", "Sala"])
+    assert r.active_rooms() == ["Fachada", "Cocina", "Sala"]
+
+
+def test_reordenar_no_crea_cuartos():
+    # La guia pudo traer uno inventado y Bruno aceptarla de todos modos.
+    # Un cuarto que el no tecleo NUNCA aparece en su rail.
+    r = RoomSelection()
+    r.add("Sala")
+    r.reordenar(["Sala", "Bodega"])
+    assert r.active_rooms() == ["Sala"]
+
+
+def test_reordenar_no_pierde_los_que_no_vienen():
+    # Si la lista se salto uno, ese se queda --al final, pero se queda--.
+    # Perder un cuarto aqui seria perder la clasificacion de sus clips.
+    r = RoomSelection()
+    for c in ["Sala", "Cocina", "Baño"]:
+        r.add(c)
+    r.reordenar(["Cocina", "Sala"])
+    assert r.active_rooms() == ["Cocina", "Sala", "Baño"]
+
+
+def test_reordenar_con_una_lista_vacia_no_mueve_nada():
+    r = RoomSelection()
+    for c in ["Sala", "Cocina"]:
+        r.add(c)
+    r.reordenar([])
+    assert r.active_rooms() == ["Sala", "Cocina"]
