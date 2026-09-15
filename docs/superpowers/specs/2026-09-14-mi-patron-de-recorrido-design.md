@@ -34,10 +34,9 @@ tamaño fijo suyo. Lo que sí existe es un interruptor **del lado de Gemini**
 (`media_resolution`, alta o baja) que cambia los tokens por cuadro — y eso se
 decide en la llamada, no en el ffmpeg.
 
-**Consecuencia de diseño:** se sigue comprimiendo, pero **por otra razón** —
-para no mover 20 GB por la red ni llenarle el disco. Y como la resolución no
-le cuesta nada al análisis, se baja a **lado corto 480** en vez de 720: la
-compresión termina antes y el análisis sale igual.
+**Consecuencia de diseño:** esto le quitó a la compresión su razón original.
+La que quedaba —ahorrar tiempo de subida— también se cayó al ponerle números.
+Ver el §4.c: **no se comprime nada.**
 
 ### 2.b El costo es tan bajo que deja de ser una restricción
 
@@ -242,26 +241,32 @@ son horizontales o verticales. Eso sale de `ffprobe` cuando el disco esté
 conectado, no de adivinar. Después del §3.bis ya no cambia ninguna decisión,
 pero el dato sí entra a la ficha de cada video.
 
-### 4.c Aligerar
+### 4.c No se comprime nada
 
-Cada video pasa por ffmpeg con `h264_videotoolbox`, **lado corto 480**, audio
-conservado. Un entregable de 1 GB queda en unos 15 MB.
+**La compresión se cayó del diseño el 2026-09-14**, y la tiró Bruno con una
+pregunta de dos partes: «si no se ahorra nada, mejor ni comprimas».
 
-- **El audio se queda a propósito.** La narración de Bruno dice «esta es la
-  cocina», y eso identifica los cuartos mucho mejor que el puro pixel. Cuesta
-  32 tokens por segundo, que a estos precios es nada.
-- **`-map 0:v:0` va de todos modos**, aunque estos archivos son exports de
-  Premiere con una sola pista. Es la trampa ya medida y documentada de los
-  MP4 del dron —una miniatura incrustada como segunda pista de video, que sin
-  el `-map` es lo que ffmpeg transcodifica, y sale un archivo de 406 px—. Aquí
-  no aplica, cuesta cero escribirlo, y el día que alguien le meta un archivo
-  del dron no se rompe.
-- **Tarda.** A la velocidad medida de `proxy_gen` es del orden de **dos o tres
-  horas de máquina** para hora y media de video. Desatendidas.
+El §2.a ya había quitado la razón original —comprimir no baja lo que cobra
+Gemini, porque cobra por duración—. Lo que quedaba en pie era **el tiempo de
+subida**: mandarle 8.8 GB a Gemini contra mandarle 250 MB. Pero al ponerle
+número a las dos columnas, la cuenta se voltea:
 
-**Se reusa lo que ya existe.** `src/clasificador_video/proxy_gen.py` ya arma
-este comando y ya está medido (285 MB → 17 MB). Lo que cambia es el lado corto
-y el destino, no el camino.
+| | Cuesta |
+|---|---|
+| Comprimir los 15 y subir 250 MB | **2–3 h** de máquina + 2 min de subida |
+| Subir los 15 en crudo | **30–60 min** de subida |
+
+**Comprimir sale más caro que no comprimir.** El paso entero se va: los
+archivos van a Gemini tal como salieron de Premiere.
+
+Lo que se revisa antes de subir, que es barato y no es comprimir:
+
+- **Que ningún archivo pase de 2 GB**, que es el tope por archivo de la API de
+  Gemini. El más pesado de los 15 mide 1.52 GB, así que hoy pasan todos — pero
+  se comprueba en vez de suponerse, y si algún año entra uno más grande, **ese
+  solo** se comprime.
+
+`proxy_gen.py` no se toca. Sigue siendo de Clipify y esto ya no lo usa.
 
 ### 4.d Analizar
 
@@ -381,6 +386,7 @@ no quería justificaciones, y contestó que sí las dos.
 - **Bajar todo de Drive.** Los videos están en el disco de Bruno (§2.c).
 - **Escoger una muestra.** El costo no lo justifica (§2.b): se analizan los 33.
 - **Bajarle los fps.** No ahorra nada (§2.a).
+- **Comprimir.** Cuesta más tiempo del que ahorra (§4.c).
 - **Las versiones «sin voz».** Son el mismo corte (§4.a).
 - **Un patrón por formato de cuadro.** El 16x9 y el 9x16 llevan el mismo
   recorrido (§3.bis).
@@ -411,7 +417,7 @@ prueba técnica antes de un paso gratis solo retrasa el paso gratis.
    bastantes menos de 35.
 3. **Buscar en el disco** los que quedaron, y reportar los que no aparecen.
 4. **Probar Gemini con tres**, ya sabiendo cuáles son los buenos.
-5. **El resto**: comprimir los demás, analizarlos, sacar el patrón.
+5. **El resto**: analizar los demás y sacar el patrón.
 
 ### 9.1 El riesgo sigue siendo Gemini, y por eso va en el paso 4
 
@@ -424,8 +430,11 @@ Se prueban tres videos y **Bruno mira las tres fichas** contra los videos que
 él editó. Él es la única verificación posible: es el único que sabe qué había
 en cada cuarto.
 
-Va en el paso 4 y no en el 5 por una razón que sí se sostiene: **antes de las
-tres horas de compresión de los 35**. Tres videos se comprimen en minutos.
+Va en el paso 4 y no en el 5 simplemente porque tres archivos se suben antes
+que quince. La razón que se le había dado —«antes de las tres horas de
+compresión»— **murió con la compresión** (§4.c), y de paso Bruno le encontró un
+hueco aparte: probar con archivos comprimidos distintos a los que se iban a
+mandar no prueba lo que se quería probar.
 
 **Si falla**, lo que cambia es de dónde salen los cuartos, no el resto del
 diseño: habría que sacarlos de otro lado —los nombres de los bins de los
@@ -445,12 +454,13 @@ proyectos de Premiere de cada entrega, si es que existen— en vez del video.
   casos reales: dos archivos con el mismo nombre y distinto peso, y el archivo
   bueno guardado con otro nombre. Que lo que no se encuentra se reporte en vez
   de saltarse callado.
+- Que un archivo de más de 2 GB se detecte antes de subirlo (§4.c).
 - Que las cuentas del §4.e den lo que deben sobre fichas inventadas de
   ejemplo, incluido el caso de un tipo de propiedad con un solo video —que
   **no** debe producir una excepción en el documento.
 
-**Contra Gemini de verdad:** la prueba de los tres videos del §9.1, en su
-lugar del orden — después de la lista y de la poda, antes de comprimir los 35.
+**Contra Gemini de verdad:** la prueba de los tres videos del §9.1, después de
+la lista y de la poda.
 
 **Verificación visual real**, según `CLAUDE.md`: captura de la pestaña con la
 pregunta de «para quién» ya quitada y la de «qué lucir» al frente, y captura
