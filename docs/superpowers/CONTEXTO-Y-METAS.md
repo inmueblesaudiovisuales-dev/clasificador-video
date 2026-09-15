@@ -63,13 +63,12 @@ desde Premiere, el modelo se comparaba contra el reflejo de los cuartos en las
 carpetas en vez de contra los cuartos de verdad.
 
 Hoy: el botón **Guía de edición**, junto al de exportar, pregunta qué quieres
-lucir y qué tipo de propiedad es, y devuelve el párrafo del recorrido más la
-lista de cuartos en orden. «Usar este orden» los acomoda —rail, hoja y
-Premiere, que es uno solo— y la guía **viaja congelada en el manifest**. El
-panel de Premiere quedó de **lectura entera**: sin llave, sin red, sin
-esperas. Y las carpetas de cuartos llegan numeradas, reconociendo el cuarto
-**sin su número** para que una segunda pasada con otro orden no parta un
-cuarto en dos carpetas.
+lucir y qué tipo de propiedad es, y devuelve el párrafo del recorrido más el
+guion de pasos. «Usar este orden» acomoda los cuartos —rail, hoja y Premiere,
+que es uno solo— y la guía **viaja congelada en el manifest**. El panel de
+Premiere sigue sin llave, sin red, sin esperas. Y las carpetas de cuartos
+llegan numeradas, reconociendo el cuarto **sin su número** para que una
+segunda pasada con otro orden no parta un cuarto en dos carpetas.
 
 Sale de dos brainstorms cerrados con Bruno el mismo día
 (`HANDOFF-2026-09-14-orden-sugerido-de-cuartos.md` → spec → plan, y luego
@@ -80,16 +79,27 @@ orden de un recorrido se decide por lo que **es** cada cuarto, y eso ya está
 escrito en los nombres que Bruno teclea. Viaja texto, no video, y el costo que
 le preocupaba deja de ser un tema.
 
+**El 2026-09-15 cambió de modelo: de un orden de cuartos a un guion de
+pasos.** Bruno cachó que un recorrido repite cuarto —abre con una aérea y
+cierra con otra, y las dos son la misma carpeta—, así que «orden sin repetir»
+estaba mal modelado desde el principio. La revisión dejó de marcar los
+repetidos como error, la carpeta se numera por la primera aparición, y en
+Premiere ahora se va **palomeando** qué pasos ya se montaron, con el bin
+pintándose de verde cuando un cuarto queda completo. Detalle en
+`specs/2026-09-15-el-guion-y-las-carpetas-design.md`.
+
 **Lo que falta, y solo él puede hacerlo:**
 
 1. **Correr una guía de verdad** con un proyecto suyo y ver si el orden que
    propone se parece a cómo edita. Nadie más lo sabe.
-2. **Importar en Premiere** y ver que las carpetas lleguen numeradas y que una
-   segunda pasada renumere en vez de duplicar. Esa parte necesita Premiere
-   abierto: el método real para renombrar un bin no se pudo enumerar, así que
-   se busca en el objeto de verdad —la lista `ACCIONES_DE_RENOMBRAR` de
-   `nombre.js`— y si no está ninguno, la carpeta se reusa con su número viejo
-   y se dice en el panel.
+2. **Importar en Premiere** y comprobar dos cosas que solo se ven con Premiere
+   abierto: que las carpetas lleguen numeradas por la primera aparición del
+   cuarto y que una segunda pasada renumere en vez de duplicar —el método real
+   para renombrar un bin no se pudo enumerar, así que se busca en el objeto de
+   verdad, la lista `ACCIONES_DE_RENOMBRAR` de `nombre.js`, y si no está
+   ninguno, la carpeta se reusa con su número viejo y se dice en el panel—; y
+   si Premiere de verdad **deja pintar un bin de color** para que el verde de
+   «montado» se vea.
 
 Lo demás está comprobado: 1719 pruebas de Python y 12 de Node en verde, y las
 cuatro pantallas vistas con los ojos —la de Clipify vacía y con una guía que

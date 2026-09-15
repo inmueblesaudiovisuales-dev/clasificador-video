@@ -325,6 +325,23 @@ comentarios del código, que es donde sirve. En el chat, no.
   se hacen para decidir qué entra y se quedan fuera del documento — Bruno ya
   sabe cómo edita, el documento no tiene que convencerlo.
 
+- **La guía es un GUION de pasos, no un orden de cuartos.** Un cuarto sale
+  las veces que haga falta —Bruno abre con una aérea y cierra con otra, y
+  son la misma carpeta—, así que repetir NO es un error y la revisión dejó
+  de marcarlo. Una carpeta es un lugar, un recorrido es una secuencia: no
+  pueden llevar el mismo número. **La carpeta se numera por la PRIMERA
+  aparición del cuarto**, y el rail se ordena con ese mismo criterio para
+  que no puedan contradecirse. El dato salió de las fichas del patrón y
+  estuvo mal leído un día: sacar la posición MEDIANA de cada cuarto es
+  justo lo que esconde que sale dos veces. Ver
+  `specs/2026-09-15-el-guion-y-las-carpetas-design.md`.
+
+- **El avance —qué pasos ya montaste— vive en el plugin, y el color del bin
+  es su reflejo.** Se recalcula entero al palomear, nunca se lleva por
+  separado. Y el verde del bin NO entra en la paleta de cámaras: en un
+  **clip** el color dice la cámara, en un **bin** dice si está montado, y
+  son dos canales distintos sobre dos tipos de item distintos.
+
 - **El enfoque `xmeml` (Final Cut Pro 7 XML) está descartado**, no solo
   "obsoleto" — Premiere nunca abre el archivo de video real al importar un
   xmeml, y ese formato no puede declarar rotación. La vía real de entrega es

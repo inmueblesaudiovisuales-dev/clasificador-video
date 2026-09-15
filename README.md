@@ -253,9 +253,11 @@ todos los de un color y arrastrarles el preset.
 ### 6. La guía de edición
 
 Cuando ya terminaste de clasificar, el botón **Guía de edición** —junto al de
-exportar— te arma el recorrido del video: un párrafo de cómo recorrerla y la
-lista de tus cuartos en el orden que conviene, cada uno con una línea corta de
-por qué va ahí.
+exportar— te arma el recorrido del video: un párrafo de cómo recorrerla y el
+guion del recorrido, paso a paso, cada uno con una línea corta de por qué va
+ahí. **Un cuarto puede salir más de una vez** —la aérea que abre el recorrido
+y la que lo cierra son dos pasos y una sola carpeta— y eso no es un error:
+es justo cómo editas tú.
 
 Te pregunta dos cosas. La de arriba es la que importa: **qué quieres lucir**,
 y ahí escribes lo que se te ocurra —«la alberca y la terraza», «la cocina
@@ -267,15 +269,25 @@ el rail, en la hoja y en Premiere, que es uno solo— y la guarda. Si no te
 convence, cambias lo que quieres lucir y la vuelves a pedir.
 
 De ahí en adelante **la guía viaja sola**: sale en el archivo que exportas y
-la ves en Premiere, en la pestaña **Guía de edición** del panel. Y tus
-carpetas de cuartos llegan numeradas en ese orden: `01. Fachada`,
-`02. Cocina`. Si importas más clips del mismo rodaje y el orden cambió, se le
-cambia el número a la carpeta que ya tienes — no se crea una segunda.
+la ves en Premiere, en el panel **Guía de edición**, con una casilla por
+paso. La vas **palomeando según montas**, el encabezado te dice en qué paso
+vas y cuántos llevas del recorrido, y en cuanto un cuarto queda completo
+—todas las veces que sale en el guion, palomeadas— **su carpeta se pinta de
+verde**.
 
-Cuatro cosas que vale la pena que sepas:
+Y tus carpetas de cuartos llegan numeradas en ese orden: `01. Fachada`,
+`02. Cocina`. Cada carpeta se numera por la **primera** vez que ese cuarto
+aparece en el recorrido, así vuelva a salir después. Si importas más clips
+del mismo rodaje y el orden cambió, se le cambia el número a la carpeta que
+ya tienes — no se crea una segunda.
 
-- **Es una guía para leer. No mueve tus clips.** Lo único que acomoda son tus
-  cuartos, y solo si le das a «Usar este orden».
+Cinco cosas que vale la pena que sepas:
+
+- **Es una guía para leer y para palomear. No mueve tus clips.** Lo único
+  que acomoda son tus cuartos, y solo si le das a «Usar este orden».
+- **Las palomitas viven en tu computadora, no en el proyecto de Premiere.**
+  Si le pasas el proyecto a alguien más, no lo acompañan — se quedan en tu
+  máquina.
 - **Si le falta un cuarto o se inventa uno, te lo dice** arriba de la lista.
   Una guía a la que le falta la cocina hace que se te olvide la cocina al
   editar, y eso no se nota hasta después de entregar.

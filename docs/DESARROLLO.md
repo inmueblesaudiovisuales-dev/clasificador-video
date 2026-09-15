@@ -125,8 +125,10 @@ docs/                       esto
 
 ### Los archivos de la guía de edición
 
-La guía se arma en Clipify y viaja congelada en el manifest; el panel de
-Premiere solo la lee. De este lado se reparte así, y el corte es a propósito
+La guía se arma en Clipify y viaja congelada en el manifest como un guion de
+pasos —un cuarto puede salir en más de un paso—. El panel de Premiere la lee,
+y del lado del plugin también **guarda el avance**: qué pasos ya se
+palomearon. De este lado (Clipify) se reparte así, y el corte es a propósito
 —lo que piensa se prueba sin red y sin abrir la app—:
 
 | Archivo | De qué se encarga |
@@ -137,6 +139,19 @@ Premiere solo la lee. De este lado se reparte así, y el corte es a propósito
 | `ia.py` | La llamada HTTP, y nada más. Cambiar de proveedor es este archivo. |
 | `ui/pantalla_guia.py` | La pantalla: dos preguntas, el resultado, «Usar este orden». |
 | `ui/pantalla_config.py` | La pantalla de configuración. Hoy, un ajuste: la llave. |
+
+Del lado del plugin, el avance —qué pasos ya se montaron— está **partido en
+dos**, y el corte es el mismo criterio de siempre: lo que se puede probar sin
+abrir Premiere, aparte de lo que no.
+
+| Archivo | De qué se encarga |
+|---|---|
+| `avance.js` | Lo que PIENSA: qué paso es el actual, si un cuarto ya quedó completo, qué palomitas siguen valiendo si la guía cambió. Lógica pura, sin disco — se prueba con `node uxp-plugin/pruebas/correr.js`. |
+| `avanceDisco.js` | Guardar y leer esas palomitas, un archivo por proyecto, en la carpeta del plugin. Toca el disco de UXP y por eso **no** se prueba con `node`. |
+
+Ese corte es lo que permite comprobar la parte importante —cuándo un cuarto
+cuenta como montado, qué palomitas se descartan si la guía cambió— sin
+depender del arnés que corre dentro de Premiere.
 
 Las dos pantallas —la guía y la configuración— son **widgets hijos de la
 ventana, no `QDialog` modales**. El diálogo de configuración que abría con
