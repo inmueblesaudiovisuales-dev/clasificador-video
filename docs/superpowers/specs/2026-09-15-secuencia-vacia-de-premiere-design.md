@@ -25,6 +25,14 @@ El empate de orientación favorece vertical, como ya ocurría. Un original
 vertical se considera 2.7K cuando su lado largo está entre 2600 y 2999
 píxeles; cubre la medida real 2704 × 1520 ya corregida por rotación.
 
+El diálogo de exportación se rediseñó el 2026-09-16 con las tres opciones
+agrupadas por orientación y un único botón «Exportar JSON». Cada renglón
+muestra dimensiones y fps; una nota explica que Premiere agregará otra
+secuencia vacía 1080p. Una sugerencia clara aparece seleccionada y puede
+cambiarse; cuando hay material vertical 2.7K ninguna opción queda marcada y
+el botón se habilita solo al elegir una. El formato se guarda en el JSON,
+no se crea ninguna secuencia hasta importarlo en Premiere.
+
 ## Contrato del JSON
 
 Los JSON nuevos agregan `formato_secuencia`, con uno de los tres textos

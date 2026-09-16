@@ -14,6 +14,7 @@ from PySide6.QtCore import Qt, QObject, QRunnable, QThreadPool, QTimer, Signal
 from PySide6.QtGui import QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QApplication,
+    QDialog,
     QFileDialog,
     QLabel,
     QHBoxLayout,
@@ -64,6 +65,7 @@ from clasificador_video.ui.aviso_de_media import (
     Renglon,
 )
 from clasificador_video.ui.clip_sheet import SIN_BIN, ClipSheet, ClipThumbnail
+from clasificador_video.ui.dialogo_formato_secuencia import DialogoFormatoSecuencia
 from clasificador_video.ui.pantalla_config import PantallaConfig
 from clasificador_video.ui.pantalla_guia import PantallaGuia
 from clasificador_video.ui.room_palette import RoomPalette
@@ -4765,33 +4767,11 @@ class MainWindow(QWidget):
         self.escribir_manifest(Path(path), formato_secuencia=formato_secuencia)
 
     def _elegir_formato_de_secuencia(self) -> str | None:
-        formatos = ("4K 9:16", "2.7K 9:16", "4K 16:9")
         sugerido = sugerencia_de_formato(
             self._clip_sizes.get(i, (0, 0)) for i in range(len(self.clips))
         )
-        cuadro = QMessageBox(self)
-        cuadro.setWindowTitle("Formato de la secuencia")
-        cuadro.setText("¿Qué formato quieres para Premiere?")
-        if sugerido is None:
-            cuadro.setInformativeText(
-                "Hay material vertical 2.7K. Elige entre las dos opciones verticales. "
-                "Premiere también creará una secuencia vacía 1080p."
-            )
-        else:
-            cuadro.setInformativeText(
-                "Clipify sugiere «" + sugerido + "» por tu material. "
-                "Premiere también creará una secuencia vacía 1080p."
-            )
-        botones = {
-            formato: cuadro.addButton(formato, QMessageBox.ButtonRole.AcceptRole)
-            for formato in formatos
-        }
-        cuadro.addButton("Cancelar", QMessageBox.ButtonRole.RejectRole)
-        if sugerido is not None:
-            cuadro.setDefaultButton(botones[sugerido])
-        cuadro.exec()
-        elegido = cuadro.clickedButton()
-        return next((f for f, boton in botones.items() if boton is elegido), None)
+        cuadro = DialogoFormatoSecuencia(sugerido, self)
+        return cuadro.formato_elegido if cuadro.exec() == QDialog.Accepted else None
 
     def escribir_manifest(self, destino: Path,
                           formato_secuencia: str | None = None) -> None:
