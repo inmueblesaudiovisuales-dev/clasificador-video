@@ -56,17 +56,16 @@ evalúa, que es lo mismo que hace el navegador con un `<script src>`.
 Aquí vivían también los casos del orden sugerido. Se mudaron a
 `tests/test_guia.py` el 2026-09-14, cuando la guía se mudó a Clipify.
 
-Lo que sí necesita Premiere —los bins, la red, el disco de UXP— vive en el
-arnés de `uxp-plugin/js/autocheck-tests.js`, que corre **dentro** de Premiere
-y está apagado (`AUTOCHECK_ACTIVO = false` en `autocheck.js`). Para correrlo:
-préndelo, recarga el plugin en Premiere y lee
-`/private/tmp/clasificador-autocheck/resultado.json`. Acuérdate de apagarlo
-después.
+Lo que sí necesita Premiere —los bins, la red, el disco de UXP— vivía en el
+arnés de `uxp-plugin/js/autocheck-tests.js`, que corría **dentro** de Premiere.
+Se borró el 2026-09-15: estaba apagado desde que se terminó el plugin
+(`AUTOCHECK_ACTIVO = false` en `autocheck.js`) y además tronaba al cargar por
+una variable que nunca se definió. `autocheck.js` se queda como el arnés, pero
+hoy no registra ningún caso.
 
-Y ojo con la asimetría: **lo del arnés no corre solo**. Los casos que viven
-allá solo se comprueban cuando alguien se acuerda de prenderlo, así que
-cualquier lógica que se pueda probar sin Premiere va en el corredor de Node,
-no en el arnés.
+Y ojo con la asimetría: **lo que necesita Premiere no corre solo**. Cualquier
+lógica que se pueda probar sin Premiere va en el corredor de Node, no en un
+arnés que hay que prender a mano.
 
 ## Empaquetar la app
 
