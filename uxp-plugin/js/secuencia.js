@@ -13,6 +13,17 @@ function datosDeSecuencia(manifest) {
 }
 
 function datosDeSecuencias(manifest) {
+  if (manifest && manifest.crear_secuencias === true) {
+    const nombre = ((manifest.proyecto || "Proyecto").trim() || "Proyecto");
+    return [
+      { nombre: nombre + " 4K 9:16", ancho: 2160, alto: 3840, fps: 59.94, carpeta: "" },
+      { nombre: nombre + " 2.7K 9:16", ancho: 2160, alto: 3840, fps: 59.94, carpeta: "" },
+      { nombre: nombre + " 4K 16:9", ancho: 3840, alto: 2160, fps: 59.94, carpeta: "" },
+      { nombre: nombre + " 9:16 1080p", ancho: 1080, alto: 1920, fps: 59.94, carpeta: "1080p" },
+      { nombre: nombre + " 16:9 1080p", ancho: 1920, alto: 1080, fps: 59.94, carpeta: "1080p" },
+    ];
+  }
+  // Los JSON de la versión anterior siguen pidiendo solo el par elegido.
   const principal = datosDeSecuencia(manifest);
   if (!principal) return [];
   const vertical = principal.sufijo === "9:16";
@@ -36,10 +47,21 @@ async function construirSecuencia(project, manifest) {
   if (!secuencias.length) return { estado: "sin-formato" };
   const premierepro = require("premierepro");
   const root = premierepro.FolderItem.cast(await project.getRootItem());
-  const carpeta = await resolveBinChain(project, root, [CARPETAS_DEL_PROYECTO[0]]);
+  const carpetaPrincipal = await resolveBinChain(project, root, [CARPETAS_DEL_PROYECTO[0]]);
   const resultados = [];
   for (const datos of secuencias) {
     try {
+      let carpeta = carpetaPrincipal;
+      if (datos.carpeta) {
+        // Un proyecto anterior puede tener esta 1080p en la raíz. No la
+        // movemos ni creamos una segunda con el mismo nombre en el subbin.
+        if (await secuenciaConNombre(carpetaPrincipal, datos.nombre)) {
+          logToPanel("La secuencia «" + datos.nombre + "» ya existe; no se movió ni se duplicó.");
+          resultados.push({ estado: "existente", nombre: datos.nombre });
+          continue;
+        }
+        carpeta = await resolveBinChain(project, carpetaPrincipal, [datos.carpeta]);
+      }
       resultados.push(await construirUnaSecuencia(project, root, carpeta, premierepro, datos));
     } catch (e) {
       const mensaje = (e && e.message) || String(e);

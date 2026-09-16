@@ -53,5 +53,24 @@ module.exports = function pruebasDeSecuencia(ctx) {
         detalle: "un JSON viejo debe importar solo clips",
       }),
     },
+    {
+      nombre: "un JSON nuevo pide tres principales y dos 1080p en su bin",
+      fn: () => {
+        const reales = ctx.datosDeSecuencias({ proyecto: "Casa", crear_secuencias: true });
+        const esperados = [
+          ["Casa 4K 9:16", 2160, 3840, ""],
+          ["Casa 2.7K 9:16", 2160, 3840, ""],
+          ["Casa 4K 16:9", 3840, 2160, ""],
+          ["Casa 9:16 1080p", 1080, 1920, "1080p"],
+          ["Casa 16:9 1080p", 1920, 1080, "1080p"],
+        ];
+        const ok = reales.length === esperados.length && reales.every((dato, i) =>
+          dato.nombre === esperados[i][0] && dato.ancho === esperados[i][1] &&
+          dato.alto === esperados[i][2] && dato.carpeta === esperados[i][3] &&
+          dato.fps === 59.94
+        );
+        return { ok, detalle: JSON.stringify(reales) };
+      },
+    },
   ];
 };

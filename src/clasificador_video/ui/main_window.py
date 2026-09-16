@@ -14,7 +14,6 @@ from PySide6.QtCore import Qt, QObject, QRunnable, QThreadPool, QTimer, Signal
 from PySide6.QtGui import QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QApplication,
-    QDialog,
     QFileDialog,
     QLabel,
     QHBoxLayout,
@@ -37,7 +36,6 @@ from clasificador_video.probe import (
     orientacion_de,
     orientacion_predominante,
     probe_clip,
-    sugerencia_de_formato,
 )
 from clasificador_video.proxy_match import (
     clip_del_proxy,
@@ -65,7 +63,6 @@ from clasificador_video.ui.aviso_de_media import (
     Renglon,
 )
 from clasificador_video.ui.clip_sheet import SIN_BIN, ClipSheet, ClipThumbnail
-from clasificador_video.ui.dialogo_formato_secuencia import DialogoFormatoSecuencia
 from clasificador_video.ui.pantalla_config import PantallaConfig
 from clasificador_video.ui.pantalla_guia import PantallaGuia
 from clasificador_video.ui.room_palette import RoomPalette
@@ -4756,25 +4753,14 @@ class MainWindow(QWidget):
                 f"{len(unclassified)} clip(s) no tienen cuarto y entrarán en 'Sin clasificar'. "
                 "Puedes seguir y corregir después.",
             )
-        formato_secuencia = self._elegir_formato_de_secuencia()
-        if formato_secuencia is None:
-            return
         path, _ = QFileDialog.getSaveFileName(
             self, "Guardar manifest", self._nombre_sugerido_del_manifest(),
             "JSON (*.json)")
         if not path:
             return
-        self.escribir_manifest(Path(path), formato_secuencia=formato_secuencia)
+        self.escribir_manifest(Path(path))
 
-    def _elegir_formato_de_secuencia(self) -> str | None:
-        sugerido = sugerencia_de_formato(
-            self._clip_sizes.get(i, (0, 0)) for i in range(len(self.clips))
-        )
-        cuadro = DialogoFormatoSecuencia(sugerido, self)
-        return cuadro.formato_elegido if cuadro.exec() == QDialog.Accepted else None
-
-    def escribir_manifest(self, destino: Path,
-                          formato_secuencia: str | None = None) -> None:
+    def escribir_manifest(self, destino: Path) -> None:
         """Arma el manifiesto y lo escribe. Sin dialogos: es la parte
         probable, y `_on_export_manifest` es la que pregunta.
 
@@ -4795,7 +4781,7 @@ class MainWindow(QWidget):
                 replace(c, camara=camaras.get(i, SONY)))
                 for i, c in enumerate(self.clips)],
             guia=self._guia_para_el_manifest(),
-            formato_secuencia=formato_secuencia,
+            crear_secuencias=True,
         )
         manifest.write_json(destino)
 

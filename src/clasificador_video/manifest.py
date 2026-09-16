@@ -76,15 +76,22 @@ class Manifest:
     # apretó el botón, o se cayó la red. Todo lo demás funciona igual.
     guia: Guia | None = None
     formato_secuencia: str | None = None
+    # Solo los JSON exportados desde este flujo piden el nuevo conjunto de
+    # cinco secuencias. Un JSON anterior conserva su comportamiento.
+    crear_secuencias: bool = False
 
     def to_dict(self) -> dict:
-        return {
+        datos = {
             "proyecto": self.proyecto,
             "orientacion": self.orientacion,
             "clips": [c.to_dict() for c in self.clips],
             "guia": self.guia.to_dict() if self.guia is not None else None,
             "formato_secuencia": self.formato_secuencia,
         }
+        if self.crear_secuencias:
+            datos.pop("formato_secuencia")
+            datos["crear_secuencias"] = True
+        return datos
 
     def write_json(self, path: Path) -> None:
         path.write_text(json.dumps(self.to_dict(), indent=2, ensure_ascii=False))

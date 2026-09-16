@@ -22,14 +22,6 @@ from clasificador_video.ui.video_stage import VideoStage
 from clasificador_video.ui.video_widget import VideoWidget
 
 
-@pytest.fixture(autouse=True)
-def _elegir_formato_sin_abrir_dialogo(monkeypatch):
-    """Los tests de exportación prueban el archivo, no el diálogo modal."""
-    monkeypatch.setattr(
-        MainWindow, "_elegir_formato_de_secuencia", lambda self: "4K 9:16"
-    )
-
-
 class FakeMpvForWindow:
     def __init__(self, **kwargs):
         self.init_kwargs = kwargs
@@ -764,7 +756,7 @@ def test_cerrar_la_ventana_no_pierde_la_ultima_edicion_sin_guardar(qtbot, tmp_pa
     assert saved["clips"][0]["categoria_path"] == ["Sala"]
 
 
-def test_exportar_escribe_manifest_con_formato_del_plugin(qtbot, monkeypatch, tmp_path):
+def test_exportar_pide_cinco_secuencias_sin_elegir_formato(qtbot, monkeypatch, tmp_path):
     from PySide6.QtWidgets import QMessageBox
     window = _window_with_video(qtbot)
     out = tmp_path / "manifest.json"
@@ -785,7 +777,8 @@ def test_exportar_escribe_manifest_con_formato_del_plugin(qtbot, monkeypatch, tm
     assert saved["clips"][1]["categoria_path"] == []
     assert saved["clips"][0]["flag"] == "pick"
     assert saved["clips"][0]["in_frame"] == 30
-    assert saved["formato_secuencia"] == "4K 9:16"
+    assert saved["crear_secuencias"] is True
+    assert "formato_secuencia" not in saved
     # el camino es el CUARTO Y NADA MAS: en Premiere el bin «Sala» tiene los
     # clips sueltos adentro. El estado no cuelga de una subcarpeta -- lo dice
     # la marca del nombre (★/✓/✕), ver `nombre.js`.

@@ -73,6 +73,14 @@ def test_manifest_sin_formato_conserva_compatibilidad():
     assert d["formato_secuencia"] is None
 
 
+def test_manifest_nuevo_pide_cinco_secuencias_sin_elegir_formato():
+    d = Manifest(
+        proyecto="Casa Jardin", orientacion="vertical", crear_secuencias=True,
+    ).to_dict()
+    assert d["crear_secuencias"] is True
+    assert "formato_secuencia" not in d
+
+
 def test_manifest_write_json_escribe_archivo_legible(tmp_path):
     m = Manifest(proyecto="Casa Jardin", orientacion="vertical", clips=[_clip()])
     out = tmp_path / "manifest.json"

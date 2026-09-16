@@ -142,16 +142,3 @@ def test_sin_ningun_tamano_conocido_queda_el_default_de_siempre():
 def test_los_tamanos_en_cero_no_cuentan():
     assert orientacion_predominante([(0, 0), (2160, 3840)]) == "vertical"
     assert orientacion_predominante([(0, 0)]) == "horizontal"
-
-
-def test_sugerencia_horizontal_sigue_la_mayoria():
-    assert probe.sugerencia_de_formato([(3840, 2160), (3840, 2160), (2160, 3840)]) == "4K 16:9"
-
-
-def test_vertical_4k_sugiere_4k_vertical():
-    assert probe.sugerencia_de_formato([(2160, 3840), (2160, 3840)]) == "4K 9:16"
-
-
-def test_un_solo_vertical_27k_obliga_a_elegir_sin_sugerencia():
-    tamanos = [(2160, 3840), (1520, 2704), (2160, 3840)]
-    assert probe.sugerencia_de_formato(tamanos) is None

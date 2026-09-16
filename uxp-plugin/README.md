@@ -99,11 +99,12 @@ carpeta `External/` con Premiere ya abierto.
 
 ## Notas
 
-- Los JSON nuevos con `formato_secuencia` crean dos secuencias vacías en
-  `01. Secuencia`: la elegida y una versión 1080p con la misma orientación,
-  ambas a 59.94 fps. Cada nombre se revisa por separado para no duplicar ni
-  alterar secuencias existentes. Los JSON anteriores siguen importando solo
-  clips y bins.
+- Los JSON nuevos con `crear_secuencias: true` crean tres secuencias vacías
+  principales en `01. Secuencia` y dos en el subbin `1080p`, todas a 59.94
+  fps. Cada nombre se revisa por separado para no duplicar ni alterar
+  secuencias existentes. Una 1080p anterior que siga en la raíz no se mueve
+  ni se duplica. Los JSON anteriores con `formato_secuencia` siguen creando
+  solo su par; los anteriores sin formato importan solo clips y bins.
 - Desde la versión 1.4.0 el mínimo es Premiere 26.2. La creación de
   secuencias llegó en 25.6, pero el método que fija exactamente 59.94 fps
   (`SequenceSettings.setVideoFrameRate`) apareció hasta 26.2. Bajar el mínimo
