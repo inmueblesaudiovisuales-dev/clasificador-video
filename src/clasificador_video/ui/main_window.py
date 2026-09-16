@@ -36,6 +36,7 @@ from clasificador_video.probe import (
     orientacion_de,
     orientacion_predominante,
     probe_clip,
+    sugerencia_de_formato,
 )
 from clasificador_video.proxy_match import (
     clip_del_proxy,
@@ -4753,14 +4754,43 @@ class MainWindow(QWidget):
                 f"{len(unclassified)} clip(s) no tienen cuarto y entrarán en 'Sin clasificar'. "
                 "Puedes seguir y corregir después.",
             )
+        formato_secuencia = self._elegir_formato_de_secuencia()
+        if formato_secuencia is None:
+            return
         path, _ = QFileDialog.getSaveFileName(
             self, "Guardar manifest", self._nombre_sugerido_del_manifest(),
             "JSON (*.json)")
         if not path:
             return
-        self.escribir_manifest(Path(path))
+        self.escribir_manifest(Path(path), formato_secuencia=formato_secuencia)
 
-    def escribir_manifest(self, destino: Path) -> None:
+    def _elegir_formato_de_secuencia(self) -> str | None:
+        formatos = ("4K 9:16", "2.7K 9:16", "4K 16:9")
+        sugerido = sugerencia_de_formato(
+            self._clip_sizes.get(i, (0, 0)) for i in range(len(self.clips))
+        )
+        cuadro = QMessageBox(self)
+        cuadro.setWindowTitle("Formato de la secuencia")
+        cuadro.setText("¿Qué secuencia quieres crear en Premiere?")
+        if sugerido is None:
+            cuadro.setInformativeText(
+                "Hay material vertical 2.7K. Elige entre las dos opciones verticales."
+            )
+        else:
+            cuadro.setInformativeText("Clipify sugiere «" + sugerido + "» por tu material.")
+        botones = {
+            formato: cuadro.addButton(formato, QMessageBox.ButtonRole.AcceptRole)
+            for formato in formatos
+        }
+        cuadro.addButton("Cancelar", QMessageBox.ButtonRole.RejectRole)
+        if sugerido is not None:
+            cuadro.setDefaultButton(botones[sugerido])
+        cuadro.exec()
+        elegido = cuadro.clickedButton()
+        return next((f for f, boton in botones.items() if boton is elegido), None)
+
+    def escribir_manifest(self, destino: Path,
+                          formato_secuencia: str | None = None) -> None:
         """Arma el manifiesto y lo escribe. Sin dialogos: es la parte
         probable, y `_on_export_manifest` es la que pregunta.
 
@@ -4781,6 +4811,7 @@ class MainWindow(QWidget):
                 replace(c, camara=camaras.get(i, SONY)))
                 for i, c in enumerate(self.clips)],
             guia=self._guia_para_el_manifest(),
+            formato_secuencia=formato_secuencia,
         )
         manifest.write_json(destino)
 

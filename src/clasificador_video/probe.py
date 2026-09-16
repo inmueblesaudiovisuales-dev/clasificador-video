@@ -107,3 +107,15 @@ def orientacion_predominante(tamanos: Iterable[tuple[int, int]]) -> str:
         return ORIENTACION_SIN_DATOS
     verticales = sum(1 for a, h in conocidos if orientacion_de(a, h) == "vertical")
     return "vertical" if verticales * 2 >= len(conocidos) else "horizontal"
+
+
+def sugerencia_de_formato(tamanos: Iterable[tuple[int, int]]) -> str | None:
+    """Sugiere orientación sin decidir entre dos salidas verticales."""
+    conocidos = [(a, h) for a, h in tamanos if a > 0 and h > 0]
+    if orientacion_predominante(conocidos) == "horizontal":
+        return "4K 16:9"
+    hay_vertical_27k = any(
+        orientacion_de(a, h) == "vertical" and 2600 <= max(a, h) < 3000
+        for a, h in conocidos
+    )
+    return None if hay_vertical_27k else "4K 9:16"

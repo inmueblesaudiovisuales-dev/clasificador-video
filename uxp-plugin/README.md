@@ -99,6 +99,11 @@ carpeta `External/` con Premiere ya abierto.
 
 ## Notas
 
+- Desde la versión 1.4.0 el mínimo es Premiere 26.2. La creación de
+  secuencias llegó en 25.6, pero el método que fija exactamente 59.94 fps
+  (`SequenceSettings.setVideoFrameRate`) apareció hasta 26.2. Bajar el mínimo
+  permitiría instalar el plugin en una versión incapaz de cumplir los ajustes
+  prometidos.
 - Si sube la versión en `manifest.json`, el `.ccx` nuevo se instala con
   `--install` normal (versión distinta, no es el caso no-op de arriba).
 - El plugin nunca debe estar cargado en UXP Developer Tools (`plugin load`)

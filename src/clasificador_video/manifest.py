@@ -75,6 +75,7 @@ class Manifest:
     # `None` es un proyecto sin guía, y es un caso normal: Bruno nunca
     # apretó el botón, o se cayó la red. Todo lo demás funciona igual.
     guia: Guia | None = None
+    formato_secuencia: str | None = None
 
     def to_dict(self) -> dict:
         return {
@@ -82,6 +83,7 @@ class Manifest:
             "orientacion": self.orientacion,
             "clips": [c.to_dict() for c in self.clips],
             "guia": self.guia.to_dict() if self.guia is not None else None,
+            "formato_secuencia": self.formato_secuencia,
         }
 
     def write_json(self, path: Path) -> None:

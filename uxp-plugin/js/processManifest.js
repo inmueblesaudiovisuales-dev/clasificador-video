@@ -93,6 +93,14 @@ async function processManifest(project, manifest) {
     }
   }
 
+  try {
+    resultado.secuencia = await construirSecuencia(project, manifest);
+  } catch (e) {
+    const mensaje = (e && e.message) || String(e);
+    resultado.errores.push({ archivo: "Secuencia", mensaje: mensaje });
+    logToPanel("No se pudo crear la secuencia vacía: " + mensaje, true);
+  }
+
   return resultado;
 }
 

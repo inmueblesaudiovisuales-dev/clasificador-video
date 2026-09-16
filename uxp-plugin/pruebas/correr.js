@@ -36,6 +36,7 @@ const ARCHIVOS = [
   "js/estructura.js",
   "js/numeroDeCuarto.js",
   "js/avance.js",
+  "js/secuencia.js",
 ];
 
 const contexto = vm.createContext({ console });
@@ -54,6 +55,7 @@ const casos = [].concat(
   pruebas(contexto),
   pruebas.carpetas(contexto),
   require("./avance.pruebas.js")(contexto)
+  , require("./secuencia.pruebas.js")(contexto)
 );
 
 let fallidas = 0;

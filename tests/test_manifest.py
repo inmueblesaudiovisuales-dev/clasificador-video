@@ -59,6 +59,20 @@ def test_manifest_to_dict_incluye_proyecto_orientacion_y_clips_en_orden():
     assert [c["orden"] for c in d["clips"]] == [2, 1]  # respeta el orden de la lista, no reordena
 
 
+def test_manifest_nuevo_lleva_el_formato_de_secuencia_elegido():
+    d = Manifest(
+        proyecto="Casa Jardin",
+        orientacion="vertical",
+        formato_secuencia="2.7K 9:16",
+    ).to_dict()
+    assert d["formato_secuencia"] == "2.7K 9:16"
+
+
+def test_manifest_sin_formato_conserva_compatibilidad():
+    d = Manifest(proyecto="Casa Jardin", orientacion="vertical").to_dict()
+    assert d["formato_secuencia"] is None
+
+
 def test_manifest_write_json_escribe_archivo_legible(tmp_path):
     m = Manifest(proyecto="Casa Jardin", orientacion="vertical", clips=[_clip()])
     out = tmp_path / "manifest.json"
