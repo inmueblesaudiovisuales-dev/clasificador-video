@@ -95,6 +95,11 @@ async function processManifest(project, manifest) {
 
   try {
     resultado.secuencia = await construirSecuencia(project, manifest);
+    for (const secuencia of resultado.secuencia.secuencias || []) {
+      if (secuencia.estado === "error") {
+        resultado.errores.push({ archivo: secuencia.nombre, mensaje: secuencia.mensaje });
+      }
+    }
   } catch (e) {
     const mensaje = (e && e.message) || String(e);
     resultado.errores.push({ archivo: "Secuencia", mensaje: mensaje });

@@ -44,9 +44,16 @@ Las dos salidas verticales coinciden deliberadamente. La referencia
 `9:16 2.7k` de `/Users/brunogutierrez/Downloads/testsecuencias.xml` declara
 2160 × 3840, 59.94 fps, pixel cuadrado y campos progresivos.
 
-La secuencia se crea vacía y después se mueve al bin `01. Secuencia`. Si ese
-bin ya contiene un item con el mismo nombre, el plugin no lo modifica ni crea
-otro y escribe un aviso claro en el panel.
+Desde la ampliación aprobada el 2026-09-16, cada elección crea además una
+segunda secuencia vacía a 59.94 fps: `1080 × 1920` para 9:16 o `1920 × 1080`
+para 16:9. Se llama `<proyecto> 9:16 1080p` o `<proyecto> 16:9 1080p`; la
+principal conserva su nombre sin resolución. Las dos se mueven al bin
+`01. Secuencia` y ninguna recibe clips automáticamente. Un JSON viejo sin
+`formato_secuencia` sigue sin crear ninguna secuencia.
+
+La deduplicación se decide por separado para cada nombre. Si el bin ya
+contiene una de las secuencias, el plugin no la modifica ni la duplica,
+avisa en el panel y todavía intenta crear la otra si falta.
 
 ## Versión mínima de Premiere
 
@@ -62,4 +69,3 @@ una función que no puede cumplir sus ajustes exactos.
 - La aceptación final requiere comprobar en Premiere: bin correcto, timeline
   vacío, tamaño, fps y segundo import sin duplicar ni modificar.
 - No se afirma que funciona en Premiere hasta completar esa prueba real.
-

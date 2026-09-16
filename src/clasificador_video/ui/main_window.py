@@ -4771,13 +4771,17 @@ class MainWindow(QWidget):
         )
         cuadro = QMessageBox(self)
         cuadro.setWindowTitle("Formato de la secuencia")
-        cuadro.setText("¿Qué secuencia quieres crear en Premiere?")
+        cuadro.setText("¿Qué formato quieres para Premiere?")
         if sugerido is None:
             cuadro.setInformativeText(
-                "Hay material vertical 2.7K. Elige entre las dos opciones verticales."
+                "Hay material vertical 2.7K. Elige entre las dos opciones verticales. "
+                "Premiere también creará una secuencia vacía 1080p."
             )
         else:
-            cuadro.setInformativeText("Clipify sugiere «" + sugerido + "» por tu material.")
+            cuadro.setInformativeText(
+                "Clipify sugiere «" + sugerido + "» por tu material. "
+                "Premiere también creará una secuencia vacía 1080p."
+            )
         botones = {
             formato: cuadro.addButton(formato, QMessageBox.ButtonRole.AcceptRole)
             for formato in formatos

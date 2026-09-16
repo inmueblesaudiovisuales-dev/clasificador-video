@@ -1,5 +1,11 @@
 # Handoff — secuencia vacía de Premiere
 
+> Actualización del 2026-09-16: este handoff retrata el estado del 15 de
+> septiembre. La función original ya quedó en `master` y Bruno confirmó en
+> Premiere que la secuencia vertical se creó vacía, a 2160 × 3840 y 59.94 fps.
+> No se comprobó la segunda importación. Después pidió una secuencia 1080p
+> adicional para cada formato; ver la ampliación al final del spec enlazado.
+
 **Fecha:** 2026-09-15  
 **Rama:** `master`  
 **Estado:** detenerse aquí hasta que Bruno confirme la siguiente etapa
@@ -111,4 +117,3 @@ Tampoco se validaron en vivo `2.7K 9:16` ni `4K 16:9`.
 4. Si la API difiere, agregar una sola prueba enfocada y corregir ese hallazgo.
 5. Retirar los JSON temporales.
 6. Preparar commits lógicos sin incluir los cambios ajenos.
-

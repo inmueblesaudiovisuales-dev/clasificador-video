@@ -187,10 +187,12 @@ seleccionar sus clips, quitarlo del proyecto.
 
 ### 5. Exportar
 
-`⌘E` guarda un archivo con **el nombre de tu proyecto** —
-`IAV-2608.17.json`—. En Premiere, abre el panel del plugin y dale
-a **Importar clasificación…**: arma los bins por cuarto, pone las etiquetas de
-color, aplica los in/out y engancha los proxies.
+`⌘E` te deja elegir el formato de la secuencia y guarda un archivo con **el
+nombre de tu proyecto** —`IAV-2608.17.json`—. En Premiere, abre el panel del
+plugin y dale a **Importar clasificación…**: arma los bins por cuarto, pone las
+etiquetas de color, aplica los in/out y engancha los proxies. También crea dos
+secuencias vacías en `01. Secuencia`: la del formato que elegiste y otra 1080p
+con la misma orientación. Ningún clip entra automáticamente al timeline.
 
 El proyecto se arma con estas siete carpetas, y todo tu material va dentro de
 la segunda:

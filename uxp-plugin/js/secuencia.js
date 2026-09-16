@@ -12,6 +12,18 @@ function datosDeSecuencia(manifest) {
   }, ajustes);
 }
 
+function datosDeSecuencias(manifest) {
+  const principal = datosDeSecuencia(manifest);
+  if (!principal) return [];
+  const vertical = principal.sufijo === "9:16";
+  return [principal, {
+    nombre: principal.nombre + " 1080p",
+    ancho: vertical ? 1080 : 1920,
+    alto: vertical ? 1920 : 1080,
+    fps: principal.fps,
+  }];
+}
+
 async function secuenciaConNombre(folder, nombre) {
   for (const item of (await folder.getItems()) || []) {
     if (item && item.name === nombre) return item;
@@ -20,11 +32,25 @@ async function secuenciaConNombre(folder, nombre) {
 }
 
 async function construirSecuencia(project, manifest) {
-  const datos = datosDeSecuencia(manifest);
-  if (!datos) return { estado: "sin-formato" };
+  const secuencias = datosDeSecuencias(manifest);
+  if (!secuencias.length) return { estado: "sin-formato" };
   const premierepro = require("premierepro");
   const root = premierepro.FolderItem.cast(await project.getRootItem());
   const carpeta = await resolveBinChain(project, root, [CARPETAS_DEL_PROYECTO[0]]);
+  const resultados = [];
+  for (const datos of secuencias) {
+    try {
+      resultados.push(await construirUnaSecuencia(project, root, carpeta, premierepro, datos));
+    } catch (e) {
+      const mensaje = (e && e.message) || String(e);
+      logToPanel("No se pudo crear la secuencia vacía «" + datos.nombre + "»: " + mensaje, true);
+      resultados.push({ estado: "error", nombre: datos.nombre, mensaje: mensaje });
+    }
+  }
+  return { estado: "procesadas", secuencias: resultados };
+}
+
+async function construirUnaSecuencia(project, root, carpeta, premierepro, datos) {
   if (await secuenciaConNombre(carpeta, datos.nombre)) {
     logToPanel("La secuencia «" + datos.nombre + "» ya existe; no se modificó ni se duplicó.");
     return { estado: "existente", nombre: datos.nombre };
