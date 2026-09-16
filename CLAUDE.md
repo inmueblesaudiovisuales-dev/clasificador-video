@@ -280,6 +280,68 @@ comentarios del código, que es donde sirve. En el chat, no.
   repos y se desincronizarían en el primer cambio de opinión — mismo criterio
   por el que `con_subcarpeta_de_estado` no vive en la sesión.
 
+- **El orden sugerido se decide por lo que ES cada cuarto, no por el pixel.**
+  Bruno pensaba analizar el video con IA y le preocupaba el costo. No hace
+  falta: el orden de un recorrido sale de los nombres que él teclea, y esos ya
+  están escritos. Viaja texto, no video — y de paso el costo deja de ser un
+  tema. No reabrir la idea de mirar fotogramas sin una razón nueva.
+
+- **La pestaña «Orden sugerido» NO escribe en el proyecto de Premiere.** Ni
+  una carpeta, ni un clip, ni el timeline: solo lee los nombres de los bins de
+  `02. Clip`. Por eso busca la carpeta a mano en vez de usar `resolveBinChain`,
+  que la crearía. Es de lectura entera, y esa es la razón por la que puede
+  vivir dentro del mismo plugin que sí escribe sin dar miedo.
+
+- **La lista del modelo se revisa contra los bins ANTES de enseñarse**, y se
+  compara por igualdad exacta de cadena: nada de `trim`, minúsculas ni quitar
+  acentos. `Recamara 1` contra `Recámara 1` es un cuarto que falta y otro
+  inventado, no un empate — normalizar ahí esconde justo el caso que la
+  revisión existe para atrapar. Si falta o sobra alguno, el panel lo marca en
+  vez de enseñar la lista como si nada: una guía a la que le falta la cocina
+  hace que se te olvide la cocina al editar, y eso no se nota hasta después de
+  entregar. Misma familia que los ocho bugs del 2026-08-22.
+
+- **La lógica pura del plugin se prueba con `node`, no con el arnés.**
+  `node uxp-plugin/pruebas/correr.js` corre sin abrir Premiere. El arnés de
+  `autocheck-tests.js` corre DENTRO de Premiere y está apagado
+  (`AUTOCHECK_ACTIVO = false`), así que sus casos solo se comprueban cuando
+  alguien se acuerda de prenderlo — una comprobación que solo corre cuando te
+  acuerdas no es una comprobación. Allá se queda únicamente lo que de verdad
+  necesita a Premiere: la red, los bins y el disco de UXP.
+
+- **La guía de edición se arma en Clipify, no en Premiere.** Los cuartos
+  nacen ahí, así que preguntar del otro lado obligaba a leer el reflejo en
+  vez del original. La guía viaja congelada en el manifest y el panel solo
+  la lee: sin llave, sin red, sin esperas. **Las carpetas de cuartos llegan
+  numeradas** y al importar se reconoce el cuarto **sin su número** — sin
+  eso, una segunda pasada con otro orden parte un cuarto en dos carpetas sin
+  avisar. El número es presentación y lo pone el plugin: no viaja en
+  `categoria_path`, mismo corte que `camara`→color. Ver
+  `specs/2026-09-14-guia-de-edicion-en-clipify-design.md`.
+
+- **El patrón de recorrido vive en `docs/patron-de-recorrido/MI-PATRON.md` y
+  ése es su único dueño.** Entra al prompt de la guía como punto de partida,
+  no como regla. Se escribe **sin cuentas y sin justificarse**: las cuentas
+  se hacen para decidir qué entra y se quedan fuera del documento — Bruno ya
+  sabe cómo edita, el documento no tiene que convencerlo.
+
+- **La guía es un GUION de pasos, no un orden de cuartos.** Un cuarto sale
+  las veces que haga falta —Bruno abre con una aérea y cierra con otra, y
+  son la misma carpeta—, así que repetir NO es un error y la revisión dejó
+  de marcarlo. Una carpeta es un lugar, un recorrido es una secuencia: no
+  pueden llevar el mismo número. **La carpeta se numera por la PRIMERA
+  aparición del cuarto**, y el rail se ordena con ese mismo criterio para
+  que no puedan contradecirse. El dato salió de las fichas del patrón y
+  estuvo mal leído un día: sacar la posición MEDIANA de cada cuarto es
+  justo lo que esconde que sale dos veces. Ver
+  `specs/2026-09-15-el-guion-y-las-carpetas-design.md`.
+
+- **El avance —qué pasos ya montaste— vive en el plugin, y el color del bin
+  es su reflejo.** Se recalcula entero al palomear, nunca se lleva por
+  separado. Y el verde del bin NO entra en la paleta de cámaras: en un
+  **clip** el color dice la cámara, en un **bin** dice si está montado, y
+  son dos canales distintos sobre dos tipos de item distintos.
+
 - **El enfoque `xmeml` (Final Cut Pro 7 XML) está descartado**, no solo
   "obsoleto" — Premiere nunca abre el archivo de video real al importar un
   xmeml, y ese formato no puede declarar rotación. La vía real de entrega es

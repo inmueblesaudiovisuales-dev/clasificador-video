@@ -56,7 +56,13 @@ a = Analysis(
     [str(RAIZ / "src" / "clasificador_video" / "app.py")],
     pathex=[str(RAIZ / "src")],
     binaries=binarios,
-    datas=[],
+    # El patrón de recorrido de Bruno. Va ADENTRO del paquete porque es lo
+    # que hace que la guía proponga SU orden y no el de manual: sin él la
+    # app instalada no fallaba, solo daba una guía genérica --y eso no se
+    # nota hasta que ya editaste con ella. La ruta de destino es la misma
+    # que busca `patron.py`.
+    datas=[(str(RAIZ / "docs" / "patron-de-recorrido" / "MI-PATRON.md"),
+            "docs/patron-de-recorrido")],
     hiddenimports=["mpv"],
     excludes=["tkinter", "PySide6.QtWebEngineCore", "PySide6.Qt3DCore",
               "PySide6.QtQuick3D", "PySide6.QtCharts", "PySide6.QtDataVisualization"],

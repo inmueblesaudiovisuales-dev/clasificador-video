@@ -39,6 +39,35 @@ sospechas que el fallo es nuevo, medir el commit anterior con el mismo número.
 repo: un test que pasaba igual con el arreglo puesto o quitado. Antes de
 confiar en uno nuevo, rómpelo a propósito y confirma que se pone rojo.
 
+### Las pruebas del plugin
+
+El plugin tiene las suyas, y son un comando aparte porque no son Python:
+
+```bash
+node uxp-plugin/pruebas/correr.js
+```
+
+Corren **sin abrir Premiere**: son la lógica pura del plugin —hoy, el prefijo
+numérico de las carpetas de cuartos (`numeroDeCuarto.js`) y el camino de un
+clip (`estructura.js`)—, que no le pregunta nada a Premiere ni a la red. Sin
+dependencias ni `npm install`: el corredor lee los archivos del plugin y los
+evalúa, que es lo mismo que hace el navegador con un `<script src>`.
+
+Aquí vivían también los casos del orden sugerido. Se mudaron a
+`tests/test_guia.py` el 2026-09-14, cuando la guía se mudó a Clipify.
+
+Lo que sí necesita Premiere —los bins, la red, el disco de UXP— vive en el
+arnés de `uxp-plugin/js/autocheck-tests.js`, que corre **dentro** de Premiere
+y está apagado (`AUTOCHECK_ACTIVO = false` en `autocheck.js`). Para correrlo:
+préndelo, recarga el plugin en Premiere y lee
+`/private/tmp/clasificador-autocheck/resultado.json`. Acuérdate de apagarlo
+después.
+
+Y ojo con la asimetría: **lo del arnés no corre solo**. Los casos que viven
+allá solo se comprueban cuando alguien se acuerda de prenderlo, así que
+cualquier lógica que se pueda probar sin Premiere va en el corredor de Node,
+no en el arnés.
+
 ## Empaquetar la app
 
 ```bash
@@ -89,9 +118,52 @@ empaque/                    receta de PyInstaller y armado del .dmg
 scripts/                    utilidades sueltas
 sample-media/               clips reales para pruebas a mano (no versionado)
 docs/                       esto
+  patron-de-recorrido/      cómo edita Bruno, en prosa, y sus datos
   superpowers/              specs, planes, mockups e historia del proyecto
     archive/                lo que ya se cerró
 ```
+
+### Los archivos de la guía de edición
+
+La guía se arma en Clipify y viaja congelada en el manifest como un guion de
+pasos —un cuarto puede salir en más de un paso—. El panel de Premiere la lee,
+y del lado del plugin también **guarda el avance**: qué pasos ya se
+palomearon. De este lado (Clipify) se reparte así, y el corte es a propósito
+—lo que piensa se prueba sin red y sin abrir la app—:
+
+| Archivo | De qué se encarga |
+|---|---|
+| `patron.py` | Leer `docs/patron-de-recorrido/MI-PATRON.md` y entregarlo como texto. |
+| `guia.py` | Lo que PIENSA: arma el prompt, lee la respuesta, revisa la lista. Sin Qt, sin red, sin disco. |
+| `llave.py` | Guardar y leer la llave en `~/.clasificador_video/llave.json`. |
+| `ia.py` | La llamada HTTP, y nada más. Cambiar de proveedor es este archivo. |
+| `ui/pantalla_guia.py` | La pantalla: dos preguntas, el resultado, «Usar este orden». |
+| `ui/pantalla_config.py` | La pantalla de configuración. Hoy, un ajuste: la llave. |
+
+Del lado del plugin, el avance —qué pasos ya se montaron— está **partido en
+dos**, y el corte es el mismo criterio de siempre: lo que se puede probar sin
+abrir Premiere, aparte de lo que no.
+
+| Archivo | De qué se encarga |
+|---|---|
+| `avance.js` | Lo que PIENSA: qué paso es el actual, si un cuarto ya quedó completo, qué palomitas siguen valiendo si la guía cambió. Lógica pura, sin disco — se prueba con `node uxp-plugin/pruebas/correr.js`. |
+| `avanceDisco.js` | Guardar y leer esas palomitas, un archivo por proyecto, en la carpeta del plugin. Toca el disco de UXP y por eso **no** se prueba con `node`. |
+
+Ese corte es lo que permite comprobar la parte importante —cuándo un cuarto
+cuenta como montado, qué palomitas se descartan si la guía cambió— sin
+depender del arnés que corre dentro de Premiere.
+
+Las dos pantallas —la guía y la configuración— son **widgets hijos de la
+ventana, no `QDialog` modales**. El diálogo de configuración que abría con
+`exec()` colgaba la suite bajo `offscreen` y murió con la F3; ese camino no se
+reabre.
+
+**`MI-PATRON.md` es el único dueño de ese texto.** Es el archivo que Bruno
+edita a mano cuando algo no le cuadra, y de ahí sale lo que viaja en el
+prompt. No hay copia en ningún otro lado: dos copias del mismo dato que se
+editan por separado se desincronizan en el primer cambio de opinión. Y se
+escribe **sin cuentas y sin justificarse** — las cuentas se hacen para decidir
+qué entra y se quedan fuera.
 
 Dos reglas de nombres que valen la pena:
 

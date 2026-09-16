@@ -67,4 +67,4 @@ echo
 echo "Para instalarlo en ESA computadora (con Creative Cloud instalado):"
 echo "  1. Cierra Premiere."
 echo "  2. Doble clic al .ccx — Creative Cloud lo instala solo."
-echo "  3. Abre Premiere: Ventana > Plugins UXP > Clasificador de Video."
+echo "  3. Abre Premiere: Ventana > Plugins UXP > Clipify."

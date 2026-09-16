@@ -250,6 +250,72 @@ encabezado → **Cámara**.
 Con esto, ponerle su LUT a todo el material de una cámara es seleccionar
 todos los de un color y arrastrarles el preset.
 
+### 6. La guía de edición
+
+Cuando ya terminaste de clasificar, el botón **Guía de edición** —junto al de
+exportar— te arma el recorrido del video: un párrafo de cómo recorrerla y el
+guion del recorrido, paso a paso, cada uno con una línea corta de por qué va
+ahí. **Un cuarto puede salir más de una vez** —la aérea que abre el recorrido
+y la que lo cierra son dos pasos y una sola carpeta— y eso no es un error:
+es justo cómo editas tú.
+
+Te pregunta dos cosas. La de arriba es la que importa: **qué quieres lucir**,
+y ahí escribes lo que se te ocurra —«la alberca y la terraza», «la cocina
+quedó chica, no la luzcas»—. Abajo, de un toque, **qué tipo de propiedad es**.
+Las dos te las puedes saltar.
+
+Cuando ves la guía, **Usar este orden** acomoda tus cuartos en ese orden —en
+el rail, en la hoja y en Premiere, que es uno solo— y la guarda. Si no te
+convence, cambias lo que quieres lucir y la vuelves a pedir.
+
+De ahí en adelante **la guía viaja sola**: sale en el archivo que exportas y
+la ves en Premiere, en el panel **Guía de edición**, con una casilla por
+paso. La vas **palomeando según montas**, el encabezado te dice en qué paso
+vas y cuántos llevas del recorrido, y en cuanto un cuarto queda completo
+—todas las veces que sale en el guion, palomeadas— **su carpeta se pinta de
+verde**.
+
+Y tus carpetas de cuartos llegan numeradas en ese orden: `01. Fachada`,
+`02. Cocina`. Cada carpeta se numera por la **primera** vez que ese cuarto
+aparece en el recorrido, así vuelva a salir después. Si importas más clips
+del mismo rodaje y el orden cambió, se le cambia el número a la carpeta que
+ya tienes — no se crea una segunda.
+
+Cinco cosas que vale la pena que sepas:
+
+- **Es una guía para leer y para palomear. No mueve tus clips.** Lo único
+  que acomoda son tus cuartos, y solo si le das a «Usar este orden».
+- **Las palomitas viven en tu computadora, no en el proyecto de Premiere.**
+  Si le pasas el proyecto a alguien más, no lo acompañan — se quedan en tu
+  máquina. El verde de la carpeta sí viaja con el proyecto, porque vive
+  adentro de él: por eso puedes ver de un vistazo qué cuartos ya montaste
+  aunque abras el proyecto en otra computadora, aunque ahí ya no veas las
+  palomitas de cada paso.
+- **Si le falta un cuarto o se inventa uno, te lo dice** arriba de la lista.
+  Una guía a la que le falta la cocina hace que se te olvide la cocina al
+  editar, y eso no se nota hasta después de entregar.
+- **No vio tu material**, así que no sabe qué hay adentro de tus cuartos —solo
+  por qué uno va antes que otro en un recorrido—. Si algún día te describe una
+  cocina que nunca vio, eso es un error y vale la pena decirlo.
+- **Si armaste la guía y después agregaste un cuarto**, al exportar te avisa
+  —«tu guía es de antes de agregar la Terraza»— y tú decides si la exportas
+  así o la vuelves a armar.
+
+Para que la guía funcione hace falta una llave de DeepSeek. Se pone una vez,
+en **Configuración** —el botón de la barra de arriba—: la pegas, le das
+**Guardar** y ahí se queda. Se guarda en tu computadora, en
+`~/.clasificador_video/`; no va en el proyecto de Premiere ni viaja con el
+material, y nunca se enseña entera en pantalla. Desde ahí también puedes
+quitarla.
+
+De tu computadora solo salen los nombres de tus cuartos y lo que tú escribas —
+nada de video, archivos ni rutas. Y sin llave todo lo demás funciona igual: lo
+único que no se puede es armar la guía.
+
+Si se cae el internet o falla, te lo dice y **no te bloquea nada**: exportar
+sigue funcionando, nada más sin guía. Y si abres la pestaña en Premiere con un
+proyecto que no trae una, te lo dice con esas palabras.
+
 ---
 
 ## Proxies, en detalle

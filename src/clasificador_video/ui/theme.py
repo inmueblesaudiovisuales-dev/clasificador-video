@@ -586,6 +586,104 @@ def build_stylesheet() -> str:
         color: {TEXT_3};
     }}
 
+    /* ---------------- la pantalla de configuracion ------------------ */
+    /* Se parece a la de la guia a proposito: son las dos pantallas que se
+       abren ENCIMA de la ventana, y que se vean iguales dice que las dos se
+       cierran igual. */
+
+    QWidget#pantallaConfig {{
+        background-color: {BG_SURFACE_0};
+        border: 1px solid {LINE};
+        border-radius: 10px;
+    }}
+    QLabel#configTitulo {{
+        color: {TEXT};
+        font-size: 15px;
+        font-weight: 600;
+    }}
+    QLabel#configSubtitulo {{
+        color: {TEXT_2};
+    }}
+    QLabel#configEstado {{
+        color: {TEXT};
+    }}
+    QLabel#configDonde {{
+        color: {TEXT_3};
+    }}
+    QLineEdit#configLlave {{
+        background-color: {BG_SURFACE_1};
+        border: 1px solid {LINE};
+        border-radius: 6px;
+        color: {TEXT};
+        padding: 6px 8px;
+    }}
+    QLineEdit#configLlave:focus {{
+        border-color: {TEXT_3};
+    }}
+    QPushButton#configGuardar, QPushButton#configQuitar,
+    QPushButton#configCerrar {{
+        background-color: {BG_SURFACE_2};
+        border: 1px solid {LINE};
+        border-radius: 6px;
+        color: {TEXT};
+        padding: 6px 14px;
+    }}
+    QPushButton#configGuardar:hover, QPushButton#configQuitar:hover,
+    QPushButton#configCerrar:hover {{
+        background-color: {LINE};
+    }}
+    /* «Quitarla» sin nada que quitar. Apagado se lee «existe, pero no
+       aqui», igual que el «Ancho» del rail. */
+    QPushButton#configQuitar:disabled {{
+        background-color: {BG_SURFACE_0};
+        border-color: {LINE_SOFT};
+        color: {TEXT_3};
+    }}
+
+    /* ---------------- la pantalla de la guia de edicion ------------- */
+
+    QWidget#pantallaGuia {{
+        background-color: {BG_SURFACE_0};
+        border: 1px solid {LINE};
+        border-radius: 10px;
+    }}
+    QLabel#guiaTitulo {{
+        color: {TEXT};
+        font-size: 14px;
+        font-weight: 600;
+    }}
+    QTextEdit#guiaLucir, QTextEdit#guiaResultado {{
+        background-color: {BG_SURFACE_1};
+        border: 1px solid {LINE};
+        border-radius: 6px;
+        color: {TEXT};
+        padding: 8px;
+    }}
+    QLabel#guiaAvisos {{
+        color: {CURRENT_COLOR};
+    }}
+    QPushButton#guiaArmar, QPushButton#guiaUsar,
+    QPushButton#guiaCerrar {{
+        background-color: {BG_SURFACE_2};
+        border: 1px solid {LINE};
+        border-radius: 6px;
+        color: {TEXT};
+        padding: 6px 14px;
+    }}
+    QPushButton#guiaArmar:hover, QPushButton#guiaUsar:hover,
+    QPushButton#guiaCerrar:hover {{
+        background-color: {LINE};
+    }}
+    /* «Usar este orden» antes de que haya una guia. Sin esta regla se veia
+       igual que el otro boton -- se leia como si ya pudieras apretarlo, y
+       eso es una promesa que la pantalla no cumple. */
+    QPushButton#guiaArmar:disabled, QPushButton#guiaUsar:disabled,
+    QPushButton#guiaCerrar:disabled {{
+        background-color: {BG_SURFACE_0};
+        border-color: {LINE_SOFT};
+        color: {TEXT_3};
+    }}
+
     QWidget#statusBar {{
         background-color: {BG_SURFACE_0};
         border-top: 1px solid {LINE};

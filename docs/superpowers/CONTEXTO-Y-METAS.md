@@ -51,6 +51,97 @@ once versiones se ha abierto en otra computadora.
 
 ---
 
+## Lo que se construyó el 2026-09-14
+
+### La guía de edición — **construida, falta comprobarla en Premiere**
+
+Empezó como la pestaña «Orden sugerido» del plugin y **el mismo día se mudó a
+Clipify**, porque Bruno preguntó lo obvio al oírla descrita: «¿qué te parece
+si todo eso se hiciera en Clipify?». Sí sale más barato, y no por comodidad —
+**el dato ya está de ese lado**: los cuartos los teclea él ahí. Preguntando
+desde Premiere, el modelo se comparaba contra el reflejo de los cuartos en las
+carpetas en vez de contra los cuartos de verdad.
+
+Hoy: el botón **Guía de edición**, junto al de exportar, pregunta qué quieres
+lucir y qué tipo de propiedad es, y devuelve el párrafo del recorrido más el
+guion de pasos. «Usar este orden» acomoda los cuartos —rail, hoja y Premiere,
+que es uno solo— y la guía **viaja congelada en el manifest**. El panel de
+Premiere sigue sin llave, sin red, sin esperas. Y las carpetas de cuartos
+llegan numeradas, reconociendo el cuarto **sin su número** para que una
+segunda pasada con otro orden no parta un cuarto en dos carpetas.
+
+Sale de dos brainstorms cerrados con Bruno el mismo día
+(`HANDOFF-2026-09-14-orden-sugerido-de-cuartos.md` → spec → plan, y luego
+`2026-09-14-guia-de-edicion-en-clipify-design.md`).
+
+**El hallazgo que sostiene el diseño:** no hace falta mirar fotogramas. El
+orden de un recorrido se decide por lo que **es** cada cuarto, y eso ya está
+escrito en los nombres que Bruno teclea. Viaja texto, no video, y el costo que
+le preocupaba deja de ser un tema.
+
+**El 2026-09-15 cambió de modelo: de un orden de cuartos a un guion de
+pasos.** Bruno cachó que un recorrido repite cuarto —abre con una aérea y
+cierra con otra, y las dos son la misma carpeta—, así que «orden sin repetir»
+estaba mal modelado desde el principio. La revisión dejó de marcar los
+repetidos como error, la carpeta se numera por la primera aparición, y en
+Premiere ahora se va **palomeando** qué pasos ya se montaron, con el bin
+pintándose de verde cuando un cuarto queda completo. Detalle en
+`specs/2026-09-15-el-guion-y-las-carpetas-design.md`.
+
+**Lo que falta, y solo él puede hacerlo:**
+
+1. **Correr una guía de verdad** con un proyecto suyo y ver si el orden que
+   propone se parece a cómo edita. Nadie más lo sabe.
+2. **Importar en Premiere** y comprobar dos cosas que solo se ven con Premiere
+   abierto: que las carpetas lleguen numeradas por la primera aparición del
+   cuarto y que una segunda pasada renumere en vez de duplicar —el método real
+   para renombrar un bin no se pudo enumerar, así que se busca en el objeto de
+   verdad, la lista `ACCIONES_DE_RENOMBRAR` de `nombre.js`, y si no está
+   ninguno, la carpeta se reusa con su número viejo y se dice en el panel—; y
+   si Premiere de verdad **deja pintar un bin de color** para que el verde de
+   «montado» se vea.
+
+Lo demás está comprobado: 1766 pruebas de Python y 32 de Node en verde, y las
+cuatro pantallas vistas con los ojos —la de Clipify vacía y con una guía que
+se salió del patrón, y el panel de Premiere con guía y sin ella, a 320 px, que
+es el ancho mínimo del panel.
+
+**Lo que se descartó, con su razón:**
+
+- **Mirar fotogramas** — el orden no está en el pixel (arriba).
+- **Ordenar los clips dentro de cada cuarto** — Bruno ordenó cuartos entre sí.
+- **El botón «acomodar así»** que reordenaría el rail con la sugerencia — se
+  le ofreció y lo descartó: «no necesariamente armarlo sino armar una guía».
+- **Un segundo plugin** — lo trajo él a la mesa y aceptó el argumento: una
+  sola instalación que mantener.
+- **Una lista fija de reglas en vez de IA** — los cuartos los teclea él cada
+  shooting con nombres libres (`Roof garden`, `Área de lavado`), que es justo
+  donde una lista fija se queda corta.
+- **Guardar la guía en el proyecto de Premiere** — sería escribir en el
+  proyecto, que es lo que la pestaña no hace.
+- **Que Premiere pueda pedir otra guía** — es la decisión que abarata todo lo
+  demás: sin ella el plugin seguiría necesitando llave, red y esperas. Si
+  quieres otra, regresas a Clipify.
+- **Que la pantalla salga sola al exportar** — se le ofreció y escogió el
+  botón aparte. Exportar sigue siendo un clic.
+- **Que el número viaje adentro de `categoria_path`** — lo volvería parte del
+  nombre del cuarto, y entonces reordenar significaría renombrar cuartos, que
+  es otra cosa. El número es presentación y lo pone el plugin, mismo corte que
+  `camara`→color.
+- **El botón «acomodar así»** se descartó cuando la guía vivía en Premiere
+  —«no necesariamente armarlo sino armar una guía»— y **volvió** al mudarse a
+  Clipify: allá reordenar el rail era escribir en el proyecto ajeno; aquí es
+  acomodar sus propios cuartos, y él lo pidió explícitamente.
+
+**Y una lección de higiene que salió de construirlo:** el arnés de
+`autocheck-tests.js` corre dentro de Premiere y está apagado desde que se
+terminó el plugin, así que sus doce casos de las marcas del nombre **hoy no
+corren nunca**. Por eso la lógica pura nueva se probó con un corredor de Node
+en el repo. Una comprobación que solo corre cuando te acuerdas de prenderla no
+es una comprobación.
+
+---
+
 ## Lo que se hizo (2026-08-09 y 10)
 
 Tres entregas seguidas, cada una con su spec, su plan y su revisión por fase.

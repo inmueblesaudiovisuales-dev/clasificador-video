@@ -45,9 +45,19 @@ async function crearEsqueleto(project, rootFolder) {
 
 // El camino completo de un clip: su cuarto y su estado, colgados de
 // «02. Clip». La app manda ["Cocina", "Picks"] y aqui se vuelve
-// ["02. Clip", "Cocina", "Picks"].
-function caminoDelClip(categoryPath) {
-  return [CARPETA_DE_CLIPS].concat(categoryPath);
+// ["02. Clip", "03. Cocina", "Picks"].
+//
+// `ordenDeLaGuia` son los cuartos en el orden que Bruno acepto. Si el cuarto
+// no esta ahi --o si el manifest no trajo guia-- la carpeta se crea SIN
+// numero, exactamente como antes de que esto existiera.
+function caminoDelClip(categoryPath, ordenDeLaGuia) {
+  const camino = (categoryPath || []).slice();
+  const orden = ordenDeLaGuia || [];
+  if (camino.length) {
+    const lugar = orden.indexOf(camino[0]);
+    if (lugar !== -1) camino[0] = conNumero(camino[0], lugar + 1);
+  }
+  return [CARPETA_DE_CLIPS].concat(camino);
 }
 
 // Todas las carpetas que cuelgan de `ancestro`, ella incluida, en un Set.

@@ -36,7 +36,7 @@ function applyCameraLabel(project, clipItem, camara) {
   // `CERULEAN` y `VIOLET` no, y este es el aviso que lo dira.
   if (colores[labelName] === undefined) {
     logToPanel(
-      "El color «" + labelName + "» no existe en esta version de Premiere. " +
+      "El color «" + labelName + "» no existe en esta versión de Premiere. " +
       "Disponibles: " + Object.keys(colores).join(", "),
       true
     );
@@ -47,5 +47,69 @@ function applyCameraLabel(project, clipItem, camara) {
     project,
     () => clipItem.createSetColorLabelAction(colores[labelName]),
     "Set label " + camara
+  );
+}
+
+// El color del bin de un cuarto que ya montaste entero.
+//
+// EL CHOQUE, RESUELTO A PROPOSITO: arriba de este archivo esta escrito que en
+// Premiere el color dice la CAMARA. Eso vale para los CLIPS, que es donde se
+// decidio y donde Bruno lo usa para arrastrarle el LUT a toda una camara de
+// un jalon. Un BIN no es un clip y nunca tuvo color, asi que ahi queda libre
+// para decir otra cosa: si ya lo montaste.
+//
+// Y el verde NO entra en la paleta de camaras -- CERULEAN, MANGO y VIOLET
+// siguen siendo de ellas. Un color que ya significara una camara diciendo
+// ademas «montado» seria el mismo error con otro disfraz.
+const LABEL_MONTADO = "FOREST";
+
+function pintarBinMontado(project, binItem, montado) {
+  const premierepro = require("premierepro");
+  const colores = premierepro.Constants.ProjectItemColorLabel;
+  const destino = montado ? colores[LABEL_MONTADO] : colores.NONE;
+
+  // Ni la documentacion de Adobe ni la suerte: si esta version no conoce el
+  // color, no se pinta nada y se dice UNA vez, con lo que si existe. Mismo
+  // trato que `applyCameraLabel`. Pero aqui hay DOS causas distintas -- que
+  // falte el verde (`FOREST`) o que falte el gris de despintar (`NONE`) -- y
+  // el aviso tiene que nombrar la que de verdad paso: si solo falta `NONE`,
+  // decir «no lo permite» es mentira, porque pintar SI funciona.
+  if (destino === undefined) {
+    avisarUnaVezDelVerde(colores, montado ? "FOREST" : "NONE");
+    return;
+  }
+  if (typeof binItem.createSetColorLabelAction !== "function") {
+    // Aqui la causa es otra: no falta el color, falta el metodo. Se avisa
+    // con la misma bandera de "metodo" para las dos direcciones -- pintar y
+    // despintar comparten el mismo `createSetColorLabelAction`.
+    avisarUnaVezDelVerde(colores, "metodo");
+    return;
+  }
+  runTransaction(
+    project,
+    () => binItem.createSetColorLabelAction(destino),
+    (montado ? "Marcar montado " : "Desmarcar ") + binItem.name
+  );
+}
+
+// Una bandera POR CAUSA, no una sola global: si ya avisamos que falta
+// `FOREST`, eso no dice nada de si falta `NONE` -- son dos preguntas
+// distintas a la misma version de Premiere, y una banderita compartida
+// dejaria la segunda causa muda para siempre despues de la primera.
+const yaSeAvisoDelVerde = {};
+
+function avisarUnaVezDelVerde(colores, causa) {
+  if (yaSeAvisoDelVerde[causa]) return;
+  yaSeAvisoDelVerde[causa] = true;
+
+  const razon =
+    causa === "metodo"
+      ? "esta versión de Premiere no tiene cómo pintarle color a una carpeta"
+      : "esta versión de Premiere no tiene el color «" + causa + "»";
+  logToPanel(
+    "No pude pintar las carpetas de lo que ya montaste: " + razon + ". " +
+      "Las palomitas del panel siguen funcionando. " +
+      "Colores que sí tiene: " + Object.keys(colores).join(", "),
+    true
   );
 }

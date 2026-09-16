@@ -185,6 +185,10 @@ def _poblar_ventana(window: MainWindow, data: dict, clips: list[Clip]) -> None:
     # donde se escribia y se sigue buscando en los tres lugares.
     guardada = data.get("carpeta_de_proxies")
     window.set_carpeta_de_proxies(Path(guardada) if guardada else None)
+    # Y la guia de edicion, si este proyecto la armo. Falta en todo proyecto
+    # anterior al 2026-09-14, y ahi `None` es lo normal: se abre igual y el
+    # boton sigue ahi para armarla.
+    window.restaurar_guia(data.get("guia"))
     window._refresh_sheet(force_rebuild=True)
     window._resize_video_stage()
     # Revisar PRIMERO y pedir las portadas cuando se sepa qué hay (spec §5).

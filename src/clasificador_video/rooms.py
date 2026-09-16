@@ -75,6 +75,33 @@ class RoomSelection:
         posicion = max(0, min(posicion, len(self._order) - 1))
         self._order.insert(posicion, self._order.pop(self._order.index(room)))
 
+    def reordenar(self, nuevo_orden: list[str]) -> None:
+        """Acomoda los cuartos como diga la lista. **Solo acomoda.**
+
+        No crea ni borra: la guia pudo traer un cuarto inventado, y uno que
+        Bruno no tecleo nunca aparece en su rail. Y los que la lista se haya
+        saltado NO se pierden -- se quedan al final, en su orden de antes,
+        porque perder un cuarto aqui es perder la clasificacion de sus
+        clips.
+
+        Tampoco duplica: el guion de la guia SI repite un cuarto (se abre
+        con una aerea y se cierra con otra, misma carpeta), y es ESTA
+        funcion la que garantiza que no entre repetido al rail, venga la
+        lista de donde venga. Un cuarto dos veces en el rail serian dos
+        teclas para el mismo lugar, asi que solo se queda su primera
+        aparicion -- `dict.fromkeys` conserva el orden de insercion, que es
+        el orden de esa primera vez.
+
+        Y como el orden ES la asignacion de teclas, esto le cambia el atajo
+        a casi todos. Es lo que Bruno pidio al aceptar la guia: un solo
+        orden, el mismo en el rail, en la hoja y en Premiere.
+        """
+        if not nuevo_orden:
+            return
+        conocidos = [c for c in dict.fromkeys(nuevo_orden) if c in self._order]
+        resto = [c for c in self._order if c not in conocidos]
+        self._order = conocidos + resto
+
     def remove(self, room: str) -> None:
         if room in self._order:
             self._order.remove(room)

@@ -1,6 +1,7 @@
 # src/clasificador_video/ui/main_window.py
 from __future__ import annotations
 
+import json
 import shutil
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -21,14 +22,15 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from clasificador_video import proxy_gen, proyecto, revinculo
+from clasificador_video import guia as logica_guia
+from clasificador_video import ia, llave, patron, proxy_gen, proyecto, revinculo
 from clasificador_video.bins import BinTree, raiz_comun_de
 from clasificador_video.camaras import SONY
 from clasificador_video.filters import FilterState, cola, contar
 from clasificador_video.history import History, HistoryEntry
 from clasificador_video.ingest import archivos_de_video
 from clasificador_video.keyboard import KeyboardRouter
-from clasificador_video.manifest import Clip, Manifest
+from clasificador_video.manifest import Clip, Guia, Manifest, RenglonDeGuia
 from clasificador_video.player import SPEED_PROFILES
 from clasificador_video.probe import (
     orientacion_de,
@@ -61,6 +63,8 @@ from clasificador_video.ui.aviso_de_media import (
     Renglon,
 )
 from clasificador_video.ui.clip_sheet import SIN_BIN, ClipSheet, ClipThumbnail
+from clasificador_video.ui.pantalla_config import PantallaConfig
+from clasificador_video.ui.pantalla_guia import PantallaGuia
 from clasificador_video.ui.room_palette import RoomPalette
 from clasificador_video.ui.room_rail import RoomRail
 from clasificador_video.ui.status_bar import StatusBar
@@ -217,6 +221,49 @@ class _AutosaveWriteJob(QRunnable):
         self._señales.guardado_listo.emit()
 
 
+class _GuiaJob(QRunnable):
+    """Le pide la guia al modelo FUERA del hilo de la interfaz.
+
+    Antes `pedir_guia` llamaba directo y esperaba ahi mismo: entre que Bruno
+    apretaba «Armar la guia» y que el modelo contestaba --diez o veinte
+    segundos-- Clipify se quedaba tieso, y sin internet se quedaba asi hasta
+    el minuto que dura la espera de `ia.py`. Una app que no responde se lee
+    como una app muerta.
+
+    No crea ningun objeto de Qt: recibe el portador compartido de la
+    ventana, por el segfault que documenta `SeñalesDeTrabajos`.
+
+    **No revienta nunca**: un fallo es una `Respuesta` con su error dicho en
+    palabras, igual que una respuesta fea. Una excepcion que sube desde un
+    hilo del pool no la atrapa nadie.
+    """
+
+    def __init__(self, llave_de_la_api: str, cuerpo: dict,
+                 señales: "SeñalesDeTrabajos"):
+        super().__init__()
+        self._llave = llave_de_la_api
+        self._cuerpo = cuerpo
+        self._señales = señales
+
+    def run(self) -> None:
+        try:
+            crudo = ia.preguntar(self._llave, self._cuerpo)
+        except ia.ErrorDeIA as error:
+            self._señales.guia_lista.emit(
+                logica_guia.Respuesta(ok=False, error=str(error))
+            )
+            return
+        except Exception as error:  # noqa: BLE001 -- ver el docstring
+            self._señales.guia_lista.emit(
+                logica_guia.Respuesta(
+                    ok=False,
+                    error="No se pudo armar la guía: " + str(error),
+                )
+            )
+            return
+        self._señales.guia_lista.emit(logica_guia.leer_respuesta(crudo))
+
+
 # Cuantos `ffprobe` a la vez al importar. Ocho porque es donde la medicion
 # se aplana: con 40 clips reales de la FX30, en serie 1.06 s, con 4 en
 # paralelo 0.26 s y con 8 en paralelo 0.14 s. Son procesos aparte esperando
@@ -260,6 +307,7 @@ class SeñalesDeTrabajos(QObject):
     miniatura_lista = Signal(int, int, object)  # generation, indice, list[Path] | None
     proxy_sondeado = Signal(int, int, object)   # generation, indice, info | None
     guardado_listo = Signal()
+    guia_lista = Signal(object)                 # logica_guia.Respuesta
     guardado_fallo = Signal(str)                # el motivo, tal como lo dio el SO
     pesos_medidos = Signal(int, object)         # generacion de indices, {clip: bytes}
     # los clips cuyo archivo ya no esta, y los proxies perdidos. Se revisa
@@ -549,12 +597,19 @@ class MainWindow(QWidget):
         self._señales_de_trabajos.guardado_listo.connect(self._on_guardado_listo)
         self._señales_de_trabajos.guardado_fallo.connect(self._on_guardado_fallo)
         self._señales_de_trabajos.pesos_medidos.connect(self._on_pesos_medidos)
+        self._señales_de_trabajos.guia_lista.connect(self._mostrar_guia)
         self._señales_de_trabajos.media_revisada.connect(self._on_media_revisada)
         self._señales_de_trabajos.proxy_generado.connect(self._on_proxy_generado)
         # hijo de la ventana A PROPOSITO: su destructor espera a los trabajos
         # en vuelo, y esa espera es lo que impide que una señal llegue
         # cuando la ventana ya no puede atenderla.
         self._thread_pool = QThreadPool(self)
+        # La guia tiene el SUYO, de un hilo: es una espera de red de decenas
+        # de segundos y encolarla detras de las portadas --o encolar las
+        # portadas detras de ella-- deja a una de las dos sin llegar. Hijo
+        # de la ventana, igual que los otros.
+        self._guia_pool = QThreadPool(self)
+        self._guia_pool.setMaxThreadCount(1)
         # La revisión de media tiene el SUYO, y no es un lujo: el otro pool
         # se llena con las portadas --tres hilos, un trabajo por clip-- y el
         # aviso que le dice a Bruno «tu material no está» quedaba encolado
@@ -716,11 +771,20 @@ class MainWindow(QWidget):
         self._modo_horizontal = False
         # guarda de reentrada de `_refresh_sheet` (ver ahi el porque)
         self._refrescando_hoja = False
+        # La guia armada, si es que se armo. `None` es lo normal.
+        self.guia_actual = None
+        self._pantalla_guia = None
+        self._pantalla_config = None
+        # Los cuartos que habia cuando se acepto la guia. Con esto se
+        # sabe si quedo vieja (§11 del spec).
+        self._cuartos_de_la_guia: list[str] = []
 
         # ---------------- las tres filas ----------------
         self.title_bar = TitleBar()
         self.title_bar.set_project(project_name, 0)
         self.title_bar.export_requested.connect(self._on_export_manifest)
+        self.title_bar.guia_requested.connect(self._abrir_pantalla_de_guia)
+        self.title_bar.config_requested.connect(self._abrir_configuracion)
         self.title_bar.mode_toggled.connect(self.alternar_modo_hoja)
         self.title_bar.modo_horizontal_cambiado.connect(
             self._on_modo_horizontal_cambiado)
@@ -2077,6 +2141,7 @@ class MainWindow(QWidget):
             agrupar_por_cuarto=self._agrupar_por_cuarto,
             modo_horizontal=self._modo_horizontal,
             carpeta_de_proxies=self._carpeta_de_proxies,
+            guia=self._guia_para_la_sesion(),
         )
         return data
 
@@ -4456,7 +4521,231 @@ class MainWindow(QWidget):
         self._resize_video_stage()
         self._autosave()
 
+    # ------------------------------------------------------------------
+    # la guia de edicion
+    # ------------------------------------------------------------------
+
+    def _abrir_configuracion(self) -> None:
+        """La pantalla de configuracion, encima de la ventana.
+
+        Hija y no modal, por lo mismo que la de la guia: el dialogo de
+        configuracion que abria con `exec()` colgaba la suite bajo
+        `offscreen` y murio con la F3. Ese camino no se reabre.
+        """
+        if self._pantalla_config is None:
+            self._pantalla_config = PantallaConfig(self)
+            self._pantalla_config.llave_guardada.connect(self.guardar_llave)
+            self._pantalla_config.llave_borrada.connect(self.borrar_llave)
+            self._pantalla_config.cerrada.connect(self._pantalla_config.hide)
+        # Se relee del disco cada vez que se abre y no se cachea: la llave
+        # se puede haber puesto desde otra ventana de Clipify.
+        self._pantalla_config.cargar(llave.leer())
+        self._pantalla_config.setGeometry(self.rect().adjusted(110, 80, -110, -80))
+        self._pantalla_config.show()
+        self._pantalla_config.raise_()
+
+    def guardar_llave(self, valor: str) -> None:
+        llave.guardar(valor)
+
+    def borrar_llave(self) -> None:
+        llave.borrar()
+
+    def _abrir_pantalla_de_guia(self) -> None:
+        """La pantalla de la guia, encima de la ventana.
+
+        No es un QDialog modal, mismo criterio que la paleta de cuartos: un
+        modal roba el teclado y hay que cerrarlo para seguir. Es hija de la
+        ventana y se muestra encima.
+        """
+        if self._pantalla_guia is None:
+            self._pantalla_guia = PantallaGuia(self)
+            self._pantalla_guia.guia_pedida.connect(self.pedir_guia)
+            self._pantalla_guia.orden_aceptado.connect(self.aceptar_orden_de_la_guia)
+            self._pantalla_guia.cerrada.connect(self._pantalla_guia.hide)
+        self._pantalla_guia.setGeometry(self.rect().adjusted(80, 60, -80, -60))
+        self._pantalla_guia.show()
+        self._pantalla_guia.raise_()
+
+    def pedir_guia(self, respuestas: dict) -> None:
+        """Le pide la guia al modelo y la ensena.
+
+        **Nunca revienta hacia afuera**: un fallo de red se dice y ya. La
+        app sigue exportando sin guia, que es un manifest perfectamente
+        valido.
+        """
+        cuartos = self.room_selection.active_rooms()
+        cuerpo = logica_guia.cuerpo_del_request(cuartos, respuestas, patron.leer())
+        if self._pantalla_guia is not None:
+            self._pantalla_guia.armando()
+        # DEVUELVE DE INMEDIATO. La respuesta llega por `guia_lista`, que
+        # esta conectada a `_mostrar_guia`.
+        self._guia_pool.start(
+            _GuiaJob(llave.leer(), cuerpo, self._señales_de_trabajos)
+        )
+
+    def _mostrar_guia(self, respuesta) -> None:
+        revision = logica_guia.revisar_lista(
+            respuesta.lista, self.room_selection.active_rooms())
+        self.guia_actual = respuesta if respuesta.ok else None
+        if respuesta.ok:
+            # DESDE QUE SE ENSEÑA, no desde que se acepta. Antes esto vivía
+            # solo en `aceptar_orden_de_la_guia`, así que si a Bruno le
+            # gustaba el orden como ya estaba y no apretaba «Usar este
+            # orden», el aviso de «tu guía quedó vieja» no salía NUNCA --
+            # que es justo el caso para el que se hizo.
+            self._cuartos_de_la_guia = self.room_selection.active_rooms()
+            # Y se guarda ya: pedirla cuesta una llamada, y cerrar Clipify
+            # sin haberla aceptado no la puede tirar.
+            self._autosave()
+        if self._pantalla_guia is not None:
+            self._pantalla_guia.mostrar_respuesta(respuesta, revision)
+
+    def aceptar_orden_de_la_guia(self, orden: list) -> None:
+        """Ese guion pasa a mandar: el rail, la hoja y Premiere.
+
+        El guion trae PASOS y puede repetir un cuarto; el rail no puede.
+        `reordenar` es quien filtra los repetidos -- se le pasa el guion
+        tal cual, con todo y sus pasos repetidos.
+        """
+        self.room_selection.reordenar(orden)
+        self._cuartos_de_la_guia = self.room_selection.active_rooms()
+        self.guia_actual = self._guia_cuadrada_con_el_rail()
+        self._sync_rooms()
+        # Ya hizo lo suyo: dejarla encima obliga a cerrarla a mano para ver
+        # el rail que se acaba de reacomodar, que es lo que uno quiere ver.
+        if self._pantalla_guia is not None:
+            self._pantalla_guia.hide()
+
+    def _guia_cuadrada_con_el_rail(self):
+        """El guion contando sólo cuartos que existen, con sus repeticiones.
+
+        Dos reglas, y son distintas:
+
+        - **Los pasos se conservan tal cual**, repeticiones incluidas. Cada
+          paso trae SU razón: la aérea de abrir no dice lo mismo que la de
+          cerrar, y quedarse con una sola perdía la mitad de la guía.
+        - **Los cuartos que el guion no mencionó entran al final**, una vez
+          y sin razón inventada. Perderlos dejaría al rail con un cuarto que
+          la guía no nombra, y en Premiere una carpeta sin número suelta.
+
+        Y un cuarto inventado se cae: no está en el rail, y en Premiere
+        sería la carpeta de un cuarto que no existe.
+
+        Corre DESPUÉS de `reordenar` en `aceptar_orden_de_la_guia`, y cuenta
+        con que ya se llamó: lee `reales` de `active_rooms()`, y ese orden
+        es el que decide dónde caen los cuartos que el guion no mencionó
+        (al final, en SU orden). Hoy da lo mismo llamarla antes o después
+        porque `reordenar` es una partición estable -- no le cambia el
+        orden relativo a lo que ya trae el rail --, pero eso es un detalle
+        de esa función, no de ésta. Si `reordenar` cambiara de criterio (por
+        ejemplo a orden alfabético), este método seguiría leyendo el rail
+        ya reacomodado y se rompería en silencio, no aquí.
+        """
+        if self.guia_actual is None or not self.guia_actual.ok:
+            return self.guia_actual
+        reales = self.room_selection.active_rooms()
+        pasos = [r for r in self.guia_actual.lista if r.cuarto in reales]
+        nombrados = {r.cuarto for r in pasos}
+        pasos += [
+            logica_guia.Renglon(cuarto=c) for c in reales if c not in nombrados
+        ]
+        return logica_guia.Respuesta(
+            ok=True, recorrido=self.guia_actual.recorrido, lista=pasos
+        )
+
+    def _guia_para_la_sesion(self):
+        """La guia como se guarda en el `.cvproj`, o `None`.
+
+        Lleva ADEMAS `cuartos_de_entonces`, que el manifest no manda: es lo
+        unico con lo que se puede saber, al reabrir, que la guia quedo vieja
+        porque Bruno agrego un cuarto despues. Sin ese dato habria que
+        adivinarlo, y adivinar en silencio es justo lo que esta app no hace.
+        """
+        guia = self._guia_para_el_manifest()
+        if guia is None:
+            return None
+        datos = guia.to_dict()
+        datos["cuartos_de_entonces"] = list(self._cuartos_de_la_guia)
+        return datos
+
+    def restaurar_guia(self, datos) -> None:
+        """La guia que traia el proyecto al abrirlo. `None` es lo normal.
+
+        Un documento roto se trata como si no hubiera guia, mismo criterio
+        que el resto de la sesion: quedarse sin guia es una molestia y
+        reventar al abrir es un proyecto que no se puede abrir.
+        """
+        self.guia_actual = None
+        self._cuartos_de_la_guia = []
+        if not isinstance(datos, dict):
+            return
+        respuesta = logica_guia.leer_respuesta(json.dumps(datos))
+        if not respuesta.ok:
+            return
+        self.guia_actual = respuesta
+        entonces = datos.get("cuartos_de_entonces")
+        self._cuartos_de_la_guia = (
+            [str(c) for c in entonces] if isinstance(entonces, list)
+            else [r.cuarto for r in respuesta.lista]
+        )
+
+    def guia_quedo_vieja(self) -> bool:
+        """¿La guia guardada habla de otros cuartos que los que hay?
+
+        Se comparan los NOMBRES, no el orden: mover un cuarto de lugar no
+        cambia que cuartos hay, y avisar ahi seria una alarma que suena por
+        nada -- y las alarmas que suenan por nada se aprenden a ignorar.
+        """
+        if self.guia_actual is None or not self._cuartos_de_la_guia:
+            return False
+        return set(self._cuartos_de_la_guia) != set(self.room_selection.active_rooms())
+
+    def aviso_de_guia_vieja(self) -> str:
+        """El aviso en palabras de Bruno, o "" si no hay nada que decir."""
+        if not self.guia_quedo_vieja():
+            return ""
+        antes = set(self._cuartos_de_la_guia)
+        ahora = self.room_selection.active_rooms()
+        nuevos = [c for c in ahora if c not in antes]
+        idos = [c for c in self._cuartos_de_la_guia if c not in set(ahora)]
+        if nuevos:
+            return "Tu guía es de antes de agregar " + ", ".join(nuevos) + "."
+        if idos:
+            return "Tu guía todavía habla de " + ", ".join(idos) + "."
+        return "Tu guía es de antes de cambiar los cuartos."
+
+    def _guia_para_el_manifest(self):
+        """La guia en la forma que viaja, o `None`.
+
+        Los avisos de la revision NO viajan: Bruno ya los vio en la pantalla
+        y decidio exportar de todos modos. Lo que si viaja es
+        `fuera_del_patron`, que es informacion que solo tenia la IA.
+        """
+        if self.guia_actual is None or not self.guia_actual.ok:
+            return None
+        return Guia(
+            recorrido=self.guia_actual.recorrido,
+            orden=[
+                RenglonDeGuia(
+                    cuarto=r.cuarto, porque=r.porque, fuera_del_patron=r.fuera_del_patron
+                )
+                for r in self.guia_actual.lista
+            ],
+        )
+
     def _on_export_manifest(self) -> None:
+        # Se AVISA, no se decide solo: misma regla que el dialogo de
+        # proxies, la app propone y nunca adivina en silencio.
+        aviso = self.aviso_de_guia_vieja()
+        if aviso:
+            respuesta = QMessageBox.question(
+                self, "Tu guía quedó vieja",
+                aviso + "\n\n¿La exportas así, o la vuelves a armar?",
+                QMessageBox.Yes | QMessageBox.No,
+            )
+            if respuesta == QMessageBox.No:
+                self._abrir_pantalla_de_guia()
+                return
         unclassified = [c for c in self.clips if not c.categoria_path]
         if unclassified:
             QMessageBox.warning(
@@ -4491,6 +4780,7 @@ class MainWindow(QWidget):
             clips=[_con_el_rango_en_orden(
                 replace(c, camara=camaras.get(i, SONY)))
                 for i, c in enumerate(self.clips)],
+            guia=self._guia_para_el_manifest(),
         )
         manifest.write_json(destino)
 

@@ -36,6 +36,8 @@ class TitleBar(QWidget):
     """
 
     export_requested = Signal()
+    guia_requested = Signal()
+    config_requested = Signal()
     proxies_requested = Signal()
     mode_toggled = Signal()
     # el visor ancho: la hoja se esconde en modo clip y el video se lleva su
@@ -104,10 +106,20 @@ class TitleBar(QWidget):
         # reporto como «no hace nada». El atajo ⌘R sigue existiendo para
         # quien maneja el rail sin mouse; el lugar lo ocupa lo que si es una
         # accion: enganchar los proxies.
+        # El engrane va a la IZQUIERDA de todo lo demas: no es una accion
+        # del trabajo diario, es donde se pone lo que se pone una vez.
+        # Con su nombre y no con un engrane. Se probo el glifo solo y a este
+        # tamaño se ve como un puntito al lado de «Proxies» -- y seria el
+        # unico dibujo en una barra que es toda palabras.
+        self.config_button = _boton("Configuración", "", "railButton")
         self.proxies_button = _boton("Proxies", "", "railButton")
+        # A la izquierda de exportar: la guia se arma ANTES de exportar.
+        self.guia_button = _boton("Guía de edición", "", "railButton")
         self.export_button = _boton("Exportar a Premiere", "⌘E", "exportButton")
         self.proxies_button.clicked.connect(self.proxies_requested.emit)
         self.export_button.clicked.connect(self.export_requested.emit)
+        self.guia_button.clicked.connect(self.guia_requested.emit)
+        self.config_button.clicked.connect(self.config_requested.emit)
 
         layout.addWidget(self.mark)
         layout.addWidget(self.project_label)
@@ -117,7 +129,9 @@ class TitleBar(QWidget):
         layout.addStretch(1)
         layout.addWidget(self.saved_led)
         layout.addWidget(self.saved_label)
+        layout.addWidget(self.config_button)
         layout.addWidget(self.proxies_button)
+        layout.addWidget(self.guia_button)
         layout.addWidget(self.export_button)
 
     def set_project(self, nombre: str, total_clips: int, bins: int = 0) -> None:
