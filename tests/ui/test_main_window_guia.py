@@ -182,6 +182,34 @@ def test_un_proyecto_viejo_sin_guia_abre_igual(ventana):
     assert not ventana.guia_quedo_vieja()
 
 
+def test_abrir_la_pantalla_ensena_la_guia_que_traia_el_proyecto(ventana):
+    # `restaurar_guia` deja la guia en `guia_actual` (§9 del spec), pero la
+    # pantalla nacia en blanco de todos modos: `_abrir_pantalla_de_guia`
+    # nunca la empujaba a la pantalla, asi que Bruno la veia vacia y volvia
+    # a apretar "Armar la guia" -- pagando una llamada por algo que ya tenia.
+    ventana.restaurar_guia({
+        "recorrido": "Abres por fuera.",
+        "orden": [{"cuarto": "Sala", "porque": "se entra aquí",
+                   "fuera_del_patron": False}],
+        "cuartos_de_entonces": ["Sala"],
+    })
+    ventana.room_selection.add("Sala")
+
+    ventana._abrir_pantalla_de_guia()
+
+    assert "Sala" in ventana._pantalla_guia.texto_del_resultado()
+    assert ventana._pantalla_guia.usar_button.isEnabled()
+
+
+def test_abrir_la_pantalla_sin_guia_restaurada_sigue_en_blanco(ventana):
+    ventana.room_selection.add("Sala")
+
+    ventana._abrir_pantalla_de_guia()
+
+    assert ventana._pantalla_guia.texto_del_resultado() == ""
+    assert not ventana._pantalla_guia.usar_button.isEnabled()
+
+
 def test_guardar_la_llave_desde_configuracion(ventana, tmp_path, monkeypatch):
     destino = tmp_path / "llave.json"
     monkeypatch.setattr("clasificador_video.ui.main_window.llave.RUTA", destino)

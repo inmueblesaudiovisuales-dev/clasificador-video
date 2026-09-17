@@ -4562,6 +4562,15 @@ class MainWindow(QWidget):
             self._pantalla_guia.guia_pedida.connect(self.pedir_guia)
             self._pantalla_guia.orden_aceptado.connect(self.aceptar_orden_de_la_guia)
             self._pantalla_guia.cerrada.connect(self._pantalla_guia.hide)
+            # La guia del proyecto ya esta en `guia_actual` desde que
+            # `restaurar_guia` corrio al abrir --pero la pantalla nace en
+            # blanco si nadie se la empuja. Sin esto, Bruno la veia vacia al
+            # reabrir un proyecto y volvia a apretar "Armar la guia",
+            # pagando una llamada por algo que ya tenia guardado.
+            if self.guia_actual is not None and self.guia_actual.ok:
+                revision = logica_guia.revisar_lista(
+                    self.guia_actual.lista, self.room_selection.active_rooms())
+                self._pantalla_guia.mostrar_respuesta(self.guia_actual, revision)
         self._pantalla_guia.setGeometry(self.rect().adjusted(80, 60, -80, -60))
         self._pantalla_guia.show()
         self._pantalla_guia.raise_()
