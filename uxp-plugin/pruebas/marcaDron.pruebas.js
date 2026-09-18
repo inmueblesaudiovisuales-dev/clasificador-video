@@ -3,39 +3,17 @@
 module.exports = function (ctx) {
   return [
     {
-      nombre: "conMarcaDron pone la marca al inicio",
+      nombre: "sinMarcaDron quita la marca del inicio",
       fn: () => {
-        const r = ctx.conMarcaDron("03. Cocina", true);
-        return { ok: r === "[DRONE] 03. Cocina", detalle: r };
-      },
-    },
-    {
-      nombre: "conMarcaDron sin dron no pone nada",
-      fn: () => {
-        const r = ctx.conMarcaDron("03. Cocina", false);
-        return { ok: r === "03. Cocina", detalle: r };
-      },
-    },
-    {
-      nombre: "conMarcaDron es idempotente",
-      fn: () => {
-        const una = ctx.conMarcaDron("03. Cocina", true);
-        const dos = ctx.conMarcaDron(una, true);
-        return { ok: dos === "[DRONE] 03. Cocina", detalle: dos };
-      },
-    },
-    {
-      nombre: "conMarcaDron quita la marca si ya no aplica",
-      fn: () => {
-        const r = ctx.conMarcaDron("[DRONE] 03. Cocina", false);
-        return { ok: r === "03. Cocina", detalle: r };
+        const r = ctx.sinMarcaDron("[DRONE] Cocina");
+        return { ok: r === "Cocina", detalle: r };
       },
     },
     {
       nombre: "sinMarcaDron no toca un nombre sin marca",
       fn: () => {
-        const r = ctx.sinMarcaDron("03. Cocina");
-        return { ok: r === "03. Cocina", detalle: r };
+        const r = ctx.sinMarcaDron("Cocina");
+        return { ok: r === "Cocina", detalle: r };
       },
     },
     {
@@ -79,11 +57,13 @@ module.exports = function (ctx) {
       },
     },
     {
-      nombre: "nombreDelCuartoConMarca junta numero y marca",
+      // EL ORDEN QUE PIDIO BRUNO: numero, marca, nombre -- pegada al
+      // nombre, nunca antes del numero.
+      nombre: "nombreDelCuartoConMarca pone la marca DESPUES del numero",
       fn: () => {
         const clips = [{ categoria_path: ["Aerea"], bin_dron: true }];
         const r = ctx.nombreDelCuartoConMarca("02. Aerea", "Aerea", clips);
-        return { ok: r === "[DRONE] 02. Aerea", detalle: r };
+        return { ok: r === "02. [DRONE] Aerea", detalle: r };
       },
     },
     {
@@ -92,6 +72,25 @@ module.exports = function (ctx) {
         const clips = [{ categoria_path: ["Cocina"], bin_dron: false }];
         const r = ctx.nombreDelCuartoConMarca("03. Cocina", "Cocina", clips);
         return { ok: r === "03. Cocina", detalle: r };
+      },
+    },
+    {
+      nombre: "nombreDelCuartoConMarca sin guia (sin numero) marca al inicio",
+      fn: () => {
+        const clips = [{ categoria_path: ["Aerea"], bin_dron: true }];
+        const r = ctx.nombreDelCuartoConMarca("Aerea", "Aerea", clips);
+        return { ok: r === "[DRONE] Aerea", detalle: r };
+      },
+    },
+    {
+      nombre: "nombreDelCuartoConMarca: un cuarto mezclado no se marca",
+      fn: () => {
+        const clips = [
+          { categoria_path: ["Aerea"], bin_dron: true },
+          { categoria_path: ["Aerea"], bin_dron: false },
+        ];
+        const r = ctx.nombreDelCuartoConMarca("02. Aerea", "Aerea", clips);
+        return { ok: r === "02. Aerea", detalle: r };
       },
     },
   ];

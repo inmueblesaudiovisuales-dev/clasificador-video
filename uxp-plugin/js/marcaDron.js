@@ -11,17 +11,9 @@
 
 const MARCA_DRONE = "[DRONE] ";
 
-// Le pone o le quita la marca segun `esDron`. Idempotente: aplicarla dos
-// veces con el mismo `esDron` deja el nombre igual -- primero se limpia lo
-// que ya hubiera, y despues se pone lo que toca. Mismo patron que
-// `nombre.js` con las marcas de estado de los clips.
-function conMarcaDron(nombre, esDron) {
-  const limpio = sinMarcaDron(nombre);
-  return esDron ? MARCA_DRONE + limpio : limpio;
-}
-
 // Quita SOLO la marca que este modulo pone, y solo si esta al inicio. Un
-// nombre que Bruno haya escrito el mismo no es nuestro y no se toca.
+// nombre que Bruno haya escrito el mismo no es nuestro y no se toca. Mismo
+// criterio que las marcas de estado en `nombre.js`.
 function sinMarcaDron(nombre) {
   const s = String(nombre || "");
   return s.indexOf(MARCA_DRONE) === 0 ? s.slice(MARCA_DRONE.length) : s;
@@ -42,14 +34,21 @@ function cuartoEsDeDron(clipsDelManifest, nombreDeCuarto) {
   return delCuarto.every((c) => c.bin_dron === true);
 }
 
-// Junta las tres cosas de arriba para quien arma el camino de un clip
-// (`processManifest.js`): el nombre YA numerado del cuarto (lo que da
-// `conNumero`/`caminoDelClip`), el nombre SIN numero que identifica al
-// cuarto en el manifiesto (`categoryPath[0]`), y la lista completa de
-// clips para decidir si aplica la marca.
-function nombreDelCuartoConMarca(nombreConNumero, nombreDeCuartoSinNumero, clipsDelManifest) {
-  return conMarcaDron(
-    nombreConNumero,
-    cuartoEsDeDron(clipsDelManifest, nombreDeCuartoSinNumero)
-  );
+// Arma el nombre final de la carpeta: numero (si lo hay) + marca [DRONE]
+// (si aplica) + nombre del cuarto -- EN ESE ORDEN. Bruno la pidio pegada al
+// nombre, nunca antes del numero: "03. [DRONE] Cocina", no
+// "[DRONE] 03. Cocina" (spec §4).
+//
+// `nombreConNumero` es lo que da `caminoDelClip`/`conNumero`: el nombre del
+// cuarto con su "NN. " al frente, o el nombre tal cual si no hay guia
+// aceptada. `nombreSinNumero` es `categoryPath[0]`, el nombre del cuarto
+// como esta en el manifiesto -- SIEMPRE es el final de `nombreConNumero`,
+// porque `conNumero` no hace mas que anteponerle el numero. Por eso basta
+// con cortar esa cola para saber cual es el prefijo numerico, sin tener que
+// volver a parsearlo.
+function nombreDelCuartoConMarca(nombreConNumero, nombreSinNumero, clipsDelManifest) {
+  if (!cuartoEsDeDron(clipsDelManifest, nombreSinNumero)) return nombreConNumero;
+  const numero = nombreConNumero.slice(
+    0, nombreConNumero.length - nombreSinNumero.length);
+  return numero + MARCA_DRONE + nombreSinNumero;
 }

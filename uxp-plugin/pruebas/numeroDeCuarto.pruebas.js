@@ -70,6 +70,23 @@ module.exports = function (ctx) {
       },
     },
     {
+      // spec 2026-09-18 §5: la marca [DRONE] es presentacion del plugin,
+      // igual que el numero -- puede aparecer o desaparecer entre dos
+      // importaciones sin que el cuarto sea otro.
+      nombre: "esElMismoCuarto ignora la marca [DRONE]",
+      fn: () => {
+        const r = ctx.esElMismoCuarto("02. [DRONE] Aerea", "04. Aerea");
+        return { ok: r === true, detalle: String(r) };
+      },
+    },
+    {
+      nombre: "esElMismoCuarto ignora la marca aunque solo un lado la tenga",
+      fn: () => {
+        const r = ctx.esElMismoCuarto("[DRONE] Aerea", "Aerea");
+        return { ok: r === true, detalle: String(r) };
+      },
+    },
+    {
       // Igualdad EXACTA despues de quitar el numero: el acento no se
       // perdona, igual que en la revision de la lista.
       nombre: "Recamara 1 y Recámara 1 no son el mismo cuarto",
