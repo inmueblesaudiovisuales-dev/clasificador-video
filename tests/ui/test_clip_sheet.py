@@ -3127,6 +3127,22 @@ def test_la_hoja_suelta_las_tiras_de_las_tarjetas_viejas(qtbot, tmp_path):
     assert cargadas <= cuantas + LIMITE_DE_TIRAS_VIVAS * len(rutas)
 
 
+def test_bajar_el_limite_suelta_las_tiras_que_ya_lo_pasan(qtbot, tmp_path):
+    """El modo economico (ver preferencias.py) baja el techo para una Mac
+    con menos RAM -- las tarjetas que ya estaban por encima del nuevo
+    limite se sueltan de una, sin esperar a que alguien mas se escrubee."""
+    rutas = _tira_en_disco(tmp_path)
+    sheet = _sheet(qtbot, [_clip(n, "Sala") for n in range(6)])
+    for tarjeta in sheet.item_widgets:
+        tarjeta.set_tira(rutas)
+        tarjeta._show_frame(1)
+
+    sheet.set_limite_de_tiras_vivas(2)
+
+    cargadas = sum(1 for t in sheet.item_widgets if t.fotos_cargadas() > 1)
+    assert cargadas == 2
+
+
 def test_la_tarjeta_que_solto_su_tira_sigue_mostrando_su_portada(qtbot, tmp_path):
     """Soltar las fotos del escrubeo no puede dejar la tarjeta en blanco."""
     rutas = _tira_en_disco(tmp_path)

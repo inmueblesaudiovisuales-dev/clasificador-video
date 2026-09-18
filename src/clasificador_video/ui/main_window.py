@@ -70,6 +70,7 @@ from clasificador_video.ui.aviso_de_media import (
     AvisoDeMedia,
     Renglon,
 )
+from clasificador_video.ui import clip_sheet as clip_sheet_module
 from clasificador_video.ui.clip_sheet import SIN_BIN, ClipSheet, ClipThumbnail
 from clasificador_video.ui.pantalla_config import PantallaConfig
 from clasificador_video.ui.pantalla_guia import PantallaGuia
@@ -275,14 +276,23 @@ class _GuiaJob(QRunnable):
 # Cuantos `ffprobe` a la vez al importar. Ocho porque es donde la medicion
 # se aplana: con 40 clips reales de la FX30, en serie 1.06 s, con 4 en
 # paralelo 0.26 s y con 8 en paralelo 0.14 s. Son procesos aparte esperando
-# al disco, no CPU nuestra.
+# al disco, no CPU nuestra -- pero "no CPU nuestra" seguia siendo 8 procesos
+# de golpe, y en una Mac con menos nucleos eso compite mas. En modo economico
+# baja a 3: mas lento, menos carga.
 SONDEOS_EN_PARALELO = 8
+SONDEOS_EN_PARALELO_ECONOMICO = 3
 
 # Miniaturas en paralelo: normal, y en modo economico (ver preferencias.py).
 # Uno a la vez en modo economico porque es el minimo que sigue siendo
 # paralelo con nada -- ya no hay con que competir por CPU/memoria.
 HILOS_DE_MINIATURAS_NORMAL = 3
 HILOS_DE_MINIATURAS_ECONOMICO = 1
+
+# Cuantas tarjetas conservan su tira completa en memoria a la vez (ver
+# `ClipSheet.set_limite_de_tiras_vivas`). El default de la hoja ya es
+# prudente; en modo economico baja mas para una Mac con menos RAM.
+LIMITE_DE_TIRAS_VIVAS_NORMAL = clip_sheet_module.LIMITE_DE_TIRAS_VIVAS
+LIMITE_DE_TIRAS_VIVAS_ECONOMICO = 8
 
 
 class SeñalesDeTrabajos(QObject):
@@ -370,6 +380,9 @@ class _ThumbnailJob(QRunnable):
     fuera del hilo de la UI."""
 
     STRIP_COUNT = 12
+    # La mitad en modo economico: sigue alcanzando para el escrubeo --se
+    # nota menos fino, no roto-- y son seis seek+captura de menos por clip.
+    STRIP_COUNT_ECONOMICO = 6
 
     def __init__(self, generation: int, index: int, video: Path, outdir: Path,
                  duration_seconds: float | None, signals: SeñalesDeTrabajos,
@@ -390,8 +403,9 @@ class _ThumbnailJob(QRunnable):
                 # proceso de mpv con varios seek+captura por IPC -- medido
                 # en vivo el 2026-08-06 con clips reales de la FX30:
                 # ~1.8s para 12 frames (ver thumbnails.extract_thumbnail_strip)
+                count = self.STRIP_COUNT_ECONOMICO if self.economico else self.STRIP_COUNT
                 frames = extract_thumbnail_strip(
-                    self.video, self.duration_seconds, self.STRIP_COUNT, self.outdir,
+                    self.video, self.duration_seconds, count, self.outdir,
                     economico=self.economico,
                 )
             else:
@@ -853,6 +867,10 @@ class MainWindow(QWidget):
         self.tool_column.undo_requested.connect(self.undo)
 
         self.clip_sheet = ClipSheet()
+        self.clip_sheet.set_limite_de_tiras_vivas(
+            LIMITE_DE_TIRAS_VIVAS_ECONOMICO if preferencias.modo_economico()
+            else LIMITE_DE_TIRAS_VIVAS_NORMAL
+        )
         self.clip_sheet.clip_clicked.connect(self.select_clip)
         self.clip_sheet.clip_activated.connect(self._on_clip_activado)
         self.clip_sheet.brocha_paso_por.connect(self.pintar)
@@ -2615,7 +2633,9 @@ class MainWindow(QWidget):
         # El resultado se recoge EN ORDEN (`map` lo garantiza) porque el
         # orden de los clips es el orden en que se ven y el que viaja al
         # manifest.
-        with ThreadPoolExecutor(SONDEOS_EN_PARALELO) as sondeadores:
+        paralelo = (SONDEOS_EN_PARALELO_ECONOMICO if preferencias.modo_economico()
+                   else SONDEOS_EN_PARALELO)
+        with ThreadPoolExecutor(paralelo) as sondeadores:
             infos = list(sondeadores.map(self._sondear_sin_reventar, archivos))
         for video, info in zip(archivos, infos):
             if info is None:
@@ -3908,10 +3928,14 @@ class MainWindow(QWidget):
             # quedaban a medias para siempre.
             #
             # `>= CUADROS_DE_LA_TIRA` es por los caches de antes de que la
-            # marca existiera: una tira de 12 ya estaba completa y no hay por
-            # que rehacerla.
+            # marca existiera: una tira ya completa no hay por que rehacerla.
+            # El numero depende del modo -- economico saca la mitad -- pero
+            # como `cache_dir` ya distingue economico de normal, cada cache
+            # solo se compara contra el conteo que le corresponde.
+            cuadros_de_la_tira = (_ThumbnailJob.STRIP_COUNT_ECONOMICO if economico
+                                  else _ThumbnailJob.STRIP_COUNT)
             completa = (cache_dir / MARCA_DE_COMPLETA).exists() if cache_dir.exists() else False
-            if cached_frames and (completa or len(cached_frames) >= _ThumbnailJob.STRIP_COUNT):
+            if cached_frames and (completa or len(cached_frames) >= cuadros_de_la_tira):
                 # cache hit: mismo clip ya procesado en una sesion anterior.
                 self._on_thumbnail_ready(generation, index, cached_frames)
                 continue
@@ -4662,6 +4686,9 @@ class MainWindow(QWidget):
         preferencias.guardar_modo_economico(activo)
         self._thread_pool.setMaxThreadCount(
             HILOS_DE_MINIATURAS_ECONOMICO if activo else HILOS_DE_MINIATURAS_NORMAL
+        )
+        self.clip_sheet.set_limite_de_tiras_vivas(
+            LIMITE_DE_TIRAS_VIVAS_ECONOMICO if activo else LIMITE_DE_TIRAS_VIVAS_NORMAL
         )
 
     def _abrir_pantalla_de_guia(self) -> None:

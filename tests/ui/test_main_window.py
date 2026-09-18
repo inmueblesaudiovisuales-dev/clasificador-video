@@ -4244,6 +4244,74 @@ def test_no_se_encima_una_segunda_tanda(qtbot, monkeypatch, tmp_path):
     assert hechos == []
 
 
+def test_modo_economico_pide_la_mitad_de_cuadros_en_la_tira(monkeypatch):
+    """Sigue alcanzando para el escrubeo, y son seis seek+captura de menos
+    por clip -- menos trabajo de mpv en una Mac con menos CPU."""
+    from clasificador_video.ui.main_window import SeñalesDeTrabajos
+
+    llamados = {}
+
+    def fake_strip(video, duration_seconds, count, outdir, economico=False):
+        llamados["count"] = count
+        return []
+
+    monkeypatch.setattr(
+        "clasificador_video.ui.main_window.extract_thumbnail_strip", fake_strip
+    )
+    job = _ThumbnailJob(1, 0, Path("/x.mp4"), Path("/out"), 6.0,
+                        SeñalesDeTrabajos(), economico=True)
+
+    job.run()
+
+    assert llamados["count"] == _ThumbnailJob.STRIP_COUNT_ECONOMICO
+    assert _ThumbnailJob.STRIP_COUNT_ECONOMICO < _ThumbnailJob.STRIP_COUNT
+
+
+def test_modo_economico_baja_los_hilos_y_el_limite_de_tiras(qtbot, monkeypatch):
+    from clasificador_video import preferencias
+    from clasificador_video.ui.main_window import (
+        HILOS_DE_MINIATURAS_ECONOMICO,
+        HILOS_DE_MINIATURAS_NORMAL,
+        LIMITE_DE_TIRAS_VIVAS_ECONOMICO,
+        LIMITE_DE_TIRAS_VIVAS_NORMAL,
+    )
+    window = _window_with_video(qtbot)
+    monkeypatch.setattr(preferencias, "guardar_modo_economico", lambda v: None)
+
+    window._cambiar_modo_economico(True)
+
+    assert window._thread_pool.maxThreadCount() == HILOS_DE_MINIATURAS_ECONOMICO
+    assert window.clip_sheet._limite_de_tiras_vivas == LIMITE_DE_TIRAS_VIVAS_ECONOMICO
+
+    window._cambiar_modo_economico(False)
+
+    assert window._thread_pool.maxThreadCount() == HILOS_DE_MINIATURAS_NORMAL
+    assert window.clip_sheet._limite_de_tiras_vivas == LIMITE_DE_TIRAS_VIVAS_NORMAL
+
+
+def test_modo_economico_baja_cuantos_ffprobe_corren_a_la_vez_al_importar(
+        qtbot, monkeypatch, tmp_path):
+    from clasificador_video import preferencias
+    from clasificador_video.ui.main_window import SONDEOS_EN_PARALELO_ECONOMICO
+
+    window = _window_with_video(qtbot, cache_root=tmp_path / "cache")
+    monkeypatch.setattr(preferencias, "modo_economico", lambda: True)
+    workers = []
+    import clasificador_video.ui.main_window as modulo_ventana
+
+    class _ExecutorQueAnota(modulo_ventana.ThreadPoolExecutor):
+        def __init__(self, max_workers=None, *a, **k):
+            workers.append(max_workers)
+            super().__init__(max_workers, *a, **k)
+
+    monkeypatch.setattr(modulo_ventana, "ThreadPoolExecutor", _ExecutorQueAnota)
+    monkeypatch.setattr(window, "_probe_clip", lambda path: None)
+
+    window._medir([tmp_path / "no-existe.MP4"])
+
+    assert workers == [SONDEOS_EN_PARALELO_ECONOMICO]
+
+
 def test_una_tira_cacheada_del_original_no_bloquea_la_del_proxy(qtbot, monkeypatch, tmp_path):
     """El bug de la cache pegada al original, 2026-09-18: la clave del
     directorio de cache usaba siempre `clip.ruta` (el original), sin

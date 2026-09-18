@@ -1882,6 +1882,9 @@ class ClipSheet(QWidget):
         # reciente. Son las unicas que conservan su tira de 12 fotos: ver
         # `LIMITE_DE_TIRAS_VIVAS`.
         self._tiras_vivas: list[ClipCard] = []
+        # Instancia y no la constante a secas: en modo economico la ventana
+        # lo baja (`set_limite_de_tiras_vivas`) para una Mac con menos RAM.
+        self._limite_de_tiras_vivas = LIMITE_DE_TIRAS_VIVAS
         # el orden de los bins es el de IMPORTACION, no el alfabetico: es el
         # orden en que entro el material y el que siguen las flechas.
         self._bin_order: list[str] = []
@@ -2479,7 +2482,15 @@ class ClipSheet(QWidget):
         """
         self._tiras_vivas = [c for c in self._tiras_vivas if c is not card]
         self._tiras_vivas.append(card)
-        while len(self._tiras_vivas) > LIMITE_DE_TIRAS_VIVAS:
+        while len(self._tiras_vivas) > self._limite_de_tiras_vivas:
+            self._tiras_vivas.pop(0).soltar_tira()
+
+    def set_limite_de_tiras_vivas(self, limite: int) -> None:
+        """El modo economico lo baja: menos tarjetas con su tira completa
+        en memoria a la vez. Las que ya pasaban el nuevo techo se sueltan
+        de una -- no hay que esperar a que alguien mas se escrubee."""
+        self._limite_de_tiras_vivas = limite
+        while len(self._tiras_vivas) > self._limite_de_tiras_vivas:
             self._tiras_vivas.pop(0).soltar_tira()
 
     def set_clips(self, clips: list[ClipThumbnail]) -> None:
