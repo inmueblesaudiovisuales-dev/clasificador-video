@@ -4244,6 +4244,42 @@ def test_no_se_encima_una_segunda_tanda(qtbot, monkeypatch, tmp_path):
     assert hechos == []
 
 
+def test_una_tira_cacheada_del_original_no_bloquea_la_del_proxy(qtbot, monkeypatch, tmp_path):
+    """El bug de la cache pegada al original, 2026-09-18: la clave del
+    directorio de cache usaba siempre `clip.ruta` (el original), sin
+    importar de que archivo se hubiera extraido la tira. Un clip sin proxy
+    sacaba su tira del 4K y quedaba marcada "completa"; cuando el proxy se
+    enganchaba despues, la miniatura se quedaba pegada al original para
+    siempre porque el cache-hit cortaba antes de mirar la fuente nueva.
+
+    Ahora la cache es de la FUENTE (original o proxy), asi que son
+    directorios distintos y enganchar el proxy despues si dispara una
+    extraccion nueva."""
+    cache_root = tmp_path / "cache"
+    clip_path = tmp_path / "a.MP4"
+    clip_path.write_bytes(b"contenido de prueba")
+    proxy_path = tmp_path / "a_proxy.MP4"
+    proxy_path.write_bytes(b"contenido del proxy")
+    window = _window_with_video(qtbot, cache_root=cache_root)
+
+    fuentes_pedidas = []
+    monkeypatch.setattr(
+        "clasificador_video.ui.main_window.extract_thumbnail_strip",
+        lambda video, *a, **k: fuentes_pedidas.append(video) or [],
+    )
+    window.load_clips([Clip(orden=1, ruta=clip_path, categoria_path=[], fps=30.0)])
+    window._clip_durations[0] = 4.0
+    window._schedule_thumbnails()
+    window._thread_pool.waitForDone(3000)
+    QApplication.processEvents()
+
+    window._proxy_candidatos[0] = proxy_path
+    window._schedule_thumbnails([0])
+    window._thread_pool.waitForDone(3000)
+
+    assert fuentes_pedidas == [clip_path, proxy_path]
+
+
 def test_una_portada_vieja_no_impide_sacar_la_tira_de_escrubeo(qtbot, monkeypatch, tmp_path):
     """El bug que Bruno reporto con su material: «¿por que no puedo
     escrubear en los de la FX30 pero si en los del dron?».
@@ -5498,7 +5534,8 @@ def test_al_cerrar_no_queda_ningun_mpv_de_miniaturas_vivo(qtbot, monkeypatch, tm
     arrancados: list = []
     en_vuelo = threading.Event()
 
-    def extraccion_que_no_termina(video, duration_seconds, count, outdir):
+    def extraccion_que_no_termina(video, duration_seconds, count, outdir,
+                                  economico=False):
         # como el mpv real: queda vivo hasta que alguien lo apaga, y el
         # hilo se queda esperandolo.
         proc = sp.Popen(["sleep", "30"])

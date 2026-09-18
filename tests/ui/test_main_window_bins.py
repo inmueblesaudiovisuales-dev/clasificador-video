@@ -1143,6 +1143,27 @@ def test_renombrar_a_media_generacion_de_proxies_no_pierde_la_tanda(
     assert sorted(pedidas) == [0, 1]
 
 
+def test_cada_proxy_que_termina_no_pide_su_portada_a_medias(qtbot, ventana, monkeypatch):
+    """Bruno lo pidio explicito: las portadas de un bin no arrancan clip
+    por clip a medida que sus proxies van quedando listos -- arrancan todas
+    juntas, cuando el bin ENTERO termina (o se rechazan los proxies)."""
+    ventana.load_clips([_clip(0, "/dron/A.MP4"), _clip(1, "/dron/B.MP4")])
+    ventana.bins.agregar("Dron", Path("/dron"), [0, 1])
+    ventana._clip_durations = {0: 1.0, 1: 1.0}
+    ventana._refresh_sheet()
+    monkeypatch.setattr(ventana._generacion_pool, "start", lambda *a, **k: None)
+    ventana.generar_proxies_de_bin("Dron", preguntar=False)
+    generacion = ventana._generando_proxies["generacion"]
+    pedidas = []
+    monkeypatch.setattr(ventana, "_schedule_thumbnails",
+                        lambda indices=None: pedidas.append(indices))
+
+    ventana._on_proxy_generado(generacion, 0, Path("/dron/proxies/A.MP4"), "")
+
+    assert pedidas == []                       # el clip 1 todavia no tiene proxy
+    assert ventana._proxy_candidatos[0] == Path("/dron/proxies/A.MP4")
+
+
 # --- el encabezado pegado y la ventana ---------------------------------------
 
 
@@ -2387,7 +2408,7 @@ def test_un_proxy_que_ya_esta_en_disco_se_engancha_en_vez_de_ignorarse(qtbot, mo
     proxy_gen.ruta_de_proxy(rutas[0], carpeta).write_bytes(b"proxy")
     sondeados = {}
     monkeypatch.setattr(window, "_sondear_proxies",
-                        lambda emp, indices=None: sondeados.update(emp=emp, idx=indices))
+                        lambda emp, indices=None, pedir_miniaturas=True: sondeados.update(emp=emp, idx=indices))
     encolados = []
     monkeypatch.setattr(window._generacion_pool, "start", encolados.append)
 
@@ -2395,6 +2416,37 @@ def test_un_proxy_que_ya_esta_en_disco_se_engancha_en_vez_de_ignorarse(qtbot, mo
 
     assert rutas[0] in sondeados.get("emp", {})     # el que ya estaba: se mira
     assert len(encolados) == 1                      # solo el otro se genera
+
+
+def test_los_que_ya_estaban_en_disco_no_piden_portada_si_falta_generar_el_resto(
+        qtbot, monkeypatch, tmp_path):
+    """Bruno lo pidio explicito: las miniaturas de un bin no arrancan hasta
+    que el bin ENTERO tiene sus proxies resueltos, no clip por clip a
+    medida que van quedando listos. Antes, los que ya estaban en disco al
+    arrancar la tanda pedian su portada de una, aunque el resto del bin
+    todavia se estuviera generando."""
+    mat = tmp_path / "Card A"
+    mat.mkdir()
+    rutas = []
+    for n in ("C0001.MP4", "C0002.MP4"):
+        (mat / n).write_bytes(b"x" * 100)
+        rutas.append(mat / n)
+    window = _ventana_con_bins(qtbot)
+    window.load_clips([Clip(orden=i + 1, ruta=r, categoria_path=[], fps=30.0)
+                       for i, r in enumerate(rutas)])
+    window.bins.agregar("Card A", mat, [0, 1])
+    carpeta = proxy_gen.carpeta_de_proxies(mat)
+    carpeta.mkdir(parents=True, exist_ok=True)
+    proxy_gen.ruta_de_proxy(rutas[0], carpeta).write_bytes(b"proxy")
+    pedidos = []
+    monkeypatch.setattr(window, "_sondear_proxies",
+                        lambda emp, indices=None, pedir_miniaturas=True:
+                        pedidos.append(pedir_miniaturas))
+    monkeypatch.setattr(window._generacion_pool, "start", lambda job: None)
+
+    window._arrancar_tanda_de_proxies("Card A")  # queda 1 clip pendiente
+
+    assert pedidos == [False]
 
 
 def test_un_bin_entero_ya_en_disco_no_traba_la_fila(qtbot, monkeypatch, tmp_path):
@@ -2412,7 +2464,7 @@ def test_un_bin_entero_ya_en_disco_no_traba_la_fila(qtbot, monkeypatch, tmp_path
     proxy_gen.ruta_de_proxy(ruta, carpeta).write_bytes(b"proxy")
     sondeados = {}
     monkeypatch.setattr(window, "_sondear_proxies",
-                        lambda emp, indices=None: sondeados.update(emp=emp))
+                        lambda emp, indices=None, pedir_miniaturas=True: sondeados.update(emp=emp))
     siguientes = []
     monkeypatch.setattr(window, "_arrancar_siguiente_de_la_fila",
                         lambda: siguientes.append(True))
@@ -2421,6 +2473,31 @@ def test_un_bin_entero_ya_en_disco_no_traba_la_fila(qtbot, monkeypatch, tmp_path
 
     assert ruta in sondeados.get("emp", {})
     assert siguientes                               # la fila sigue
+
+
+def test_si_todo_el_bin_ya_estaba_en_disco_las_portadas_se_piden_de_una(
+        qtbot, monkeypatch, tmp_path):
+    """Sin nada pendiente por generar no hay tanda que esperar: no tiene
+    sentido dejar las portadas paradas por un bin que ya termino."""
+    mat = tmp_path / "Card A"
+    mat.mkdir()
+    ruta = mat / "C0001.MP4"
+    ruta.write_bytes(b"x" * 100)
+    window = _ventana_con_bins(qtbot)
+    window.load_clips([Clip(orden=1, ruta=ruta, categoria_path=[], fps=30.0)])
+    window.bins.agregar("Card A", mat, [0])
+    carpeta = proxy_gen.carpeta_de_proxies(mat)
+    carpeta.mkdir(parents=True, exist_ok=True)
+    proxy_gen.ruta_de_proxy(ruta, carpeta).write_bytes(b"proxy")
+    pedidos = []
+    monkeypatch.setattr(window, "_sondear_proxies",
+                        lambda emp, indices=None, pedir_miniaturas=True:
+                        pedidos.append(pedir_miniaturas))
+    monkeypatch.setattr(window, "_arrancar_siguiente_de_la_fila", lambda: None)
+
+    window._arrancar_tanda_de_proxies("Card A")
+
+    assert pedidos == [True]
 
 
 def test_al_terminar_la_tanda_se_recoge_lo_que_quedo_sin_enganchar(qtbot, monkeypatch, tmp_path):
@@ -2444,7 +2521,7 @@ def test_al_terminar_la_tanda_se_recoge_lo_que_quedo_sin_enganchar(qtbot, monkey
     proxy_gen.ruta_de_proxy(ruta, carpeta).write_bytes(b"proxy")
     sondeados = {}
     monkeypatch.setattr(window, "_sondear_proxies",
-                        lambda emp, indices=None: sondeados.update(emp=emp))
+                        lambda emp, indices=None, pedir_miniaturas=True: sondeados.update(emp=emp))
     _corriendo(window, "Card A", carpeta=carpeta, hechos=1, total=1)
 
     window._terminar_generacion_de_proxies()
@@ -2586,7 +2663,7 @@ def test_el_boton_no_dice_ya_estan_cuando_faltan_por_enganchar(qtbot, monkeypatc
     vistos = _carteles(monkeypatch)
     sondeados = {}
     monkeypatch.setattr(window, "_sondear_proxies",
-                        lambda emp, indices=None: sondeados.update(emp=emp))
+                        lambda emp, indices=None, pedir_miniaturas=True: sondeados.update(emp=emp))
 
     window.generar_proxies_de_bin("Card A", preguntar=False)
 

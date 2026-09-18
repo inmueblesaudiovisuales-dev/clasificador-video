@@ -372,7 +372,8 @@ class _ThumbnailJob(QRunnable):
     STRIP_COUNT = 12
 
     def __init__(self, generation: int, index: int, video: Path, outdir: Path,
-                 duration_seconds: float | None, signals: SeñalesDeTrabajos):
+                 duration_seconds: float | None, signals: SeñalesDeTrabajos,
+                 economico: bool = False):
         super().__init__()
         self._generation = generation
         self.index = index
@@ -380,6 +381,7 @@ class _ThumbnailJob(QRunnable):
         self.outdir = outdir
         self.duration_seconds = duration_seconds
         self.signals = signals
+        self.economico = economico
 
     def run(self) -> None:
         try:
@@ -389,12 +391,14 @@ class _ThumbnailJob(QRunnable):
                 # en vivo el 2026-08-06 con clips reales de la FX30:
                 # ~1.8s para 12 frames (ver thumbnails.extract_thumbnail_strip)
                 frames = extract_thumbnail_strip(
-                    self.video, self.duration_seconds, self.STRIP_COUNT, self.outdir
+                    self.video, self.duration_seconds, self.STRIP_COUNT, self.outdir,
+                    economico=self.economico,
                 )
             else:
                 # sin duracion conocida (ej. sesion restaurada sin volver
                 # a correr ffprobe): un solo frame, como antes.
-                frames = [extract_thumbnail(self.video, 0.5, self.outdir)]
+                frames = [extract_thumbnail(self.video, 0.5, self.outdir,
+                                            economico=self.economico)]
         except Exception:
             frames = None
         # Con la ventana viva esto no falla nunca: el portador vive mientras
@@ -3030,9 +3034,16 @@ class MainWindow(QWidget):
         # por la validacion de siempre, asi que el que no calce se descarta
         # y cae en `pendientes` la proxima vez.
         if ya_en_disco:
+            # `pedir_miniaturas=not pendientes`: si todavia falta generar el
+            # resto del bin, las portadas de estos NO se piden ahora -- se
+            # piden todas juntas cuando la tanda entera termine
+            # (`_terminar_generacion_de_proxies`). Si esto era TODO el bin
+            # (no hay `pendientes`), no hay tanda que esperar y se piden de
+            # una vez.
             self._sondear_proxies(
                 {self.clips[i].ruta: ruta for i, ruta in ya_en_disco},
                 indices=[i for i, _ in ya_en_disco],
+                pedir_miniaturas=not pendientes,
             )
         if not pendientes:
             self._arrancar_siguiente_de_la_fila()
@@ -3179,9 +3190,15 @@ class MainWindow(QWidget):
             # siempre: si no calza cuadro a cuadro no se engancha, aunque lo
             # hayamos generado nosotros -- la regla existe para que el in/out
             # no caiga en el cuadro equivocado, y de quien vino el archivo no
-            # la cambia.
+            # la cambia. Y su portada NO se pide todavia --pedir_miniaturas=
+            # False-- porque la tanda sigue corriendo: el resto del bin
+            # sigue sin proxy, y sacarle la portada a este uno ahora seria
+            # exactamente lo que Bruno no quiere, portadas saliendo a medias
+            # mientras el bin todavia se esta terminando de generar. Se
+            # piden todas juntas al final (`_terminar_generacion_de_
+            # proxies`), y para entonces este candidato ya esta anotado.
             self._sondear_proxies({self.clips[index].ruta: Path(destino)},
-                                  indices=[index])
+                                  indices=[index], pedir_miniaturas=False)
         if estado["hechos"] < estado["total"] and not estado["cancelado"]:
             self._pintar_avance_de_proxies()
             return
@@ -3639,7 +3656,8 @@ class MainWindow(QWidget):
         self._autosave()
 
     def _sondear_proxies(self, emparejados: dict[Path, Path | None],
-                         indices: list[int] | None = None) -> None:
+                         indices: list[int] | None = None,
+                         pedir_miniaturas: bool = True) -> None:
         """Manda a comprobar cada proxy en segundo plano.
 
         Emparejar es barato (mirar nombres); validar cuesta un `ffprobe`
@@ -3651,6 +3669,16 @@ class MainWindow(QWidget):
         `self._proxy_sizes = {}` y reconstruia `_proxy_candidatos` entero,
         y dejarlo asi haria que enganchar los proxies del dron borrara los
         de la Sony.
+
+        `pedir_miniaturas=False` es para cuando esto se llama A MITAD de una
+        tanda de generacion (`_arrancar_tanda_de_proxies`, `_on_proxy_
+        generado`): el candidato se sigue anotando en `_proxy_candidatos`
+        --asi que en cuanto la tanda termine, `_schedule_thumbnails` ya lo
+        encuentra y saca la miniatura de ahi-- pero no se pide TODAVIA.
+        Pedirla clip por clip mientras la tanda sigue corriendo es lo que
+        Bruno no quiere: las miniaturas de un bin arrancan todas juntas, o
+        cuando el bin entero ya tiene sus proxies, o cuando se rechazaron y
+        se acepto sacarlas del original -- nunca a medias.
         """
         crudo = range(len(self.clips)) if indices is None else indices
         # se recortan contra los clips que de verdad hay: `app.py` restaura
@@ -3708,7 +3736,8 @@ class MainWindow(QWidget):
         # en vuelo y le encolaba un segundo trabajo por clip --misma carpeta
         # de salida, mismo socket IPC, uno borrandole el socket al otro--
         # ademas de reiniciarle la barra de progreso.
-        self._schedule_thumbnails(alcance)
+        if pedir_miniaturas:
+            self._schedule_thumbnails(alcance)
 
     def _on_proxy_sondeado(self, generation: int, index: int, info: dict | None) -> None:
         # contra la generacion de ESTE clip, no contra el contador global:
@@ -3835,6 +3864,7 @@ class MainWindow(QWidget):
             self._miniaturas_totales = len(self.clips)
         generation = self._thumb_generation
         cache_root = self._thumbnail_cache_root
+        economico = preferencias.modo_economico()
         for index in alcance:
             if index in self._faltantes:
                 # el archivo no está: extraerle una portada es lanzar mpv
@@ -3852,7 +3882,22 @@ class MainWindow(QWidget):
                 # eso ya funciona (ver `reconectar_bin`).
                 continue
             clip = self.clips[index]
-            cache_dir = cache_dir_for(clip.ruta, cache_root)
+            # del PROXY si lo hay: sacar 12 cuadros de HEVC 10-bit a 268 Mbps
+            # es lo que ponia los ventiladores a trabajar con 109 clips. El
+            # proxy da la misma imagen ~20 veces mas barato.
+            #
+            # Se usa el candidato aunque todavia no haya validado: para una
+            # miniatura alcanza, y esperar a la validacion --3.4 s de ffprobe
+            # en 128 clips-- retrasaria justo lo que se quiere acelerar.
+            fuente = self._proxy_candidatos.get(index, clip.ruta)
+            # La cache tiene que ser de la FUENTE, no siempre del original:
+            # si no, una tira ya sacada del 4K antes de que el proxy
+            # existiera quedaba marcada «completa» para siempre, y enganchar
+            # el proxy despues no la volvia a sacar nunca -- la miniatura se
+            # quedaba pegada al original aunque hubiera proxy. Como
+            # `cache_dir_for` mete la ruta en el hash, el original y el
+            # proxy caen solos en carpetas distintas sin tocar la clave.
+            cache_dir = cache_dir_for(fuente, cache_root, economico)
             cached_frames = sorted(cache_dir.glob("strip_*.jpg")) if cache_dir.exists() else []
             # Cache hit solo si la extraccion TERMINO. Contar fotos no
             # alcanza: no distingue una tira corta de una tira CORTADA, y con
@@ -3902,14 +3947,6 @@ class MainWindow(QWidget):
                     # sin duracion no hay tira posible, y volver a pedirla
                     # cada sesion seria extraer de nuevo la misma portada
                     continue
-            # del PROXY si lo hay: sacar 12 cuadros de HEVC 10-bit a 268 Mbps
-            # es lo que ponia los ventiladores a trabajar con 109 clips. El
-            # proxy da la misma imagen ~20 veces mas barato.
-            #
-            # Se usa el candidato aunque todavia no haya validado: para una
-            # miniatura alcanza, y esperar a la validacion --3.4 s de ffprobe
-            # en 128 clips-- retrasaria justo lo que se quiere acelerar.
-            fuente = self._proxy_candidatos.get(index, clip.ruta)
             corriendo = self._miniaturas_en_vuelo.get(index)
             if corriendo is not None:
                 # Ya se le esta sacando la tira a este clip. Encolar otro
@@ -3938,7 +3975,7 @@ class MainWindow(QWidget):
             self._miniaturas_pendientes += 1
             self._thread_pool.start(
                 _ThumbnailJob(generation, index, fuente, cache_dir, duration_seconds,
-                              self._señales_de_trabajos)
+                              self._señales_de_trabajos, economico)
             )
         self._refrescar_progreso()
 

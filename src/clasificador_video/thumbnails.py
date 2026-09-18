@@ -116,7 +116,7 @@ def default_cache_root() -> Path:
     return Path.home() / ".cache" / "clasificador_video" / "thumbnails"
 
 
-def cache_dir_for(video: Path, cache_root: Path) -> Path:
+def cache_dir_for(video: Path, cache_root: Path, economico: bool = False) -> Path:
     """Directorio de cache estable para este clip especifico -- la key
     incluye tamaño y fecha de modificacion ademas de la ruta, asi que si
     el archivo se reemplaza (mismo nombre, contenido distinto) el cache
@@ -125,17 +125,39 @@ def cache_dir_for(video: Path, cache_root: Path) -> Path:
     Antes las miniaturas se generaban en un directorio temporal que se
     borraba al cerrar la app -- cada sesion volvia a pagar el costo real
     de extraccion (varios segundos por clip) aunque el material fuera el
-    mismo de la sesion anterior."""
+    mismo de la sesion anterior.
+
+    `economico` entra en la key porque esas tiras salen mas chicas
+    (`ANCHO_MINIATURA_ECONOMICO`, ver `build_strip_ipc_args`): sin esto,
+    la primera que se generara ganaba para siempre -- apagar el modo
+    economico despues dejaria tiras chicas marcadas «completa» y nunca se
+    regenerarian a tamaño completo, y viceversa.
+    """
     try:
         stat = video.stat()
         key_source = f"{video.resolve()}|{stat.st_size}|{stat.st_mtime_ns}"
     except OSError:
         key_source = str(video)
+    if economico:
+        key_source += "|economico"
     digest = hashlib.sha1(key_source.encode()).hexdigest()
     return cache_root / digest
 
 
-def build_thumbnail_command(video: Path, at_seconds: float, outdir: Path) -> list[str]:
+# Ancho al que se achica la miniatura en modo economico (ver
+# preferencias.py), alto proporcional (`-2` en el filtro de mpv). 480 sigue
+# sobrando para una tarjeta de ~198px con margen para el zoom del escrubeo;
+# no ahorra el costo de decodificar el cuadro --eso lo sigue pagando el
+# HEVC de origen igual-- pero si el de escribir y leer un JPEG mas chico.
+ANCHO_MINIATURA_ECONOMICO = 480
+
+
+def _filtro_de_escala(economico: bool) -> list[str]:
+    return [f"--vf=scale={ANCHO_MINIATURA_ECONOMICO}:-2"] if economico else []
+
+
+def build_thumbnail_command(video: Path, at_seconds: float, outdir: Path,
+                            economico: bool = False) -> list[str]:
     """Comando validado en vivo el 2026-08-06 contra clips reales de la
     Sony FX30: respeta la rotacion del clip sin flags adicionales.
 
@@ -154,6 +176,7 @@ def build_thumbnail_command(video: Path, at_seconds: float, outdir: Path) -> lis
         # durante toda la importacion. Va con la misma decision que dejo al
         # reproductor callado (ver `player.py`).
         "--no-audio",
+        *_filtro_de_escala(economico),
         "--vo=image",
         f"--vo-image-outdir={outdir}",
         f"--start={at_seconds}",
@@ -167,9 +190,10 @@ def extract_thumbnail(
     at_seconds: float,
     outdir: Path,
     runner: Callable[[list[str]], None] = lambda cmd: subprocess.run(cmd, capture_output=True, check=False),
+    economico: bool = False,
 ) -> Path:
     outdir.mkdir(parents=True, exist_ok=True)
-    cmd = build_thumbnail_command(video, at_seconds, outdir)
+    cmd = build_thumbnail_command(video, at_seconds, outdir, economico)
     runner(cmd)
     frame = outdir / "00000001.jpg"
     if not frame.exists():
@@ -210,7 +234,8 @@ def ruta_del_socket(outdir: Path) -> Path:
     return ruta
 
 
-def build_strip_ipc_args(video: Path, socket_path: Path) -> list[str]:
+def build_strip_ipc_args(video: Path, socket_path: Path,
+                         economico: bool = False) -> list[str]:
     """mpv en modo idle, sin salida de video (--vo=null), decodificando con el
     chip, y con un socket de control IPC -- una sola sesion sobre la que se mandan varios
     seek + captura, en vez de relanzar mpv por cada frame de la tira.
@@ -252,6 +277,7 @@ def build_strip_ipc_args(video: Path, socket_path: Path) -> list[str]:
         # trabarse ni un cuadro. Si algun dia no estuviera disponible, mpv se
         # cae a software solo, que es exactamente el comportamiento de antes.
         "--hwdec=videotoolbox-copy",
+        *_filtro_de_escala(economico),
         "--vo=null",
         f"--input-ipc-server={socket_path}",
         str(video),
@@ -340,6 +366,7 @@ def extract_thumbnail_strip(
     outdir: Path,
     popen: Callable[[list[str]], subprocess.Popen] = _popen_silent,
     connect: Callable[[Path], MpvIpcConnection] = _connect_ipc,
+    economico: bool = False,
 ) -> list[Path]:
     """Extrae `count` frames espaciados a lo largo del clip, para el scrub
     tipo Final Cut sobre la miniatura de la hoja de contactos. Un solo proceso de
@@ -353,7 +380,7 @@ def extract_thumbnail_strip(
     socket_path = ruta_del_socket(outdir)
     if socket_path.exists():
         socket_path.unlink()
-    proc = popen(build_strip_ipc_args(video, socket_path))
+    proc = popen(build_strip_ipc_args(video, socket_path, economico))
     # Apuntado ANTES de nada: entre lanzarlo y llegar al `finally` de abajo
     # hay minutos de trabajo, y es exactamente ahi donde un cierre lo dejaba
     # huerfano (ver `terminar_extracciones`).

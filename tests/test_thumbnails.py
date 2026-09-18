@@ -5,7 +5,9 @@ import pytest
 
 from clasificador_video import thumbnails
 from clasificador_video.thumbnails import (
+    ANCHO_MINIATURA_ECONOMICO,
     MARCA_DE_COMPLETA,
+    cache_dir_for,
     ruta_del_socket,
     build_strip_ipc_args,
     build_thumbnail_command,
@@ -191,6 +193,44 @@ def test_extract_thumbnail_strip_frame_que_no_se_genero_se_descarta(tmp_path):
         connect=lambda socket_path: _FakeConnection(on_command),
     )
     assert len(frames) == 1
+
+
+# --- modo economico: miniaturas mas chicas -----------------------------
+
+
+def test_normal_no_lleva_filtro_de_escala():
+    cmd = build_strip_ipc_args(video=Path("/shooting/C0012.MP4"), socket_path=Path("/tmp/x/mpv.sock"))
+    assert not any(c.startswith("--vf=") for c in cmd)
+
+
+def test_economico_agrega_el_filtro_de_escala_a_la_tira():
+    cmd = build_strip_ipc_args(
+        video=Path("/shooting/C0012.MP4"), socket_path=Path("/tmp/x/mpv.sock"),
+        economico=True,
+    )
+    assert f"--vf=scale={ANCHO_MINIATURA_ECONOMICO}:-2" in cmd
+
+
+def test_economico_agrega_el_filtro_de_escala_al_frame_suelto():
+    cmd = build_thumbnail_command(
+        video=Path("/shooting/C0012.MP4"), at_seconds=3.0, outdir=Path("/tmp/thumbs/xyz"),
+        economico=True,
+    )
+    assert f"--vf=scale={ANCHO_MINIATURA_ECONOMICO}:-2" in cmd
+
+
+def test_cache_dir_for_distingue_economico_del_normal(tmp_path):
+    """Sin esto, la primera tira que se generara ganaba para siempre: apagar
+    el modo economico despues dejaba tiras chicas marcadas "completa" y
+    nunca se regeneraban a tamaño completo, y viceversa."""
+    video = tmp_path / "C0012.MP4"
+    video.write_bytes(b"contenido")
+    cache_root = tmp_path / "cache"
+
+    normal = cache_dir_for(video, cache_root)
+    economico = cache_dir_for(video, cache_root, economico=True)
+
+    assert normal != economico
 
 
 # --- el socket de mpv y el limite de macOS -----------------------------
