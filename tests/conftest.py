@@ -3,6 +3,21 @@ import pytest
 
 
 @pytest.fixture(autouse=True)
+def preferencias_de_prueba(monkeypatch):
+    """Ningun test depende de lo que haya guardado en la maquina real donde
+    corre la suite --`preferencias.modo_economico()` sin argumentos lee
+    `~/.clasificador_video/preferencias.json`-- y el default de la suite es
+    modo NORMAL: la mayoria de los tests de miniaturas datan de antes del
+    modo economico y esperan su tamaño de tira y paralelismo de siempre.
+    Los tests que SI quieren probar el modo economico lo prenden ellos
+    mismos, parchando `preferencias.modo_economico` encima de este.
+    """
+    from clasificador_video import preferencias
+    monkeypatch.setattr(preferencias, "modo_economico", lambda *a, **k: False)
+    yield
+
+
+@pytest.fixture(autouse=True)
 def sin_miniaturas_de_verdad(monkeypatch):
     """Ningún test lanza mpv por accidente.
 
