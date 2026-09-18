@@ -32,7 +32,12 @@ const raiz = path.join(__dirname, "..");
 // `cuartosDelProyecto.js`. Se fueron el 2026-09-14 con la pestana que
 // preguntaba: la guia se arma en Clipify y sus casos viven ahora en
 // `tests/test_guia.py`.
+//
+// `marcaDron.js` es logica pura entera: pone y quita la marca [DRONE] del
+// nombre de un cuarto y decide si un cuarto cuenta como dron. Va antes que
+// `numeroDeCuarto.js` porque `esElMismoCuarto` usa su `sinMarcaDron`.
 const ARCHIVOS = [
+  "js/marcaDron.js",
   "js/estructura.js",
   "js/numeroDeCuarto.js",
   "js/avance.js",
@@ -52,6 +57,7 @@ for (const archivo of ARCHIVOS) {
 
 const pruebas = require("./numeroDeCuarto.pruebas.js");
 const casos = [].concat(
+  require("./marcaDron.pruebas.js")(contexto),
   pruebas(contexto),
   pruebas.carpetas(contexto),
   require("./avance.pruebas.js")(contexto)
