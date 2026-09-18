@@ -34,6 +34,7 @@ from clasificador_video import (
 )
 from clasificador_video.bins import BinTree, raiz_comun_de
 from clasificador_video.camaras import SONY
+from clasificador_video.marca_dron import bin_dice_dron
 from clasificador_video.filters import FilterState, cola, contar
 from clasificador_video.history import History, HistoryEntry
 from clasificador_video.ingest import archivos_de_video
@@ -4914,21 +4915,23 @@ class MainWindow(QWidget):
         """Arma el manifiesto y lo escribe. Sin dialogos: es la parte
         probable, y `_on_export_manifest` es la que pregunta.
 
-        Aqui van las dos transformaciones de exportacion, en fila: el rango
-        en orden y la camara del bin. Las dos viven en la exportacion y no en
-        la sesion, que guarda lo que el editor marco.
+        Aqui van las tres transformaciones de exportacion, en fila: el rango
+        en orden, la camara del bin y si el bin dice "dron". Las tres viven
+        en la exportacion y no en la sesion, que guarda lo que el editor
+        marco.
 
-        Hubo una tercera --la subcarpeta del estado, «Picks»/«Rejects»/«Sin
+        Hubo una cuarta --la subcarpeta del estado, «Picks»/«Rejects»/«Sin
         marcar» dentro de cada cuarto-- y se fue el 2026-09-08: el estado lo
         dicen las marcas del nombre en Premiere, y una carpeta que dice lo
         mismo que una marca solo esconde el clip.
         """
         camaras = self._camaras_por_clip()
+        dron = self._bin_dron_por_clip()
         manifest = Manifest(
             proyecto=self.project_name,
             orientacion=self.orientacion_del_proyecto(),
             clips=[_con_el_rango_en_orden(
-                replace(c, camara=camaras.get(i, SONY)))
+                replace(c, camara=camaras.get(i, SONY), bin_dron=dron.get(i, False)))
                 for i, c in enumerate(self.clips)],
             guia=self._guia_para_el_manifest(),
             crear_secuencias=True,
@@ -4943,6 +4946,18 @@ class MainWindow(QWidget):
         con la de la camara que Bruno usa casi siempre.
         """
         return {i: self.bins.camara_de(nombre) or SONY
+                for i, nombre in self.bins.mapa_por_clip().items()}
+
+    def _bin_dron_por_clip(self) -> dict[int, bool]:
+        """De indice de clip a si su bin de importacion dice "dron" en el
+        nombre, de una sola pasada por los bins -- mismo patron que
+        `_camaras_por_clip`.
+
+        Un clip sin bin no aparece aqui y sale con el respaldo (False): no
+        hay bin del que sacar una respuesta, y spec 2026-09-18 §3 pide
+        justo eso -- un clip suelto no cuenta como dron.
+        """
+        return {i: bin_dice_dron(nombre)
                 for i, nombre in self.bins.mapa_por_clip().items()}
 
     def _nombre_sugerido_del_manifest(self) -> str:
