@@ -1,0 +1,40 @@
+"""Preferencias globales de la app: hoy, un solo ajuste (modo económico).
+
+Mismo lugar que la llave --``~/.clasificador_video/``-- y mismo criterio:
+si el archivo no existe o está roto, se devuelve el valor por defecto en
+vez de romper la app. Es global a la app, no del proyecto: no viaja con el
+manifest ni con el material.
+
+Sin Qt.
+"""
+from __future__ import annotations
+
+import json
+from pathlib import Path
+
+RUTA = Path.home() / ".clasificador_video" / "preferencias.json"
+
+
+def _destino(ruta: Path | None) -> Path:
+    return RUTA if ruta is None else ruta
+
+
+def _leer_todo(ruta: Path | None) -> dict:
+    try:
+        datos = json.loads(_destino(ruta).read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError, ValueError):
+        return {}
+    return datos if isinstance(datos, dict) else {}
+
+
+def modo_economico(ruta: Path | None = None) -> bool:
+    """Menos miniaturas a la vez, para computadoras con menos RAM o CPU."""
+    return bool(_leer_todo(ruta).get("modo_economico", False))
+
+
+def guardar_modo_economico(valor: bool, ruta: Path | None = None) -> None:
+    destino = _destino(ruta)
+    destino.parent.mkdir(parents=True, exist_ok=True)
+    datos = _leer_todo(ruta)
+    datos["modo_economico"] = bool(valor)
+    destino.write_text(json.dumps(datos), encoding="utf-8")

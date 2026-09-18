@@ -1,6 +1,6 @@
 """La pantalla de configuración.
 
-Hoy tiene un solo ajuste --la llave de la guía de edición-- y aun así vive
+Tiene la llave de la guía de edición y el modo económico, y aun así vive
 aparte en vez de colgarse de un menú: la llave es lo primero que hay que
 poner para que la guía sirva, y un ajuste escondido en un menú es un ajuste
 que no se encuentra. La app ya perdió una herramienta así antes.
@@ -9,13 +9,14 @@ NO ES UN DIÁLOGO MODAL. Es una pantalla hija de la ventana, como la de la
 guía: el diálogo de configuración que abría con `exec()` murió con la F3
 porque colgaba la suite bajo `offscreen`, y no se reabre ese camino.
 
-Solo dibuja y avisa. Guardar y leer de disco es de `llave.py`, y quien las
-llama es la ventana.
+Solo dibuja y avisa. Guardar y leer de disco es de `llave.py` y
+`preferencias.py`, y quien las llama es la ventana.
 """
 from __future__ import annotations
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
+    QCheckBox,
     QHBoxLayout,
     QLabel,
     QLineEdit,
@@ -28,10 +29,11 @@ from clasificador_video import llave as mod_llave
 
 
 class PantallaConfig(QWidget):
-    """Un ajuste: la llave de la guía de edición."""
+    """La llave de la guía de edición, y el modo económico."""
 
     llave_guardada = Signal(str)
     llave_borrada = Signal()
+    modo_economico_cambiado = Signal(bool)
     cerrada = Signal()
 
     def __init__(self, parent=None):
@@ -99,10 +101,37 @@ class PantallaConfig(QWidget):
         self.donde_label.setWordWrap(True)
         raiz.addWidget(self.donde_label)
 
+        titulo_economico = QLabel("Modo económico")
+        titulo_economico.setObjectName("configTitulo")
+        raiz.addWidget(titulo_economico)
+
+        self.economico_check = QCheckBox(
+            "Generar menos miniaturas a la vez"
+        )
+        self.economico_check.setObjectName("configEconomico")
+        # `checkStateChanged` y no `stateChanged`: PySide6 >=6.7 (el mínimo
+        # del proyecto) lo tiene, y es el que no sale marcado como obsoleto.
+        self.economico_check.checkStateChanged.connect(
+            lambda estado: self.modo_economico_cambiado.emit(
+                estado == Qt.CheckState.Checked
+            )
+        )
+        raiz.addWidget(self.economico_check)
+
+        economico_label = QLabel(
+            "Prende esto en una computadora con menos memoria o menos "
+            "núcleos, como una MacBook Air: la app saca las miniaturas de "
+            "una en una en vez de varias a la vez. Tarda más en terminar, "
+            "pero no se traba."
+        )
+        economico_label.setObjectName("configDonde")
+        economico_label.setWordWrap(True)
+        raiz.addWidget(economico_label)
+
         raiz.addStretch(1)
         self.cargar("")
 
-    def cargar(self, llave: str) -> None:
+    def cargar(self, llave: str, modo_economico: bool = False) -> None:
         """Enseña qué hay guardado. La caja se queda VACÍA aunque haya
         llave: precargarla sería enseñarla entera, que es justo lo que
         `tapada` existe para evitar."""
@@ -116,6 +145,10 @@ class PantallaConfig(QWidget):
                 "lo único que no se puede es armar la guía."
             )
             self.quitar_button.setEnabled(False)
+        # bloqueado para no reemitir la señal al solo reflejar lo guardado
+        self.economico_check.blockSignals(True)
+        self.economico_check.setChecked(modo_economico)
+        self.economico_check.blockSignals(False)
 
     def _al_guardar(self) -> None:
         # Sin espacios: uno pegado al copiar tumbaba la llamada con un «la

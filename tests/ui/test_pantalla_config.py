@@ -1,12 +1,12 @@
-"""La pantalla de configuración: hoy, un solo ajuste, la llave de la guía."""
+"""La pantalla de configuración: la llave de la guía y el modo económico."""
 from clasificador_video.ui.pantalla_config import PantallaConfig
 
 
-def _pantalla(qtbot, llave="") -> PantallaConfig:
+def _pantalla(qtbot, llave="", modo_economico=False) -> PantallaConfig:
     p = PantallaConfig()
     qtbot.addWidget(p)
     p.resize(520, 300)
-    p.cargar(llave)
+    p.cargar(llave, modo_economico)
     return p
 
 
@@ -70,3 +70,44 @@ def test_la_llave_no_se_ve_mientras_se_escribe(qtbot):
 
     p = _pantalla(qtbot)
     assert p.caja_llave.echoMode() == QLineEdit.EchoMode.Password
+
+
+def test_el_modo_economico_nace_apagado_por_default(qtbot):
+    p = _pantalla(qtbot)
+    assert not p.economico_check.isChecked()
+
+
+def test_cargar_refleja_el_modo_economico_guardado(qtbot):
+    p = _pantalla(qtbot, modo_economico=True)
+    assert p.economico_check.isChecked()
+
+
+def test_marcar_el_check_emite_true(qtbot):
+    p = _pantalla(qtbot)
+    with qtbot.waitSignal(p.modo_economico_cambiado) as blocker:
+        p.economico_check.setChecked(True)
+    assert blocker.args[0] is True
+
+
+def test_desmarcar_el_check_emite_false(qtbot):
+    p = _pantalla(qtbot, modo_economico=True)
+    with qtbot.waitSignal(p.modo_economico_cambiado) as blocker:
+        p.economico_check.setChecked(False)
+    assert blocker.args[0] is False
+
+
+def test_cargar_no_reemite_la_señal_al_solo_reflejar_lo_guardado(qtbot):
+    # `cargar` pone el check para mostrar lo que ya está guardado -- eso no
+    # es que Bruno haya tocado el checkbox, y no debe volver a escribir el
+    # mismo valor que se acaba de leer.
+    p = _pantalla(qtbot)
+    disparo = False
+
+    def _marcar(_valor):
+        nonlocal disparo
+        disparo = True
+
+    p.modo_economico_cambiado.connect(_marcar)
+    p.cargar("", True)
+    assert not disparo
+    assert p.economico_check.isChecked()
