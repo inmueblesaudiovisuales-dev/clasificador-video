@@ -54,6 +54,11 @@ async function processManifest(project, manifest) {
       // existe en vez de crear una segunda--. Lo que cuelgue debajo sigue
       // por el camino de siempre.
       const camino = caminoDelClip(categoryPath, ordenDeLaGuia);
+      // camino[1] ya trae el numero (o no, sin guia). Aqui se le suma la
+      // marca [DRONE] si TODOS los clips de este cuarto, en ESTE
+      // manifiesto, vinieron de un bin que dice "dron" -- ver
+      // marcaDron.js y spec 2026-09-18.
+      camino[1] = nombreDelCuartoConMarca(camino[1], categoryPath[0], manifest.clips);
       const carpetaDelCuarto = await resolverCuarto(
         project, carpetaDeClips, camino[1]);
       const targetFolder = camino.length > 2
