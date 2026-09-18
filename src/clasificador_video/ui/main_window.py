@@ -23,7 +23,15 @@ from PySide6.QtWidgets import (
 )
 
 from clasificador_video import guia as logica_guia
-from clasificador_video import ia, llave, patron, proxy_gen, proyecto, revinculo
+from clasificador_video import (
+    ia,
+    llave,
+    patron,
+    preferencias,
+    proxy_gen,
+    proyecto,
+    revinculo,
+)
 from clasificador_video.bins import BinTree, raiz_comun_de
 from clasificador_video.camaras import SONY
 from clasificador_video.filters import FilterState, cola, contar
@@ -269,6 +277,12 @@ class _GuiaJob(QRunnable):
 # paralelo 0.26 s y con 8 en paralelo 0.14 s. Son procesos aparte esperando
 # al disco, no CPU nuestra.
 SONDEOS_EN_PARALELO = 8
+
+# Miniaturas en paralelo: normal, y en modo economico (ver preferencias.py).
+# Uno a la vez en modo economico porque es el minimo que sigue siendo
+# paralelo con nada -- ya no hay con que competir por CPU/memoria.
+HILOS_DE_MINIATURAS_NORMAL = 3
+HILOS_DE_MINIATURAS_ECONOMICO = 1
 
 
 class SeñalesDeTrabajos(QObject):
@@ -642,13 +656,29 @@ class MainWindow(QWidget):
         # de antes describiria un bin que ya no es ese. La lista se calcula
         # cuando le toca (ver el spec).
         self._cola_de_proxies: list[str] = []
+        # Bins que llegaron mientras otra tanda de proxies corria y por eso
+        # nunca se les pregunto "¿te los creo primero?" (`_ofrecer_proxies_
+        # antes` corta en silencio si `_generando_proxies` no es None). Se
+        # guarda el NOMBRE, mismo motivo que la cola de arriba. Se preguntan
+        # en cuanto la tanda que corre termina (`_preguntar_pendientes_de_
+        # proxies`). Antes se perdian sin aviso -- en una Mac lenta, donde
+        # una tanda tarda mucho mas, era mucho mas facil que un segundo
+        # import cayera justo en esa ventana. Le paso a Bruno en la Air.
+        self._bins_pendientes_de_preguntar: list[str] = []
         # Lo que llevan TODAS las tandas de esta fila, para el cartel unico
         # del final. Se vacia cuando la fila arranca desde cero.
         self._resumen_de_la_fila: dict = {"creados": 0, "fallidos": []}
         # las miniaturas se extraen en software (--hwdec=no, ver
         # thumbnails.py) -- no tocan VideoToolbox, asi que un par en
-        # paralelo no compite con el reproductor embebido.
-        self._thread_pool.setMaxThreadCount(3)
+        # paralelo no compite con el reproductor embebido. El 3 es para una
+        # Mac con recursos de sobra; en modo economico baja a 1 -- pedido
+        # de Bruno para una MacBook Air M1 de 8GB, donde 3 en paralelo
+        # decodificando HEVC empuja a la maquina a usar swap.
+        self._thread_pool.setMaxThreadCount(
+            HILOS_DE_MINIATURAS_ECONOMICO
+            if preferencias.modo_economico()
+            else HILOS_DE_MINIATURAS_NORMAL
+        )
         self._thumb_generation = 0
         # Se levanta en `closeEvent` y ya no baja: a partir de ahi la ventana
         # no pide trabajo nuevo en segundo plano.
@@ -2055,7 +2085,15 @@ class MainWindow(QWidget):
         if nombre_de_bin is None or not indices:
             return False
         if self._generando_proxies is not None:
-            return False        # ya hay una tanda corriendo; no encimar otra
+            # Ya hay una tanda corriendo; no encimar otra. Pero la pregunta
+            # no se pierde: se reintenta cuando esa tanda termine (ver
+            # `_preguntar_pendientes_de_proxies`). Devolver True frena las
+            # portadas de este bin por ahora, igual que si Bruno hubiera
+            # aceptado crear los proxies -- se piden solas cuando se
+            # resuelva, generando proxies o no.
+            if nombre_de_bin not in self._bins_pendientes_de_preguntar:
+                self._bins_pendientes_de_preguntar.append(nombre_de_bin)
+            return True
         if any(self.clips[i].ruta_proxy is not None for i in indices):
             return False        # este bin ya tiene proxies enganchados
         eleccion = self._preguntar_que_hacer_con_proxies(nombre_de_bin, indices)
@@ -3174,10 +3212,34 @@ class MainWindow(QWidget):
             estado["hechos"] - len(estado["fallidos"])
         )
         self._resumen_de_la_fila["fallidos"].extend(estado["fallidos"])
+        self._preguntar_pendientes_de_proxies()
+        if self._generando_proxies is not None:
+            return  # la pregunta arranco una tanda nueva; sigue cuando esa termine
         if self._cola_de_proxies:
             self._arrancar_siguiente_de_la_fila()
             return
         self._avisar_del_final_de_la_fila()
+
+    def _preguntar_pendientes_de_proxies(self) -> None:
+        """Los bins que llegaron mientras otra tanda corria y se quedaron
+        sin preguntar (ver `_ofrecer_proxies_antes`).
+
+        Uno a la vez: preguntar por el primero puede aceptar "crear", y ahi
+        `_generando_proxies` vuelve a no ser None -- el resto espera a que
+        ESA tanda termine, y se re-intenta solo porque esta misma funcion
+        se llama de nuevo al final de cada tanda.
+        """
+        while self._bins_pendientes_de_preguntar:
+            nombre = self._bins_pendientes_de_preguntar.pop(0)
+            if nombre not in self.bins.nombres():
+                continue  # se fue del proyecto mientras esperaba
+            indices = self.bins.clips_de(nombre)
+            if not indices:
+                continue
+            if not self._ofrecer_proxies_antes(nombre, indices):
+                self._schedule_thumbnails(indices)
+            if self._generando_proxies is not None:
+                return
 
     def _recoger_proxies_sin_enganchar(self, nombre_de_bin: str, carpeta) -> None:
         """Los que se generaron y se quedaron sin enganchar.
@@ -4536,10 +4598,13 @@ class MainWindow(QWidget):
             self._pantalla_config = PantallaConfig(self)
             self._pantalla_config.llave_guardada.connect(self.guardar_llave)
             self._pantalla_config.llave_borrada.connect(self.borrar_llave)
+            self._pantalla_config.modo_economico_cambiado.connect(
+                self._cambiar_modo_economico
+            )
             self._pantalla_config.cerrada.connect(self._pantalla_config.hide)
         # Se relee del disco cada vez que se abre y no se cachea: la llave
         # se puede haber puesto desde otra ventana de Clipify.
-        self._pantalla_config.cargar(llave.leer())
+        self._pantalla_config.cargar(llave.leer(), preferencias.modo_economico())
         self._pantalla_config.setGeometry(self.rect().adjusted(110, 80, -110, -80))
         self._pantalla_config.show()
         self._pantalla_config.raise_()
@@ -4549,6 +4614,18 @@ class MainWindow(QWidget):
 
     def borrar_llave(self) -> None:
         llave.borrar()
+
+    def _cambiar_modo_economico(self, activo: bool) -> None:
+        """Se aplica de inmediato: no hace falta reabrir la app.
+
+        Los trabajos ya en vuelo en el pool no se tocan -- `setMaxThreadCount`
+        solo limita cuantos arrancan de aqui en adelante-- asi que no hay
+        riesgo de cortar una miniatura a medias.
+        """
+        preferencias.guardar_modo_economico(activo)
+        self._thread_pool.setMaxThreadCount(
+            HILOS_DE_MINIATURAS_ECONOMICO if activo else HILOS_DE_MINIATURAS_NORMAL
+        )
 
     def _abrir_pantalla_de_guia(self) -> None:
         """La pantalla de la guia, encima de la ventana.

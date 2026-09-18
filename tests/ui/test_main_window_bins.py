@@ -2478,6 +2478,78 @@ def test_recoger_no_toca_los_que_ya_estan_enganchados(qtbot, monkeypatch, tmp_pa
     assert sondeados == []
 
 
+def test_un_bin_que_llega_con_otra_tanda_corriendo_no_se_pierde_la_pregunta(
+        qtbot, monkeypatch):
+    """El bug de la MacBook Air, 2026-09-18: `_ofrecer_proxies_antes` cortaba
+    en silencio si `_generando_proxies` no era None, y el bin recien
+    importado se iba derecho a las portadas del original SIN haber sido
+    preguntado. En una Mac lenta, donde una tanda tarda mucho mas, esa
+    ventana es mucho mas ancha y es facil que un segundo import caiga
+    adentro. Ahora se encola y se pregunta al terminar."""
+    window = _ventana_con_bins(qtbot)
+    _corriendo(window)  # "Card A" tiene una tanda en vuelo
+    pedidas = []
+    monkeypatch.setattr(window, "_schedule_thumbnails",
+                        lambda indices=None: pedidas.append(indices))
+
+    window.agregar_clips([_clip(10, "/y/C0010.MP4")], "Card C", Path("/y"))
+
+    assert pedidas == []      # no salio a los originales todavia
+    assert window._bins_pendientes_de_preguntar == ["Card C"]
+
+
+def test_el_bin_pendiente_se_pregunta_al_terminar_la_tanda(qtbot, monkeypatch):
+    window = _ventana_con_bins(qtbot)
+    _corriendo(window)
+    window.agregar_clips([_clip(10, "/y/C0010.MP4")], "Card C", Path("/y"))
+    preguntados = []
+    monkeypatch.setattr(window, "_preguntar_que_hacer_con_proxies",
+                        lambda nombre, indices: preguntados.append(nombre) or "no")
+    pedidas = []
+    monkeypatch.setattr(window, "_schedule_thumbnails",
+                        lambda indices=None: pedidas.append(indices))
+
+    window._generando_proxies = None
+    window._preguntar_pendientes_de_proxies()
+
+    assert preguntados == ["Card C"]
+    assert pedidas                              # dijiste que no: salen del original
+    assert window._bins_pendientes_de_preguntar == []
+
+
+def test_si_aceptas_crear_para_el_pendiente_arranca_una_tanda_nueva(
+        qtbot, monkeypatch):
+    window = _ventana_con_bins(qtbot)
+    _corriendo(window)
+    window.agregar_clips([_clip(10, "/y/C0010.MP4")], "Card C", Path("/y"))
+    monkeypatch.setattr(window, "_preguntar_que_hacer_con_proxies",
+                        lambda nombre, indices: "crear")
+    arrancados = []
+    monkeypatch.setattr(window, "generar_proxies_de_bin",
+                        lambda nombre, preguntar=True: arrancados.append(nombre))
+    monkeypatch.setattr(window, "_schedule_thumbnails", lambda indices=None: None)
+
+    window._generando_proxies = None
+    window._preguntar_pendientes_de_proxies()
+
+    assert arrancados == ["Card C"]
+
+
+def test_un_bin_pendiente_que_se_fue_del_proyecto_no_se_pregunta(qtbot, monkeypatch):
+    """Se quito el bin mientras esperaba: preguntar por algo que ya no existe
+    no tiene sentido, igual que la fila explicita (`_cola_de_proxies`)."""
+    window = _ventana_con_bins(qtbot)
+    window._bins_pendientes_de_preguntar = ["Fantasma"]
+    preguntados = []
+    monkeypatch.setattr(window, "_preguntar_que_hacer_con_proxies",
+                        lambda nombre, indices: preguntados.append(nombre) or "no")
+
+    window._preguntar_pendientes_de_proxies()
+
+    assert preguntados == []
+    assert window._bins_pendientes_de_preguntar == []
+
+
 def _bin_con_proxies_en_disco(qtbot, tmp_path, cuantos_en_disco, cuantos_sin):
     """Un bin donde parte de los proxies ya están en la carpeta sin enganchar."""
     mat = tmp_path / "Card A"
