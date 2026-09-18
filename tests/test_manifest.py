@@ -31,6 +31,7 @@ def test_clip_to_dict_usa_las_llaves_exactas_del_manifest():
         "out_frame": 200,
         "flag": "pick",
         "camara": "sony",
+        "bin_dron": False,
         "ruta_proxy": "/shooting/C0012S03.MP4",
     }
 
@@ -45,6 +46,14 @@ def test_clip_to_dict_sin_in_out_ni_proxy_usa_null():
 
 def test_clip_flag_por_defecto_es_none():
     assert _clip().flag == "none"
+
+
+def test_clip_bin_dron_por_defecto_es_false():
+    assert _clip().bin_dron is False
+
+
+def test_clip_bin_dron_viaja_al_dict():
+    assert _clip(bin_dron=True).to_dict()["bin_dron"] is True
 
 
 def test_manifest_to_dict_incluye_proyecto_orientacion_y_clips_en_orden():

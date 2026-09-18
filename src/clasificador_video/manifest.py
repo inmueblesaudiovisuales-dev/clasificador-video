@@ -19,6 +19,12 @@ class Clip:
     # traduccion camara→color vive del otro lado, en `label.js`, igual que
     # la de flag→carpeta. Aqui viaja el dato, no la presentacion.
     camara: str = "sony"
+    # Si el BIN de importacion del que salio este clip tenia "dron" en su
+    # nombre. Señal aparte de `camara` (esa mira el nombre del archivo, esta
+    # el nombre del bin) y solo sirve para la marca [DRONE] de la carpeta de
+    # su cuarto en Premiere. Ver `marca_dron.py` y
+    # docs/superpowers/specs/2026-09-18-marca-drone-en-carpetas-design.md.
+    bin_dron: bool = False
     ruta_proxy: Path | None = None
 
     def to_dict(self) -> dict:
@@ -31,6 +37,7 @@ class Clip:
             "out_frame": self.out_frame,
             "flag": self.flag,
             "camara": self.camara,
+            "bin_dron": self.bin_dron,
             "ruta_proxy": str(self.ruta_proxy) if self.ruta_proxy is not None else None,
         }
 
