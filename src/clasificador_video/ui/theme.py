@@ -365,6 +365,19 @@ def build_stylesheet() -> str:
         color: {TEXT_3};
         font-size: {FONT_MICRO}px;
     }}
+    QLabel#entregaPill {{
+        background-color: {con_alfa_qss(PENDING_COLOR, 150)};
+        border: 1px solid {LINE};
+        border-radius: {RADIUS_LG}px;
+        color: {CURRENT_COLOR};
+        font-size: {FONT_SMALL}px;
+        padding: 3px 8px;
+    }}
+    QLabel#entregaPill[tono="contesto"] {{
+        background-color: {con_alfa_qss(PICK_COLOR, 45)};
+        border-color: {con_alfa_qss(PICK_COLOR, 120)};
+        color: {PICK_COLOR};
+    }}
     QLabel#positionLabel {{
         color: {TEXT};
         font-family: {MONO_FONT};

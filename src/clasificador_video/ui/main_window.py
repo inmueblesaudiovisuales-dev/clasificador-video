@@ -24,6 +24,8 @@ from PySide6.QtWidgets import (
 
 from clasificador_video import guia as logica_guia
 from clasificador_video import (
+    buscar_prproj,
+    drive,
     ia,
     llave,
     patron,
@@ -814,6 +816,10 @@ class MainWindow(QWidget):
         # pregunto, y entonces todo se comporta como antes del 2026-08-25
         # (spec `carpeta-de-proxies-elegible`).
         self._carpeta_de_proxies: Path | None = None
+        # Estado de la entrega de ESTE proyecto. El cliente se inyecta desde
+        # afuera: abrir esta ventana jamás debe lanzar OAuth por sorpresa.
+        self._entrega = None
+        self._drive_cliente = None
         # modo horizontal: en modo CLIP la hoja se esconde y el video se
         # lleva su ancho. Nace apagado y se guarda en el proyecto. Ver
         # `docs/superpowers/specs/2026-08-15-modo-horizontal-design.md`.
@@ -837,6 +843,8 @@ class MainWindow(QWidget):
         self.title_bar.mode_toggled.connect(self.alternar_modo_hoja)
         self.title_bar.modo_horizontal_cambiado.connect(
             self._on_modo_horizontal_cambiado)
+        self.title_bar.subir_a_drive_requested.connect(self._al_pedir_subir_a_drive)
+        self.title_bar.traer_de_vuelta_requested.connect(self._al_pedir_traer_de_vuelta)
 
         self.room_rail = RoomRail()
         self.room_rail.import_requested.connect(self._on_import_folders)
@@ -2203,6 +2211,7 @@ class MainWindow(QWidget):
             modo_horizontal=self._modo_horizontal,
             carpeta_de_proxies=self._carpeta_de_proxies,
             guia=self._guia_para_la_sesion(),
+            entrega=self._entrega.to_dict() if self._entrega is not None else None,
         )
         return data
 
@@ -2944,6 +2953,135 @@ class MainWindow(QWidget):
         escogida = QFileDialog.getExistingDirectory(
             self, "Carpeta de proxies", str(propuesta.parent))
         return Path(escogida) if escogida else propuesta
+
+    # --- entrega a un editor externo por Drive --------------------------
+
+    def _estado_de_entrega(self):
+        """El estado en memoria de este proyecto, sin consultar la red."""
+        return self._entrega
+
+    def restaurar_entrega(self, datos) -> None:
+        """Restaura el estado que venía en el `.cvproj`, si lo había."""
+        from clasificador_video.entrega import EstadoEntrega
+
+        self._entrega = EstadoEntrega.de_dict(datos)
+        estado = self._entrega.estado if self._entrega is not None else None
+        cuando = self._entrega.subido_en if self._entrega is not None else ""
+        self.title_bar.set_estado_de_entrega(estado, cuando or "")
+
+    def _cliente_de_drive(self):
+        """Cliente ya autorizado e inyectado; nunca abre OAuth desde aquí."""
+        if self._drive_cliente is None:
+            raise RuntimeError("Conecta Google Drive desde Configuración antes de subir.")
+        return self._drive_cliente
+
+    def _al_pedir_subir_a_drive(self) -> None:
+        raiz = preferencias.carpeta_de_proyectos_premiere()
+        candidatos = buscar_prproj.buscar_por_folio(raiz, self.project_name) if raiz else []
+        prproj = self._preguntar_por_el_prproj(candidatos)
+        if prproj is not None:
+            self._subir_a_drive(prproj)
+
+    def _preguntar_por_el_prproj(self, candidatos: list[Path]) -> Path | None:
+        """Muestra la ruta que se va a subir y deja cambiarla antes de actuar."""
+        picks = [clip for clip in self.clips if clip.flag == "pick"]
+        cuadro = QMessageBox(self)
+        cuadro.setWindowTitle("Subir a Drive")
+        if candidatos:
+            propuesta = candidatos[0]
+            extra = (
+                f"\n\nHay {len(candidatos)} versiones con este folio -- se propone la más reciente."
+                if len(candidatos) > 1 else ""
+            )
+            cuadro.setText(f"Proyecto de Premiere:\n{propuesta}{extra}")
+        else:
+            propuesta = None
+            cuadro.setText("No se encontró un .prproj con este folio.")
+        cuadro.setInformativeText(
+            f"Clips a subir (picks): {len(picks)} de {len(self.clips)}\n"
+            "Se sube a: Google Drive de Bruno"
+        )
+        subir = cuadro.addButton("Subir", QMessageBox.ButtonRole.AcceptRole)
+        cambiar = cuadro.addButton(
+            "Cambiar…" if candidatos else "Elegir…", QMessageBox.ButtonRole.ActionRole)
+        cuadro.addButton("Cancelar", QMessageBox.ButtonRole.RejectRole)
+        subir.setEnabled(propuesta is not None)
+        cuadro.setDefaultButton(subir)
+        cuadro.exec()
+        clickeado = cuadro.clickedButton()
+        if clickeado is cambiar:
+            elegido, _ = QFileDialog.getOpenFileName(
+                self, "Elegir el .prproj", "", "Proyecto de Premiere (*.prproj)")
+            return Path(elegido) if elegido else propuesta
+        return propuesta if clickeado is subir else None
+
+    def _subir_a_drive(self, prproj: Path) -> None:
+        """Sube el proyecto y los proxies de los picks con cliente inyectado."""
+        from datetime import datetime
+        from clasificador_video.entrega import EstadoEntrega
+
+        cliente = self._cliente_de_drive()
+        proxies = [clip.ruta_proxy for clip in self.clips
+                   if clip.flag == "pick" and clip.ruta_proxy is not None]
+        self.title_bar.set_subiendo(0)
+        resultado = drive.subir_paquete(cliente, self.project_name, prproj, proxies)
+        self._entrega = EstadoEntrega(
+            EstadoEntrega.CON_EDITOR,
+            subido_en=datetime.now().isoformat(timespec="seconds"),
+            prproj_local=str(prproj), drive_folder_id=resultado.folder_id,
+            drive_folder_link=resultado.folder_link,
+        )
+        self.title_bar.set_estado_de_entrega(
+            self._entrega.estado, self._entrega.subido_en or "")
+        self._autosave()
+
+    def _al_pedir_traer_de_vuelta(self) -> None:
+        estado = self._estado_de_entrega()
+        if estado is None or not estado.drive_folder_id:
+            return
+        cliente = self._cliente_de_drive()
+        resultado = drive.revisar_cambios(
+            cliente, estado.drive_folder_id, estado.drive_prproj_modificado_en)
+        if resultado.hay_cambios or resultado.tiene_material_nuevo:
+            from clasificador_video.entrega import EstadoEntrega
+
+            self._entrega = replace(
+                estado, estado=EstadoEntrega.EDITOR_CONTESTO,
+                drive_prproj_modificado_en=resultado.prproj_modificado_en,
+            )
+            self.title_bar.set_estado_de_entrega(
+                self._entrega.estado, self._entrega.subido_en or "")
+            self._autosave()
+        if self._confirmar_traer_de_vuelta(resultado):
+            self._traer_de_vuelta(self._entrega or estado, cliente)
+
+    def _confirmar_traer_de_vuelta(self, resultado) -> bool:
+        cuadro = QMessageBox(self)
+        cuadro.setWindowTitle(f"Traer de vuelta — {self.project_name}")
+        if resultado.hay_cambios or resultado.tiene_material_nuevo:
+            cuadro.setText("Se encontró algo nuevo en Drive.")
+            texto = "El .prproj cambió." if resultado.hay_cambios else "El .prproj no ha cambiado."
+            if resultado.tiene_material_nuevo:
+                texto += ' Hay contenido en "material nuevo/".'
+            cuadro.setInformativeText(texto + "\n\nLos proxies no se vuelven a bajar -- ya los tienes.")
+            texto_boton = "Traer de vuelta"
+        else:
+            cuadro.setText("No parece que el editor haya subido nada todavía. ¿Seguro que quieres continuar?")
+            texto_boton = "Traer de todas formas"
+        traer = cuadro.addButton(texto_boton, QMessageBox.ButtonRole.AcceptRole)
+        cuadro.addButton("Cancelar", QMessageBox.ButtonRole.RejectRole)
+        cuadro.setDefaultButton(traer)
+        cuadro.exec()
+        return cuadro.clickedButton() is traer
+
+    def _traer_de_vuelta(self, estado, cliente) -> None:
+        """Reemplaza el `.prproj` local y cierra esta ronda de entrega."""
+        if estado.prproj_local is None or estado.drive_folder_id is None:
+            return
+        drive.traer_prproj(cliente, estado.drive_folder_id, Path(estado.prproj_local))
+        self._entrega = None
+        self.title_bar.set_estado_de_entrega(None)
+        self._autosave()
 
     def _asegurar_carpeta_de_proxies(self, nombre_de_bin: str) -> None:
         """Pregunta si todavia no hay respuesta. Una vez por proyecto.

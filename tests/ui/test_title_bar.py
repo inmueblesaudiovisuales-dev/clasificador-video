@@ -91,6 +91,38 @@ def test_tiene_objectnames_para_el_tema(qtbot):
     assert bar.export_button.objectName() == "exportButton"
 
 
+def test_sin_estado_solo_se_ve_subir_a_drive(qtbot):
+    title_bar = _bar(qtbot)
+    title_bar.show()
+    qtbot.waitExposed(title_bar)
+    title_bar.set_estado_de_entrega(None)
+
+    assert title_bar.subir_button.text() == "Subir a Drive"
+    assert not title_bar.traer_button.isVisible()
+    assert not title_bar.entrega_pill.isVisible()
+
+
+def test_con_editor_muestra_pildora_y_traer(qtbot):
+    from clasificador_video.entrega import EstadoEntrega
+
+    title_bar = _bar(qtbot)
+    title_bar.show()
+    qtbot.waitExposed(title_bar)
+    title_bar.set_estado_de_entrega(EstadoEntrega.CON_EDITOR, "hace 2 días")
+
+    assert "Con el editor" in title_bar.entrega_pill.text()
+    assert title_bar.traer_button.isVisible()
+    assert title_bar.subir_button.text() == "Subir de nuevo"
+
+
+def test_subiendo_apaga_el_boton_con_progreso(qtbot):
+    title_bar = _bar(qtbot)
+    title_bar.set_subiendo(42)
+
+    assert not title_bar.subir_button.isEnabled()
+    assert "42%" in title_bar.subir_button.text()
+
+
 # --- switch Clip | Hoja (F10) ------------------------------------------
 
 
