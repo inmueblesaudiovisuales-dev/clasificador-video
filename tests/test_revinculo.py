@@ -82,6 +82,21 @@ def test_clip_del_archivo_elegido_ignora_mayusculas():
         Path("/x/C0001.MP4"), {0: "c0001.mp4"}) == 0
 
 
+def test_carpetas_candidatas_de_los_demas_bins(tmp_path):
+    (tmp_path / "nuevo" / "Dron").mkdir(parents=True)
+    resultado = revinculo.carpetas_candidatas(
+        bin_resuelto="Sony",
+        origen_viejo_del_resuelto=Path("/viejo/Rodaje/Sony"),
+        origen_nuevo_del_resuelto=tmp_path / "nuevo" / "Sony",
+        origenes_viejos={
+            "Sony": Path("/viejo/Rodaje/Sony"),
+            "Dron": Path("/viejo/Rodaje/Dron"),
+            "Osmo": Path("/viejo/Rodaje/Osmo"),
+        },
+    )
+    assert resultado == {"Dron": tmp_path / "nuevo" / "Dron"}
+
+
 def test_NO_calza_un_tocayo_de_otro_tamano(tmp_path):
     """EL test de este plan. Un archivo con el nombre correcto y el
     contenido equivocado no se engancha. Es el caso de dos tarjetas de la

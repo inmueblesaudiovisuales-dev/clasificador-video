@@ -130,6 +130,24 @@ def clip_del_archivo_elegido(archivo: Path, relativas: dict[int, str]) -> int | 
     return calzan[0] if len(calzan) == 1 else None
 
 
+def carpetas_candidatas(bin_resuelto: str, origen_viejo_del_resuelto: Path,
+                        origen_nuevo_del_resuelto: Path,
+                        origenes_viejos: dict[str, Path]) -> dict[str, Path]:
+    """Propone otros bins solo cuando su carpeta calculada existe."""
+    cambio = desplazamiento(origen_viejo_del_resuelto, origen_nuevo_del_resuelto)
+    if cambio is None:
+        return {}
+    prefijo_viejo, prefijo_nuevo = cambio
+    candidatas = {}
+    for nombre, origen_viejo in origenes_viejos.items():
+        if nombre == bin_resuelto:
+            continue
+        candidata = aplicar_desplazamiento(prefijo_viejo, prefijo_nuevo, origen_viejo)
+        if candidata is not None and candidata.is_dir():
+            candidatas[nombre] = candidata
+    return candidatas
+
+
 def buscar_bajo(carpeta: Path, relativa: str,
                 indice: dict[str, list[Path]] | None = None) -> Path | None:
     """Primero donde decia; si no, por nombre en todo el arbol.
