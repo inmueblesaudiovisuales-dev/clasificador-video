@@ -2670,21 +2670,45 @@ class MainWindow(QWidget):
         self._resize_video_stage()
 
     def _on_buscar_media(self, nombre: str, accion: str) -> None:
-        """Los botones de la barra. Selector del sistema, que es el único
-        diálogo que el spec §8 deja usar."""
+        """Busca proxies por carpeta o material desde un archivo elegido."""
         origen = self.bins.origen_de(nombre)
         arranque = str(origen) if origen is not None else ""
         if accion == ACCION_PROXIES:
             titulo = f"¿Dónde quedaron los proxies de «{nombre}»?"
-        else:
-            titulo = f"¿Dónde quedó el material de «{nombre}»?"
-        carpeta = QFileDialog.getExistingDirectory(self, titulo, arranque)
-        if not carpeta:
-            return
-        if accion == ACCION_PROXIES:
+            carpeta = QFileDialog.getExistingDirectory(self, titulo, arranque)
+            if not carpeta:
+                return
             self.reconectar_proxies_de_bin(nombre, Path(carpeta))
-        else:
-            self.reconectar_bin(nombre, Path(carpeta))
+            return
+        titulo = f"¿Dónde quedó alguno de los clips de «{nombre}»?"
+        archivo, _ = QFileDialog.getOpenFileName(self, titulo, arranque)
+        if archivo:
+            self._reconectar_desde_archivo(nombre, Path(archivo), origen)
+
+    def _reconectar_desde_archivo(self, nombre: str, archivo: Path,
+                                  origen_viejo: Path | None) -> None:
+        relativas = {i: self._relativas[i] for i in self.bins.clips_de(nombre)
+                     if i in self._relativas}
+        clip = revinculo.clip_del_archivo_elegido(archivo, relativas)
+        if clip is None:
+            QMessageBox.information(
+                self, "No es de ese cuarto",
+                f"Ese archivo no es de ninguno de los clips de «{nombre}», "
+                "o su nombre le queda a más de uno. Elige la carpeta a mano "
+                "para ese cuarto.")
+            return
+        carpeta_nueva = revinculo.carpeta_de_bin_desde_archivo(
+            archivo, self._relativas[clip])
+        if carpeta_nueva is None:
+            return
+        self.reconectar_bin(nombre, carpeta_nueva)
+        if origen_viejo is None:
+            return
+        origenes = {n: self.bins.origen_de(n) for n in self.bins.nombres()
+                    if self.bins.origen_de(n) is not None and self._faltantes_de_bin(n)}
+        for otro, candidata in revinculo.carpetas_candidatas(
+                nombre, origen_viejo, carpeta_nueva, origenes).items():
+            self.reconectar_bin(otro, candidata)
 
     def _medir(self, archivos: list[Path],
                desde: int = 0) -> tuple[list[Clip], dict[str, dict]]:

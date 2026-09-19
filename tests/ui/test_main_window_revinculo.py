@@ -19,6 +19,7 @@ from clasificador_video import revinculo
 from clasificador_video.manifest import Clip
 from clasificador_video.rooms import RoomSelection
 from clasificador_video.ui.main_window import MainWindow
+from clasificador_video.ui.aviso_de_media import ACCION_MEDIA, ACCION_PROXIES
 
 
 class FakeMpv:
@@ -44,6 +45,64 @@ def _clip(i, ruta):
 def _probe_falso(path):
     return {"fps": 30.0, "duration_frames": 300, "width": 1920,
             "height": 1080, "rotation": 0}
+
+
+def _importar_dos_bins(ventana, sony, dron):
+    ventana.load_clips([_clip(0, sony / "C0001.MP4"),
+                        _clip(1, dron / "DJI_0001.MP4")])
+    ventana.bins.agregar("Sony", sony, [0])
+    ventana.bins.agregar("Dron", dron, [1])
+    ventana._relativas = {0: "C0001.MP4", 1: "DJI_0001.MP4"}
+    ventana._bytes_guardados = {0: 20, 1: 30}
+    ventana._faltantes = {0, 1}
+
+
+def test_elegir_un_archivo_reconecta_tambien_al_otro_bin_si_calza(
+        ventana, tmp_path, monkeypatch):
+    viejo = tmp_path / "viejo" / "Rodaje"
+    sony_viejo, dron_viejo = viejo / "Sony", viejo / "Dron"
+    sony_viejo.mkdir(parents=True); dron_viejo.mkdir(parents=True)
+    (sony_viejo / "C0001.MP4").write_bytes(b"0" * 20)
+    (dron_viejo / "DJI_0001.MP4").write_bytes(b"1" * 30)
+    _importar_dos_bins(ventana, sony_viejo, dron_viejo)
+    nuevo = tmp_path / "nuevo" / "Rodaje X copia"
+    sony_nuevo, dron_nuevo = nuevo / "Sony", nuevo / "Dron"
+    sony_nuevo.mkdir(parents=True); dron_nuevo.mkdir(parents=True)
+    (sony_nuevo / "C0001.MP4").write_bytes(b"0" * 20)
+    (dron_nuevo / "DJI_0001.MP4").write_bytes(b"1" * 30)
+    monkeypatch.setattr(
+        "clasificador_video.ui.main_window.QFileDialog.getOpenFileName",
+        lambda *a, **k: (str(sony_nuevo / "C0001.MP4"), ""))
+    ventana._on_buscar_media("Sony", ACCION_MEDIA)
+    assert list(ventana._ultimo_reencuentro["Sony"].reconectados.values()) == [sony_nuevo / "C0001.MP4"]
+    assert list(ventana._ultimo_reencuentro["Dron"].reconectados.values()) == [dron_nuevo / "DJI_0001.MP4"]
+
+
+def test_si_la_carpeta_candidata_no_existe_el_otro_bin_no_se_toca(
+        ventana, tmp_path, monkeypatch):
+    viejo = tmp_path / "viejo" / "Rodaje"
+    sony_viejo, dron_viejo = viejo / "Sony", viejo / "Dron"
+    sony_viejo.mkdir(parents=True); dron_viejo.mkdir(parents=True)
+    (sony_viejo / "C0001.MP4").write_bytes(b"0" * 20)
+    (dron_viejo / "DJI_0001.MP4").write_bytes(b"1" * 30)
+    _importar_dos_bins(ventana, sony_viejo, dron_viejo)
+    sony_nuevo = tmp_path / "nuevo" / "Rodaje X copia" / "Sony"
+    sony_nuevo.mkdir(parents=True)
+    (sony_nuevo / "C0001.MP4").write_bytes(b"0" * 20)
+    monkeypatch.setattr(
+        "clasificador_video.ui.main_window.QFileDialog.getOpenFileName",
+        lambda *a, **k: (str(sony_nuevo / "C0001.MP4"), ""))
+    ventana._on_buscar_media("Sony", ACCION_MEDIA)
+    assert "Dron" not in ventana._ultimo_reencuentro
+
+
+def test_buscar_proxies_sigue_pidiendo_carpeta(ventana, monkeypatch):
+    llamadas = []
+    monkeypatch.setattr(
+        "clasificador_video.ui.main_window.QFileDialog.getExistingDirectory",
+        lambda *a, **k: llamadas.append(1) or "")
+    ventana._on_buscar_media("Sony", ACCION_PROXIES)
+    assert llamadas == [1]
 
 
 @pytest.fixture
