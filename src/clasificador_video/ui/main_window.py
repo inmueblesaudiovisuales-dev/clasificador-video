@@ -42,7 +42,7 @@ from clasificador_video.filters import FilterState, cola, contar
 from clasificador_video.history import History, HistoryEntry
 from clasificador_video.ingest import archivos_de_video
 from clasificador_video.keyboard import KeyboardRouter
-from clasificador_video.manifest import Clip, Guia, Manifest, RenglonDeGuia
+from clasificador_video.manifest import Clip, Guia, Manifest
 from clasificador_video.player import SPEED_PROFILES
 from clasificador_video.probe import (
     orientacion_de,
@@ -254,10 +254,11 @@ class _GuiaJob(QRunnable):
     """
 
     def __init__(self, llave_de_la_api: str, cuerpo: dict,
-                 señales: "SeñalesDeTrabajos"):
+                 cuartos_reales: list[str], señales: "SeñalesDeTrabajos"):
         super().__init__()
         self._llave = llave_de_la_api
         self._cuerpo = cuerpo
+        self._cuartos_reales = cuartos_reales
         self._señales = señales
 
     def run(self) -> None:
@@ -265,18 +266,19 @@ class _GuiaJob(QRunnable):
             crudo = ia.preguntar(self._llave, self._cuerpo)
         except ia.ErrorDeIA as error:
             self._señales.guia_lista.emit(
-                logica_guia.Respuesta(ok=False, error=str(error))
+                logica_guia.Clasificacion(ok=False, error=str(error))
             )
             return
         except Exception as error:  # noqa: BLE001 -- ver el docstring
             self._señales.guia_lista.emit(
-                logica_guia.Respuesta(
+                logica_guia.Clasificacion(
                     ok=False,
-                    error="No se pudo armar la guía: " + str(error),
+                    error="No se pudo clasificar: " + str(error),
                 )
             )
             return
-        self._señales.guia_lista.emit(logica_guia.leer_respuesta(crudo))
+        self._señales.guia_lista.emit(
+            logica_guia.leer_clasificacion(crudo, self._cuartos_reales))
 
 
 # Cuantos `ffprobe` a la vez al importar. Ocho porque es donde la medicion
@@ -337,7 +339,7 @@ class SeñalesDeTrabajos(QObject):
     miniatura_lista = Signal(int, int, object)  # generation, indice, list[Path] | None
     proxy_sondeado = Signal(int, int, object)   # generation, indice, info | None
     guardado_listo = Signal()
-    guia_lista = Signal(object)                 # logica_guia.Respuesta
+    guia_lista = Signal(object)                 # logica_guia.Clasificacion
     guardado_fallo = Signal(str)                # el motivo, tal como lo dio el SO
     pesos_medidos = Signal(int, object)         # generacion de indices, {clip: bytes}
     # los clips cuyo archivo ya no esta, y los proxies perdidos. Se revisa
@@ -5019,7 +5021,7 @@ class MainWindow(QWidget):
         """
         if self._pantalla_guia is None:
             self._pantalla_guia = PantallaGuia(self)
-            self._pantalla_guia.guia_pedida.connect(self.pedir_guia)
+            self._pantalla_guia.clasificacion_pedida.connect(self.pedir_clasificacion)
             self._pantalla_guia.orden_aceptado.connect(self.aceptar_orden_de_la_guia)
             self._pantalla_guia.cerrada.connect(self._pantalla_guia.hide)
             # La guia del proyecto ya esta en `guia_actual` desde que
@@ -5028,14 +5030,13 @@ class MainWindow(QWidget):
             # reabrir un proyecto y volvia a apretar "Armar la guia",
             # pagando una llamada por algo que ya tenia guardado.
             if self.guia_actual is not None and self.guia_actual.ok:
-                revision = logica_guia.revisar_lista(
-                    self.guia_actual.lista, self.room_selection.active_rooms())
-                self._pantalla_guia.mostrar_respuesta(self.guia_actual, revision)
+                self._pantalla_guia.mostrar_guia_aceptada(self.guia_actual.lista)
+        self._pantalla_guia.poner_cuartos_reales(self.room_selection.active_rooms())
         self._pantalla_guia.setGeometry(self.rect().adjusted(80, 60, -80, -60))
         self._pantalla_guia.show()
         self._pantalla_guia.raise_()
 
-    def pedir_guia(self, respuestas: dict) -> None:
+    def pedir_clasificacion(self) -> None:
         """Le pide la guia al modelo y la ensena.
 
         **Nunca revienta hacia afuera**: un fallo de red se dice y ya. La
@@ -5043,31 +5044,18 @@ class MainWindow(QWidget):
         valido.
         """
         cuartos = self.room_selection.active_rooms()
-        cuerpo = logica_guia.cuerpo_del_request(cuartos, respuestas, patron.leer())
+        cuerpo = logica_guia.cuerpo_de_clasificacion(cuartos)
         if self._pantalla_guia is not None:
             self._pantalla_guia.armando()
         # DEVUELVE DE INMEDIATO. La respuesta llega por `guia_lista`, que
         # esta conectada a `_mostrar_guia`.
         self._guia_pool.start(
-            _GuiaJob(llave.leer(), cuerpo, self._señales_de_trabajos)
+            _GuiaJob(llave.leer(), cuerpo, cuartos, self._señales_de_trabajos)
         )
 
-    def _mostrar_guia(self, respuesta) -> None:
-        revision = logica_guia.revisar_lista(
-            respuesta.lista, self.room_selection.active_rooms())
-        self.guia_actual = respuesta if respuesta.ok else None
-        if respuesta.ok:
-            # DESDE QUE SE ENSEÑA, no desde que se acepta. Antes esto vivía
-            # solo en `aceptar_orden_de_la_guia`, así que si a Bruno le
-            # gustaba el orden como ya estaba y no apretaba «Usar este
-            # orden», el aviso de «tu guía quedó vieja» no salía NUNCA --
-            # que es justo el caso para el que se hizo.
-            self._cuartos_de_la_guia = self.room_selection.active_rooms()
-            # Y se guarda ya: pedirla cuesta una llamada, y cerrar Clipify
-            # sin haberla aceptado no la puede tirar.
-            self._autosave()
+    def _mostrar_guia(self, clasificacion) -> None:
         if self._pantalla_guia is not None:
-            self._pantalla_guia.mostrar_respuesta(respuesta, revision)
+            self._pantalla_guia.mostrar_clasificacion(clasificacion)
 
     def aceptar_orden_de_la_guia(self, orden: list) -> None:
         """Ese guion pasa a mandar: el rail, la hoja y Premiere.
@@ -5118,9 +5106,7 @@ class MainWindow(QWidget):
         pasos += [
             logica_guia.Renglon(cuarto=c) for c in reales if c not in nombrados
         ]
-        return logica_guia.Respuesta(
-            ok=True, recorrido=self.guia_actual.recorrido, lista=pasos
-        )
+        return logica_guia.Respuesta(ok=True, lista=pasos)
 
     def _guia_para_la_sesion(self):
         """La guia como se guarda en el `.cvproj`, o `None`.
@@ -5148,14 +5134,15 @@ class MainWindow(QWidget):
         self._cuartos_de_la_guia = []
         if not isinstance(datos, dict):
             return
-        respuesta = logica_guia.leer_respuesta(json.dumps(datos))
-        if not respuesta.ok:
+        orden = datos.get("orden")
+        if not isinstance(orden, list) or not all(isinstance(c, str) for c in orden):
             return
-        self.guia_actual = respuesta
+        self.guia_actual = logica_guia.Respuesta(
+            ok=True, lista=[logica_guia.Renglon(cuarto=c) for c in orden])
         entonces = datos.get("cuartos_de_entonces")
         self._cuartos_de_la_guia = (
             [str(c) for c in entonces] if isinstance(entonces, list)
-            else [r.cuarto for r in respuesta.lista]
+            else [r.cuarto for r in self.guia_actual.lista]
         )
 
     def guia_quedo_vieja(self) -> bool:
@@ -5192,15 +5179,7 @@ class MainWindow(QWidget):
         """
         if self.guia_actual is None or not self.guia_actual.ok:
             return None
-        return Guia(
-            recorrido=self.guia_actual.recorrido,
-            orden=[
-                RenglonDeGuia(
-                    cuarto=r.cuarto, porque=r.porque, fuera_del_patron=r.fuera_del_patron
-                )
-                for r in self.guia_actual.lista
-            ],
-        )
+        return Guia(orden=[r.cuarto for r in self.guia_actual.lista])
 
     def _on_export_manifest(self) -> None:
         # Se AVISA, no se decide solo: misma regla que el dialogo de
