@@ -532,6 +532,17 @@ def build_stylesheet() -> str:
         font-weight: 550;
         padding: 4px 10px;
     }}
+    QWidget#inicioSwitch {{
+        background-color: {BG_SURFACE_1};
+        border: 1px solid {LINE};
+        border-radius: {RADIUS_MD}px;
+    }}
+    QWidget#inicioSwitch QPushButton#segmentedButton {{
+        font-family: {SANS_FONT};
+        font-size: {FONT_SMALL}px;
+        font-weight: 550;
+        padding: 6px 12px;
+    }}
 
     QWidget#titleBar {{
         background-color: {BG_SURFACE_0};
@@ -661,9 +672,14 @@ def build_stylesheet() -> str:
         padding: 3px 7px;
     }}
     QLabel#recientePildora[tono="contesto"] {{ color: {PICK_COLOR}; }}
-    QPushButton#recienteRefrescar {{
+    QLabel#recientePildora[tono="revision"] {{ color: {TRIM_COLOR}; }}
+    QPushButton#recienteRefrescar, QPushButton#activaTraer,
+    QPushButton#activaYaEntregado {{
         background-color: {BG_SURFACE_2}; border: 1px solid {LINE}; border-radius: 8px;
         color: {TEXT}; padding: 2px 6px;
+    }}
+    QPushButton#activaTraer, QPushButton#activaYaEntregado {{
+        padding: 4px 10px;
     }}
 
     /* ---------------- la pantalla de la guia de edicion ------------- */
@@ -1384,14 +1400,14 @@ def build_stylesheet() -> str:
     /* `text-align: left` y `padding: 0`: la regla generica de QPushButton
        centra y mete 8x14 px, y aqui adentro hay un layout con dos renglones
        --el relleno lo pone la fila, no el estilo del boton. */
-    QPushButton#filaReciente {{
+    QPushButton#filaReciente, QPushButton#filaActiva {{
         background-color: {BG_SURFACE_1};
         border: 1px solid {LINE};
         border-radius: {RADIUS_LG}px;
         padding: 0px;
         text-align: left;
     }}
-    QPushButton#filaReciente:hover {{
+    QPushButton#filaReciente:hover, QPushButton#filaActiva:hover {{
         background-color: {BG_SURFACE_2};
         border-color: {CURRENT_COLOR};
     }}
