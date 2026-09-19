@@ -40,6 +40,26 @@ COLUMNAS: tuple[Columna, ...] = (
 IDS_DE_COLUMNA = frozenset(c.id for c in COLUMNAS)
 
 
+def prompt_de_clasificacion(cuartos: list[str]) -> str:
+    partes = [
+        "Eres el asistente de un editor de video mexicano.",
+        "Tu único trabajo es clasificar cada cuarto en una columna:", "",
+    ]
+    partes.extend(f'- "{c.id}" ({c.titulo}): {c.pista}' for c in COLUMNAS)
+    partes += ["", "Los cuartos son EXACTAMENTE estos:",
+               "\n".join("- " + c for c in cuartos), "",
+               "Contesta SOLO con JSON:",
+               '{"clasificacion": [{"cuarto": "<nombre tal cual>", "columna": "<id>"}]}']
+    return "\n".join(partes)
+
+
+def cuerpo_de_clasificacion(cuartos: list[str]) -> dict:
+    return {"model": MODELO, "messages": [
+        {"role": "system", "content": prompt_de_clasificacion(cuartos or [])},
+        {"role": "user", "content": "Clasifica estos cuartos."},
+    ]}
+
+
 @dataclass
 class Renglon:
     cuarto: str
