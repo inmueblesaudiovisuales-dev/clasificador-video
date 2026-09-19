@@ -109,15 +109,6 @@ class Respuesta:
     error: str = ""
 
 
-@dataclass
-class Revision:
-    faltan: list[str] = field(default_factory=list)
-    inventados: list[str] = field(default_factory=list)
-
-    def limpia(self) -> bool:
-        return not (self.faltan or self.inventados)
-
-
 def prompt_de_sistema(cuartos: list[str], patron: str) -> str:
     """Lo que se le dice al modelo.
 
@@ -308,50 +299,7 @@ def _recortar_json(texto: str) -> str:
     return ""
 
 
-def revisar_lista(lista: list[Renglon], cuartos_reales: list[str]) -> Revision:
-    """La lista tiene que traer TODOS los cuartos y ninguno inventado.
-
-    Si el modelo se salta uno o se saca uno de la manga, la pantalla lo
-    MARCA en vez de enseñar la lista como si nada. Por qué tan en serio: una
-    guía a la que le falta la cocina hace que se te olvide la cocina al
-    editar, y eso no se nota hasta después de entregar. Misma familia que
-    los ocho bugs del 2026-08-22.
-
-    SE COMPARA POR IGUALDAD EXACTA. Nada de `strip`, `lower` ni quitar
-    acentos: «Recamara 1» y «Recámara 1» son un cuarto que falta y otro
-    inventado, no un empate.
-
-    QUE UN CUARTO SE REPITA NO ES UN ERROR. En los quince entregables de
-    2026 siempre se repite alguno, y en catorce el cuarto con el que abre
-    vuelve a salir. Aquí se marcó como problema hasta el 2026-09-15, y era
-    la app diciéndole a Bruno que su forma de editar estaba mal.
-
-    Lo que sí sigue siendo error: que FALTE un cuarto --uno que no sale ni
-    una vez es material que se te olvida al editar-- y que el modelo se
-    saque uno de la manga.
-    """
-    propuestos = [r.cuarto for r in (lista or [])]
-    reales = list(cuartos_reales or [])
-
-    faltan = [c for c in reales if c not in propuestos]
-    inventados = [
-        c for i, c in enumerate(propuestos)
-        if c not in reales and propuestos.index(c) == i
-    ]
-    return Revision(faltan=faltan, inventados=inventados)
-
-
-def avisos_de_la_revision(revision: Revision) -> list[str]:
-    """Lo que hay que decirle a Bruno antes de que lea la lista, en sus
-    palabras. Vacío cuando no hay nada que decir."""
-    avisos = []
-    if revision.faltan:
-        avisos.append(
-            "Le falta un cuarto: " + revision.faltan[0] + "."
-            if len(revision.faltan) == 1
-            else "Le faltan " + str(len(revision.faltan)) + " cuartos: "
-            + ", ".join(revision.faltan) + "."
-        )
-    if revision.inventados:
-        avisos.append("Esto no es tuyo, se lo inventó: " + ", ".join(revision.inventados) + ".")
-    return avisos
+def cuartos_sin_usar(reales: list[str], pasos: list[str]) -> list[str]:
+    """Devuelve los cuartos reales que no aparecen en ningún paso."""
+    usados = set(pasos or [])
+    return [c for c in (reales or []) if c not in usados]

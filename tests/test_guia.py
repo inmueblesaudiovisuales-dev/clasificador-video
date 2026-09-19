@@ -59,3 +59,18 @@ def test_leer_clasificacion_respuesta_vacia():
 
 def test_leer_clasificacion_texto_no_json():
     assert not guia.leer_clasificacion("no traigo json", ["Sala"]).ok
+
+
+def test_cuartos_sin_usar_devuelve_los_que_no_aparecen():
+    assert guia.cuartos_sin_usar(
+        ["Sala", "Cocina", "Roof garden"], ["Sala", "Cocina"]) == ["Roof garden"]
+
+
+def test_cuartos_sin_usar_vacio_cuando_todos_aparecen():
+    assert guia.cuartos_sin_usar(["Sala"], ["Sala", "Sala"]) == []
+
+
+def test_ya_no_existe_revisar_lista():
+    assert not hasattr(guia, "revisar_lista")
+    assert not hasattr(guia, "avisos_de_la_revision")
+    assert not hasattr(guia, "Revision")
