@@ -88,6 +88,34 @@ class ResultadoDeRevision:
     tiene_material_nuevo: bool
 
 
+@dataclass(frozen=True)
+class MensajeConfirmarTraida:
+    texto: str
+    informativo: str
+    texto_boton: str
+
+
+def mensaje_confirmar_traida(resultado: ResultadoDeRevision) -> MensajeConfirmarTraida:
+    """El texto del diálogo de "Traer de vuelta", sin Qt -- lo arma tanto
+    `MainWindow` (con el proyecto abierto) como la lista de proyectos
+    activos (sin abrirlo), y las dos tienen que decir lo mismo."""
+    if resultado.hay_cambios or resultado.tiene_material_nuevo:
+        texto_cambio = "El .prproj cambió." if resultado.hay_cambios else "El .prproj no ha cambiado."
+        if resultado.tiene_material_nuevo:
+            texto_cambio += ' Hay contenido en "material nuevo/".'
+        return MensajeConfirmarTraida(
+            texto="Se encontró algo nuevo en Drive.",
+            informativo=texto_cambio + "\n\nLos proxies no se vuelven a bajar -- ya los tienes.",
+            texto_boton="Traer de vuelta",
+        )
+    return MensajeConfirmarTraida(
+        texto="No parece que el editor haya subido nada todavía. "
+              "¿Seguro que quieres continuar?",
+        informativo="",
+        texto_boton="Traer de todas formas",
+    )
+
+
 def revisar_cambios(cliente, carpeta_id: str,
                     prproj_modificado_en_la_subida: str | None) -> ResultadoDeRevision:
     """¿El `.prproj` de Drive es más nuevo que el que se subió, o ya hay

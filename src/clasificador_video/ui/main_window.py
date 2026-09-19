@@ -3139,19 +3139,13 @@ class MainWindow(QWidget):
             self._traer_de_vuelta(self._entrega or estado, cliente)
 
     def _confirmar_traer_de_vuelta(self, resultado) -> bool:
+        mensaje = drive.mensaje_confirmar_traida(resultado)
         cuadro = QMessageBox(self)
         cuadro.setWindowTitle(f"Traer de vuelta — {self.project_name}")
-        if resultado.hay_cambios or resultado.tiene_material_nuevo:
-            cuadro.setText("Se encontró algo nuevo en Drive.")
-            texto = "El .prproj cambió." if resultado.hay_cambios else "El .prproj no ha cambiado."
-            if resultado.tiene_material_nuevo:
-                texto += ' Hay contenido en "material nuevo/".'
-            cuadro.setInformativeText(texto + "\n\nLos proxies no se vuelven a bajar -- ya los tienes.")
-            texto_boton = "Traer de vuelta"
-        else:
-            cuadro.setText("No parece que el editor haya subido nada todavía. ¿Seguro que quieres continuar?")
-            texto_boton = "Traer de todas formas"
-        traer = cuadro.addButton(texto_boton, QMessageBox.ButtonRole.AcceptRole)
+        cuadro.setText(mensaje.texto)
+        if mensaje.informativo:
+            cuadro.setInformativeText(mensaje.informativo)
+        traer = cuadro.addButton(mensaje.texto_boton, QMessageBox.ButtonRole.AcceptRole)
         cuadro.addButton("Cancelar", QMessageBox.ButtonRole.RejectRole)
         cuadro.setDefaultButton(traer)
         cuadro.exec()

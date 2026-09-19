@@ -349,3 +349,39 @@ def test_revisar_y_persistir_sin_entrega_devuelve_none(tmp_path):
     resultado = drive.revisar_y_persistir(ruta, _ClienteFalso())
 
     assert resultado is None
+
+
+def test_mensaje_confirmar_traida_con_cambios_en_el_prproj():
+    resultado = drive.ResultadoDeRevision(
+        hay_cambios=True, prproj_modificado_en="x", tiene_material_nuevo=False)
+
+    mensaje = drive.mensaje_confirmar_traida(resultado)
+
+    assert mensaje.texto == "Se encontró algo nuevo en Drive."
+    assert "El .prproj cambió." in mensaje.informativo
+    assert "material nuevo" not in mensaje.informativo
+    assert mensaje.texto_boton == "Traer de vuelta"
+
+
+def test_mensaje_confirmar_traida_con_material_nuevo():
+    resultado = drive.ResultadoDeRevision(
+        hay_cambios=False, prproj_modificado_en="x", tiene_material_nuevo=True)
+
+    mensaje = drive.mensaje_confirmar_traida(resultado)
+
+    assert "El .prproj no ha cambiado." in mensaje.informativo
+    assert 'Hay contenido en "material nuevo/".' in mensaje.informativo
+    assert mensaje.texto_boton == "Traer de vuelta"
+
+
+def test_mensaje_confirmar_traida_sin_nada_nuevo():
+    resultado = drive.ResultadoDeRevision(
+        hay_cambios=False, prproj_modificado_en="x", tiene_material_nuevo=False)
+
+    mensaje = drive.mensaje_confirmar_traida(resultado)
+
+    assert mensaje.texto == (
+        "No parece que el editor haya subido nada todavía. "
+        "¿Seguro que quieres continuar?"
+    )
+    assert mensaje.texto_boton == "Traer de todas formas"
