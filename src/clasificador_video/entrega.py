@@ -24,6 +24,7 @@ Drive de verdad es `drive.py`.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 
 
 @dataclass(frozen=True)
@@ -69,3 +70,25 @@ class EstadoEntrega:
             drive_folder_link=datos.get("drive_folder_link"),
             drive_prproj_modificado_en=datos.get("drive_prproj_modificado_en"),
         )
+
+
+def cerrar_en_archivo(ruta_cvproj: Path) -> bool:
+    """El botón "Ya entregado": limpia la entrega guardada en un `.cvproj`
+    sin abrir el proyecto y SIN tocar Drive -- a diferencia de "Traer de
+    vuelta", esto es solo una marca de organización de Bruno (spec
+    2026-09-19 §6). `False` si no había nada que limpiar o el archivo no
+    se pudo leer.
+    """
+    import json
+
+    from clasificador_video import proyecto
+
+    try:
+        data = json.loads(ruta_cvproj.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return False
+    if not data.get("entrega"):
+        return False
+    data["entrega"] = None
+    proyecto.guardar(ruta_cvproj, data)
+    return True

@@ -41,3 +41,44 @@ def test_en_revision_ida_y_vuelta_por_dict():
     de_vuelta = EstadoEntrega.de_dict(original.to_dict())
 
     assert de_vuelta == original
+
+
+def test_cerrar_en_archivo_limpia_la_entrega(tmp_path):
+    import json
+    from clasificador_video.entrega import cerrar_en_archivo
+
+    ruta = tmp_path / "Casa Reforma.cvproj"
+    ruta.write_text(json.dumps({
+        "proyecto": "Casa Reforma",
+        "entrega": EstadoEntrega(EstadoEntrega.CON_EDITOR,
+                                 drive_folder_id="folder-x").to_dict(),
+    }))
+
+    cerrado = cerrar_en_archivo(ruta)
+
+    assert cerrado is True
+    guardado = json.loads(ruta.read_text())
+    assert guardado["entrega"] is None
+    assert guardado["proyecto"] == "Casa Reforma"
+
+
+def test_cerrar_en_archivo_sin_entrega_no_hace_nada(tmp_path):
+    import json
+    from clasificador_video.entrega import cerrar_en_archivo
+
+    ruta = tmp_path / "Casa Reforma.cvproj"
+    ruta.write_text(json.dumps({"proyecto": "Casa Reforma"}))
+    antes = ruta.read_text()
+
+    cerrado = cerrar_en_archivo(ruta)
+
+    assert cerrado is False
+    assert ruta.read_text() == antes
+
+
+def test_cerrar_en_archivo_ilegible_no_revienta(tmp_path):
+    from clasificador_video.entrega import cerrar_en_archivo
+
+    ruta = tmp_path / "no-existe.cvproj"
+
+    assert cerrar_en_archivo(ruta) is False
