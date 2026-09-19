@@ -247,3 +247,18 @@ def abrir(ruta: Path) -> dict | None:
     except (OSError, json.JSONDecodeError, ValueError):
         return None
     return data if isinstance(data, dict) else None
+
+
+def raiz_de_assets_de(data: dict) -> Path | None:
+    """La raíz del proyecto (la carpeta que contiene `ASSETS VIDEO`),
+    leída de un `.cvproj` sin abrir la ventana.
+
+    Mismo cálculo que `bins.raiz_del_proyecto`, pero a partir de los bins
+    tal como quedaron guardados (`data["bins"]`), no de un `BinTree` ya
+    armado en memoria. La usa "Traer de vuelta" desde la lista de
+    proyectos activos (spec 2026-09-19 §6).
+    """
+    from clasificador_video.bins import BinTree, raiz_del_proyecto
+
+    arbol = BinTree.from_list(data.get("bins") or [])
+    return raiz_del_proyecto(arbol)

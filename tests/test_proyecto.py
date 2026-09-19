@@ -427,3 +427,21 @@ def test_un_proyecto_sin_guia_sigue_siendo_valido(tmp_path):
         tamanos={}, duraciones={}, rotaciones={},
     )
     assert data["guia"] is None
+
+
+def test_raiz_de_assets_de_lee_los_bins_del_documento():
+    from clasificador_video.proyecto import raiz_de_assets_de
+
+    data = {"bins": [
+        {"nombre": "Sony", "clips": [0], "camara": "sony",
+         "origen": "/Volumes/SSD/IAV-2609/01. ASSETS VIDEO/02. CLIP/Sony"},
+    ]}
+
+    assert raiz_de_assets_de(data) == Path("/Volumes/SSD/IAV-2609")
+
+
+def test_raiz_de_assets_de_sin_bins_es_none():
+    from clasificador_video.proyecto import raiz_de_assets_de
+
+    assert raiz_de_assets_de({}) is None
+    assert raiz_de_assets_de({"bins": []}) is None
