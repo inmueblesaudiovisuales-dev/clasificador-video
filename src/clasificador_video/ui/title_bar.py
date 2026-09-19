@@ -174,6 +174,11 @@ class TitleBar(QWidget):
             self.entrega_pill.setProperty("tono", "contesto")
             self.entrega_pill.show()
             self.traer_button.show()
+        elif estado == EstadoEntrega.EN_REVISION:
+            self.subir_button.setText("Subir de nuevo")
+            self.entrega_pill.setText(f"◐  En revisión · {cuando_texto}")
+            self.entrega_pill.setProperty("tono", "revision")
+            self.entrega_pill.show()
         self.entrega_pill.style().unpolish(self.entrega_pill)
         self.entrega_pill.style().polish(self.entrega_pill)
 

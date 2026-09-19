@@ -3164,8 +3164,14 @@ class MainWindow(QWidget):
             QMessageBox.warning(
                 self, "Traer de vuelta", f"No se pudo traer de Drive: {error}")
             return
-        self._entrega = None
-        self.title_bar.set_estado_de_entrega(None)
+        from dataclasses import replace
+        from clasificador_video.entrega import EstadoEntrega
+
+        if self._entrega is not None:
+            self._entrega = replace(self._entrega, estado=EstadoEntrega.EN_REVISION)
+        self.title_bar.set_estado_de_entrega(
+            self._entrega.estado if self._entrega else None,
+            self._entrega.subido_en if self._entrega else "")
         self._autosave()
 
     def _asegurar_carpeta_de_proxies(self, nombre_de_bin: str) -> None:

@@ -115,6 +115,22 @@ def test_con_editor_muestra_pildora_y_traer(qtbot):
     assert title_bar.subir_button.text() == "Subir de nuevo"
 
 
+def test_en_revision_muestra_su_pildora_sin_boton_de_traer(qtbot):
+    from clasificador_video.entrega import EstadoEntrega
+
+    barra = TitleBar()
+    qtbot.addWidget(barra)
+    barra.show()
+    qtbot.waitExposed(barra)
+
+    barra.set_estado_de_entrega(EstadoEntrega.EN_REVISION, "hace 1 hora")
+
+    assert barra.entrega_pill.isVisible()
+    assert "En revisión" in barra.entrega_pill.text()
+    assert not barra.traer_button.isVisible()
+    assert barra.subir_button.text() == "Subir de nuevo"
+
+
 def test_subiendo_apaga_el_boton_con_progreso(qtbot):
     title_bar = _bar(qtbot)
     title_bar.set_subiendo(42)

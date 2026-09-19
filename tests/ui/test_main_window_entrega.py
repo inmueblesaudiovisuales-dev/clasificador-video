@@ -198,6 +198,23 @@ def test_error_de_traida_muestra_un_aviso(ventana, monkeypatch):
     assert avisos
 
 
+def test_traer_de_vuelta_deja_el_proyecto_en_revision(ventana, tmp_path, monkeypatch):
+    from clasificador_video.entrega import EstadoEntrega
+
+    ventana._entrega = EstadoEntrega(
+        EstadoEntrega.CON_EDITOR,
+        prproj_local=str(tmp_path / "Casa Reforma.prproj"),
+        drive_folder_id="folder-x",
+    )
+    monkeypatch.setattr(ventana, "_autosave", lambda: None)
+
+    ventana._on_drive_traida_lista("")
+
+    assert ventana._entrega.estado == EstadoEntrega.EN_REVISION
+    assert ventana._entrega.drive_folder_id == "folder-x"
+    assert "En revisión" in ventana.title_bar.entrega_pill.text()
+
+
 def test_refrescar_actualiza_el_cvproj_cuando_hay_cambios(ventana, tmp_path, monkeypatch):
     from clasificador_video import drive
     from clasificador_video.entrega import EstadoEntrega
