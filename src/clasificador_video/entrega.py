@@ -1,0 +1,62 @@
+"""El estado de la entrega de un proyecto a un editor externo por Drive.
+
+Vive aparte de `proyecto.py` porque `proyecto.py` sabe la FORMA del
+documento entero y este módulo sabe solo esta pieza -- igual que
+`manifest.py` no sabe nada del `.cvproj`.
+
+Tres estados nada más, en el orden en que pasan:
+
+- `SIN_SUBIR` -- nunca se subió nada (o es un proyecto de antes de esta
+  función: no hay diferencia).
+- `CON_EDITOR` -- ya se subió; no se sabe si el editor contestó porque
+  esa pregunta es siempre a petición de Bruno (nunca automática al abrir
+  la app -- spec de interfaz, §4).
+- `EDITOR_CONTESTO` -- Bruno pidió revisar (el ⟳ de la lista, o el
+  diálogo de "Traer de vuelta") y Drive tenía algo nuevo.
+
+Sin Qt, sin red: esto solo carga y guarda el estado. Quien pregunta a
+Drive de verdad es `drive.py`.
+"""
+from __future__ import annotations
+
+from dataclasses import dataclass
+
+
+@dataclass(frozen=True)
+class EstadoEntrega:
+    SIN_SUBIR = "sin_subir"
+    CON_EDITOR = "con_editor"
+    EDITOR_CONTESTO = "editor_contesto"
+
+    estado: str
+    subido_en: str | None = None
+    prproj_local: str | None = None
+    drive_folder_id: str | None = None
+    drive_folder_link: str | None = None
+    # La fecha de modificación del .prproj en Drive TAL COMO ESTABA cuando
+    # se subió por última vez. Es contra lo que se compara al revisar si
+    # el editor ya contestó -- ver `drive.hay_cambios`.
+    drive_prproj_modificado_en: str | None = None
+
+    def to_dict(self) -> dict:
+        return {
+            "estado": self.estado,
+            "subido_en": self.subido_en,
+            "prproj_local": self.prproj_local,
+            "drive_folder_id": self.drive_folder_id,
+            "drive_folder_link": self.drive_folder_link,
+            "drive_prproj_modificado_en": self.drive_prproj_modificado_en,
+        }
+
+    @staticmethod
+    def de_dict(datos: dict | None) -> "EstadoEntrega | None":
+        if not datos:
+            return None
+        return EstadoEntrega(
+            estado=datos.get("estado", EstadoEntrega.SIN_SUBIR),
+            subido_en=datos.get("subido_en"),
+            prproj_local=datos.get("prproj_local"),
+            drive_folder_id=datos.get("drive_folder_id"),
+            drive_folder_link=datos.get("drive_folder_link"),
+            drive_prproj_modificado_en=datos.get("drive_prproj_modificado_en"),
+        )
