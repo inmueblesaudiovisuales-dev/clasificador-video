@@ -282,18 +282,45 @@ def test_si_se_puede_escribir_adentro_se_escribe_adentro(tmp_path):
 # --------------------------------------------------------------------------
 
 
-def test_la_subcarpeta_se_llama_igual_que_la_carpeta_del_material():
-    """Decision de Bruno el 2026-08-25. El se las tenia nombradas «02. PROXY
-    DRONE» a mano; se eligio repetir el nombre del material --«02. VIDEO
-    DRONE»-- porque un nombre que se PARECE sin ser igual es un nombre que se
-    puede leer mal, y aqui leerlo mal significa enganchar el proxy de otra
-    camara.
-    """
-    elegida = Path("/proyecto/01. ASSETS VIDEO/07. PROXIES")
-    material = Path("/proyecto/01. ASSETS VIDEO/02. VIDEO DRONE")
+def test_subcarpeta_por_numero_encuentra_una_con_nombre_distinto(tmp_path):
+    """Bruno ya tiene, hecha a mano, `02. PROXY DRONE` como hermana de
+    `02. VIDEO DRONE` -- mismo número, nombre distinto a propósito. La
+    regla de agosto (nombre IDÉNTICO) la ignoraba y creaba una carpeta
+    nueva vacía al lado. Regla nueva: el número manda."""
+    elegida = tmp_path / "Proxies del proyecto"
+    elegida.mkdir()
+    (elegida / "02. PROXY DRONE").mkdir()
+    material = tmp_path / "material" / "02. VIDEO DRONE"
+    material.mkdir(parents=True)
 
-    assert (proxy_gen.subcarpeta_del_bin(elegida, material)
-            == elegida / "02. VIDEO DRONE")
+    destino = proxy_gen.subcarpeta_por_numero(elegida, material)
+
+    assert destino == elegida / "02. PROXY DRONE"
+
+
+def test_subcarpeta_por_numero_sin_coincidencia_usa_el_nombre_de_siempre(tmp_path):
+    elegida = tmp_path / "Proxies del proyecto"
+    elegida.mkdir()
+    material = tmp_path / "material" / "02. VIDEO DRONE"
+    material.mkdir(parents=True)
+
+    destino = proxy_gen.subcarpeta_por_numero(elegida, material)
+
+    assert destino == elegida / "02. VIDEO DRONE"
+
+
+def test_subcarpeta_por_numero_sin_numero_en_el_material_usa_el_nombre(tmp_path):
+    """Una carpeta de material sin prefijo numérico (`DRONE`, sin `02. `)
+    no tiene número que comparar: se cae al comportamiento de siempre."""
+    elegida = tmp_path / "Proxies del proyecto"
+    elegida.mkdir()
+    (elegida / "DRONE viejo").mkdir()
+    material = tmp_path / "material" / "DRONE"
+    material.mkdir(parents=True)
+
+    destino = proxy_gen.subcarpeta_por_numero(elegida, material)
+
+    assert destino == elegida / "DRONE"
 
 
 def test_con_carpeta_elegida_los_nuevos_van_a_su_subcarpeta(tmp_path):
@@ -319,9 +346,9 @@ def test_dos_bins_con_el_mismo_nombre_de_archivo_no_se_pisan(tmp_path):
         c.mkdir()
 
     ruta_a = proxy_gen.ruta_de_proxy(
-        sony_a / "PIB0001.MP4", proxy_gen.subcarpeta_del_bin(elegida, sony_a))
+        sony_a / "PIB0001.MP4", proxy_gen.subcarpeta_por_numero(elegida, sony_a))
     ruta_b = proxy_gen.ruta_de_proxy(
-        sony_b / "PIB0001.MP4", proxy_gen.subcarpeta_del_bin(elegida, sony_b))
+        sony_b / "PIB0001.MP4", proxy_gen.subcarpeta_por_numero(elegida, sony_b))
 
     assert ruta_a != ruta_b
 
@@ -333,7 +360,7 @@ def test_la_carpeta_elegida_se_mira_primero_al_buscar(tmp_path):
     original = material / "clip.MP4"
     original.touch()
 
-    nueva = proxy_gen.subcarpeta_del_bin(elegida, material)
+    nueva = proxy_gen.subcarpeta_por_numero(elegida, material)
     nueva.mkdir(parents=True)
     proxy_gen.ruta_de_proxy(original, nueva).touch()
 

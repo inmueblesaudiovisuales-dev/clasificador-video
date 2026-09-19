@@ -16,6 +16,7 @@ el avance es `MainWindow`.
 from __future__ import annotations
 
 import os
+import re
 import subprocess
 from pathlib import Path
 
@@ -66,19 +67,37 @@ def carpeta_al_lado(carpeta_del_bin: Path) -> Path:
     return carpeta_del_bin.parent / CARPETA
 
 
-def subcarpeta_del_bin(elegida: Path, carpeta_del_bin: Path) -> Path:
-    """Dentro de la carpeta elegida, la subcarpeta de ESE material.
+_NUMERO = re.compile(r"^(\d+)\.\s")
 
-    Se llama IGUAL que la carpeta del material --`02. VIDEO DRONE`, no
-    `02. PROXY DRONE`--. Bruno las tenia nombradas a mano de la segunda forma
-    y eligio la primera el 2026-08-25: un nombre que se PARECE sin ser igual
-    es un nombre que se puede leer mal, y aqui leerlo mal significa enganchar
-    el proxy de otra camara.
 
-    La subcarpeta es ademas lo que impide que dos tarjetas se pisen: dos
-    Sony pueden traer un `PIB0001` cada una, y sueltos en un solo monton uno
-    sobreescribe al otro sin avisar.
+def _numero_de(nombre: str) -> str | None:
+    """El prefijo `NN.` de un nombre de carpeta, o `None` si no lo trae."""
+    m = _NUMERO.match(nombre)
+    return m.group(1) if m else None
+
+
+def subcarpeta_por_numero(elegida: Path, carpeta_del_bin: Path) -> Path:
+    """Como `subcarpeta_del_bin`, pero reconoce una carpeta YA HECHA por
+    Bruno aunque el nombre no sea idéntico -- basta que el número
+    coincida (spec 2026-09-18 §3).
+
+    Bruno trae de fábrica `02. PROXY DRONE` como hermana de
+    `02. VIDEO DRONE`: mismo número, nombre distinto a propósito. La
+    regla de agosto --nombre IDÉNTICO-- la ignoraba y creaba
+    `02. VIDEO DRONE` DENTRO de la carpeta de proxies, dejando la suya
+    vacía. Aquí el número manda: si hay alguna subcarpeta de `elegida`
+    cuyo número coincide, se usa esa. Sin número que comparar, o sin
+    coincidencia, se cae al nombre de siempre (comportamiento de agosto,
+    sin cambio).
     """
+    numero = _numero_de(carpeta_del_bin.name)
+    if numero is not None:
+        try:
+            for hija in elegida.iterdir():
+                if hija.is_dir() and _numero_de(hija.name) == numero:
+                    return hija
+        except OSError:
+            pass  # la carpeta elegida puede no existir todavía
     return elegida / carpeta_del_bin.name
 
 
@@ -135,7 +154,7 @@ def carpetas_de_proxies(carpeta_del_bin: Path,
     """
     lugares = []
     if elegida is not None:
-        lugares.append(subcarpeta_del_bin(elegida, carpeta_del_bin))
+        lugares.append(subcarpeta_por_numero(elegida, carpeta_del_bin))
     lugares.append(carpeta_de_proxies(carpeta_del_bin))
     lugares.append(carpeta_al_lado(carpeta_del_bin))
     return lugares
@@ -183,7 +202,7 @@ def carpeta_para_escribir(carpeta_del_bin: Path,
     funcionaban ayer.
     """
     if elegida is not None:
-        destino = subcarpeta_del_bin(elegida, carpeta_del_bin)
+        destino = subcarpeta_por_numero(elegida, carpeta_del_bin)
         if destino.exists() or _se_puede_escribir(elegida):
             return destino
     adentro = carpeta_de_proxies(carpeta_del_bin)
