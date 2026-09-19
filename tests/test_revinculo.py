@@ -8,6 +8,24 @@ from clasificador_video.revinculo import (
     faltantes_de,
     reencontrar_bin,
 )
+from clasificador_video import revinculo
+
+
+def test_carpeta_de_bin_desde_archivo_sin_subcarpetas():
+    archivo = Path("/Volumes/DiscoNuevo/Rodaje X copia/Sony/C0001.MP4")
+    carpeta = revinculo.carpeta_de_bin_desde_archivo(archivo, "C0001.MP4")
+    assert carpeta == Path("/Volumes/DiscoNuevo/Rodaje X copia/Sony")
+
+
+def test_carpeta_de_bin_desde_archivo_con_subcarpeta():
+    archivo = Path("/Volumes/DiscoNuevo/Rodaje X copia/Sony/Sub/C0001.MP4")
+    carpeta = revinculo.carpeta_de_bin_desde_archivo(archivo, "Sub/C0001.MP4")
+    assert carpeta == Path("/Volumes/DiscoNuevo/Rodaje X copia/Sony")
+
+
+def test_carpeta_de_bin_desde_archivo_relativa_vacia_no_calza():
+    archivo = Path("/Volumes/DiscoNuevo/Sony/C0001.MP4")
+    assert revinculo.carpeta_de_bin_desde_archivo(archivo, "") is None
 
 
 def test_NO_calza_un_tocayo_de_otro_tamano(tmp_path):

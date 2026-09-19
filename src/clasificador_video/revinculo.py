@@ -89,6 +89,17 @@ def _en_su_sitio(carpeta: Path, relativa: str) -> Path | None:
     return destino if destino.is_file() else None
 
 
+def carpeta_de_bin_desde_archivo(archivo: Path, relativa: str) -> Path | None:
+    """Calcula la carpeta del bin desde un archivo y su ruta relativa."""
+    partes = Path(relativa).parts
+    if not partes:
+        return None
+    carpeta = archivo.parent
+    for _ in range(len(partes) - 1):
+        carpeta = carpeta.parent
+    return carpeta
+
+
 def buscar_bajo(carpeta: Path, relativa: str,
                 indice: dict[str, list[Path]] | None = None) -> Path | None:
     """Primero donde decia; si no, por nombre en todo el arbol.
