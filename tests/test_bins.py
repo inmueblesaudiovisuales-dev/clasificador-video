@@ -584,3 +584,27 @@ def test_una_camara_basura_en_el_archivo_se_recalcula():
     arbol = BinTree.desde_sesion(datos, rutas=[Path("/dron/DJI_0001.MP4")])
 
     assert arbol.camara_de("Dron") == DJI
+
+
+def test_raiz_del_proyecto_sube_hasta_la_carpeta_que_contiene_assets_video():
+    from clasificador_video.bins import raiz_del_proyecto
+
+    arbol = BinTree()
+    arbol.agregar("Sony", Path("/Volumes/SSD/IAV-2609/01. ASSETS VIDEO/02. CLIP/Sony"), [0])
+
+    assert raiz_del_proyecto(arbol) == Path("/Volumes/SSD/IAV-2609")
+
+
+def test_raiz_del_proyecto_sin_bins_es_none():
+    from clasificador_video.bins import raiz_del_proyecto
+
+    assert raiz_del_proyecto(BinTree()) is None
+
+
+def test_raiz_del_proyecto_sin_assets_video_es_none():
+    from clasificador_video.bins import raiz_del_proyecto
+
+    arbol = BinTree()
+    arbol.agregar("Sony", Path("/Volumes/SSD/Material suelto"), [0])
+
+    assert raiz_del_proyecto(arbol) is None

@@ -34,6 +34,7 @@ from clasificador_video import (
     proyecto,
     revinculo,
 )
+from clasificador_video import bins as bins_module
 from clasificador_video.bins import BinTree, raiz_comun_de
 from clasificador_video.camaras import SONY
 from clasificador_video.marca_camara import bin_dice_dron, bin_dice_pocket, bin_dice_sony
@@ -2980,14 +2981,7 @@ class MainWindow(QWidget):
         Se deduce del origen de cualquier bin. Si no hay bins o su material
         no cuelga de esa estructura, no hay una raíz confiable.
         """
-        for nombre in self.bins.nombres():
-            origen = self.bins.origen_de(nombre)
-            if origen is None:
-                continue
-            for ancestro in [origen, *origen.parents]:
-                if ancestro.name.lower().endswith("assets video"):
-                    return ancestro.parent
-        return None
+        return bins_module.raiz_del_proyecto(self.bins)
 
     def _preguntar_por_la_carpeta_de_proxies(self, propuesta: Path) -> Path:
         """La pregunta, con la respuesta YA puesta.

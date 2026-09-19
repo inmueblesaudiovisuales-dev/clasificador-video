@@ -59,6 +59,19 @@ def raiz_comun_de(carpetas: list[Path]) -> Path | None:
     return raiz
 
 
+def raiz_del_proyecto(arbol: "BinTree") -> Path | None:
+    """La raíz del proyecto de Bruno (la carpeta que contiene
+    `ASSETS VIDEO`), a partir del origen de cualquier bin."""
+    for nombre in arbol.nombres():
+        origen = arbol.origen_de(nombre)
+        if origen is None:
+            continue
+        for ancestro in [origen, *origen.parents]:
+            if ancestro.name.lower().endswith("assets video"):
+                return ancestro.parent
+    return None
+
+
 @dataclass
 class Bin:
     nombre: str
