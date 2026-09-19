@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="es-MX">
+<head>
+<meta charset="UTF-8" />
+<title>Mockup — Guía de edición (tablero)</title>
+<style>
+  :root {
+    --bg-app: #0a0b0d;
+    --bg-0: #101216;
+    --bg-1: #16191e;
+    --bg-2: #1d2128;
+    --line: #262b33;
+    --line-soft: #1e222a;
+    --text: #e6e9ee;
+    --text-2: #9aa3b0;
+    --text-3: #626b78;
+    --amber: #e8a33d;
+    --reject: #d4696c;
+    --trim: #6d8cf5;
+    --pick: #55c08a;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0; height: 100%;
+    background: var(--bg-app);
+    color: var(--text);
+    font-family: -apple-system, "Helvetica Neue", sans-serif;
+    font-size: 13px;
+  }
+  #pantalla {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+  }
+
+  /* --- barra superior --- */
+  .barra {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--line);
+    background: var(--bg-0);
+  }
+  .barra h1 {
+    font-size: 15px;
+    font-weight: 600;
+    margin: 0;
+    flex: 1;
+  }
+  .subtitulo {
+    color: var(--text-2);
+    font-size: 12px;
+    margin-top: 2px;
+  }
+  button {
+    font-family: inherit;
+    font-size: 12.5px;
+    border-radius: 7px;
+    padding: 7px 14px;
+    border: 1px solid var(--line);
+    background: var(--bg-1);
+    color: var(--text);
+    cursor: pointer;
+  }
+  button:hover { background: var(--bg-2); }
+  button.primario {
+    background: var(--amber);
+    color: #1a1206;
+    border-color: var(--amber);
+    font-weight: 600;
+  }
+  button.primario:hover { filter: brightness(1.08); }
+  button.fantasma {
+    background: transparent;
+    border-color: transparent;
+    color: var(--text-2);
+  }
+
+  /* --- aviso de sin usar --- */
+  #aviso {
+    display: none;
+    margin: 12px 20px 0;
+    padding: 9px 14px;
+    border-radius: 8px;
+    background: rgba(212, 105, 108, 0.12);
+    border: 1px solid rgba(212, 105, 108, 0.35);
+    color: var(--reject);
+    font-size: 12.5px;
+  }
+
+  /* --- tablero --- */
+  #tablero {
+    flex: 1;
+    display: flex;
+    gap: 12px;
+    padding: 16px 20px;
+    overflow-x: auto;
+  }
+  .columna {
+    flex: 1 0 180px;
+    min-width: 180px;
+    display: flex;
+    flex-direction: column;
+    background: var(--bg-0);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+  .columna-titulo {
+    padding: 10px 12px 8px;
+    border-bottom: 1px solid var(--line-soft);
+    font-weight: 600;
+    font-size: 12px;
+  }
+  .columna-titulo .n {
+    color: var(--text-3);
+    font-weight: 400;
+    margin-left: 4px;
+  }
+  .columna-cuerpo {
+    flex: 1;
+    padding: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+    min-height: 120px;
+    transition: background 0.12s;
+  }
+  .columna-cuerpo.sobre-arrastre {
+    background: rgba(232, 163, 61, 0.08);
+  }
+  .columna-cuerpo:empty::after {
+    content: "arrastra aquí";
+    color: var(--text-3);
+    font-size: 11.5px;
+    font-style: italic;
+  }
+
+  /* --- chips --- */
+  .chip {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--bg-2);
+    border: 1px solid var(--line);
+    border-radius: 7px;
+    padding: 7px 8px;
+    cursor: grab;
+    font-size: 12.5px;
+    user-select: none;
+  }
+  .chip.arrastrando { opacity: 0.35; }
+  .chip .nombre { flex: 1; }
+  .chip .otra-vez {
+    color: var(--text-3);
+    font-size: 11px;
+    font-style: italic;
+  }
+  .chip .quitar {
+    color: var(--text-3);
+    cursor: pointer;
+    padding: 0 2px;
+    font-size: 13px;
+    line-height: 1;
+  }
+  .chip .quitar:hover { color: var(--reject); }
+
+  /* --- franja de cuartos --- */
+  #franja-wrap {
+    border-top: 1px solid var(--line);
+    background: var(--bg-0);
+    padding: 12px 20px 16px;
+  }
+  #franja-titulo {
+    color: var(--text-2);
+    font-size: 11.5px;
+    margin-bottom: 8px;
+  }
+  #franja {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  #franja .chip {
+    background: var(--bg-1);
+    cursor: grab;
+  }
+  #franja .chip.usado {
+    border-style: dashed;
+    color: var(--text-2);
+  }
+  #franja .chip .conteo {
+    color: var(--trim);
+    font-size: 11px;
+  }
+
+  /* --- resultado --- */
+  #resultado-wrap {
+    display: none;
+    border-top: 1px solid var(--line);
+    background: var(--bg-1);
+    padding: 12px 20px 16px;
+  }
+  #resultado-wrap h2 {
+    font-size: 12px;
+    color: var(--text-2);
+    margin: 0 0 8px;
+    font-weight: 600;
+  }
+  #resultado-lista {
+    font-size: 12.5px;
+    line-height: 1.9;
+  }
+  #resultado-lista .otra-vez { color: var(--text-3); font-style: italic; }
+</style>
+</head>
+<body>
+<div id="pantalla">
+  <div class="barra">
+    <div>
+      <h1>Guía de edición</h1>
+      <div class="subtitulo">La IA acomodó tus cuartos como punto de partida — arrastra para cambiarlo</div>
+    </div>
+    <button class="fantasma" id="btn-cerrar">Cerrar</button>
+    <button class="primario" id="btn-usar">Usar este orden</button>
+  </div>
+
+  <div id="aviso"></div>
+
+  <div id="tablero"></div>
+
+  <div id="franja-wrap">
+    <div id="franja-titulo">Tus cuartos — arrastra uno a una columna (lo puedes repetir las veces que haga falta)</div>
+    <div id="franja"></div>
+  </div>
+
+  <div id="resultado-wrap">
+    <h2>Esto quedaría en Premiere (solo la lista, sin párrafo ni razones)</h2>
+    <div id="resultado-lista"></div>
+  </div>
+</div>
+
+<script>
+// ---- datos de ejemplo, simulando lo que ya clasificó la IA -------------
+const COLUMNAS = [
+  { id: "apertura",  titulo: "Apertura / fachada" },
+  { id: "sociales",  titulo: "Áreas sociales" },
+  { id: "habitaciones", titulo: "Habitaciones" },
+  { id: "aerea_media", titulo: "Aérea a media casa" },
+  { id: "amenidades", titulo: "Amenidades" },
+  { id: "area_general", titulo: "Área general" },
+  { id: "aerea_final", titulo: "Aérea final" },
+];
+
+// cuartos reales de este shooting de ejemplo
+const CUARTOS = [
+  "Dron", "Fachada", "Sala", "Cocina", "Terraza",
+  "Recámara 1", "Recámara 2", "Baño", "Alberca", "Roof garden",
+];
+
+// clasificación inicial "de la IA" — deliberadamente deja cosas sin usar
+// y a Dron solo en un lugar, para que se vea el flujo de repetir y de avisar.
+const CLASIFICACION_INICIAL = {
+  apertura: ["Dron", "Fachada"],
+  sociales: ["Sala", "Cocina", "Terraza"],
+  habitaciones: ["Recámara 1", "Recámara 2"],
+  aerea_media: [],
+  amenidades: ["Alberca"],
+  area_general: [],
+  aerea_final: [],
+};
+// Baño y Roof garden se quedan sin colocar a propósito → aparecen en el aviso.
+
+// ---- estado ---------------------------------------------------------
+let estado = {}; // { columnaId: [nombre, nombre, ...] }
+for (const c of COLUMNAS) estado[c.id] = [...(CLASIFICACION_INICIAL[c.id] || [])];
+
+let arrastre = null; // { origen: "franja" | columnaId, indice: number|null, nombre }
+
+// ---- construir el tablero -------------------------------------------
+const tablero = document.getElementById("tablero");
+const franja = document.getElementById("franja");
+const aviso = document.getElementById("aviso");
+
+function totalUsos(nombre) {
+  let n = 0;
+  for (const c of COLUMNAS) n += estado[c.id].filter(x => x === nombre).length;
+  return n;
+}
+
+function render() {
+  tablero.innerHTML = "";
+  for (const col of COLUMNAS) {
+    const lista = estado[col.id];
+    const wrap = document.createElement("div");
+    wrap.className = "columna";
+    wrap.innerHTML = `<div class="columna-titulo">${col.titulo}<span class="n">${lista.length ? "· " + lista.length : ""}</span></div>`;
+
+    const cuerpo = document.createElement("div");
+    cuerpo.className = "columna-cuerpo";
+    cuerpo.dataset.columna = col.id;
+
+    lista.forEach((nombre, i) => {
+      const yaVistoAntes = lista.slice(0, i).includes(nombre) ||
+        COLUMNAS.some(c => c.id !== col.id && estado[c.id].includes(nombre) && COLUMNAS.findIndex(x => x.id === c.id) < COLUMNAS.findIndex(x => x.id === col.id));
+      cuerpo.appendChild(hacerChipColumna(nombre, col.id, i));
+    });
+
+    cuerpo.addEventListener("dragover", (e) => {
+      e.preventDefault();
+      cuerpo.classList.add("sobre-arrastre");
+    });
+    cuerpo.addEventListener("dragleave", () => cuerpo.classList.remove("sobre-arrastre"));
+    cuerpo.addEventListener("drop", (e) => {
+      e.preventDefault();
+      cuerpo.classList.remove("sobre-arrastre");
+      onDrop(col.id);
+    });
+
+    wrap.appendChild(cuerpo);
+    tablero.appendChild(wrap);
+  }
+  renderFranja();
+  renderAviso();
+}
+
+function esRepetido(nombre, columnaId, indice) {
+  // "otra vez" si este nombre ya salió antes en el guion final (flatten en orden de columnas)
+  let vistoAntes = false;
+  for (const col of COLUMNAS) {
+    const lista = estado[col.id];
+    for (let i = 0; i < lista.length; i++) {
+      if (col.id === columnaId && i === indice) return vistoAntes;
+      if (lista[i] === nombre) vistoAntes = true;
+    }
+  }
+  return vistoAntes;
+}
+
+function hacerChipColumna(nombre, columnaId, indice) {
+  const chip = document.createElement("div");
+  chip.className = "chip";
+  chip.draggable = true;
+  const marca = esRepetido(nombre, columnaId, indice) ? '<span class="otra-vez">otra vez</span>' : "";
+  chip.innerHTML = `<span class="nombre">${nombre}</span>${marca}<span class="quitar" title="Quitar">✕</span>`;
+
+  chip.addEventListener("dragstart", (e) => {
+    arrastre = { origen: columnaId, indice, nombre };
+    chip.classList.add("arrastrando");
+    e.dataTransfer.effectAllowed = "move";
+  });
+  chip.addEventListener("dragend", () => chip.classList.remove("arrastrando"));
+
+  chip.querySelector(".quitar").addEventListener("click", () => {
+    estado[columnaId].splice(indice, 1);
+    render();
+  });
+
+  return chip;
+}
+
+function renderFranja() {
+  franja.innerHTML = "";
+  for (const nombre of CUARTOS) {
+    const usos = totalUsos(nombre);
+    const chip = document.createElement("div");
+    chip.className = "chip" + (usos > 0 ? " usado" : "");
+    chip.draggable = true;
+    chip.innerHTML = `<span class="nombre">${nombre}</span>` +
+      (usos > 0 ? `<span class="conteo">×${usos}</span>` : "");
+    chip.addEventListener("dragstart", (e) => {
+      arrastre = { origen: "franja", indice: null, nombre };
+      e.dataTransfer.effectAllowed = "copy";
+    });
+    franja.appendChild(chip);
+  }
+}
+
+function renderAviso() {
+  const sinUsar = CUARTOS.filter(n => totalUsos(n) === 0);
+  if (sinUsar.length === 0) {
+    aviso.style.display = "none";
+    return;
+  }
+  aviso.style.display = "block";
+  aviso.textContent = sinUsar.length === 1
+    ? `Sin usar: ${sinUsar[0]}.`
+    : `Sin usar: ${sinUsar.join(", ")}.`;
+}
+
+function onDrop(columnaDestino) {
+  if (!arrastre) return;
+  if (arrastre.origen === "franja") {
+    estado[columnaDestino].push(arrastre.nombre);
+  } else {
+    // mover dentro del tablero: quita del origen, agrega al final del destino
+    estado[arrastre.origen].splice(arrastre.indice, 1);
+    estado[columnaDestino].push(arrastre.nombre);
+  }
+  arrastre = null;
+  render();
+}
+
+// ---- "Usar este orden" -----------------------------------------------
+document.getElementById("btn-usar").addEventListener("click", () => {
+  const wrap = document.getElementById("resultado-wrap");
+  const lista = document.getElementById("resultado-lista");
+  let pasos = [];
+  for (const col of COLUMNAS) pasos.push(...estado[col.id]);
+
+  if (pasos.length === 0) {
+    lista.innerHTML = '<span style="color: var(--text-3)">Todavía no acomodas ningún cuarto.</span>';
+  } else {
+    const vistos = new Set();
+    lista.innerHTML = pasos.map((nombre, i) => {
+      const repetido = vistos.has(nombre);
+      vistos.add(nombre);
+      return `${i + 1}. <b>${nombre}</b>` + (repetido ? ' <span class="otra-vez">(otra vez)</span>' : "");
+    }).join("<br>");
+  }
+  wrap.style.display = "block";
+  wrap.scrollIntoView({ behavior: "smooth", block: "nearest" });
+});
+
+document.getElementById("btn-cerrar").addEventListener("click", () => {
+  alert("Esto cerraría la pantalla (en Clipify de verdad, Esc también funciona).");
+});
+
+render();
+</script>
+</body>
+</html>
