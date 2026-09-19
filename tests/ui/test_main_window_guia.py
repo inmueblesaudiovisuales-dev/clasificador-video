@@ -56,3 +56,9 @@ def test_pedir_clasificacion_manda_los_cuartos(qtbot, ventana, monkeypatch):
     with qtbot.waitSignal(ventana._señales_de_trabajos.guia_lista, timeout=3000):
         ventana.pedir_clasificacion()
     assert "Sala" in visto["cuerpo"]["messages"][0]["content"]
+
+
+def test_abrir_la_guia_le_pasa_los_cuartos_reales(ventana):
+    ventana.room_selection.add("Sala"); ventana.room_selection.add("Cocina")
+    ventana._abrir_pantalla_de_guia()
+    assert ventana._pantalla_guia.franja.cuartos() == ["Sala", "Cocina"]

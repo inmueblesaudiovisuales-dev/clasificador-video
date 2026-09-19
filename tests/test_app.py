@@ -1074,8 +1074,7 @@ def test_la_guia_del_proyecto_vuelve_al_abrirlo(tmp_path, monkeypatch):
         proyecto="Casa Lomas", rooms=["Sala"], clips=[], bins=BinTree(),
         tamanos={}, duraciones={}, rotaciones={},
         guia={
-            "recorrido": "Abres por fuera.",
-            "orden": [{"cuarto": "Sala", "porque": "x", "fuera_del_patron": False}],
+            "orden": ["Sala"],
             "cuartos_de_entonces": ["Sala"],
         },
     )
@@ -1085,4 +1084,4 @@ def test_la_guia_del_proyecto_vuelve_al_abrirlo(tmp_path, monkeypatch):
     ventana = mod.abrir_proyecto(destino, video_factory=_FakeMpv,
                                  recientes_path=tmp_path / "recientes.json")
     assert ventana is not None
-    assert ventana.guia_actual.recorrido == "Abres por fuera."
+    assert [r.cuarto for r in ventana.guia_actual.lista] == ["Sala"]
