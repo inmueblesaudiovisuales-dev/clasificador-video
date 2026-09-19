@@ -74,3 +74,14 @@ def test_ya_no_existe_revisar_lista():
     assert not hasattr(guia, "revisar_lista")
     assert not hasattr(guia, "avisos_de_la_revision")
     assert not hasattr(guia, "Revision")
+
+
+def test_renglon_solo_tiene_cuarto():
+    r = guia.Renglon(cuarto="Sala")
+    assert r.cuarto == "Sala"
+    assert not hasattr(r, "porque") and not hasattr(r, "fuera_del_patron")
+
+
+def test_respuesta_ya_no_tiene_recorrido():
+    r = guia.Respuesta(ok=True, lista=[guia.Renglon(cuarto="Sala")])
+    assert r.lista[0].cuarto == "Sala" and not hasattr(r, "recorrido")
