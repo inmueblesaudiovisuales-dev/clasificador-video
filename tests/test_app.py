@@ -13,7 +13,7 @@
 import json
 from pathlib import Path
 
-from PySide6.QtWidgets import QFileDialog
+from PySide6.QtWidgets import QFileDialog, QMessageBox
 
 from clasificador_video import app as app_module
 from clasificador_video.app import (
@@ -490,6 +490,125 @@ def test_refrescar_pedido_sin_token_avisa_sin_intentar_conectarse(
     coord.inicio.refrescar_pedido.emit(tmp_path / "Casa Reforma.cvproj")
 
     assert avisos == ["Conecta Google Drive desde Configuración antes de revisar."]
+
+
+def test_ya_entregado_pedido_cierra_la_entrega_y_refresca(qtbot, tmp_path, monkeypatch):
+    from clasificador_video.entrega import EstadoEntrega
+
+    coord = _coordinador(tmp_path)
+    qtbot.addWidget(coord.inicio)
+    ruta = _proyecto_en(tmp_path, extra={"entrega": EstadoEntrega(
+        EstadoEntrega.CON_EDITOR, drive_folder_id="folder-x").to_dict()})
+    monkeypatch.setattr(QMessageBox, "exec", lambda self: None)
+    monkeypatch.setattr(QMessageBox, "clickedButton", lambda self: self.buttons()[0])
+    refrescos = []
+    monkeypatch.setattr(coord, "_refrescar", lambda: refrescos.append(True))
+
+    coord.inicio.ya_entregado_pedido.emit(ruta)
+
+    assert refrescos == [True]
+    assert abrir(ruta)["entrega"] is None
+
+
+def test_ya_entregado_pedido_cancelado_no_toca_nada(qtbot, tmp_path, monkeypatch):
+    from clasificador_video.entrega import EstadoEntrega
+
+    coord = _coordinador(tmp_path)
+    qtbot.addWidget(coord.inicio)
+    ruta = _proyecto_en(tmp_path, extra={"entrega": EstadoEntrega(
+        EstadoEntrega.CON_EDITOR, drive_folder_id="folder-x").to_dict()})
+    monkeypatch.setattr(QMessageBox, "exec", lambda self: None)
+    monkeypatch.setattr(QMessageBox, "clickedButton", lambda self: self.buttons()[1])
+    refrescos = []
+    monkeypatch.setattr(coord, "_refrescar", lambda: refrescos.append(True))
+
+    coord.inicio.ya_entregado_pedido.emit(ruta)
+
+    assert refrescos == []
+    assert abrir(ruta)["entrega"]["estado"] == EstadoEntrega.CON_EDITOR
+
+
+def test_traer_de_vuelta_activo_lanza_el_trabajo_con_la_raiz_correcta(
+        qtbot, tmp_path, monkeypatch):
+    from clasificador_video import drive
+    from clasificador_video.entrega import EstadoEntrega
+
+    coord = _coordinador(tmp_path)
+    qtbot.addWidget(coord.inicio)
+    ruta = _proyecto_en(tmp_path, extra={
+        "bins": [{"nombre": "Sony", "clips": [0], "camara": "sony",
+                 "origen": str(tmp_path / "IAV" / "01. ASSETS VIDEO" / "02. CLIP" / "Sony")}],
+        "entrega": EstadoEntrega(
+            EstadoEntrega.CON_EDITOR, drive_folder_id="folder-x",
+            prproj_local=str(tmp_path / "Casa.prproj"),
+        ).to_dict(),
+    })
+    cliente = object()
+    monkeypatch.setattr(drive, "hay_token_guardado", lambda: True)
+    monkeypatch.setattr(drive, "cliente_autorizado", lambda credenciales: cliente)
+    monkeypatch.setattr(
+        drive, "revisar_y_persistir",
+        lambda ruta_recibida, cliente_recibido: drive.ResultadoDeRevision(
+            hay_cambios=True, prproj_modificado_en="x", tiene_material_nuevo=False),
+    )
+    monkeypatch.setattr(QMessageBox, "exec", lambda self: None)
+    monkeypatch.setattr(QMessageBox, "clickedButton", lambda self: self.buttons()[0])
+    trabajos = []
+    monkeypatch.setattr(coord._drive_pool, "start", trabajos.append)
+
+    coord.inicio.traer_de_vuelta_pedido.emit(ruta)
+
+    trabajo = trabajos.pop()
+    assert trabajo._cliente is cliente
+    assert trabajo._ruta_cvproj == ruta
+    assert trabajo._raiz == tmp_path / "IAV"
+
+
+def test_traer_de_vuelta_activo_al_terminar_pasa_a_en_revision(qtbot, tmp_path):
+    from clasificador_video.entrega import EstadoEntrega
+
+    coord = _coordinador(tmp_path)
+    qtbot.addWidget(coord.inicio)
+    ruta = _proyecto_en(tmp_path, extra={"entrega": EstadoEntrega(
+        EstadoEntrega.CON_EDITOR, drive_folder_id="folder-x").to_dict()})
+
+    coord._al_terminar_traida_activa(ruta, "")
+
+    assert abrir(ruta)["entrega"]["estado"] == EstadoEntrega.EN_REVISION
+
+
+def test_traer_de_vuelta_activo_con_error_avisa(qtbot, tmp_path):
+    coord = _coordinador(tmp_path)
+    qtbot.addWidget(coord.inicio)
+    avisos = []
+    monkeypatch_avisar = coord.inicio.avisar
+    coord.inicio.avisar = avisos.append
+
+    coord._al_terminar_traida_activa(tmp_path / "no-importa.cvproj", "red caída")
+
+    assert avisos == ["No se pudo traer de Drive: red caída"]
+    coord.inicio.avisar = monkeypatch_avisar
+
+
+def test_traer_de_vuelta_activo_sin_token_avisa_sin_conectar(qtbot, tmp_path, monkeypatch):
+    from clasificador_video import drive
+    from clasificador_video.entrega import EstadoEntrega
+
+    coord = _coordinador(tmp_path)
+    qtbot.addWidget(coord.inicio)
+    ruta = _proyecto_en(tmp_path, extra={"entrega": EstadoEntrega(
+        EstadoEntrega.CON_EDITOR, drive_folder_id="folder-x").to_dict()})
+    monkeypatch.setattr(drive, "hay_token_guardado", lambda: False)
+    monkeypatch.setattr(
+        drive, "cliente_autorizado",
+        lambda credenciales: (_ for _ in ()).throw(AssertionError("no debe conectar")),
+    )
+    avisos = []
+    monkeypatch.setattr(coord.inicio, "avisar", avisos.append)
+
+    coord.inicio.traer_de_vuelta_pedido.emit(ruta)
+
+    assert avisos == ["Conecta Google Drive desde Configuración antes de continuar."]
 
 
 def test_abrir_desde_la_pantalla_esconde_la_pantalla(qtbot, tmp_path):
