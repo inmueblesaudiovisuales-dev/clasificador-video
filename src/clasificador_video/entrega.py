@@ -11,7 +11,7 @@ Cuatro estados nada más, en el orden en que pasan:
 - `CON_EDITOR` -- ya se subió; no se sabe si el editor contestó porque
   esa pregunta es siempre a petición de Bruno (nunca automática al abrir
   la app -- spec de interfaz, §4).
-- `EDITOR_CONTESTO` -- Bruno pidió revisar (el (r) de la lista, o el
+- `EDITOR_CONTESTO` -- Bruno pidió revisar (el ⟳ de la lista, o el
   diálogo de "Traer de vuelta") y Drive tenía algo nuevo.
 - `EN_REVISION` -- Bruno ya trajo el corte del editor y lo está
   revisando. Si sube una versión nueva vuelve a `CON_EDITOR`; cuando el

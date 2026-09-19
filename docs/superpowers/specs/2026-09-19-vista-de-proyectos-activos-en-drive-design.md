@@ -66,19 +66,28 @@ en Drive ahorita mismo, como cualquier otro de la lista general).
 
 ## 5. Qué hay en cada fila de "En edición externa"
 
-Solo entran proyectos con una entrega activa: `CON_EDITOR` o `EN_REVISION`
-(no `SIN_SUBIR`). Cada fila trae:
+Solo entran proyectos con una entrega activa: cualquier estado que no sea
+`SIN_SUBIR` (o sin entrega). Eso son tres casos posibles, no dos —
+`CON_EDITOR`, `EDITOR_CONTESTO` y `EN_REVISION`—, porque "el editor ya
+contestó" sigue siendo "activo": todavía no lo has traído. Cada fila trae:
 
 - Nombre del proyecto y su ruta (elidida igual que hoy, con `…`).
 - Cuándo se subió (`hace 2 días`, mismo formato que ya existe).
 - Una píldora de estado:
-  - **`● Con el editor`** (ámbar, `CURRENT_COLOR`) — botones: `⟳` (revisar
-    Drive, igual que hoy), `Traer de vuelta`, `Ya entregado`.
-  - **`◐ En revisión`** (azul, `TRIM_COLOR` — tono nuevo para este canal:
-    no es ni el ámbar de "esperando" ni el verde de "pick/contestó", y
-    `TRIM_COLOR` no se usaba ya para ninguna píldora) — un solo botón:
-    `Ya entregado`. No trae `⟳` ni `Traer de vuelta`: no hay nada nuevo que
-    revisar hasta que Bruno suba de nuevo desde dentro del proyecto.
+  - **`CON_EDITOR`** → `● Con el editor` (ámbar, `CURRENT_COLOR`).
+  - **`EDITOR_CONTESTO`** → `✓ El editor ya contestó` (verde, `PICK_COLOR`).
+    Mismo texto y color que ya pinta `_FilaReciente` hoy — no es una
+    píldora nueva, es la misma que ya existe, aquí también.
+  - **`EN_REVISION`** → `◐ En revisión` (azul, `TRIM_COLOR` — tono nuevo
+    para este canal: no es ni el ámbar de "esperando" ni el verde de
+    "contestó", y `TRIM_COLOR` no se usaba ya para ninguna píldora).
+
+  Los botones van por grupo, no por estado exacto:
+  - `CON_EDITOR` / `EDITOR_CONTESTO` → `⟳` (revisar Drive, igual que hoy),
+    `Traer de vuelta`, `Ya entregado`.
+  - `EN_REVISION` → un solo botón: `Ya entregado`. No trae `⟳` ni
+    `Traer de vuelta`: no hay nada nuevo que revisar hasta que Bruno suba
+    de nuevo desde dentro del proyecto.
 
 Apretar el nombre o la fila abre el proyecto normal, como en "Tus
 proyectos".
@@ -139,10 +148,10 @@ la lista.
   misma raíz que calcularía `_raiz_del_proyecto` con esos mismos bins en
   memoria.
 - **Filtro de la pestaña**: de una lista de proyectos con estados mezclados
-  (`SIN_SUBIR`, `CON_EDITOR`, `EN_REVISION`), que "En edición externa"
-  muestre solo los dos últimos.
-- **Botones por estado**: `CON_EDITOR` muestra los tres controles;
-  `EN_REVISION` solo "Ya entregado".
+  (`SIN_SUBIR`, `CON_EDITOR`, `EDITOR_CONTESTO`, `EN_REVISION`), que "En
+  edición externa" muestre los tres últimos y no el primero.
+- **Botones por estado**: `CON_EDITOR` y `EDITOR_CONTESTO` muestran los
+  tres controles; `EN_REVISION` solo "Ya entregado".
 - **Verificación visual real** (`CLAUDE.md`): construir la pantalla con
   datos de prueba en los tres estados (con activos, vacía, cuadro de
   confirmar), capturar con `grab()` y mirar el PNG.
