@@ -28,6 +28,40 @@ def test_carpeta_de_bin_desde_archivo_relativa_vacia_no_calza():
     assert revinculo.carpeta_de_bin_desde_archivo(archivo, "") is None
 
 
+def test_desplazamiento_con_un_tramo_comun():
+    viejo = Path("/Volumes/DiscoViejo/Rodaje X/Sony")
+    nuevo = Path("/Volumes/DiscoNuevo/Rodaje X copia/Sony")
+    assert revinculo.desplazamiento(viejo, nuevo) == (
+        Path("/Volumes/DiscoViejo/Rodaje X"), Path("/Volumes/DiscoNuevo/Rodaje X copia"))
+
+
+def test_desplazamiento_con_varios_tramos_comunes():
+    viejo = Path("/Volumes/DiscoViejo/Rodaje X/Camaras/Sony")
+    nuevo = Path("/Volumes/DiscoNuevo/Camaras/Sony")
+    assert revinculo.desplazamiento(viejo, nuevo) == (
+        Path("/Volumes/DiscoViejo/Rodaje X"), Path("/Volumes/DiscoNuevo"))
+
+
+def test_desplazamiento_sin_ningun_tramo_comun_es_none():
+    assert revinculo.desplazamiento(Path("/viejo/Sony"), Path("/nuevo/Camara")) is None
+
+
+def test_desplazamiento_identico_es_none():
+    igual = Path("/Volumes/Disco/Rodaje X/Sony")
+    assert revinculo.desplazamiento(igual, igual) is None
+
+
+def test_aplicar_desplazamiento_a_un_origen_que_calza():
+    assert revinculo.aplicar_desplazamiento(
+        Path("/viejo/Rodaje"), Path("/nuevo/Rodaje copia"), Path("/viejo/Rodaje/Dron")
+    ) == Path("/nuevo/Rodaje copia/Dron")
+
+
+def test_aplicar_desplazamiento_a_un_origen_que_no_calza():
+    assert revinculo.aplicar_desplazamiento(
+        Path("/viejo/Rodaje"), Path("/nuevo/Rodaje copia"), Path("/otro/Dron")) is None
+
+
 def test_NO_calza_un_tocayo_de_otro_tamano(tmp_path):
     """EL test de este plan. Un archivo con el nombre correcto y el
     contenido equivocado no se engancha. Es el caso de dos tarjetas de la

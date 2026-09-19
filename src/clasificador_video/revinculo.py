@@ -100,6 +100,28 @@ def carpeta_de_bin_desde_archivo(archivo: Path, relativa: str) -> Path | None:
     return carpeta
 
 
+def desplazamiento(origen_viejo: Path, origen_nuevo: Path) -> tuple[Path, Path] | None:
+    """Devuelve los prefijos viejo y nuevo que cambiaron."""
+    viejas, nuevas = origen_viejo.parts, origen_nuevo.parts
+    comunes = 0
+    tope = min(len(viejas), len(nuevas))
+    while comunes < tope and viejas[-(comunes + 1)] == nuevas[-(comunes + 1)]:
+        comunes += 1
+    if comunes == 0 or comunes >= len(viejas):
+        return None
+    return Path(*viejas[:-comunes]), Path(*nuevas[:-comunes])
+
+
+def aplicar_desplazamiento(prefijo_viejo: Path, prefijo_nuevo: Path,
+                           origen: Path) -> Path | None:
+    """Aplica a un origen el cambio de prefijo observado."""
+    try:
+        resto = origen.relative_to(prefijo_viejo)
+    except ValueError:
+        return None
+    return prefijo_nuevo / resto
+
+
 def buscar_bajo(carpeta: Path, relativa: str,
                 indice: dict[str, list[Path]] | None = None) -> Path | None:
     """Primero donde decia; si no, por nombre en todo el arbol.
