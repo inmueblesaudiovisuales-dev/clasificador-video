@@ -32,8 +32,19 @@ from PySide6.QtWidgets import (
 from clasificador_video import llave as mod_llave
 
 
+def _formatear_bytes(bytes_: int) -> str:
+    """`1.4 GB`, `240 MB`, `0 B`. Nunca decimales en B: no tienen sentido."""
+    valor = float(bytes_)
+    for unidad in ("B", "KB", "MB", "GB", "TB"):
+        if valor < 1024 or unidad == "TB":
+            return f"{int(valor)} {unidad}" if unidad == "B" else f"{valor:.1f} {unidad}"
+        valor /= 1024
+    return f"{valor:.1f} TB"  # inalcanzable, pero sin esto mypy se queja
+
+
 class PantallaConfig(QWidget):
-    """La llave de la guía de edición, y el modo económico."""
+    """La llave de la guía de edición, el modo económico, y las miniaturas
+    guardadas en disco."""
 
     llave_guardada = Signal(str)
     llave_borrada = Signal()
@@ -41,6 +52,7 @@ class PantallaConfig(QWidget):
     carpeta_premiere_guardada = Signal(Path)
     drive_conectado = Signal()
     drive_estado_cambiado = Signal(str)
+    miniaturas_borrar_pedido = Signal()
     cerrada = Signal()
 
     def __init__(self, parent=None):
@@ -137,6 +149,18 @@ class PantallaConfig(QWidget):
         economico_label.setWordWrap(True)
         raiz.addWidget(economico_label)
 
+        titulo_miniaturas = QLabel("Miniaturas guardadas")
+        titulo_miniaturas.setObjectName("configTitulo")
+        raiz.addWidget(titulo_miniaturas)
+        self.miniaturas_peso_label = QLabel("")
+        self.miniaturas_peso_label.setObjectName("configDonde")
+        self.miniaturas_peso_label.setWordWrap(True)
+        raiz.addWidget(self.miniaturas_peso_label)
+        self.miniaturas_borrar_button = QPushButton("Borrar miniaturas guardadas")
+        self.miniaturas_borrar_button.setObjectName("configBorrarMiniaturas")
+        self.miniaturas_borrar_button.clicked.connect(self.miniaturas_borrar_pedido.emit)
+        raiz.addWidget(self.miniaturas_borrar_button)
+
         titulo_premiere = QLabel("Proyectos de Premiere")
         titulo_premiere.setObjectName("configTitulo")
         raiz.addWidget(titulo_premiere)
@@ -159,6 +183,13 @@ class PantallaConfig(QWidget):
 
         raiz.addStretch(1)
         self.cargar("")
+
+    def mostrar_peso_de_miniaturas(self, bytes_: int) -> None:
+        """Lo que ocupan en disco ahora mismo. Sin ninguna significa que ya
+        se acaban de borrar, o que no se ha generado ninguna todavia --
+        deshabilitar el boton en ese caso evita un «borrar» sobre la nada."""
+        self.miniaturas_peso_label.setText(f"Ocupan {_formatear_bytes(bytes_)} en tu disco.")
+        self.miniaturas_borrar_button.setEnabled(bytes_ > 0)
 
     def _al_elegir_carpeta_premiere(self) -> None:
         elegida = QFileDialog.getExistingDirectory(self, "Carpeta de proyectos de Premiere")

@@ -129,3 +129,31 @@ def test_elegir_carpeta_premiere_emite_la_señal(config_screen, monkeypatch, tmp
     config_screen.carpeta_premiere_button.click()
 
     assert recibido == [tmp_path]
+
+
+# --- miniaturas guardadas: peso y borrado -------------------------------
+
+
+def test_mostrar_peso_lo_escribe_en_palabras(config_screen):
+    config_screen.mostrar_peso_de_miniaturas(1_500_000_000)
+    assert "1.4 GB" in config_screen.miniaturas_peso_label.text()
+
+
+def test_sin_nada_que_borrar_el_boton_se_deshabilita(config_screen):
+    config_screen.mostrar_peso_de_miniaturas(0)
+    assert not config_screen.miniaturas_borrar_button.isEnabled()
+
+
+def test_con_algo_que_borrar_el_boton_se_habilita(config_screen):
+    config_screen.mostrar_peso_de_miniaturas(1024)
+    assert config_screen.miniaturas_borrar_button.isEnabled()
+
+
+def test_el_boton_de_borrar_emite_la_señal(config_screen):
+    disparo = []
+    config_screen.miniaturas_borrar_pedido.connect(lambda: disparo.append(1))
+    config_screen.mostrar_peso_de_miniaturas(1024)
+
+    config_screen.miniaturas_borrar_button.click()
+
+    assert disparo == [1]

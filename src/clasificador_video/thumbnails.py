@@ -116,6 +116,29 @@ def default_cache_root() -> Path:
     return Path.home() / ".cache" / "clasificador_video" / "thumbnails"
 
 
+def tamano_del_cache(cache_root: Path) -> int:
+    """Cuantos bytes ocupan las miniaturas guardadas, sumando todos los
+    archivos bajo `cache_root`. 0 si la carpeta no existe todavia -- una
+    instalacion nueva no ha generado ninguna."""
+    if not cache_root.exists():
+        return 0
+    return sum(
+        archivo.stat().st_size
+        for archivo in cache_root.rglob("*")
+        if archivo.is_file()
+    )
+
+
+def borrar_cache(cache_root: Path) -> None:
+    """Borra TODAS las miniaturas guardadas. Quien llama es responsable de
+    volver a pedirlas despues -- esto solo vacia el disco.
+
+    Silencioso si la carpeta ya no existe: borrar algo que no esta ahi no
+    es un error, es el estado al que se queria llegar."""
+    if cache_root.exists():
+        shutil.rmtree(cache_root)
+
+
 def cache_dir_for(video: Path, cache_root: Path, economico: bool = False) -> Path:
     """Directorio de cache estable para este clip especifico -- la key
     incluye tamaño y fecha de modificacion ademas de la ruta, asi que si

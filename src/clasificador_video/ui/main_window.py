@@ -58,10 +58,12 @@ from clasificador_video.proxy_match import (
 from clasificador_video.rooms import RoomSelection
 from clasificador_video.thumbnails import (
     MARCA_DE_COMPLETA,
+    borrar_cache,
     cache_dir_for,
     default_cache_root,
     extract_thumbnail,
     extract_thumbnail_strip,
+    tamano_del_cache,
     terminar_extracciones,
 )
 from clasificador_video.ui import theme
@@ -76,7 +78,7 @@ from clasificador_video.ui.aviso_de_media import (
 )
 from clasificador_video.ui import clip_sheet as clip_sheet_module
 from clasificador_video.ui.clip_sheet import SIN_BIN, ClipSheet, ClipThumbnail
-from clasificador_video.ui.pantalla_config import PantallaConfig
+from clasificador_video.ui.pantalla_config import PantallaConfig, _formatear_bytes
 from clasificador_video.ui.pantalla_guia import PantallaGuia
 from clasificador_video.ui.room_palette import RoomPalette
 from clasificador_video.ui.room_rail import RoomRail
@@ -828,6 +830,17 @@ class MainWindow(QWidget):
         # Los que hay que rehacer en cuanto termine lo que corre: pasa cuando
         # se enganchan los proxies a media extraccion y la fuente cambia.
         self._miniaturas_a_rehacer: set[int] = set()
+        # Los que YA entregaron una tira de verdad al menos una vez. Rehacer
+        # una desde el proxy despues de que el original ya la entrego es un
+        # ahorro de fondo, no trabajo nuevo que Bruno este esperando -- por
+        # eso un indice de aqui no vuelve a sumar a `_miniaturas_pendientes`
+        # aunque se le pida otra tira. Sin esto, reconectar un proxy con la
+        # tira del original todavia en cola dejaba el contador pegado en
+        # «0/229» horas: cada rehecho sumaba 1 pendiente y el original que
+        # acababa de terminar restaba 1, y la resta se cancelaba con la
+        # suma para CADA clip -- las tarjetas si se llenaban de foto, el
+        # numero no se movia nunca (reportado por Bruno el 2026-09-19).
+        self._miniaturas_entregadas: set[int] = set()
         self._proxy_generation = 0
         # indice -> generacion del sondeo que sigue siendo valido para ese
         # clip. Con bins, cada tanda toca un bin nada mas: el contador
@@ -2061,6 +2074,7 @@ class MainWindow(QWidget):
         # material y bloquearian la extraccion de los clips nuevos
         self._miniaturas_en_vuelo = {}
         self._miniaturas_a_rehacer = set()
+        self._miniaturas_entregadas = set()
         # y lo que sirve para reencontrar la media, por lo mismo: el peso y
         # la ruta relativa del clip 0 de ANTES describirian al clip 0 de
         # ahora, que es otro archivo. Abrir un proyecto los vuelve a poner
@@ -3840,6 +3854,7 @@ class MainWindow(QWidget):
         # la app cree que ya se le esta sacando.
         self._miniaturas_en_vuelo = _corrido(self._miniaturas_en_vuelo, fuera)
         self._miniaturas_a_rehacer = _corrido_set(self._miniaturas_a_rehacer, fuera)
+        self._miniaturas_entregadas = _corrido_set(self._miniaturas_entregadas, fuera)
         # y el conjunto de «este clip no tiene donde buscarse», que arrastra
         # indices de una revision a la siguiente
         self._sin_donde_buscar = _corrido_set(self._sin_donde_buscar, fuera)
@@ -4226,7 +4241,11 @@ class MainWindow(QWidget):
                     self._miniaturas_a_rehacer.add(index)
                 continue
             self._miniaturas_en_vuelo[index] = fuente
-            self._miniaturas_pendientes += 1
+            if index not in self._miniaturas_entregadas:
+                # si ya entrego una tira de verdad, esta extraccion es un
+                # rehecho de fondo (mas barato desde el proxy) y no trabajo
+                # nuevo que Bruno este esperando -- no vuelve a sumar.
+                self._miniaturas_pendientes += 1
             self._thread_pool.start(
                 _ThumbnailJob(generation, index, fuente, cache_dir, duration_seconds,
                               self._señales_de_trabajos, economico)
@@ -4240,6 +4259,14 @@ class MainWindow(QWidget):
         # para siempre y no se le volvia a pedir la tira nunca.
         vencida = generation != self._thumb_generation
         self._miniaturas_en_vuelo.pop(index, None)
+        # Se anota ANTES de disparar el rehecho de abajo: si no, ese rehecho
+        # --que solo baja el costo, no es trabajo nuevo-- se cuenta como
+        # pendiente otra vez y cancela el -1 de dos renglones mas abajo. Con
+        # un solo hilo (modo economico) eso le pasaba a los 229 clips de
+        # Bruno antes de que el contador dijera la verdad una sola vez.
+        ya_entregado = index in self._miniaturas_entregadas
+        if frames:
+            self._miniaturas_entregadas.add(index)
         if index in self._miniaturas_a_rehacer:
             self._miniaturas_a_rehacer.discard(index)
             # ahora si: con la fuente nueva, o con la tanda nueva, y sin
@@ -4247,8 +4274,9 @@ class MainWindow(QWidget):
             self._schedule_thumbnails([index])
         if vencida:
             return  # senal de una importacion ya descartada
-        self._miniaturas_pendientes = max(0, self._miniaturas_pendientes - 1)
-        self._refrescar_progreso()
+        if not ya_entregado:
+            self._miniaturas_pendientes = max(0, self._miniaturas_pendientes - 1)
+            self._refrescar_progreso()
         self._pintar_miniatura(index, frames)
 
     def _pintar_miniatura(self, index: int, frames: list[Path] | None) -> None:
@@ -4898,10 +4926,16 @@ class MainWindow(QWidget):
             self._pantalla_config.drive_conectado.connect(
                 lambda: setattr(self, "_drive_cliente", self._pantalla_config.cliente_drive)
             )
+            self._pantalla_config.miniaturas_borrar_pedido.connect(
+                self._al_pedir_borrar_miniaturas
+            )
             self._pantalla_config.cerrada.connect(self._pantalla_config.hide)
         # Se relee del disco cada vez que se abre y no se cachea: la llave
         # se puede haber puesto desde otra ventana de Clipify.
         self._pantalla_config.cargar(llave.leer(), preferencias.modo_economico())
+        self._pantalla_config.mostrar_peso_de_miniaturas(
+            tamano_del_cache(self._thumbnail_cache_root)
+        )
         self._pantalla_config.setGeometry(self.rect().adjusted(110, 80, -110, -80))
         self._pantalla_config.show()
         self._pantalla_config.raise_()
@@ -4911,6 +4945,31 @@ class MainWindow(QWidget):
 
     def borrar_llave(self) -> None:
         llave.borrar()
+
+    def _al_pedir_borrar_miniaturas(self) -> None:
+        """Borra TODAS las miniaturas guardadas y las vuelve a pedir.
+
+        No es una perdida real -- se regeneran solas, como la primera vez
+        que se abrio el material -- pero con 200+ clips eso son minutos, asi
+        que se confirma antes de tirarlas.
+        """
+        peso = _formatear_bytes(tamano_del_cache(self._thumbnail_cache_root))
+        respuesta = QMessageBox.question(
+            self, "Borrar miniaturas",
+            f"Vas a borrar {peso} de miniaturas guardadas. Se vuelven a "
+            "generar solas la próxima vez que se necesiten -- pero eso "
+            "tarda.\n\n¿Borrarlas?",
+        )
+        if respuesta != QMessageBox.StandardButton.Yes:
+            return
+        borrar_cache(self._thumbnail_cache_root)
+        self._pantalla_config.mostrar_peso_de_miniaturas(0)
+        # lo que hubiera en pantalla ya no tiene archivo detras: se pide
+        # todo de cero, igual que al abrir el proyecto por primera vez.
+        self._miniaturas_en_vuelo = {}
+        self._miniaturas_a_rehacer = set()
+        self._miniaturas_entregadas = set()
+        self._schedule_thumbnails()
 
     def _cambiar_modo_economico(self, activo: bool) -> None:
         """Se aplica de inmediato: no hace falta reabrir la app.

@@ -4797,6 +4797,110 @@ def test_una_senal_vencida_no_deja_al_clip_marcado_como_corriendo(qtbot, monkeyp
     assert 0 not in window._miniaturas_en_vuelo
 
 
+def test_reconectar_un_proxy_a_medio_extraer_no_congela_el_contador(qtbot, tmp_path):
+    """Reportado por Bruno el 2026-09-19: en modo economico -- un solo hilo
+    de miniaturas -- reconecto los proxies de una camara mientras sus 229
+    tiras originales seguian en cola. El contador se quedo en «0/229» horas,
+    aunque las tarjetas SI se iban llenando de foto una por una.
+
+    La causa: al reconectar el proxy, la tira que ya estaba en vuelo se
+    marca para «rehacerse» desde el proxy (mas barato). Cuando esa extraccion
+    del ORIGINAL de verdad termina y pinta la tarjeta, `_on_thumbnail_ready`
+    ve que toca rehacerla y agenda YA MISMO el trabajo del proxy -- que
+    suma 1 a pendientes -- y dos renglones despues resta 1 por la que acaba
+    de terminar. Suma y resta se cancelan: la tarjeta se llena, pero
+    «cuantas faltan» no se mueve ni un numero, para NINGUN clip que pase por
+    ahi. Con un solo hilo, esto le pasa a los 229 antes de que el contador
+    diga la verdad una sola vez.
+
+    Lo que tiene que pasar: una vez que un clip entrega una tira de verdad
+    --aunque venga del original y luego se calle para rehacerse mas barata--
+    ese clip ya no cuenta como pendiente nunca mas."""
+    window = _window_with_video(qtbot, cache_root=tmp_path / "cache")
+    original = tmp_path / "a.MP4"
+    original.write_bytes(b"contenido de prueba")
+    window.load_clips([Clip(orden=1, ruta=original, categoria_path=["Sony"], fps=30.0)])
+    window._clip_durations[0] = 4.0
+
+    window._schedule_thumbnails([0])
+    assert window._miniaturas_pendientes == 1
+    assert window._miniaturas_en_vuelo[0] == original
+
+    # se reconecta el proxy de esta camara MIENTRAS la tira del original
+    # sigue en cola (con un solo hilo, en 229 clips esto es la norma, no
+    # la excepcion)
+    proxy = tmp_path / "proxy_a.MP4"
+    window._proxy_candidatos[0] = proxy
+    window._schedule_thumbnails([0])
+    assert 0 in window._miniaturas_a_rehacer
+    assert window._miniaturas_pendientes == 1        # sigue habiendo UNA cosa pendiente
+
+    # ahora SI termina la extraccion del original -- una tira de verdad,
+    # no una parcial -- y `_on_thumbnail_ready` la recibe
+    frames_del_original = [tmp_path / "strip_00.jpg"]
+    window._on_thumbnail_ready(window._thumb_generation, 0, frames_del_original)
+
+    # la tarjeta ya tiene una foto de verdad: para el contador, este clip
+    # esta resuelto, sin importar que atras siga corriendo la version mas
+    # barata del proxy
+    assert window._miniaturas_pendientes == 0
+
+
+# --- borrar las miniaturas guardadas, desde Configuración ---------------
+
+
+def test_borrar_miniaturas_confirma_borra_y_las_vuelve_a_pedir(qtbot, monkeypatch, tmp_path):
+    from clasificador_video.thumbnails import cache_dir_for
+    cache_root = tmp_path / "cache"
+    clip_path = tmp_path / "a.MP4"
+    clip_path.write_bytes(b"contenido de prueba")
+    window = _window_with_video(qtbot, cache_root=cache_root)
+    window.load_clips([Clip(orden=1, ruta=clip_path, categoria_path=[], fps=30.0)])
+    window._clip_durations[0] = 4.0
+
+    cache_dir = cache_dir_for(clip_path, cache_root)
+    cache_dir.mkdir(parents=True)
+    (cache_dir / "strip_00.jpg").write_bytes(b"1234567890")
+
+    pedidas = []
+    monkeypatch.setattr(
+        "clasificador_video.ui.main_window.extract_thumbnail_strip",
+        lambda *a, **k: pedidas.append(1) or [],
+    )
+    monkeypatch.setattr(
+        "clasificador_video.ui.main_window.QMessageBox.question",
+        lambda *a, **k: QMessageBox.StandardButton.Yes,
+    )
+
+    window._abrir_configuracion()
+    assert "10 B" in window._pantalla_config.miniaturas_peso_label.text()
+
+    window._al_pedir_borrar_miniaturas()
+
+    assert not cache_dir.exists()
+    window._thread_pool.waitForDone(2000)
+    assert pedidas == [1]                            # se volvio a pedir de cero
+
+
+def test_no_confirmar_no_borra_nada(qtbot, monkeypatch, tmp_path):
+    from clasificador_video.thumbnails import cache_dir_for
+    cache_root = tmp_path / "cache"
+    clip_path = tmp_path / "a.MP4"
+    window = _window_with_video(qtbot, cache_root=cache_root)
+    cache_dir = cache_dir_for(clip_path, cache_root)
+    cache_dir.mkdir(parents=True)
+    (cache_dir / "strip_00.jpg").write_bytes(b"algo")
+
+    monkeypatch.setattr(
+        "clasificador_video.ui.main_window.QMessageBox.question",
+        lambda *a, **k: QMessageBox.StandardButton.No,
+    )
+
+    window._al_pedir_borrar_miniaturas()
+
+    assert cache_dir.exists()
+
+
 # --- lo que se corre (o se tira) al quitar un bin ----------------------
 
 

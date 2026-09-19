@@ -7,12 +7,14 @@ from clasificador_video import thumbnails
 from clasificador_video.thumbnails import (
     ANCHO_MINIATURA_ECONOMICO,
     MARCA_DE_COMPLETA,
+    borrar_cache,
     cache_dir_for,
     ruta_del_socket,
     build_strip_ipc_args,
     build_thumbnail_command,
     extract_thumbnail,
     extract_thumbnail_strip,
+    tamano_del_cache,
 )
 
 
@@ -363,3 +365,32 @@ def test_terminar_extracciones_apaga_el_mpv_que_su_hilo_no_alcanzo_a_apagar():
         if proc.poll() is None:
             proc.kill()
             proc.wait()
+
+
+def test_tamano_del_cache_suma_todos_los_archivos(tmp_path):
+    raiz = tmp_path / "thumbnails"
+    (raiz / "aaa").mkdir(parents=True)
+    (raiz / "aaa" / "strip_00.jpg").write_bytes(b"1234567890")
+    (raiz / "bbb").mkdir(parents=True)
+    (raiz / "bbb" / "strip_00.jpg").write_bytes(b"12345")
+
+    assert tamano_del_cache(raiz) == 15
+
+
+def test_tamano_del_cache_sin_carpeta_es_cero(tmp_path):
+    assert tamano_del_cache(tmp_path / "no-existe") == 0
+
+
+def test_borrar_cache_deja_la_carpeta_vacia(tmp_path):
+    raiz = tmp_path / "thumbnails"
+    (raiz / "aaa").mkdir(parents=True)
+    (raiz / "aaa" / "strip_00.jpg").write_bytes(b"hola")
+
+    borrar_cache(raiz)
+
+    assert not raiz.exists()
+    assert tamano_del_cache(raiz) == 0
+
+
+def test_borrar_cache_sin_carpeta_no_truena(tmp_path):
+    borrar_cache(tmp_path / "no-existe")  # no debe lanzar
