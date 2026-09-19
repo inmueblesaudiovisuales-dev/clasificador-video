@@ -4,15 +4,19 @@ Vive aparte de `proyecto.py` porque `proyecto.py` sabe la FORMA del
 documento entero y este módulo sabe solo esta pieza -- igual que
 `manifest.py` no sabe nada del `.cvproj`.
 
-Tres estados nada más, en el orden en que pasan:
+Cuatro estados nada más, en el orden en que pasan:
 
 - `SIN_SUBIR` -- nunca se subió nada (o es un proyecto de antes de esta
   función: no hay diferencia).
 - `CON_EDITOR` -- ya se subió; no se sabe si el editor contestó porque
   esa pregunta es siempre a petición de Bruno (nunca automática al abrir
   la app -- spec de interfaz, §4).
-- `EDITOR_CONTESTO` -- Bruno pidió revisar (el ⟳ de la lista, o el
+- `EDITOR_CONTESTO` -- Bruno pidió revisar (el (r) de la lista, o el
   diálogo de "Traer de vuelta") y Drive tenía algo nuevo.
+- `EN_REVISION` -- Bruno ya trajo el corte del editor y lo está
+  revisando. Si sube una versión nueva vuelve a `CON_EDITOR`; cuando el
+  cliente aprueba, Bruno marca "Ya entregado" y la entrega se limpia
+  (spec 2026-09-19).
 
 Sin Qt, sin red: esto solo carga y guarda el estado. Quien pregunta a
 Drive de verdad es `drive.py`.
@@ -27,6 +31,11 @@ class EstadoEntrega:
     SIN_SUBIR = "sin_subir"
     CON_EDITOR = "con_editor"
     EDITOR_CONTESTO = "editor_contesto"
+    # Traer de vuelta ya NO limpia la entrega (spec 2026-09-19): deja al
+    # proyecto aquí, esperando que Bruno decida si sube de nuevo o marca
+    # "Ya entregado". Antes de este estado, "Traer de vuelta" ponía
+    # `self._entrega = None` -- ver MainWindow._on_drive_traida_lista.
+    EN_REVISION = "en_revision"
 
     estado: str
     subido_en: str | None = None
