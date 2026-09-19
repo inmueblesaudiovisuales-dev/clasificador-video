@@ -17,6 +17,36 @@ def _clip(i, ruta):
     return Clip(orden=i + 1, ruta=Path(ruta), categoria_path=[], fps=30.0)
 
 
+def _bins_vacio():
+    return BinTree()
+
+
+def test_a_dict_incluye_entrega_none_por_defecto():
+    data = a_dict(
+        proyecto="Casa Reforma", rooms=[], clips=[], bins=_bins_vacio(),
+        tamanos={}, duraciones={}, rotaciones={},
+    )
+
+    assert data["entrega"] is None
+
+
+def test_a_dict_incluye_entrega_cuando_se_pasa():
+    entrega = {
+        "estado": "con_editor",
+        "subido_en": "2026-09-16T10:00:00",
+        "prproj_local": "/x/Casa Reforma.prproj",
+        "drive_folder_id": "abc123",
+        "drive_prproj_modificado_en": "2026-09-16T10:00:00",
+    }
+
+    data = a_dict(
+        proyecto="Casa Reforma", rooms=[], clips=[], bins=_bins_vacio(),
+        tamanos={}, duraciones={}, rotaciones={}, entrega=entrega,
+    )
+
+    assert data["entrega"] == entrega
+
+
 def test_la_ruta_relativa_se_calcula_contra_la_carpeta_del_bin():
     bins = BinTree()
     bins.agregar("Sony", Path("/Volumes/CARD_A/01. VIDEO CAMARA"), [0, 1])

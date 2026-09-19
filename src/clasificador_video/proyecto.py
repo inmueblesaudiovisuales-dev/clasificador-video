@@ -132,7 +132,8 @@ def a_dict(proyecto: str, rooms: list[str], clips: list, bins,
            agrupar_por_cuarto: bool = True,
            modo_horizontal: bool = False,
            carpeta_de_proxies: Path | None = None,
-           guia: dict | None = None) -> dict:
+           guia: dict | None = None,
+           entrega: dict | None = None) -> dict:
     """La forma del documento. **Puro: no toca disco.**
 
     Los pesos que salen de aqui son los que ya se sabian (`bytes_conocidos`,
@@ -190,6 +191,12 @@ def a_dict(proyecto: str, rooms: list[str], clips: list, bins,
         # spec). Sin ese dato habría que adivinarlo, y adivinar en silencio
         # es justo lo que esta app no hace.
         "guia": guia,
+        # El estado de la entrega a un editor externo (subir/traer por
+        # Drive). `None` es un proyecto que nunca la usó -- mismo criterio
+        # que `guia` y `carpeta_de_proxies`: los proyectos de antes de hoy
+        # abren igual que siempre. La forma exacta del dict la define
+        # `entrega.py` (EstadoEntrega.to_dict / de_dict).
+        "entrega": entrega,
     }
 
 
