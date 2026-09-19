@@ -28,7 +28,6 @@ from clasificador_video import (
     drive,
     ia,
     llave,
-    patron,
     preferencias,
     proxy_gen,
     proyecto,
@@ -2706,11 +2705,22 @@ class MainWindow(QWidget):
         self.reconectar_bin(nombre, carpeta_nueva)
         if origen_viejo is None:
             return
-        origenes = {n: self.bins.origen_de(n) for n in self.bins.nombres()
-                    if self.bins.origen_de(n) is not None and self._faltantes_de_bin(n)}
-        for otro, candidata in revinculo.carpetas_candidatas(
-                nombre, origen_viejo, carpeta_nueva, origenes).items():
+        # cada nombre se lee UNA vez -- origen_de recorre la lista de bins,
+        # y pedirlo dos veces por nombre era trabajo doble gratis.
+        origenes_de_todos = {n: self.bins.origen_de(n) for n in self.bins.nombres()}
+        origenes = {n: origen for n, origen in origenes_de_todos.items()
+                    if origen is not None and self._faltantes_de_bin(n)}
+        candidatas = revinculo.carpetas_candidatas(
+            nombre, origen_viejo, carpeta_nueva, origenes)
+        for otro, candidata in candidatas.items():
             self.reconectar_bin(otro, candidata)
+            # `reconectar_bin` recorre disco y corre un ffprobe por
+            # candidato EN ESTE HILO, bajo la premisa de que es una sola
+            # llamada por clic (ver su docstring). Con varios cuartos
+            # perdidos de golpe, esto encadena esas esperas -- procesar
+            # eventos entre una y otra deja que la ventana se siga
+            # repintando en vez de verse congelada de un jalón.
+            QApplication.processEvents()
 
     def _medir(self, archivos: list[Path],
                desde: int = 0) -> tuple[list[Clip], dict[str, dict]]:
@@ -5024,14 +5034,20 @@ class MainWindow(QWidget):
             self._pantalla_guia.clasificacion_pedida.connect(self.pedir_clasificacion)
             self._pantalla_guia.orden_aceptado.connect(self.aceptar_orden_de_la_guia)
             self._pantalla_guia.cerrada.connect(self._pantalla_guia.hide)
-            # La guia del proyecto ya esta en `guia_actual` desde que
-            # `restaurar_guia` corrio al abrir --pero la pantalla nace en
-            # blanco si nadie se la empuja. Sin esto, Bruno la veia vacia al
-            # reabrir un proyecto y volvia a apretar "Armar la guia",
-            # pagando una llamada por algo que ya tenia guardado.
-            if self.guia_actual is not None and self.guia_actual.ok:
-                self._pantalla_guia.mostrar_guia_aceptada(self.guia_actual.lista)
+        # `poner_cuartos_reales` SIEMPRE va primero: vacía las siete
+        # columnas para dejar la franja al día. Si se llamara después de
+        # `mostrar_guia_aceptada`, borraría el tablero que se acaba de
+        # restaurar -- exactamente el bug que dejaba la pantalla vacía la
+        # primera vez que se abría en la sesión, aunque el proyecto ya
+        # trajera una guía aceptada.
         self._pantalla_guia.poner_cuartos_reales(self.room_selection.active_rooms())
+        # La guia del proyecto ya esta en `guia_actual` desde que
+        # `restaurar_guia` corrio al abrir --pero la pantalla nace en
+        # blanco si nadie se la empuja. Sin esto, Bruno la veia vacia al
+        # reabrir un proyecto y volvia a apretar "Armar la guia",
+        # pagando una llamada por algo que ya tenia guardado.
+        if self.guia_actual is not None and self.guia_actual.ok:
+            self._pantalla_guia.mostrar_guia_aceptada(self.guia_actual.lista)
         self._pantalla_guia.setGeometry(self.rect().adjusted(80, 60, -80, -60))
         self._pantalla_guia.show()
         self._pantalla_guia.raise_()
@@ -5054,8 +5070,23 @@ class MainWindow(QWidget):
         )
 
     def _mostrar_guia(self, clasificacion) -> None:
-        if self._pantalla_guia is not None:
-            self._pantalla_guia.mostrar_clasificacion(clasificacion)
+        if self._pantalla_guia is None:
+            return
+        self._pantalla_guia.mostrar_clasificacion(clasificacion)
+        # DESDE QUE SE ENSEÑA, no desde que se acepta: si a Bruno le gusta
+        # el tablero como quedó y no aprieta «Usar este orden» --o cierra
+        # Clipify sin apretarlo-- la clasificación que acaba de costar una
+        # llamada a la API no se puede perder. Ya paso una vez (arreglado
+        # el 2026-09-19, y el rediseño del tablero lo volvió a romper el
+        # mismo día).
+        orden = self._pantalla_guia.orden_final()
+        if not orden:
+            return
+        self.guia_actual = logica_guia.Respuesta(
+            ok=True, lista=[logica_guia.Renglon(cuarto=c) for c in orden]
+        )
+        self._cuartos_de_la_guia = self.room_selection.active_rooms()
+        self._autosave()
 
     def aceptar_orden_de_la_guia(self, orden: list) -> None:
         """Ese guion pasa a mandar: el rail, la hoja y Premiere.
