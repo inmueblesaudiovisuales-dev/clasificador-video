@@ -33,11 +33,11 @@ const raiz = path.join(__dirname, "..");
 // preguntaba: la guia se arma en Clipify y sus casos viven ahora en
 // `tests/test_guia.py`.
 //
-// `marcaDron.js` es logica pura entera: pone y quita la marca [DRONE] del
-// nombre de un cuarto y decide si un cuarto cuenta como dron. Va antes que
-// `numeroDeCuarto.js` porque `esElMismoCuarto` usa su `sinMarcaDron`.
+// `marcaCamara.js` es logica pura entera: pone y quita las marcas de cámara
+// del nombre de un cuarto. Va antes que `numeroDeCuarto.js` porque
+// `esElMismoCuarto` usa su `sinMarcaDeCamara`.
 const ARCHIVOS = [
-  "js/marcaDron.js",
+  "js/marcaCamara.js",
   "js/estructura.js",
   "js/numeroDeCuarto.js",
   "js/avance.js",
@@ -57,7 +57,7 @@ for (const archivo of ARCHIVOS) {
 
 const pruebas = require("./numeroDeCuarto.pruebas.js");
 const casos = [].concat(
-  require("./marcaDron.pruebas.js")(contexto),
+  require("./marcaCamara.pruebas.js")(contexto),
   pruebas(contexto),
   pruebas.carpetas(contexto),
   require("./avance.pruebas.js")(contexto)

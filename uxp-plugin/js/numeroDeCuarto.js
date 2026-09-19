@@ -28,7 +28,7 @@ function sinNumero(nombre) {
 }
 
 // Si dos nombres de carpeta son el mismo cuarto, tengan el numero que
-// tengan Y la marca [DRONE] que tengan (marcaDron.js, spec 2026-09-18 §5):
+// tengan Y las marcas de cámara que tengan (marcaCamara.js, spec 2026-09-18 §5):
 // las dos son presentacion que el plugin le pone encima del nombre, y las
 // dos pueden cambiar de una pasada a otra sin que el cuarto sea otro.
 //
@@ -36,7 +36,7 @@ function sinNumero(nombre) {
 // minusculas ni quitar acentos. «Recamara 1» y «Recámara 1» son dos cuartos
 // distintos, igual que en la revision de la lista.
 function esElMismoCuarto(unNombre, otroNombre) {
-  return sinMarcaDron(sinNumero(unNombre)) === sinMarcaDron(sinNumero(otroNombre));
+  return sinMarcaDeCamara(sinNumero(unNombre)) === sinMarcaDeCamara(sinNumero(otroNombre));
 }
 
 // La CARPETA de un cuarto entre los items de «02. Clip», o null.
