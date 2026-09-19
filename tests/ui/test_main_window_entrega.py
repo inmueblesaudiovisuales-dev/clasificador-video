@@ -118,6 +118,40 @@ def test_traer_de_vuelta_baja_material_nuevo_desde_la_raiz_del_proyecto(
     }
 
 
+def test_subir_a_drive_sube_todos_los_clips_con_proxy_sin_importar_el_flag(
+    ventana, tmp_path, monkeypatch,
+):
+    from clasificador_video import drive
+    from clasificador_video.drive import ResultadoDeSubida
+
+    proxy_pick = tmp_path / "pick.mp4"
+    proxy_reject = tmp_path / "reject.mp4"
+    proxy_sin_marcar = tmp_path / "sin_marcar.mp4"
+    ventana.clips = [
+        Clip(orden=0, ruta=tmp_path / "a.mp4", categoria_path=[], fps=30.0,
+             flag="pick", ruta_proxy=proxy_pick),
+        Clip(orden=1, ruta=tmp_path / "b.mp4", categoria_path=[], fps=30.0,
+             flag="reject", ruta_proxy=proxy_reject),
+        Clip(orden=2, ruta=tmp_path / "c.mp4", categoria_path=[], fps=30.0,
+             flag="none", ruta_proxy=proxy_sin_marcar),
+    ]
+    ventana._drive_cliente = object()
+    trabajos = []
+    llamado = {}
+    monkeypatch.setattr(ventana._drive_pool, "start", trabajos.append)
+    monkeypatch.setattr(
+        drive, "subir_paquete",
+        lambda *args, **kwargs: (llamado.update(args=args), ResultadoDeSubida(
+            "folder-x", "link", "fecha"))[1],
+    )
+    monkeypatch.setattr(ventana, "_autosave", lambda: None)
+
+    ventana._subir_a_drive(tmp_path / "Casa Reforma.prproj")
+    trabajos.pop().run()
+
+    assert set(llamado["args"][3]) == {proxy_pick, proxy_reject, proxy_sin_marcar}
+
+
 def test_subir_a_drive_encola_el_trabajo_y_reusa_la_carpeta(ventana, tmp_path, monkeypatch):
     from clasificador_video import drive
     from clasificador_video.drive import ResultadoDeSubida

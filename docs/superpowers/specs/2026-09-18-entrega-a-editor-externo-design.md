@@ -140,9 +140,16 @@ de Clipify es exclusivamente subir y bajar archivos de Google Drive.
    proxies (ya con el tamaño real, §2).
 2. Bruno abre Premiere y usa el plugin de Clipify para armar el .prproj,
    con sus clips en 4K -- exactamente como ya lo hace hoy.
-3. De vuelta en Clipify, botón "Subir a Drive": empaqueta los proxies de
-   los clips elegidos (no la carpeta completa) + el .prproj, los sube a
-   la cuenta de Drive DE BRUNO, y da el link de esa carpeta.
+3. De vuelta en Clipify, botón "Subir a Drive": empaqueta el proxy de
+   **todos** los clips que ya tienen uno generado (sin filtrar por
+   pick/reject/sin marcar -- el editor corta con el material completo,
+   no solo lo que Bruno ya filtró) + el .prproj, los sube a la cuenta de
+   Drive DE BRUNO, y da el link de esa carpeta.
+   *(Aclarado el 2026-09-19: la primera implementación había filtrado
+   solo los picks, sin que esta spec lo pidiera -- ambigüedad de "los
+   clips elegidos" arriba, leída como "los marcados", no como "los que
+   ya tienen proxy". Bruno lo corrigió al notar que subía 0 clips en un
+   proyecto sin nada marcado todavía.)*
 4. Bruno le pasa el link al editor por donde sea (WhatsApp, correo). El
    editor -- que NUNCA tiene Clipify -- descarga, abre el .prproj en su
    propio Premiere, y Premiere le pide relink porque las rutas de su

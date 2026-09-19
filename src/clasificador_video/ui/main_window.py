@@ -3057,7 +3057,7 @@ class MainWindow(QWidget):
 
     def _preguntar_por_el_prproj(self, candidatos: list[Path]) -> Path | None:
         """Muestra la ruta que se va a subir y deja cambiarla antes de actuar."""
-        picks = [clip for clip in self.clips if clip.flag == "pick"]
+        con_proxy = [clip for clip in self.clips if clip.ruta_proxy is not None]
         cuadro = QMessageBox(self)
         cuadro.setWindowTitle("Subir a Drive")
         if candidatos:
@@ -3071,7 +3071,7 @@ class MainWindow(QWidget):
             propuesta = None
             cuadro.setText("No se encontró un .prproj con este folio.")
         cuadro.setInformativeText(
-            f"Clips a subir (picks): {len(picks)} de {len(self.clips)}\n"
+            f"Clips a subir: {len(con_proxy)} de {len(self.clips)}\n"
             "Se sube a: Google Drive de Bruno"
         )
         subir = cuadro.addButton("Subir", QMessageBox.ButtonRole.AcceptRole)
@@ -3089,10 +3089,12 @@ class MainWindow(QWidget):
         return propuesta if clickeado is subir else None
 
     def _subir_a_drive(self, prproj: Path) -> None:
-        """Encola la subida del proyecto y los proxies de los picks."""
+        """Encola la subida del proyecto y los proxies de TODOS los clips
+        que ya tienen uno generado -- sin filtrar por pick/reject: el
+        editor externo corta con el material completo, no solo lo que
+        Bruno ya filtró."""
         cliente = self._cliente_de_drive()
-        proxies = [clip.ruta_proxy for clip in self.clips
-                   if clip.flag == "pick" and clip.ruta_proxy is not None]
+        proxies = [clip.ruta_proxy for clip in self.clips if clip.ruta_proxy is not None]
         carpeta_existente = self._entrega.drive_folder_id if self._entrega is not None else None
         self._prproj_subiendo = prproj
         self.title_bar.set_subiendo(0)
