@@ -51,6 +51,24 @@ def test_desplazamiento_identico_es_none():
     assert revinculo.desplazamiento(igual, igual) is None
 
 
+def test_desplazamiento_ignora_mayusculas_en_el_tramo_comun():
+    # macOS es insensible a mayusculas en disco: "Sony" y "SONY" son la
+    # misma carpeta, y compararlas con == a secas dejaba de encontrar el
+    # tramo comun -- justo el caso donde mas hace falta adivinar bien.
+    viejo = Path("/Volumes/DiscoViejo/Rodaje X/Sony")
+    nuevo = Path("/Volumes/DiscoNuevo/Rodaje X copia/SONY")
+    assert revinculo.desplazamiento(viejo, nuevo) == (
+        Path("/Volumes/DiscoViejo/Rodaje X"), Path("/Volumes/DiscoNuevo/Rodaje X copia"))
+
+
+def test_desplazamiento_donde_el_tramo_comun_consume_la_ruta_nueva_entera_es_none():
+    # la ruta nueva quedo COMPLETA adentro del tramo comun: no sobra
+    # ningun prefijo "nuevo" que reportar.
+    viejo = Path("/Volumes/DiscoViejo/Rodaje X/Camaras/Sony")
+    nuevo = Path("Camaras/Sony")
+    assert revinculo.desplazamiento(viejo, nuevo) is None
+
+
 def test_aplicar_desplazamiento_a_un_origen_que_calza():
     assert revinculo.aplicar_desplazamiento(
         Path("/viejo/Rodaje"), Path("/nuevo/Rodaje copia"), Path("/viejo/Rodaje/Dron")

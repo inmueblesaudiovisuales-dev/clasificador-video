@@ -101,13 +101,27 @@ def carpeta_de_bin_desde_archivo(archivo: Path, relativa: str) -> Path | None:
 
 
 def desplazamiento(origen_viejo: Path, origen_nuevo: Path) -> tuple[Path, Path] | None:
-    """Devuelve los prefijos viejo y nuevo que cambiaron."""
+    """Devuelve los prefijos viejo y nuevo que cambiaron.
+
+    Compara por `.casefold()` -- igual que `indice_de_nombres` y
+    `clip_del_archivo_elegido` en este mismo archivo -- porque macOS es
+    insensible a mayúsculas en disco: una carpeta `Sony` y otra `SONY` son
+    la misma carpeta, y compararlas con `==` a secas dejaba de encontrar
+    el tramo común (y por lo tanto de adivinar los demás cuartos) por una
+    diferencia que al sistema de archivos no le importa.
+    """
     viejas, nuevas = origen_viejo.parts, origen_nuevo.parts
+    viejas_cf = [p.casefold() for p in viejas]
+    nuevas_cf = [p.casefold() for p in nuevas]
     comunes = 0
     tope = min(len(viejas), len(nuevas))
-    while comunes < tope and viejas[-(comunes + 1)] == nuevas[-(comunes + 1)]:
+    while comunes < tope and viejas_cf[-(comunes + 1)] == nuevas_cf[-(comunes + 1)]:
         comunes += 1
-    if comunes == 0 or comunes >= len(viejas):
+    # `comunes >= len(viejas)` y `comunes >= len(nuevas)` son casos donde
+    # una de las dos rutas queda ENTERA adentro del tramo común -- no
+    # sobra ningun prefijo que reportar como "lo que cambió", y devolver
+    # `Path()` ahí daría un prefijo vacío sin sentido.
+    if comunes == 0 or comunes >= len(viejas) or comunes >= len(nuevas):
         return None
     return Path(*viejas[:-comunes]), Path(*nuevas[:-comunes])
 
