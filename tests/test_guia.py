@@ -1,3 +1,5 @@
+import json
+
 from clasificador_video import guia
 
 
@@ -30,3 +32,30 @@ def test_cuerpo_de_clasificacion_arma_el_mensaje():
     assert cuerpo["model"] == guia.MODELO
     assert cuerpo["messages"][0]["role"] == "system"
     assert "Sala" in cuerpo["messages"][0]["content"]
+
+
+def test_leer_clasificacion_ok():
+    crudo = json.dumps({"clasificacion": [
+        {"cuarto": "Sala", "columna": "sociales"},
+        {"cuarto": "Dron", "columna": "apertura"}]})
+    r = guia.leer_clasificacion(crudo, ["Sala", "Dron"])
+    assert r.ok and r.columna_de == {"Sala": "sociales", "Dron": "apertura"}
+
+
+def test_leer_clasificacion_ignora_datos_invalidos_y_repetidos():
+    crudo = json.dumps({"clasificacion": [
+        {"cuarto": "Sala", "columna": "sociales"},
+        {"cuarto": "Inventado", "columna": "sociales"},
+        {"cuarto": "Sala", "columna": "amenidades"},
+        {"cuarto": "Cocina", "columna": "inexistente"}]})
+    r = guia.leer_clasificacion(crudo, ["Sala", "Cocina"])
+    assert r.ok and r.columna_de == {"Sala": "sociales"}
+
+
+def test_leer_clasificacion_respuesta_vacia():
+    r = guia.leer_clasificacion(None, ["Sala"])
+    assert not r.ok and r.error
+
+
+def test_leer_clasificacion_texto_no_json():
+    assert not guia.leer_clasificacion("no traigo json", ["Sala"]).ok

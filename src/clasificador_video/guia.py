@@ -61,6 +61,37 @@ def cuerpo_de_clasificacion(cuartos: list[str]) -> dict:
 
 
 @dataclass
+class Clasificacion:
+    ok: bool
+    columna_de: dict[str, str] = field(default_factory=dict)
+    error: str = ""
+
+
+def leer_clasificacion(texto: str | None, cuartos_reales: list[str]) -> Clasificacion:
+    crudo = ("" if texto is None else str(texto)).strip()
+    if not crudo:
+        return Clasificacion(False, error="El modelo no contestó nada.")
+    recorte = _recortar_json(crudo)
+    if not recorte:
+        return Clasificacion(False, error="El modelo contestó con texto.")
+    try:
+        datos = json.loads(recorte)
+    except (json.JSONDecodeError, ValueError):
+        return Clasificacion(False, error="La respuesta no se pudo leer.")
+    if not isinstance(datos, dict) or not isinstance(datos.get("clasificacion"), list):
+        return Clasificacion(False, error="La respuesta llegó con otra forma.")
+    reales = set(cuartos_reales or [])
+    columna_de = {}
+    for renglon in datos["clasificacion"]:
+        if not isinstance(renglon, dict):
+            continue
+        cuarto, columna = renglon.get("cuarto"), renglon.get("columna")
+        if cuarto in reales and columna in IDS_DE_COLUMNA:
+            columna_de.setdefault(cuarto, columna)
+    return Clasificacion(True, columna_de)
+
+
+@dataclass
 class Renglon:
     cuarto: str
     porque: str = ""
