@@ -2920,6 +2920,21 @@ class MainWindow(QWidget):
                    if 0 <= i < len(self.clips)]
         return self.clips[indices[0]].ruta.parent if indices else None
 
+    def _raiz_del_proyecto(self) -> Path | None:
+        """La raíz del proyecto que contiene las carpetas de assets.
+
+        Se deduce del origen de cualquier bin. Si no hay bins o su material
+        no cuelga de esa estructura, no hay una raíz confiable.
+        """
+        for nombre in self.bins.nombres():
+            origen = self.bins.origen_de(nombre)
+            if origen is None:
+                continue
+            for ancestro in [origen, *origen.parents]:
+                if ancestro.name.lower().endswith("assets video"):
+                    return ancestro.parent
+        return None
+
     def _preguntar_por_la_carpeta_de_proxies(self, propuesta: Path) -> Path:
         """La pregunta, con la respuesta YA puesta.
 
@@ -2977,22 +2992,7 @@ class MainWindow(QWidget):
 
     def _al_refrescar_entrega(self, ruta_proyecto: Path) -> None:
         """Revisa en Drive solo el proyecto pedido desde la lista."""
-        from clasificador_video.entrega import EstadoEntrega
-
-        try:
-            data = json.loads(ruta_proyecto.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
-            return
-        estado = EstadoEntrega.de_dict(data.get("entrega"))
-        if estado is None or estado.drive_folder_id is None:
-            return
-        resultado = drive.revisar_cambios(
-            self._cliente_de_drive(), estado.drive_folder_id,
-            estado.drive_prproj_modificado_en)
-        if resultado.hay_cambios or resultado.tiene_material_nuevo:
-            nuevo_estado = replace(estado, estado=EstadoEntrega.EDITOR_CONTESTO)
-            data["entrega"] = nuevo_estado.to_dict()
-            proyecto.guardar(ruta_proyecto, data)
+        drive.revisar_y_persistir(ruta_proyecto, self._cliente_de_drive())
 
     def _al_pedir_subir_a_drive(self) -> None:
         raiz = preferencias.carpeta_de_proyectos_premiere()
@@ -3094,10 +3094,17 @@ class MainWindow(QWidget):
         return cuadro.clickedButton() is traer
 
     def _traer_de_vuelta(self, estado, cliente) -> None:
-        """Reemplaza el `.prproj` local y cierra esta ronda de entrega."""
+        """Trae el `.prproj`, el material nuevo y cierra esta entrega."""
         if estado.prproj_local is None or estado.drive_folder_id is None:
             return
         drive.traer_prproj(cliente, estado.drive_folder_id, Path(estado.prproj_local))
+        raiz = self._raiz_del_proyecto()
+        if raiz is not None:
+            destinos = {
+                categoria: raiz / ruta
+                for categoria, ruta in drive.mapa_de_categorias_de_material_nuevo().items()
+            }
+            drive.traer_material_nuevo(cliente, estado.drive_folder_id, destinos)
         self._entrega = None
         self.title_bar.set_estado_de_entrega(None)
         self._autosave()

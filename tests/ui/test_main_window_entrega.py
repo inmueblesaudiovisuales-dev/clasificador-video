@@ -84,7 +84,38 @@ def test_revisar_cambios_marca_que_el_editor_contesto(ventana, monkeypatch):
     assert ventana._entrega.estado == EstadoEntrega.EDITOR_CONTESTO
 
 
+def test_traer_de_vuelta_baja_material_nuevo_desde_la_raiz_del_proyecto(
+        ventana, tmp_path, monkeypatch):
+    from clasificador_video import drive
+    from clasificador_video.entrega import EstadoEntrega
+
+    estado = EstadoEntrega(
+        EstadoEntrega.EDITOR_CONTESTO,
+        prproj_local=str(tmp_path / "Casa Reforma.prproj"),
+        drive_folder_id="folder-x",
+    )
+    llamado = {}
+    monkeypatch.setattr(drive, "traer_prproj", lambda *args: None)
+    monkeypatch.setattr(ventana, "_raiz_del_proyecto", lambda: tmp_path)
+    monkeypatch.setattr(
+        drive, "traer_material_nuevo",
+        lambda cliente, carpeta_id, destinos: llamado.update(
+            cliente=cliente, carpeta_id=carpeta_id, destinos=destinos),
+    )
+    monkeypatch.setattr(ventana, "_autosave", lambda: None)
+
+    ventana._traer_de_vuelta(estado, object())
+
+    assert llamado["carpeta_id"] == "folder-x"
+    assert llamado["destinos"] == {
+        "musica y audio": tmp_path / "01. ASSETS VIDEO" / "05. MUSICA Y AUDIO",
+        "fotos": tmp_path / "03. ASSETS PHOTOS",
+        "graficos y branding": tmp_path / "06. GRAFICOS Y BRANDING",
+    }
+
+
 def test_refrescar_actualiza_el_cvproj_cuando_hay_cambios(ventana, tmp_path, monkeypatch):
+    from clasificador_video import drive
     from clasificador_video.entrega import EstadoEntrega
 
     ruta = tmp_path / "Casa Reforma.cvproj"
@@ -94,15 +125,18 @@ def test_refrescar_actualiza_el_cvproj_cuando_hay_cambios(ventana, tmp_path, mon
     ).to_dict()}
     ruta.write_text(json.dumps(data))
 
-    class _ClienteFalso:
-        def listar_en_carpeta(self, carpeta_id):
-            class _A:
-                name = "Casa Reforma.prproj"
-                modified_time = "2026-09-18T12:00:00Z"
-                mime_type = "video/mp4"
-            return [_A()]
+    cliente = object()
 
-    monkeypatch.setattr(ventana, "_cliente_de_drive", lambda: _ClienteFalso())
+    def persistir(ruta_recibida, cliente_recibido):
+        assert ruta_recibida == ruta
+        assert cliente_recibido is cliente
+        guardado = json.loads(ruta.read_text())
+        guardado["entrega"]["estado"] = EstadoEntrega.EDITOR_CONTESTO
+        ruta.write_text(json.dumps(guardado))
+        return True
+
+    monkeypatch.setattr(ventana, "_cliente_de_drive", lambda: cliente)
+    monkeypatch.setattr(drive, "revisar_y_persistir", persistir)
 
     ventana._al_refrescar_entrega(ruta)
 
