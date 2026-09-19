@@ -119,7 +119,18 @@ Bruno no necesita abrir cada uno para saber cuál tiene algo esperando —lee
 la lista una vez y decide dónde entrar—, y ningún proyecto sin entrega
 activa cambia su fila ni un pixel.
 
-## 5. Qué NO cambia
+## 5. Proxies viejos en 720p (hueco que dejó la spec original)
+
+La spec original (§2) no dice qué pasa con los proxies que ya existen de
+antes del cambio, generados en 720p. Decisión de esta sesión: **no se
+toca nada de forma especial.** Un proxy viejo en 720p sigue sirviendo para
+ver y clasificar en Clipify exactamente igual que hoy — el problema del
+encuadre torcido (§2 de la spec original) solo aparece cuando ESE proxy
+viaja a un editor externo que reencuadra sobre él. Regenerarlo es una
+decisión manual de Bruno (borrar el proxy viejo y dejar que la app lo
+vuelva a generar), no algo que la app fuerce ni ofrezca de forma especial.
+
+## 6. Qué NO cambia
 
 - El resto de `title_bar.py`, `pantalla_inicio.py` y el flujo de
   clasificación/hoja/clip quedan intactos — esto se **suma**, no
@@ -130,7 +141,7 @@ activa cambia su fila ni un pixel.
 - El plugin de Premiere no se toca por esta sesión — la entrega a Drive es
   pura interfaz de Clipify.
 
-## 6. Cómo se comprueba
+## 7. Cómo se comprueba
 
 - **Búsqueda por folio**: con una carpeta raíz de prueba y varios
   `.prproj` (un folio único, un folio con dos versiones, ningún folio
@@ -148,7 +159,7 @@ activa cambia su fila ni un pixel.
   prueba de arriba, capturar con `grab()` y mirar el PNG antes de decir
   que se ve bien.
 
-## 7. Maquetas de esta sesión
+## 8. Maquetas de esta sesión
 
 Guardadas en
 `.superpowers/brainstorm/4495-1789793393/content/` (no se copian al
@@ -159,7 +170,7 @@ repo — son de trabajo, la fuente de verdad queda en este documento):
 - `lista-proyectos.html` — la lista de inicio con las píldoras.
 - `dialogo-traer.html` — el diálogo de traer de vuelta.
 
-## 8. Estado
+## 9. Estado
 
 **Diseñado con Bruno el 2026-09-18, con maquetas revisadas en navegador,
 sin tocar código.** Sigue el plan de implementación
