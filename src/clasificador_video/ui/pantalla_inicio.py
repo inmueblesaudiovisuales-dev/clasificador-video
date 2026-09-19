@@ -29,6 +29,7 @@ from PySide6.QtWidgets import (
 )
 
 from clasificador_video import __version__
+from clasificador_video.ui.segmented import SegmentedControl
 from clasificador_video.ui.text import ElidedLabel
 
 FILA_ALTO = 54          # dos renglones cortos, del alto de una fila de lista
@@ -272,12 +273,15 @@ class PantallaInicio(QWidget):
     abrir_otro_pedido = Signal()
     quitar_pedido = Signal(Path)
     refrescar_pedido = Signal(Path)
+    traer_de_vuelta_pedido = Signal(Path)
+    ya_entregado_pedido = Signal(Path)
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setObjectName("pantallaInicio")
         self.setAttribute(Qt.WA_StyledBackground, True)
         self.filas: list[_FilaReciente] = []
+        self.filas_activas: list[_FilaActiva] = []
 
         raiz = QVBoxLayout(self)
         raiz.setContentsMargins(MARGEN, MARGEN, MARGEN, MARGEN)
@@ -296,6 +300,12 @@ class PantallaInicio(QWidget):
         self.aviso.setWordWrap(True)
         self.aviso.hide()
         raiz.addWidget(self.aviso)
+
+        self.switch = SegmentedControl(
+            ["Tus proyectos", "En edición externa"], object_name="inicioSwitch"
+        )
+        self.switch.selected.connect(self._al_cambiar_pestaña)
+        raiz.addWidget(self.switch)
 
         self.lista_host = QWidget()
         self.lista = QVBoxLayout(self.lista_host)
@@ -319,6 +329,27 @@ class PantallaInicio(QWidget):
         vacio_caja.addWidget(self.vacio_titulo)
         vacio_caja.addWidget(self.vacio_hint)
         raiz.addWidget(self.vacio)
+
+        self.activos_host = QWidget()
+        self.activos_lista = QVBoxLayout(self.activos_host)
+        self.activos_lista.setContentsMargins(0, 0, 0, 0)
+        self.activos_lista.setSpacing(6)
+        raiz.addWidget(self.activos_host)
+
+        self.activos_vacio = QWidget()
+        self.activos_vacio.setObjectName("inicioVacio")
+        activos_vacio_caja = QVBoxLayout(self.activos_vacio)
+        activos_vacio_caja.setContentsMargins(0, 10, 0, 10)
+        activos_vacio_caja.setSpacing(4)
+        activos_vacio_titulo = QLabel("No tienes proyectos en edición externa")
+        activos_vacio_titulo.setObjectName("inicioVacioTitulo")
+        activos_vacio_hint = QLabel(
+            "Los que subas a Drive para un editor van a aparecer aquí."
+        )
+        activos_vacio_hint.setObjectName("inicioVacioHint")
+        activos_vacio_caja.addWidget(activos_vacio_titulo)
+        activos_vacio_caja.addWidget(activos_vacio_hint)
+        raiz.addWidget(self.activos_vacio)
 
         raiz.addStretch(1)
 
@@ -356,6 +387,13 @@ class PantallaInicio(QWidget):
             fila.setParent(None)
             fila.deleteLater()
         self.filas = []
+        for fila in self.filas_activas:
+            fila.hide()
+            fila.setParent(None)
+            fila.deleteLater()
+        self.filas_activas = []
+        from clasificador_video.entrega import EstadoEntrega
+
         for entrada in entradas:
             fila = _FilaReciente(entrada, self.lista_host)
             # `abrir_pedido` de la fila y no su `clicked`: la fila decide si
@@ -368,8 +406,27 @@ class PantallaInicio(QWidget):
             fila.set_estado_de_entrega(estado, cuando)
             self.lista.addWidget(fila)
             self.filas.append(fila)
-        self.lista_host.setVisible(bool(entradas))
-        self.vacio.setVisible(not entradas)
+
+            if estado is not None and estado != EstadoEntrega.SIN_SUBIR:
+                fila_activa = _FilaActiva(entrada, estado, cuando, self.activos_host)
+                fila_activa.abrir_pedido.connect(self.abrir_pedido.emit)
+                fila_activa.refrescar_pedido.connect(self.refrescar_pedido.emit)
+                fila_activa.traer_de_vuelta_pedido.connect(self.traer_de_vuelta_pedido.emit)
+                fila_activa.ya_entregado_pedido.connect(self.ya_entregado_pedido.emit)
+                self.activos_lista.addWidget(fila_activa)
+                self.filas_activas.append(fila_activa)
+
+        self._actualizar_visibilidad()
+
+    def _al_cambiar_pestaña(self, _texto: str) -> None:
+        self._actualizar_visibilidad()
+
+    def _actualizar_visibilidad(self) -> None:
+        en_activos = self.switch.current() == "En edición externa"
+        self.lista_host.setVisible(not en_activos and bool(self.filas))
+        self.vacio.setVisible(not en_activos and not self.filas)
+        self.activos_host.setVisible(en_activos and bool(self.filas_activas))
+        self.activos_vacio.setVisible(en_activos and not self.filas_activas)
 
     @staticmethod
     def _estado_de_entrega_de(entrada) -> tuple[str | None, str]:
@@ -400,6 +457,9 @@ class PantallaInicio(QWidget):
 
     def nombres_visibles(self) -> list[str]:
         return [f.entrada.nombre for f in self.filas]
+
+    def nombres_activos_visibles(self) -> list[str]:
+        return [f.entrada.nombre for f in self.filas_activas]
 
 
 def _hace_cuanto(fecha: str | None) -> str:
