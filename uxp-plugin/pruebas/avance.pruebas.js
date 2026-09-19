@@ -1,11 +1,7 @@
 // Los casos del avance: que pasos ya montaste. Logica pura, sin disco:
 // corren con `node uxp-plugin/pruebas/correr.js`.
 module.exports = function (ctx) {
-  const guion = [
-    { cuarto: "Aerea" },
-    { cuarto: "Sala" },
-    { cuarto: "Aerea" },
-  ];
+  const guion = ["Aerea", "Sala", "Aerea"];
   return [
     {
       nombre: "sin nada montado, el avance esta vacio",

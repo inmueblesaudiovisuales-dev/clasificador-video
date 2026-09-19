@@ -18,8 +18,8 @@
 // Un N fuera de rango (0, negativo, o mas grande que el guion) tambien da
 // null: asi conPaso() no agrega nada para un paso que no existe.
 function cuartoDelPaso(guion, paso) {
-  const renglon = (guion || [])[paso - 1];
-  return (renglon && renglon.cuarto) || null;
+  const cuarto = (guion || [])[paso - 1];
+  return cuarto || null;
 }
 
 // Las palomitas que siguen valiendo con el guion de ahora.
