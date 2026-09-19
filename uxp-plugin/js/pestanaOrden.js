@@ -67,18 +67,11 @@ function dibujarGuia(hoja, guia, avance) {
   const cuerpo = document.createElement("div");
   cuerpo.className = "guia-cuerpo";
 
-  if (guia.recorrido) {
-    const parrafo = document.createElement("p");
-    parrafo.className = "guia-recorrido";
-    parrafo.textContent = guia.recorrido;
-    cuerpo.appendChild(parrafo);
-  }
-
   const actual = pasoActual(avance, guion);
   const vistos = {};
   for (let i = 1; i <= guion.length; i++) {
     cuerpo.appendChild(dibujarPaso(guion[i - 1], i, avance, actual, vistos));
-    vistos[guion[i - 1].cuarto] = true;
+    vistos[guion[i - 1]] = true;
   }
   hoja.appendChild(cuerpo);
 }
@@ -98,7 +91,7 @@ function dibujarEncabezado(guion, avance) {
   grande.textContent =
     actual === null
       ? "Montaste todo"
-      : "Paso " + actual + " · " + guion[actual - 1].cuarto;
+      : "Paso " + actual + " · " + guion[actual - 1];
   cab.appendChild(grande);
 
   const cuenta = document.createElement("div");
@@ -113,7 +106,7 @@ function dibujarEncabezado(guion, avance) {
   return cab;
 }
 
-function dibujarPaso(renglon, numero, avance, actual, vistos) {
+function dibujarPaso(cuarto, numero, avance, actual, vistos) {
   const montado = estaMontado(avance, numero);
 
   const fila = document.createElement("div");
@@ -135,27 +128,16 @@ function dibujarPaso(renglon, numero, avance, actual, vistos) {
 
   const nombre = document.createElement("span");
   nombre.className = "guia-cuarto";
-  nombre.textContent = renglon.cuarto;
+  nombre.textContent = cuarto;
   fila.appendChild(nombre);
 
-  if (vistos[renglon.cuarto]) {
+  if (vistos[cuarto]) {
     // SOLO de la segunda vez en adelante: marcar la primera diria que algo
     // pasa con ella, y no pasa nada.
     const otra = document.createElement("span");
     otra.className = "guia-otravez";
     otra.textContent = "otra vez";
     fila.appendChild(otra);
-  }
-
-  // Un paso montado esconde su razon: ya no hace falta y le roba espacio al
-  // que sigue.
-  if (renglon.porque && !montado) {
-    const porque = document.createElement("span");
-    porque.className = renglon.fuera_del_patron
-      ? "guia-porque fuera-del-patron"
-      : "guia-porque";
-    porque.textContent = " — " + renglon.porque;
-    fila.appendChild(porque);
   }
 
   return fila;
@@ -193,7 +175,7 @@ async function pintarLosBinsMontados(guion) {
   if (!carpetaDeClips) return;
 
   const montados = cuartosMontados(avanceActual, guion);
-  const orden = guion.map((r) => r.cuarto);
+  const orden = guion.slice();
   // Cada cuarto UNA vez, aunque el guion lo repita: son ocho carpetas, no
   // once. `indexOf` sobre `orden` sigue dando la primera aparicion, que es
   // el numero que lleva la carpeta.

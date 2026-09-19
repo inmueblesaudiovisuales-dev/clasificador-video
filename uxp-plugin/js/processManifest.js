@@ -27,9 +27,7 @@ async function processManifest(project, manifest) {
   // Los cuartos en el orden que Bruno acepto en Clipify, o vacio si este
   // proyecto no trae guia. Un manifest sin guia crea las carpetas sin
   // numero, igual que siempre.
-  const ordenDeLaGuia = ((manifest.guia && manifest.guia.orden) || []).map(
-    (r) => r.cuarto
-  );
+  const ordenDeLaGuia = (manifest.guia && manifest.guia.orden) || [];
 
   // El aviso de «no pude renombrar» se da una vez por importacion, no una
   // por clip. Ver `nombre.js`.
