@@ -75,6 +75,40 @@ def revisar_cambios(cliente, carpeta_id: str,
     )
 
 
+def hay_token_guardado() -> bool:
+    """Si Google Drive ya se conectó alguna vez en esta computadora.
+
+    Sirve para evitar abrir OAuth por sorpresa al refrescar una fila de la
+    lista; ese flujo solo debe abrirse desde Configuración.
+    """
+    return _RUTA_TOKEN.exists()
+
+
+def revisar_y_persistir(ruta_cvproj: Path, cliente) -> bool:
+    """Revisa Drive y guarda el estado de respuesta del editor si cambió."""
+    import json
+    from dataclasses import replace
+
+    from clasificador_video import proyecto
+    from clasificador_video.entrega import EstadoEntrega
+
+    try:
+        data = json.loads(ruta_cvproj.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return False
+    estado = EstadoEntrega.de_dict(data.get("entrega"))
+    if estado is None or estado.drive_folder_id is None:
+        return False
+    resultado = revisar_cambios(
+        cliente, estado.drive_folder_id, estado.drive_prproj_modificado_en)
+    if not (resultado.hay_cambios or resultado.tiene_material_nuevo):
+        return False
+    data["entrega"] = replace(
+        estado, estado=EstadoEntrega.EDITOR_CONTESTO).to_dict()
+    proyecto.guardar(ruta_cvproj, data)
+    return True
+
+
 def traer_prproj(cliente, carpeta_id: str, destino: Path) -> None:
     """Baja el `.prproj` de esa carpeta al destino, reemplazándolo."""
     archivos = cliente.listar_en_carpeta(carpeta_id)
@@ -82,15 +116,51 @@ def traer_prproj(cliente, carpeta_id: str, destino: Path) -> None:
     cliente.descargar_archivo(prproj.id, destino)
 
 
+def traer_material_nuevo(cliente, carpeta_id: str,
+                          destino_por_categoria: dict[str, Path]) -> list[str]:
+    """Baja cada subcarpeta de `material nuevo/` a su categoría en disco.
+
+    `destino_por_categoria` mapea el nombre de la subcarpeta de Drive a la
+    ruta local absoluta donde debe quedar. Devuelve las categorías que sí
+    tenían archivos.
+    """
+    archivos = cliente.listar_en_carpeta(carpeta_id)
+    material_nuevo = next(
+        (a for a in archivos
+         if a.name == CARPETA_MATERIAL_NUEVO and a.mime_type == CARPETA_MIME),
+        None,
+    )
+    if material_nuevo is None:
+        return []
+    bajadas = []
+    for categoria in cliente.listar_en_carpeta(material_nuevo.id):
+        if categoria.mime_type != CARPETA_MIME:
+            continue
+        destino = destino_por_categoria.get(categoria.name)
+        if destino is None:
+            continue
+        archivos_de_categoria = [
+            archivo for archivo in cliente.listar_en_carpeta(categoria.id)
+            if archivo.mime_type != CARPETA_MIME
+        ]
+        if not archivos_de_categoria:
+            continue
+        destino.mkdir(parents=True, exist_ok=True)
+        for archivo in archivos_de_categoria:
+            cliente.descargar_archivo(archivo.id, destino / archivo.name)
+        bajadas.append(categoria.name)
+    return bajadas
+
+
 def mapa_de_categorias_de_material_nuevo() -> dict[str, str]:
-    """De la subcarpeta de `material nuevo/` a su categoría real dentro
-    de `01. ASSETS VIDEO` (spec original §6). Nombres tomados de
-    `uxp-plugin/js/estructura.js` -- si esa lista cambia ahí, cambia
-    aquí también."""
+    """De la subcarpeta de `material nuevo/` a su categoría real en disco,
+    relativa a la raíz del proyecto (spec original §6). Confirmado contra
+    un proyecto real de Bruno: no usa la estructura de bins de Premiere.
+    """
     return {
-        "musica y audio": "04. Musica",
-        "fotos": "07. Assets adicionales",
-        "graficos y branding": "06. Graficos",
+        "musica y audio": "01. ASSETS VIDEO/05. MUSICA Y AUDIO",
+        "fotos": "03. ASSETS PHOTOS",
+        "graficos y branding": "06. GRAFICOS Y BRANDING",
     }
 
 

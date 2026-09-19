@@ -1,4 +1,5 @@
 # tests/test_drive.py
+import json
 from pathlib import Path
 
 from clasificador_video import drive
@@ -43,6 +44,17 @@ class _ClienteFalso:
 
     def link_de_carpeta(self, carpeta_id: str) -> str:
         return f"https://drive.google.com/drive/folders/{carpeta_id.replace('folder-', '')}"
+
+
+class _ClientePorCarpeta(_ClienteFalso):
+    """Doble que imita las listas distintas de cada carpeta de Drive."""
+
+    def __init__(self, archivos_por_carpeta: dict[str, list[_ArchivoFalso]]):
+        super().__init__()
+        self.archivos_por_carpeta = archivos_por_carpeta
+
+    def listar_en_carpeta(self, carpeta_id: str) -> list[_ArchivoFalso]:
+        return self.archivos_por_carpeta.get(carpeta_id, [])
 
 
 def test_subir_paquete_crea_carpeta_y_sube_prproj_y_proxies(tmp_path):
@@ -116,18 +128,100 @@ def test_traer_de_vuelta_descarga_el_prproj_al_destino(tmp_path):
     assert destino.read_text() == "contenido de f1"
 
 
-def test_traer_material_nuevo_baja_cada_subcarpeta_a_su_categoria(tmp_path):
-    material_nuevo_id = "folder-material-nuevo"
-    cliente = _ClienteFalso(archivos=[
-        _ArchivoFalso("fm", "musica y audio", "2026-09-18T12:00:00Z",
-                      mime_type="application/vnd.google-apps.folder"),
-    ])
-    # el cliente falso devuelve la misma lista sin importar la carpeta que
-    # se le pida, así que esto alcanza para probar el reparto por nombre
-    destino_base = tmp_path / "01. ASSETS VIDEO"
-
+def test_material_nuevo_se_reparte_a_las_rutas_reales_del_proyecto():
     reparto = drive.mapa_de_categorias_de_material_nuevo()
 
-    assert reparto["musica y audio"] == "04. Musica"
-    assert reparto["fotos"] == "07. Assets adicionales"
-    assert reparto["graficos y branding"] == "06. Graficos"
+    assert reparto["musica y audio"] == "01. ASSETS VIDEO/05. MUSICA Y AUDIO"
+    assert reparto["fotos"] == "03. ASSETS PHOTOS"
+    assert reparto["graficos y branding"] == "06. GRAFICOS Y BRANDING"
+
+
+def test_traer_material_nuevo_baja_archivos_y_no_crea_categorias_vacias(tmp_path):
+    cliente = _ClientePorCarpeta({
+        "proyecto": [
+            _ArchivoFalso("nuevo", "material nuevo", "2026-09-18T12:00:00Z",
+                          mime_type=drive.CARPETA_MIME),
+        ],
+        "nuevo": [
+            _ArchivoFalso("musica", "musica y audio", "2026-09-18T12:00:00Z",
+                          mime_type=drive.CARPETA_MIME),
+            _ArchivoFalso("fotos", "fotos", "2026-09-18T12:00:00Z",
+                          mime_type=drive.CARPETA_MIME),
+        ],
+        "musica": [
+            _ArchivoFalso("audio", "cortinilla.mp3", "2026-09-18T12:00:00Z"),
+        ],
+        "fotos": [],
+    })
+    destino_audio = tmp_path / "01. ASSETS VIDEO" / "05. MUSICA Y AUDIO"
+    destino_fotos = tmp_path / "03. ASSETS PHOTOS"
+
+    bajadas = drive.traer_material_nuevo(
+        cliente, "proyecto", {
+            "musica y audio": destino_audio,
+            "fotos": destino_fotos,
+        },
+    )
+
+    assert bajadas == ["musica y audio"]
+    assert (destino_audio / "cortinilla.mp3").read_text() == "contenido de audio"
+    assert not destino_fotos.exists()
+
+
+def test_traer_material_nuevo_sin_la_carpeta_devuelve_lista_vacia(tmp_path):
+    cliente = _ClientePorCarpeta({"proyecto": []})
+
+    bajadas = drive.traer_material_nuevo(
+        cliente, "proyecto", {"fotos": tmp_path / "03. ASSETS PHOTOS"},
+    )
+
+    assert bajadas == []
+
+
+def test_revisar_y_persistir_marca_al_editor_cuando_drive_tiene_cambios(tmp_path):
+    from clasificador_video.entrega import EstadoEntrega
+
+    ruta = tmp_path / "Casa Reforma.cvproj"
+    ruta.write_text(json.dumps({"entrega": EstadoEntrega(
+        EstadoEntrega.CON_EDITOR,
+        drive_folder_id="folder-x",
+        drive_prproj_modificado_en="2026-09-16T10:00:00Z",
+    ).to_dict()}))
+    cliente = _ClienteFalso([
+        _ArchivoFalso("prproj", "Casa Reforma.prproj", "2026-09-18T12:00:00Z"),
+    ])
+
+    actualizado = drive.revisar_y_persistir(ruta, cliente)
+
+    assert actualizado is True
+    assert json.loads(ruta.read_text())["entrega"]["estado"] == EstadoEntrega.EDITOR_CONTESTO
+
+
+def test_revisar_y_persistir_sin_cambios_no_toca_el_proyecto(tmp_path):
+    from clasificador_video.entrega import EstadoEntrega
+
+    ruta = tmp_path / "Casa Reforma.cvproj"
+    data = {"entrega": EstadoEntrega(
+        EstadoEntrega.CON_EDITOR,
+        drive_folder_id="folder-x",
+        drive_prproj_modificado_en="2026-09-16T10:00:00Z",
+    ).to_dict()}
+    ruta.write_text(json.dumps(data))
+    antes = ruta.read_text()
+    cliente = _ClienteFalso([
+        _ArchivoFalso("prproj", "Casa Reforma.prproj", "2026-09-16T10:00:00Z"),
+    ])
+
+    actualizado = drive.revisar_y_persistir(ruta, cliente)
+
+    assert actualizado is False
+    assert ruta.read_text() == antes
+
+
+def test_revisar_y_persistir_sin_entrega_devuelve_falso(tmp_path):
+    ruta = tmp_path / "Casa Reforma.cvproj"
+    ruta.write_text(json.dumps({"proyecto": "Casa Reforma"}))
+
+    actualizado = drive.revisar_y_persistir(ruta, _ClienteFalso())
+
+    assert actualizado is False
