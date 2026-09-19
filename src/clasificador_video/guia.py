@@ -21,6 +21,25 @@ MODELO = "deepseek-chat"
 # razonamiento cuesta y tarda más para la misma respuesta.
 
 
+@dataclass(frozen=True)
+class Columna:
+    id: str
+    titulo: str
+    pista: str
+
+
+COLUMNAS: tuple[Columna, ...] = (
+    Columna("apertura", "Apertura / fachada", "la fachada o la aérea de entrada"),
+    Columna("sociales", "Áreas sociales", "cocina, sala, comedor, terraza"),
+    Columna("habitaciones", "Habitaciones", "recámaras, baños, vestidor"),
+    Columna("aerea_media", "Aérea a media casa", "una aérea para respirar antes de salir"),
+    Columna("amenidades", "Amenidades", "alberca, roof, amenidades en general"),
+    Columna("area_general", "Área general", "la propiedad completa, de lejos"),
+    Columna("aerea_final", "Aérea final", "la última toma, de salida"),
+)
+IDS_DE_COLUMNA = frozenset(c.id for c in COLUMNAS)
+
+
 @dataclass
 class Renglon:
     cuarto: str
