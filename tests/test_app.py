@@ -448,6 +448,48 @@ def _coordinador(tmp_path):
     return Coordinador(recientes_path=tmp_path / "r.json", video_factory=_FakeMpv)
 
 
+def test_refrescar_pedido_actualiza_la_lista_si_drive_encontro_cambios(
+        qtbot, tmp_path, monkeypatch):
+    from clasificador_video import drive
+
+    coord = _coordinador(tmp_path)
+    qtbot.addWidget(coord.inicio)
+    ruta = _proyecto_en(tmp_path)
+    cliente = object()
+    refrescos = []
+    monkeypatch.setattr(drive, "hay_token_guardado", lambda: True)
+    monkeypatch.setattr(drive, "cliente_autorizado", lambda credenciales: cliente)
+    monkeypatch.setattr(
+        drive, "revisar_y_persistir",
+        lambda ruta_recibida, cliente_recibido: (
+            ruta_recibida == ruta and cliente_recibido is cliente),
+    )
+    monkeypatch.setattr(coord, "_refrescar", lambda: refrescos.append(True))
+
+    coord.inicio.refrescar_pedido.emit(ruta)
+
+    assert refrescos == [True]
+
+
+def test_refrescar_pedido_sin_token_avisa_sin_intentar_conectarse(
+        qtbot, tmp_path, monkeypatch):
+    from clasificador_video import drive
+
+    coord = _coordinador(tmp_path)
+    qtbot.addWidget(coord.inicio)
+    avisos = []
+    monkeypatch.setattr(drive, "hay_token_guardado", lambda: False)
+    monkeypatch.setattr(
+        drive, "cliente_autorizado",
+        lambda credenciales: (_ for _ in ()).throw(AssertionError("no debe conectar")),
+    )
+    monkeypatch.setattr(coord.inicio, "avisar", avisos.append)
+
+    coord.inicio.refrescar_pedido.emit(tmp_path / "Casa Reforma.cvproj")
+
+    assert avisos == ["Conecta Google Drive desde Configuración antes de revisar."]
+
+
 def test_abrir_desde_la_pantalla_esconde_la_pantalla(qtbot, tmp_path):
     coord = _coordinador(tmp_path)
     qtbot.addWidget(coord.inicio)

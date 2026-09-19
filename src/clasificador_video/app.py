@@ -405,6 +405,7 @@ class Coordinador(QObject):
         self.inicio.nuevo_pedido.connect(self._nuevo)
         self.inicio.abrir_otro_pedido.connect(self._abrir_otro)
         self.inicio.quitar_pedido.connect(self._quitar)
+        self.inicio.refrescar_pedido.connect(self._al_refrescar)
         self._refrescar()
 
     # --- la pantalla ------------------------------------------------------
@@ -488,6 +489,24 @@ class Coordinador(QObject):
     def _quitar(self, ruta: Path) -> None:
         Recientes(self._recientes_path).quitar(Path(ruta))
         self._refrescar()
+
+    def _al_refrescar(self, ruta: Path) -> None:
+        """Revisa Drive para una fila sin abrir OAuth por sorpresa."""
+        from clasificador_video import drive
+
+        if not drive.hay_token_guardado():
+            self.inicio.avisar(
+                "Conecta Google Drive desde Configuración antes de revisar."
+            )
+            return
+        credenciales = Path.home() / ".clasificador_video" / "credenciales_google.json"
+        try:
+            cliente = drive.cliente_autorizado(credenciales)
+        except Exception:
+            self.inicio.avisar("No se pudo conectar con Google Drive.")
+            return
+        if drive.revisar_y_persistir(ruta, cliente):
+            self._refrescar()
 
     # --- el ciclo de vida de las ventanas ---------------------------------
 
