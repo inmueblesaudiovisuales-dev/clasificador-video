@@ -25,6 +25,10 @@ class Clip:
     # su cuarto en Premiere. Ver `marca_dron.py` y
     # docs/superpowers/specs/2026-09-18-marca-drone-en-carpetas-design.md.
     bin_dron: bool = False
+    # Igual que `bin_dron`, pero para las otras dos cámaras que el sistema
+    # de marcas reconoce. Ver `marca_camara.py`.
+    bin_sony: bool = False
+    bin_pocket: bool = False
     ruta_proxy: Path | None = None
 
     def to_dict(self) -> dict:
@@ -38,6 +42,8 @@ class Clip:
             "flag": self.flag,
             "camara": self.camara,
             "bin_dron": self.bin_dron,
+            "bin_sony": self.bin_sony,
+            "bin_pocket": self.bin_pocket,
             "ruta_proxy": str(self.ruta_proxy) if self.ruta_proxy is not None else None,
         }
 

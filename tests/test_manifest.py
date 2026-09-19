@@ -32,6 +32,8 @@ def test_clip_to_dict_usa_las_llaves_exactas_del_manifest():
         "flag": "pick",
         "camara": "sony",
         "bin_dron": False,
+        "bin_sony": False,
+        "bin_pocket": False,
         "ruta_proxy": "/shooting/C0012S03.MP4",
     }
 
@@ -54,6 +56,16 @@ def test_clip_bin_dron_por_defecto_es_false():
 
 def test_clip_bin_dron_viaja_al_dict():
     assert _clip(bin_dron=True).to_dict()["bin_dron"] is True
+
+
+def test_to_dict_incluye_bin_sony_y_bin_pocket():
+    clip = Clip(orden=0, ruta=Path("a.mp4"), categoria_path=["Cocina"],
+                fps=25.0, bin_sony=True, bin_pocket=False)
+
+    d = clip.to_dict()
+
+    assert d["bin_sony"] is True
+    assert d["bin_pocket"] is False
 
 
 def test_manifest_to_dict_incluye_proyecto_orientacion_y_clips_en_orden():

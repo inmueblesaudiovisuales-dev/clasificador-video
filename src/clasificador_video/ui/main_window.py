@@ -34,7 +34,7 @@ from clasificador_video import (
 )
 from clasificador_video.bins import BinTree, raiz_comun_de
 from clasificador_video.camaras import SONY
-from clasificador_video.marca_dron import bin_dice_dron
+from clasificador_video.marca_camara import bin_dice_dron, bin_dice_pocket, bin_dice_sony
 from clasificador_video.filters import FilterState, cola, contar
 from clasificador_video.history import History, HistoryEntry
 from clasificador_video.ingest import archivos_de_video
@@ -4927,11 +4927,16 @@ class MainWindow(QWidget):
         """
         camaras = self._camaras_por_clip()
         dron = self._bin_dron_por_clip()
+        sony = self._bin_sony_por_clip()
+        pocket = self._bin_pocket_por_clip()
         manifest = Manifest(
             proyecto=self.project_name,
             orientacion=self.orientacion_del_proyecto(),
             clips=[_con_el_rango_en_orden(
-                replace(c, camara=camaras.get(i, SONY), bin_dron=dron.get(i, False)))
+                replace(c, camara=camaras.get(i, SONY),
+                        bin_dron=dron.get(i, False),
+                        bin_sony=sony.get(i, False),
+                        bin_pocket=pocket.get(i, False)))
                 for i, c in enumerate(self.clips)],
             guia=self._guia_para_el_manifest(),
             crear_secuencias=True,
@@ -4958,6 +4963,14 @@ class MainWindow(QWidget):
         justo eso -- un clip suelto no cuenta como dron.
         """
         return {i: bin_dice_dron(nombre)
+                for i, nombre in self.bins.mapa_por_clip().items()}
+
+    def _bin_sony_por_clip(self) -> dict[int, bool]:
+        return {i: bin_dice_sony(nombre)
+                for i, nombre in self.bins.mapa_por_clip().items()}
+
+    def _bin_pocket_por_clip(self) -> dict[int, bool]:
+        return {i: bin_dice_pocket(nombre)
                 for i, nombre in self.bins.mapa_por_clip().items()}
 
     def _nombre_sugerido_del_manifest(self) -> str:
