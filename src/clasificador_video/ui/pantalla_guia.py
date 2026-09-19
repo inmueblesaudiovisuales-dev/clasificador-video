@@ -43,7 +43,9 @@ class _CajaDePasos(QWidget):
     def _repintar(self):
         while self._layout.count() > (1 if self.es_franja else 0):
             item = self._layout.takeAt(0)
-            if item.widget(): item.widget().deleteLater()
+            if item.widget():
+                item.widget().hide()
+                item.widget().deleteLater()
         for i, cuarto in enumerate(self._orden):
             chip = _Chip(cuarto, not self.es_franja)
             if not self.es_franja: chip.quitar_pedido.connect(lambda i=i: self.quitar(i))

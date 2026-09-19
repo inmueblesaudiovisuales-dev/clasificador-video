@@ -1,5 +1,5 @@
 import pytest
-from PySide6.QtWidgets import QMessageBox
+from PySide6.QtWidgets import QMessageBox, QWidget
 from clasificador_video import guia as logica
 from clasificador_video.ui.pantalla_guia import PantallaGuia
 
@@ -26,8 +26,12 @@ def test_mostrar_clasificacion_coloca_chips(pantalla):
 
 
 def test_clasificacion_fallida_deja_columnas_vacias_y_avisa(pantalla):
+    pantalla.agregar_a_columna("sociales", "Sala")
+    pantalla.show()
     pantalla.mostrar_clasificacion(logica.Clasificacion(False, error="no hay red"))
     assert all(c.cuartos() == [] for c in pantalla.columnas.values())
+    assert all(not chip.isVisible() for columna in pantalla.columnas.values()
+               for chip in columna.findChildren(QWidget))
     assert "no hay red" in pantalla.aviso_label.text().lower()
 
 
