@@ -14,9 +14,13 @@ Solo dibuja y avisa. Guardar y leer de disco es de `llave.py` y
 """
 from __future__ import annotations
 
+from pathlib import Path
+from threading import Thread
+
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QCheckBox,
+    QFileDialog,
     QHBoxLayout,
     QLabel,
     QLineEdit,
@@ -34,6 +38,9 @@ class PantallaConfig(QWidget):
     llave_guardada = Signal(str)
     llave_borrada = Signal()
     modo_economico_cambiado = Signal(bool)
+    carpeta_premiere_guardada = Signal(Path)
+    drive_conectado = Signal()
+    drive_estado_cambiado = Signal(str)
     cerrada = Signal()
 
     def __init__(self, parent=None):
@@ -42,6 +49,8 @@ class PantallaConfig(QWidget):
         # Sin esta bandera un QWidget puro ignora el `background-color` del
         # QSS y la pantalla sale transparente encima de la ventana.
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        self.cliente_drive = None
+        self.drive_estado_cambiado.connect(self._mostrar_estado_drive)
 
         raiz = QVBoxLayout(self)
         raiz.setContentsMargins(24, 20, 24, 20)
@@ -128,8 +137,59 @@ class PantallaConfig(QWidget):
         economico_label.setWordWrap(True)
         raiz.addWidget(economico_label)
 
+        titulo_premiere = QLabel("Proyectos de Premiere")
+        titulo_premiere.setObjectName("configTitulo")
+        raiz.addWidget(titulo_premiere)
+        self.carpeta_premiere_label = QLabel("Elige la carpeta raíz donde guardas tus proyectos.")
+        self.carpeta_premiere_label.setObjectName("configDonde")
+        self.carpeta_premiere_label.setWordWrap(True)
+        raiz.addWidget(self.carpeta_premiere_label)
+        self.carpeta_premiere_button = QPushButton("Elegir…")
+        self.carpeta_premiere_button.setObjectName("configPremiere")
+        self.carpeta_premiere_button.clicked.connect(self._al_elegir_carpeta_premiere)
+        raiz.addWidget(self.carpeta_premiere_button)
+
+        self.drive_label = QLabel("Google Drive no está conectado.")
+        self.drive_label.setObjectName("configDonde")
+        raiz.addWidget(self.drive_label)
+        self.drive_button = QPushButton("Conectar Google Drive")
+        self.drive_button.setObjectName("configDrive")
+        self.drive_button.clicked.connect(self._al_conectar_drive)
+        raiz.addWidget(self.drive_button)
+
         raiz.addStretch(1)
         self.cargar("")
+
+    def _al_elegir_carpeta_premiere(self) -> None:
+        elegida = QFileDialog.getExistingDirectory(self, "Carpeta de proyectos de Premiere")
+        if elegida:
+            self.carpeta_premiere_guardada.emit(Path(elegida))
+
+    def _al_conectar_drive(self) -> None:
+        """Abre OAuth fuera del hilo de la interfaz, que sigue respondiendo."""
+        self.drive_button.setEnabled(False)
+        self.drive_label.setText("Conectando Google Drive…")
+
+        def conectar():
+            from clasificador_video import drive
+            try:
+                self.cliente_drive = drive.cliente_autorizado(
+                    Path.home() / ".clasificador_video" / "credenciales_google.json")
+            except Exception:
+                self.drive_estado_cambiado.emit("No se pudo conectar Google Drive.")
+            else:
+                self.drive_estado_cambiado.emit("Google Drive está conectado.")
+                self.drive_conectado.emit()
+            finally:
+                self.drive_estado_cambiado.emit("")
+
+        Thread(target=conectar, daemon=True).start()
+
+    def _mostrar_estado_drive(self, texto: str) -> None:
+        if texto:
+            self.drive_label.setText(texto)
+        else:
+            self.drive_button.setEnabled(True)
 
     def cargar(self, llave: str, modo_economico: bool = False) -> None:
         """Enseña qué hay guardado. La caja se queda VACÍA aunque haya

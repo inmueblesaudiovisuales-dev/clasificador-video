@@ -1,4 +1,6 @@
 """La pantalla de configuración: la llave de la guía y el modo económico."""
+from PySide6.QtWidgets import QFileDialog
+import pytest
 from clasificador_video.ui.pantalla_config import PantallaConfig
 
 
@@ -8,6 +10,11 @@ def _pantalla(qtbot, llave="", modo_economico=False) -> PantallaConfig:
     p.resize(520, 300)
     p.cargar(llave, modo_economico)
     return p
+
+
+@pytest.fixture
+def config_screen(qtbot):
+    return _pantalla(qtbot)
 
 
 def test_sin_llave_lo_dice_y_no_hay_nada_que_quitar(qtbot):
@@ -111,3 +118,14 @@ def test_cargar_no_reemite_la_señal_al_solo_reflejar_lo_guardado(qtbot):
     p.cargar("", True)
     assert not disparo
     assert p.economico_check.isChecked()
+
+
+def test_elegir_carpeta_premiere_emite_la_señal(config_screen, monkeypatch, tmp_path):
+    monkeypatch.setattr(
+        QFileDialog, "getExistingDirectory", staticmethod(lambda *a, **k: str(tmp_path)))
+
+    recibido = []
+    config_screen.carpeta_premiere_guardada.connect(recibido.append)
+    config_screen.carpeta_premiere_button.click()
+
+    assert recibido == [tmp_path]

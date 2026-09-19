@@ -7,6 +7,53 @@ from clasificador_video.recientes import Reciente
 from clasificador_video.ui.pantalla_inicio import PantallaInicio
 
 
+def _entrada_de_prueba():
+    return Reciente(Path("/a/Casa Reforma.cvproj"), "Casa Reforma", "hoy",
+                    disponible=True)
+
+
+def test_fila_sin_entrega_no_muestra_pildora(qtbot):
+    from clasificador_video.ui.pantalla_inicio import _FilaReciente
+
+    fila = _FilaReciente(_entrada_de_prueba())
+    qtbot.addWidget(fila)
+    fila.show()
+
+    fila.set_estado_de_entrega(None)
+
+    assert not fila.pildora.isVisible()
+    assert not fila.refrescar_button.isVisible()
+
+
+def test_fila_con_editor_muestra_pildora_y_refrescar(qtbot):
+    from clasificador_video.entrega import EstadoEntrega
+    from clasificador_video.ui.pantalla_inicio import _FilaReciente
+
+    fila = _FilaReciente(_entrada_de_prueba())
+    qtbot.addWidget(fila)
+    fila.show()
+
+    fila.set_estado_de_entrega(EstadoEntrega.CON_EDITOR, "hace 2 días")
+
+    assert fila.pildora.isVisible()
+    assert fila.refrescar_button.isVisible()
+    assert "Con el editor" in fila.pildora.text()
+
+
+def test_fila_editor_contesto_no_muestra_refrescar(qtbot):
+    from clasificador_video.entrega import EstadoEntrega
+    from clasificador_video.ui.pantalla_inicio import _FilaReciente
+
+    fila = _FilaReciente(_entrada_de_prueba())
+    qtbot.addWidget(fila)
+    fila.show()
+
+    fila.set_estado_de_entrega(EstadoEntrega.EDITOR_CONTESTO, "hace 3 horas")
+
+    assert fila.pildora.isVisible()
+    assert not fila.refrescar_button.isVisible()
+
+
 def test_lista_los_recientes_con_el_mas_nuevo_arriba(qtbot):
     pantalla = PantallaInicio()
     qtbot.addWidget(pantalla)

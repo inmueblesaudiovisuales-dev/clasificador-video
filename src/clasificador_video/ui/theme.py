@@ -652,6 +652,19 @@ def build_stylesheet() -> str:
         border-color: {LINE_SOFT};
         color: {TEXT_3};
     }}
+    QPushButton#configPremiere, QPushButton#configDrive {{
+        background-color: {BG_SURFACE_2}; border: 1px solid {LINE}; border-radius: 6px;
+        color: {TEXT}; padding: 6px 14px;
+    }}
+    QLabel#recientePildora {{
+        background-color: {PENDING_COLOR}; border-radius: 9px; color: {CURRENT_COLOR};
+        padding: 3px 7px;
+    }}
+    QLabel#recientePildora[tono="contesto"] {{ color: {PICK_COLOR}; }}
+    QPushButton#recienteRefrescar {{
+        background-color: {BG_SURFACE_2}; border: 1px solid {LINE}; border-radius: 8px;
+        color: {TEXT}; padding: 2px 6px;
+    }}
 
     /* ---------------- la pantalla de la guia de edicion ------------- */
 

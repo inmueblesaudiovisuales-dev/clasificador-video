@@ -13,6 +13,8 @@ disco».
 """
 from __future__ import annotations
 
+import json
+from datetime import datetime
 from pathlib import Path
 
 from PySide6.QtCore import Qt, Signal
@@ -67,6 +69,7 @@ class _FilaReciente(QPushButton):
     # un proyecto que no esta no se abre, y prometerlo seria peor que verlo
     # gris.
     abrir_pedido = Signal(Path)
+    refrescar_pedido = Signal(Path)
 
     def __init__(self, entrada, parent=None):
         super().__init__(parent)
@@ -87,8 +90,12 @@ class _FilaReciente(QPushButton):
         self.setCursor(Qt.PointingHandCursor if disponible
                        else Qt.ArrowCursor)
 
-        caja = QVBoxLayout(self)
-        caja.setContentsMargins(12, 8, 12, 8)
+        fila_horizontal = QHBoxLayout(self)
+        fila_horizontal.setContentsMargins(12, 8, 12, 8)
+        fila_horizontal.setSpacing(8)
+        caja_host = QWidget()
+        caja = QVBoxLayout(caja_host)
+        caja.setContentsMargins(0, 0, 0, 0)
         caja.setSpacing(2)
         self.nombre = _etiqueta("recienteNombre", apagado=not disponible)
         self.nombre.setText(entrada.nombre)
@@ -101,9 +108,40 @@ class _FilaReciente(QPushButton):
         self.detalle.setText(self._detalle(entrada, disponible))
         caja.addWidget(self.nombre)
         caja.addWidget(self.detalle)
+        self.pildora = QLabel("")
+        self.pildora.setObjectName("recientePildora")
+        self.pildora.hide()
+        self.refrescar_button = QPushButton("⟳")
+        self.refrescar_button.setObjectName("recienteRefrescar")
+        self.refrescar_button.setToolTip("Revisar si el editor ya contestó")
+        self.refrescar_button.hide()
+        self.refrescar_button.clicked.connect(
+            lambda: self.refrescar_pedido.emit(self.entrada.ruta)
+        )
+        fila_horizontal.addWidget(caja_host, 1)
+        fila_horizontal.addWidget(self.pildora)
+        fila_horizontal.addWidget(self.refrescar_button)
         # la ruta completa, para cuando la elidida no alcanza
         self.setToolTip(str(entrada.ruta))
         self.clicked.connect(self._al_hacer_click)
+
+    def set_estado_de_entrega(self, estado: str | None, cuando_texto: str = "") -> None:
+        """Pinta el estado de entrega sin volver a consultar Drive."""
+        from clasificador_video.entrega import EstadoEntrega
+
+        self.pildora.hide()
+        self.refrescar_button.hide()
+        if estado == EstadoEntrega.CON_EDITOR:
+            self.pildora.setText(f"●  Con el editor · {cuando_texto}")
+            self.pildora.setProperty("tono", "esperando")
+            self.pildora.show()
+            self.refrescar_button.show()
+        elif estado == EstadoEntrega.EDITOR_CONTESTO:
+            self.pildora.setText(f"✓  El editor ya contestó · {cuando_texto}")
+            self.pildora.setProperty("tono", "contesto")
+            self.pildora.show()
+        self.pildora.style().unpolish(self.pildora)
+        self.pildora.style().polish(self.pildora)
 
     def _al_hacer_click(self) -> None:
         """Un proyecto que no esta no se abre.
@@ -155,6 +193,7 @@ class PantallaInicio(QWidget):
     nuevo_pedido = Signal()
     abrir_otro_pedido = Signal()
     quitar_pedido = Signal(Path)
+    refrescar_pedido = Signal(Path)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -246,10 +285,28 @@ class PantallaInicio(QWidget):
             # copia aqui -- dos lugares diciendo lo mismo se desincronizan.
             fila.abrir_pedido.connect(self.abrir_pedido.emit)
             fila.quitar_pedido.connect(self.quitar_pedido.emit)
+            fila.refrescar_pedido.connect(self.refrescar_pedido.emit)
+            estado, cuando = self._estado_de_entrega_de(entrada)
+            fila.set_estado_de_entrega(estado, cuando)
             self.lista.addWidget(fila)
             self.filas.append(fila)
         self.lista_host.setVisible(bool(entradas))
         self.vacio.setVisible(not entradas)
+
+    @staticmethod
+    def _estado_de_entrega_de(entrada) -> tuple[str | None, str]:
+        """Lee el estado guardado de un proyecto disponible, si lo tiene."""
+        if not entrada.disponible:
+            return None, ""
+        from clasificador_video.entrega import EstadoEntrega
+        try:
+            data = json.loads(entrada.ruta.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return None, ""
+        estado = EstadoEntrega.de_dict(data.get("entrega"))
+        if estado is None:
+            return None, ""
+        return estado.estado, _hace_cuanto(estado.subido_en)
 
     def avisar(self, texto: str) -> None:
         """Dice algo que salió mal, sin tapar la pantalla."""
@@ -265,3 +322,25 @@ class PantallaInicio(QWidget):
 
     def nombres_visibles(self) -> list[str]:
         return [f.entrada.nombre for f in self.filas]
+
+
+def _hace_cuanto(fecha: str | None) -> str:
+    """Una fecha ISO en el texto corto que cabe dentro de una píldora."""
+    if not fecha:
+        return "sin fecha"
+    try:
+        entonces = datetime.fromisoformat(fecha.replace("Z", "+00:00"))
+        ahora = datetime.now(entonces.tzinfo)
+    except ValueError:
+        return "sin fecha"
+    segundos = max(0, int((ahora - entonces).total_seconds()))
+    if segundos < 60:
+        return "hace un momento"
+    if segundos < 3600:
+        minutos = segundos // 60
+        return f"hace {minutos} minuto" + ("s" if minutos != 1 else "")
+    if segundos < 86400:
+        horas = segundos // 3600
+        return f"hace {horas} hora" + ("s" if horas != 1 else "")
+    dias = segundos // 86400
+    return f"hace {dias} día" + ("s" if dias != 1 else "")

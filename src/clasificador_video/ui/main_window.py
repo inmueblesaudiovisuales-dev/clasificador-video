@@ -2975,6 +2975,25 @@ class MainWindow(QWidget):
             raise RuntimeError("Conecta Google Drive desde Configuración antes de subir.")
         return self._drive_cliente
 
+    def _al_refrescar_entrega(self, ruta_proyecto: Path) -> None:
+        """Revisa en Drive solo el proyecto pedido desde la lista."""
+        from clasificador_video.entrega import EstadoEntrega
+
+        try:
+            data = json.loads(ruta_proyecto.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return
+        estado = EstadoEntrega.de_dict(data.get("entrega"))
+        if estado is None or estado.drive_folder_id is None:
+            return
+        resultado = drive.revisar_cambios(
+            self._cliente_de_drive(), estado.drive_folder_id,
+            estado.drive_prproj_modificado_en)
+        if resultado.hay_cambios or resultado.tiene_material_nuevo:
+            nuevo_estado = replace(estado, estado=EstadoEntrega.EDITOR_CONTESTO)
+            data["entrega"] = nuevo_estado.to_dict()
+            proyecto.guardar(ruta_proyecto, data)
+
     def _al_pedir_subir_a_drive(self) -> None:
         raiz = preferencias.carpeta_de_proyectos_premiere()
         candidatos = buscar_prproj.buscar_por_folio(raiz, self.project_name) if raiz else []
@@ -4800,6 +4819,12 @@ class MainWindow(QWidget):
             self._pantalla_config.llave_borrada.connect(self.borrar_llave)
             self._pantalla_config.modo_economico_cambiado.connect(
                 self._cambiar_modo_economico
+            )
+            self._pantalla_config.carpeta_premiere_guardada.connect(
+                preferencias.guardar_carpeta_de_proyectos_premiere
+            )
+            self._pantalla_config.drive_conectado.connect(
+                lambda: setattr(self, "_drive_cliente", self._pantalla_config.cliente_drive)
             )
             self._pantalla_config.cerrada.connect(self._pantalla_config.hide)
         # Se relee del disco cada vez que se abre y no se cachea: la llave

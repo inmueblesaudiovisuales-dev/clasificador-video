@@ -1,4 +1,5 @@
 from pathlib import Path
+import json
 
 import pytest
 from PySide6.QtWidgets import QMessageBox
@@ -81,3 +82,29 @@ def test_revisar_cambios_marca_que_el_editor_contesto(ventana, monkeypatch):
     ventana._al_pedir_traer_de_vuelta()
 
     assert ventana._entrega.estado == EstadoEntrega.EDITOR_CONTESTO
+
+
+def test_refrescar_actualiza_el_cvproj_cuando_hay_cambios(ventana, tmp_path, monkeypatch):
+    from clasificador_video.entrega import EstadoEntrega
+
+    ruta = tmp_path / "Casa Reforma.cvproj"
+    data = {"entrega": EstadoEntrega(
+        estado=EstadoEntrega.CON_EDITOR, drive_folder_id="folder-x",
+        drive_prproj_modificado_en="2026-09-16T10:00:00Z",
+    ).to_dict()}
+    ruta.write_text(json.dumps(data))
+
+    class _ClienteFalso:
+        def listar_en_carpeta(self, carpeta_id):
+            class _A:
+                name = "Casa Reforma.prproj"
+                modified_time = "2026-09-18T12:00:00Z"
+                mime_type = "video/mp4"
+            return [_A()]
+
+    monkeypatch.setattr(ventana, "_cliente_de_drive", lambda: _ClienteFalso())
+
+    ventana._al_refrescar_entrega(ruta)
+
+    guardado = json.loads(ruta.read_text())
+    assert guardado["entrega"]["estado"] == EstadoEntrega.EDITOR_CONTESTO
