@@ -28,21 +28,36 @@ CARPETA_MIME = "application/vnd.google-apps.folder"
 class ResultadoDeSubida:
     folder_id: str
     folder_link: str
+    prproj_modificado_en: str | None
 
 
-def subir_paquete(cliente, nombre_proyecto: str, prproj: Path,
-                   proxies: list[Path]) -> ResultadoDeSubida:
-    """Crea la carpeta del proyecto en Drive, sube el `.prproj` y los
-    proxies (en su propia subcarpeta), y devuelve el link para
-    compartirle al editor.
+def _subcarpeta_existente_o_nueva(cliente, carpeta_padre_id: str, nombre: str) -> str:
+    """Reusa una subcarpeta con ese nombre o la crea si no existe."""
+    for hijo in cliente.listar_en_carpeta(carpeta_padre_id):
+        if hijo.name == nombre and hijo.mime_type == CARPETA_MIME:
+            return hijo.id
+    return cliente.crear_carpeta(nombre, carpeta_padre_id=carpeta_padre_id)
+
+
+def _fecha_del_prproj(cliente, carpeta_id: str) -> str | None:
+    archivos = cliente.listar_en_carpeta(carpeta_id)
+    prproj = next((a for a in archivos if a.name.endswith(".prproj")), None)
+    return prproj.modified_time if prproj is not None else None
+
+
+def subir_paquete(cliente, nombre_proyecto: str, prproj: Path, proxies: list[Path],
+                   carpeta_existente: str | None = None) -> ResultadoDeSubida:
+    """Crea o reusa la carpeta de la entrega, sube su contenido y devuelve
+    el link junto con la fecha del `.prproj` que acaba de quedar en Drive.
     """
-    carpeta_id = cliente.crear_carpeta(nombre_proyecto)
+    carpeta_id = carpeta_existente or cliente.crear_carpeta(nombre_proyecto)
     cliente.subir_archivo(prproj, carpeta_id)
-    proxies_id = cliente.crear_carpeta(CARPETA_PROXIES, carpeta_padre_id=carpeta_id)
+    proxies_id = _subcarpeta_existente_o_nueva(cliente, carpeta_id, CARPETA_PROXIES)
     for proxy in proxies:
         cliente.subir_archivo(proxy, proxies_id)
     return ResultadoDeSubida(
         folder_id=carpeta_id, folder_link=cliente.link_de_carpeta(carpeta_id),
+        prproj_modificado_en=_fecha_del_prproj(cliente, carpeta_id),
     )
 
 
@@ -110,9 +125,14 @@ def revisar_y_persistir(ruta_cvproj: Path, cliente) -> bool:
 
 
 def traer_prproj(cliente, carpeta_id: str, destino: Path) -> None:
-    """Baja el `.prproj` de esa carpeta al destino, reemplazándolo."""
+    """Baja el `.prproj` de esa carpeta al destino, reemplazándolo.
+
+    Lanza RuntimeError si el editor borró el proyecto o le cambió la extensión.
+    """
     archivos = cliente.listar_en_carpeta(carpeta_id)
-    prproj = next(a for a in archivos if a.name.endswith(".prproj"))
+    prproj = next((a for a in archivos if a.name.endswith(".prproj")), None)
+    if prproj is None:
+        raise RuntimeError("No se encontró ningún .prproj en la carpeta de Drive.")
     cliente.descargar_archivo(prproj.id, destino)
 
 
@@ -168,6 +188,7 @@ _SCOPES = ["https://www.googleapis.com/auth/drive.file"]
 _RUTA_TOKEN = Path.home() / ".clasificador_video" / "drive_token.json"
 
 
+# Igual que `proxy_gen.generar`, baja primero a `.parcial` para no truncar el `.prproj` local si la red falla.
 class _ClienteDrive:
     """El envoltorio real sobre `googleapiclient.discovery.Resource`,
     con la misma forma que el doble de pruebas."""
@@ -191,20 +212,36 @@ class _ClienteDrive:
         return subido["id"]
 
     def listar_en_carpeta(self, carpeta_id):
-        respuesta = self._s.files().list(
-            q=f"'{carpeta_id}' in parents and trashed = false",
-            fields="files(id, name, modifiedTime, mimeType)",
-        ).execute()
-        return [_Archivo(a) for a in respuesta.get("files", [])]
+        archivos = []
+        page_token = None
+        while True:
+            respuesta = self._s.files().list(
+                q=f"'{carpeta_id}' in parents and trashed = false",
+                fields="nextPageToken, files(id, name, modifiedTime, mimeType)",
+                pageToken=page_token,
+            ).execute()
+            archivos.extend(_Archivo(a) for a in respuesta.get("files", []))
+            page_token = respuesta.get("nextPageToken")
+            if not page_token:
+                break
+        return archivos
 
     def descargar_archivo(self, archivo_id, destino):
         from googleapiclient.http import MediaIoBaseDownload
+        import os
+
         destino.parent.mkdir(parents=True, exist_ok=True)
-        with open(destino, "wb") as f:
-            descargador = MediaIoBaseDownload(f, self._s.files().get_media(fileId=archivo_id))
-            terminado = False
-            while not terminado:
-                _, terminado = descargador.next_chunk()
+        parcial = destino.with_name(destino.name + ".parcial")
+        try:
+            with open(parcial, "wb") as f:
+                descargador = MediaIoBaseDownload(f, self._s.files().get_media(fileId=archivo_id))
+                terminado = False
+                while not terminado:
+                    _, terminado = descargador.next_chunk()
+        except Exception:
+            parcial.unlink(missing_ok=True)
+            raise
+        os.replace(parcial, destino)
 
     def link_de_carpeta(self, carpeta_id):
         return f"https://drive.google.com/drive/folders/{carpeta_id}"

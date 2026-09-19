@@ -104,7 +104,11 @@ def test_traer_de_vuelta_baja_material_nuevo_desde_la_raiz_del_proyecto(
     )
     monkeypatch.setattr(ventana, "_autosave", lambda: None)
 
+    trabajos = []
+    monkeypatch.setattr(ventana._drive_pool, "start", trabajos.append)
+
     ventana._traer_de_vuelta(estado, object())
+    trabajos.pop().run()
 
     assert llamado["carpeta_id"] == "folder-x"
     assert llamado["destinos"] == {
@@ -112,6 +116,52 @@ def test_traer_de_vuelta_baja_material_nuevo_desde_la_raiz_del_proyecto(
         "fotos": tmp_path / "03. ASSETS PHOTOS",
         "graficos y branding": tmp_path / "06. GRAFICOS Y BRANDING",
     }
+
+
+def test_subir_a_drive_encola_el_trabajo_y_reusa_la_carpeta(ventana, tmp_path, monkeypatch):
+    from clasificador_video import drive
+    from clasificador_video.drive import ResultadoDeSubida
+    from clasificador_video.entrega import EstadoEntrega
+
+    prproj = tmp_path / "Casa Reforma.prproj"
+    ventana._entrega = EstadoEntrega(EstadoEntrega.CON_EDITOR, drive_folder_id="folder-viejo")
+    ventana._drive_cliente = object()
+    trabajos = []
+    llamado = {}
+    monkeypatch.setattr(ventana._drive_pool, "start", trabajos.append)
+    monkeypatch.setattr(
+        drive, "subir_paquete",
+        lambda *args, **kwargs: (llamado.update(args=args, kwargs=kwargs), ResultadoDeSubida(
+            "folder-viejo", "link", "fecha-nueva"))[1],
+    )
+    monkeypatch.setattr(ventana, "_autosave", lambda: None)
+
+    ventana._subir_a_drive(prproj)
+    trabajos.pop().run()
+
+    assert llamado["kwargs"]["carpeta_existente"] == "folder-viejo"
+    assert ventana._entrega.drive_prproj_modificado_en == "fecha-nueva"
+
+
+def test_error_de_subida_rehabilita_el_boton(ventana, monkeypatch):
+    avisos = []
+    monkeypatch.setattr(QMessageBox, "warning", lambda *args: avisos.append(args))
+
+    ventana.title_bar.set_subiendo(0)
+    ventana._on_drive_subida_lista(None, "red caída")
+
+    assert ventana.title_bar.subir_button.isEnabled()
+    assert "Subiendo" not in ventana.title_bar.subir_button.text()
+    assert avisos
+
+
+def test_error_de_traida_muestra_un_aviso(ventana, monkeypatch):
+    avisos = []
+    monkeypatch.setattr(QMessageBox, "warning", lambda *args: avisos.append(args))
+
+    ventana._on_drive_traida_lista("No se encontró ningún .prproj en la carpeta de Drive.")
+
+    assert avisos
 
 
 def test_refrescar_actualiza_el_cvproj_cuando_hay_cambios(ventana, tmp_path, monkeypatch):

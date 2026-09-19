@@ -344,6 +344,8 @@ class SeñalesDeTrabajos(QObject):
     media_revisada = Signal(int, object, object)  # generacion, faltantes, proxies
     # generacion, indice, ruta del proxy generado (o None), motivo del fallo
     proxy_generado = Signal(int, int, object, str)
+    drive_subida_lista = Signal(object, str)   # ResultadoDeSubida | None, error
+    drive_traida_lista = Signal(str)            # error
 
 
 class _RevisionDeMediaJob(QRunnable):
@@ -567,6 +569,55 @@ class _GeneracionDeProxyJob(QRunnable):
         self.signals.proxy_generado.emit(self._generacion, self.index, destino, "")
 
 
+class _SubidaADriveJob(QRunnable):
+    """Sube la entrega fuera del hilo de la interfaz."""
+
+    def __init__(self, cliente, nombre_proyecto, prproj, proxies, carpeta_existente, señales):
+        super().__init__()
+        self._cliente = cliente
+        self._nombre_proyecto = nombre_proyecto
+        self._prproj = prproj
+        self._proxies = proxies
+        self._carpeta_existente = carpeta_existente
+        self.signals = señales
+
+    def run(self) -> None:
+        try:
+            resultado = drive.subir_paquete(
+                self._cliente, self._nombre_proyecto, self._prproj, self._proxies,
+                carpeta_existente=self._carpeta_existente)
+        except Exception as e:
+            self.signals.drive_subida_lista.emit(None, str(e))
+            return
+        self.signals.drive_subida_lista.emit(resultado, "")
+
+
+class _TraidaDeDriveJob(QRunnable):
+    """Trae el proyecto y el material nuevo fuera del hilo de la interfaz."""
+
+    def __init__(self, cliente, estado, raiz_del_proyecto, señales):
+        super().__init__()
+        self._cliente = cliente
+        self._estado = estado
+        self._raiz = raiz_del_proyecto
+        self.signals = señales
+
+    def run(self) -> None:
+        try:
+            drive.traer_prproj(self._cliente, self._estado.drive_folder_id,
+                               Path(self._estado.prproj_local))
+            if self._raiz is not None:
+                destinos = {
+                    categoria: self._raiz / ruta
+                    for categoria, ruta in drive.mapa_de_categorias_de_material_nuevo().items()
+                }
+                drive.traer_material_nuevo(self._cliente, self._estado.drive_folder_id, destinos)
+        except Exception as e:
+            self.signals.drive_traida_lista.emit(str(e))
+            return
+        self.signals.drive_traida_lista.emit("")
+
+
 class MainWindow(QWidget):
     """Ventana del clasificador, con la estructura del mockup.
 
@@ -635,6 +686,8 @@ class MainWindow(QWidget):
         self._señales_de_trabajos.guia_lista.connect(self._mostrar_guia)
         self._señales_de_trabajos.media_revisada.connect(self._on_media_revisada)
         self._señales_de_trabajos.proxy_generado.connect(self._on_proxy_generado)
+        self._señales_de_trabajos.drive_subida_lista.connect(self._on_drive_subida_lista)
+        self._señales_de_trabajos.drive_traida_lista.connect(self._on_drive_traida_lista)
         # hijo de la ventana A PROPOSITO: su destructor espera a los trabajos
         # en vuelo, y esa espera es lo que impide que una señal llegue
         # cuando la ventana ya no puede atenderla.
@@ -662,6 +715,7 @@ class MainWindow(QWidget):
         # mientras corre.
         self._generacion_pool = QThreadPool(self)
         self._generacion_pool.setMaxThreadCount(1)
+        self._drive_pool = QThreadPool(self)
         # Estado de la tanda que corre, o None. Lleva su propia generación
         # por la misma razón que los proxies: quitar el bin a media tanda
         # deja trabajos en vuelo cuyos resultados ya no aplican a nada.
@@ -3035,20 +3089,34 @@ class MainWindow(QWidget):
         return propuesta if clickeado is subir else None
 
     def _subir_a_drive(self, prproj: Path) -> None:
-        """Sube el proyecto y los proxies de los picks con cliente inyectado."""
-        from datetime import datetime
-        from clasificador_video.entrega import EstadoEntrega
-
+        """Encola la subida del proyecto y los proxies de los picks."""
         cliente = self._cliente_de_drive()
         proxies = [clip.ruta_proxy for clip in self.clips
                    if clip.flag == "pick" and clip.ruta_proxy is not None]
+        carpeta_existente = self._entrega.drive_folder_id if self._entrega is not None else None
+        self._prproj_subiendo = prproj
         self.title_bar.set_subiendo(0)
-        resultado = drive.subir_paquete(cliente, self.project_name, prproj, proxies)
+        self._drive_pool.start(_SubidaADriveJob(
+            cliente, self.project_name, prproj, proxies, carpeta_existente,
+            self._señales_de_trabajos))
+
+    def _on_drive_subida_lista(self, resultado, error: str) -> None:
+        from datetime import datetime
+        from clasificador_video.entrega import EstadoEntrega
+
+        if error:
+            self.title_bar.set_estado_de_entrega(
+                self._entrega.estado if self._entrega else None,
+                self._entrega.subido_en if self._entrega else "")
+            QMessageBox.warning(
+                self, "Subir a Drive", f"No se pudo terminar de subir a Drive: {error}")
+            return
         self._entrega = EstadoEntrega(
             EstadoEntrega.CON_EDITOR,
             subido_en=datetime.now().isoformat(timespec="seconds"),
-            prproj_local=str(prproj), drive_folder_id=resultado.folder_id,
+            prproj_local=str(self._prproj_subiendo), drive_folder_id=resultado.folder_id,
             drive_folder_link=resultado.folder_link,
+            drive_prproj_modificado_en=resultado.prproj_modificado_en,
         )
         self.title_bar.set_estado_de_entrega(
             self._entrega.estado, self._entrega.subido_en or "")
@@ -3094,17 +3162,18 @@ class MainWindow(QWidget):
         return cuadro.clickedButton() is traer
 
     def _traer_de_vuelta(self, estado, cliente) -> None:
-        """Trae el `.prproj`, el material nuevo y cierra esta entrega."""
+        """Encola la traída del `.prproj` y del material nuevo."""
         if estado.prproj_local is None or estado.drive_folder_id is None:
             return
-        drive.traer_prproj(cliente, estado.drive_folder_id, Path(estado.prproj_local))
         raiz = self._raiz_del_proyecto()
-        if raiz is not None:
-            destinos = {
-                categoria: raiz / ruta
-                for categoria, ruta in drive.mapa_de_categorias_de_material_nuevo().items()
-            }
-            drive.traer_material_nuevo(cliente, estado.drive_folder_id, destinos)
+        self._drive_pool.start(_TraidaDeDriveJob(
+            cliente, estado, raiz, self._señales_de_trabajos))
+
+    def _on_drive_traida_lista(self, error: str) -> None:
+        if error:
+            QMessageBox.warning(
+                self, "Traer de vuelta", f"No se pudo traer de Drive: {error}")
+            return
         self._entrega = None
         self.title_bar.set_estado_de_entrega(None)
         self._autosave()

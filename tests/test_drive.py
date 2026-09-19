@@ -2,6 +2,8 @@
 import json
 from pathlib import Path
 
+import pytest
+
 from clasificador_video import drive
 
 
@@ -26,17 +28,27 @@ class _ClienteFalso:
         self.archivos = archivos or []
         self.subidos: list[tuple[str, Path]] = []
         self.carpetas_creadas: list[str] = []
+        self._archivos_por_carpeta: dict[str, list[_ArchivoFalso]] = {}
 
     def crear_carpeta(self, nombre: str, carpeta_padre_id: str | None = None) -> str:
         self.carpetas_creadas.append(nombre)
-        return f"folder-{nombre}"
+        carpeta_id = f"folder-{nombre}"
+        if carpeta_padre_id is not None:
+            self._archivos_por_carpeta.setdefault(carpeta_padre_id, []).append(
+                _ArchivoFalso(carpeta_id, nombre, "2026-09-19T12:00:00Z",
+                              mime_type=drive.CARPETA_MIME))
+        self._archivos_por_carpeta.setdefault(carpeta_id, [])
+        return carpeta_id
 
     def subir_archivo(self, ruta_local: Path, carpeta_id: str) -> str:
         self.subidos.append((carpeta_id, ruta_local))
-        return f"file-{ruta_local.name}"
+        archivo_id = f"file-{ruta_local.name}"
+        self._archivos_por_carpeta.setdefault(carpeta_id, []).append(
+            _ArchivoFalso(archivo_id, ruta_local.name, "2026-09-19T12:00:00Z"))
+        return archivo_id
 
     def listar_en_carpeta(self, carpeta_id: str) -> list[_ArchivoFalso]:
-        return self.archivos
+        return self._archivos_por_carpeta.get(carpeta_id, self.archivos)
 
     def descargar_archivo(self, archivo_id: str, destino: Path) -> None:
         destino.parent.mkdir(parents=True, exist_ok=True)
@@ -73,6 +85,40 @@ def test_subir_paquete_crea_carpeta_y_sube_prproj_y_proxies(tmp_path):
     assert (cliente.subidos[0][1] == prproj)
     assert (cliente.subidos[1][1] == proxy1)
     assert resultado.folder_link.startswith("https://drive.google.com/")
+
+
+def test_subir_paquete_devuelve_la_fecha_del_prproj_subido(tmp_path):
+    cliente = _ClienteFalso()
+    prproj = tmp_path / "Casa Reforma.prproj"
+    prproj.write_text("x")
+
+    resultado = drive.subir_paquete(cliente, "Casa Reforma", prproj, [])
+
+    assert resultado.prproj_modificado_en == "2026-09-19T12:00:00Z"
+
+
+def test_subir_de_nuevo_reusa_la_carpeta_existente(tmp_path):
+    cliente = _ClienteFalso()
+    prproj = tmp_path / "Casa Reforma.prproj"
+    prproj.write_text("x")
+
+    resultado = drive.subir_paquete(
+        cliente, "Casa Reforma", prproj, [], carpeta_existente="folder-x")
+
+    assert resultado.folder_id == "folder-x"
+    assert "Casa Reforma" not in cliente.carpetas_creadas
+
+
+def test_subir_de_nuevo_reusa_la_subcarpeta_de_proxies_si_ya_existe(tmp_path):
+    cliente = _ClienteFalso()
+    cliente.crear_carpeta("Proxies", carpeta_padre_id="folder-x")
+    cliente.carpetas_creadas.clear()
+    prproj = tmp_path / "Casa Reforma.prproj"
+    prproj.write_text("x")
+
+    drive.subir_paquete(cliente, "Casa Reforma", prproj, [], carpeta_existente="folder-x")
+
+    assert cliente.carpetas_creadas == []
 
 
 def test_hay_cambios_cuando_el_prproj_de_drive_es_mas_nuevo():
@@ -126,6 +172,15 @@ def test_traer_de_vuelta_descarga_el_prproj_al_destino(tmp_path):
     drive.traer_prproj(cliente, carpeta_id="folder-x", destino=destino)
 
     assert destino.read_text() == "contenido de f1"
+
+
+def test_traer_prproj_sin_prproj_da_un_error_claro(tmp_path):
+    cliente = _ClienteFalso(archivos=[
+        _ArchivoFalso("f1", "notas.txt", "2026-09-18T12:00:00Z"),
+    ])
+
+    with pytest.raises(RuntimeError, match="No se encontró ningún .prproj en la carpeta de Drive."):
+        drive.traer_prproj(cliente, carpeta_id="folder-x", destino=tmp_path / "Casa.prproj")
 
 
 def test_material_nuevo_se_reparte_a_las_rutas_reales_del_proyecto():
