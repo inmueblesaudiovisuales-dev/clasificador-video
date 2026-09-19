@@ -122,6 +122,14 @@ def aplicar_desplazamiento(prefijo_viejo: Path, prefijo_nuevo: Path,
     return prefijo_nuevo / resto
 
 
+def clip_del_archivo_elegido(archivo: Path, relativas: dict[int, str]) -> int | None:
+    """Ubica por nombre un único clip del bin."""
+    nombre = archivo.name.casefold()
+    calzan = [i for i, relativa in relativas.items()
+              if Path(relativa).name.casefold() == nombre]
+    return calzan[0] if len(calzan) == 1 else None
+
+
 def buscar_bajo(carpeta: Path, relativa: str,
                 indice: dict[str, list[Path]] | None = None) -> Path | None:
     """Primero donde decia; si no, por nombre en todo el arbol.

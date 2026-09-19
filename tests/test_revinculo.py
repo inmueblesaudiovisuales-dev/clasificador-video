@@ -62,6 +62,26 @@ def test_aplicar_desplazamiento_a_un_origen_que_no_calza():
         Path("/viejo/Rodaje"), Path("/nuevo/Rodaje copia"), Path("/otro/Dron")) is None
 
 
+def test_clip_del_archivo_elegido_calza_uno_solo():
+    assert revinculo.clip_del_archivo_elegido(
+        Path("/x/C0002.MP4"), {0: "C0001.MP4", 1: "C0002.MP4"}) == 1
+
+
+def test_clip_del_archivo_elegido_ninguno_calza():
+    assert revinculo.clip_del_archivo_elegido(
+        Path("/x/C0099.MP4"), {0: "C0001.MP4"}) is None
+
+
+def test_clip_del_archivo_elegido_ambiguo_no_elige():
+    assert revinculo.clip_del_archivo_elegido(
+        Path("/x/C0001.MP4"), {0: "Sesion1/C0001.MP4", 1: "Sesion2/C0001.MP4"}) is None
+
+
+def test_clip_del_archivo_elegido_ignora_mayusculas():
+    assert revinculo.clip_del_archivo_elegido(
+        Path("/x/C0001.MP4"), {0: "c0001.mp4"}) == 0
+
+
 def test_NO_calza_un_tocayo_de_otro_tamano(tmp_path):
     """EL test de este plan. Un archivo con el nombre correcto y el
     contenido equivocado no se engancha. Es el caso de dos tarjetas de la
