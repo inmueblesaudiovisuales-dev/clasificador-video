@@ -12,6 +12,73 @@ def _entrada_de_prueba():
                     disponible=True)
 
 
+def test_fila_activa_con_editor_muestra_los_tres_controles(qtbot):
+    from clasificador_video.entrega import EstadoEntrega
+    from clasificador_video.ui.pantalla_inicio import _FilaActiva
+
+    fila = _FilaActiva(_entrada_de_prueba(), EstadoEntrega.CON_EDITOR, "hace 2 días")
+    qtbot.addWidget(fila)
+    fila.show()
+
+    assert "Con el editor" in fila.pildora.text()
+    assert fila.refrescar_button.isVisible()
+    assert fila.traer_button.isVisible()
+    assert fila.ya_entregado_button.isVisible()
+
+
+def test_fila_activa_editor_contesto_tambien_muestra_los_tres(qtbot):
+    from clasificador_video.entrega import EstadoEntrega
+    from clasificador_video.ui.pantalla_inicio import _FilaActiva
+
+    fila = _FilaActiva(_entrada_de_prueba(), EstadoEntrega.EDITOR_CONTESTO, "hace 3 horas")
+    qtbot.addWidget(fila)
+    fila.show()
+
+    assert "El editor ya contestó" in fila.pildora.text()
+    assert fila.refrescar_button.isVisible()
+    assert fila.traer_button.isVisible()
+    assert fila.ya_entregado_button.isVisible()
+
+
+def test_fila_activa_en_revision_solo_muestra_ya_entregado(qtbot):
+    from clasificador_video.entrega import EstadoEntrega
+    from clasificador_video.ui.pantalla_inicio import _FilaActiva
+
+    fila = _FilaActiva(_entrada_de_prueba(), EstadoEntrega.EN_REVISION, "hace 1 hora")
+    qtbot.addWidget(fila)
+    fila.show()
+
+    assert "En revisión" in fila.pildora.text()
+    assert not fila.refrescar_button.isVisible()
+    assert not fila.traer_button.isVisible()
+    assert fila.ya_entregado_button.isVisible()
+
+
+def test_fila_activa_emite_sus_señales_con_la_ruta(qtbot):
+    from clasificador_video.entrega import EstadoEntrega
+    from clasificador_video.ui.pantalla_inicio import _FilaActiva
+
+    entrada = _entrada_de_prueba()
+    fila = _FilaActiva(entrada, EstadoEntrega.CON_EDITOR, "hace 2 días")
+    qtbot.addWidget(fila)
+    fila.show()
+    traidos, entregados, refrescados, abiertos = [], [], [], []
+    fila.traer_de_vuelta_pedido.connect(traidos.append)
+    fila.ya_entregado_pedido.connect(entregados.append)
+    fila.refrescar_pedido.connect(refrescados.append)
+    fila.abrir_pedido.connect(abiertos.append)
+
+    fila.traer_button.click()
+    fila.ya_entregado_button.click()
+    fila.refrescar_button.click()
+    fila.click()
+
+    assert traidos == [entrada.ruta]
+    assert entregados == [entrada.ruta]
+    assert refrescados == [entrada.ruta]
+    assert abiertos == [entrada.ruta]
+
+
 def test_fila_sin_entrega_no_muestra_pildora(qtbot):
     from clasificador_video.ui.pantalla_inicio import _FilaReciente
 

@@ -182,6 +182,84 @@ class _FilaReciente(QPushButton):
         self.menu_de_contexto().popup(event.globalPos())
 
 
+class _FilaActiva(QPushButton):
+    """Una fila de la pestaña "En edición externa": el mismo proyecto que
+    ya aparece en "Tus proyectos", pero con las acciones de la entrega a
+    la vista -- sin tener que abrirlo primero (spec 2026-09-19 §5).
+
+    Solo se construye para proyectos disponibles con una entrega activa:
+    a diferencia de `_FilaReciente`, no conoce el estado "perdido".
+    """
+
+    abrir_pedido = Signal(Path)
+    refrescar_pedido = Signal(Path)
+    traer_de_vuelta_pedido = Signal(Path)
+    ya_entregado_pedido = Signal(Path)
+
+    def __init__(self, entrada, estado: str, cuando_texto: str, parent=None):
+        super().__init__(parent)
+        from clasificador_video.entrega import EstadoEntrega
+
+        self.setObjectName("filaActiva")
+        self.entrada = entrada
+        self.setFixedHeight(FILA_ALTO)
+        self.setCursor(Qt.PointingHandCursor)
+
+        fila_horizontal = QHBoxLayout(self)
+        fila_horizontal.setContentsMargins(12, 8, 12, 8)
+        fila_horizontal.setSpacing(8)
+        caja_host = QWidget()
+        caja = QVBoxLayout(caja_host)
+        caja.setContentsMargins(0, 0, 0, 0)
+        caja.setSpacing(2)
+        self.nombre = _etiqueta("recienteNombre", apagado=False)
+        self.nombre.setText(entrada.nombre)
+        self.detalle = _etiqueta("recienteDetalle", apagado=False,
+                                 modo=Qt.TextElideMode.ElideMiddle)
+        self.detalle.setText(f"subido {cuando_texto}  ·  {entrada.ruta.parent}")
+        caja.addWidget(self.nombre)
+        caja.addWidget(self.detalle)
+
+        self.pildora = QLabel("")
+        self.pildora.setObjectName("recientePildora")
+        es_en_revision = estado == EstadoEntrega.EN_REVISION
+        if estado == EstadoEntrega.CON_EDITOR:
+            self.pildora.setText("●  Con el editor")
+            self.pildora.setProperty("tono", "esperando")
+        elif estado == EstadoEntrega.EDITOR_CONTESTO:
+            self.pildora.setText("✓  El editor ya contestó")
+            self.pildora.setProperty("tono", "contesto")
+        else:
+            self.pildora.setText("◐  En revisión")
+            self.pildora.setProperty("tono", "revision")
+
+        self.refrescar_button = QPushButton("⟳")
+        self.refrescar_button.setObjectName("recienteRefrescar")
+        self.refrescar_button.setToolTip("Revisar si el editor ya contestó")
+        self.refrescar_button.setVisible(not es_en_revision)
+        self.refrescar_button.clicked.connect(
+            lambda: self.refrescar_pedido.emit(self.entrada.ruta))
+
+        self.traer_button = QPushButton("Traer de vuelta")
+        self.traer_button.setObjectName("activaTraer")
+        self.traer_button.setVisible(not es_en_revision)
+        self.traer_button.clicked.connect(
+            lambda: self.traer_de_vuelta_pedido.emit(self.entrada.ruta))
+
+        self.ya_entregado_button = QPushButton("Ya entregado")
+        self.ya_entregado_button.setObjectName("activaYaEntregado")
+        self.ya_entregado_button.clicked.connect(
+            lambda: self.ya_entregado_pedido.emit(self.entrada.ruta))
+
+        fila_horizontal.addWidget(caja_host, 1)
+        fila_horizontal.addWidget(self.pildora)
+        fila_horizontal.addWidget(self.refrescar_button)
+        fila_horizontal.addWidget(self.traer_button)
+        fila_horizontal.addWidget(self.ya_entregado_button)
+        self.setToolTip(str(entrada.ruta))
+        self.clicked.connect(lambda: self.abrir_pedido.emit(self.entrada.ruta))
+
+
 class PantallaInicio(QWidget):
     """La lista de recientes, «Proyecto nuevo» y «Abrir otro…».
 
