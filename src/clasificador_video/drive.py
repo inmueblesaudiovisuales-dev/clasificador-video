@@ -13,6 +13,7 @@ El cliente esperado (real o falso) implementa:
     .id, .name, .modified_time, .mime_type
   - descargar_archivo(archivo_id, destino: Path) -> None
   - link_de_carpeta(carpeta_id) -> str
+  - colorear_carpeta(carpeta_id, color: str) -> None
 """
 from __future__ import annotations
 
@@ -24,6 +25,12 @@ CARPETA_MATERIAL_NUEVO = "material nuevo"
 CARPETA_ENTREGAS = "Proyectos para edición externa"
 CARPETA_MIME = "application/vnd.google-apps.folder"
 _RAIZ_DE_DRIVE = "root"
+
+# De la paleta fija de colores que acepta Drive para carpetas (no
+# cualquier hexadecimal sirve). Reflejan el mismo EstadoEntrega que ya
+# existe -- no es un dato nuevo, es el mismo pintado en otro lugar.
+COLOR_FALTA_EDITAR = "#fa573c"  # rojo -- recién subido, con el editor
+COLOR_YA_REGRESO = "#16a765"    # verde -- el editor ya contestó
 
 
 @dataclass(frozen=True)
@@ -67,6 +74,7 @@ def subir_paquete(cliente, nombre_proyecto: str, prproj: Path, proxies: list[Pat
     proxies_id = _subcarpeta_existente_o_nueva(cliente, carpeta_id, CARPETA_PROXIES)
     for proxy in proxies:
         cliente.subir_archivo(proxy, proxies_id)
+    cliente.colorear_carpeta(carpeta_id, COLOR_FALTA_EDITAR)
     return ResultadoDeSubida(
         folder_id=carpeta_id, folder_link=cliente.link_de_carpeta(carpeta_id),
         prproj_modificado_en=_fecha_del_prproj(cliente, carpeta_id),
@@ -130,6 +138,7 @@ def revisar_y_persistir(ruta_cvproj: Path, cliente) -> bool:
         cliente, estado.drive_folder_id, estado.drive_prproj_modificado_en)
     if not (resultado.hay_cambios or resultado.tiene_material_nuevo):
         return False
+    cliente.colorear_carpeta(estado.drive_folder_id, COLOR_YA_REGRESO)
     data["entrega"] = replace(
         estado, estado=EstadoEntrega.EDITOR_CONTESTO).to_dict()
     proyecto.guardar(ruta_cvproj, data)
@@ -257,6 +266,9 @@ class _ClienteDrive:
 
     def link_de_carpeta(self, carpeta_id):
         return f"https://drive.google.com/drive/folders/{carpeta_id}"
+
+    def colorear_carpeta(self, carpeta_id, color):
+        self._s.files().update(fileId=carpeta_id, body={"folderColorRgb": color}).execute()
 
 
 class _Archivo:

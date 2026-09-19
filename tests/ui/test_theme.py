@@ -203,6 +203,12 @@ def test_ningun_modulo_declara_colores_fuera_del_tema():
     for archivo in sorted(raiz.rglob("*.py")):
         if archivo.name == "theme.py" or "__pycache__" in archivo.parts:
             continue
+        if archivo.name == "drive.py":
+            # COLOR_FALTA_EDITAR/COLOR_YA_REGRESO no son de la interfaz de
+            # Clipify: son de la paleta fija que exige la API de Drive para
+            # colorear una carpeta -- las ve Bruno en su navegador, no en
+            # el mockup, y theme.py importa PySide6 (drive.py no).
+            continue
         for numero, linea in enumerate(archivo.read_text(encoding="utf-8").splitlines(), 1):
             if patron.search(linea):
                 ofensores.append(f"{archivo.relative_to(raiz)}:{numero}: {linea.strip()}")

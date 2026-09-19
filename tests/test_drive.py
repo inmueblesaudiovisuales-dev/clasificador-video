@@ -28,6 +28,7 @@ class _ClienteFalso:
         self.archivos = archivos or []
         self.subidos: list[tuple[str, Path]] = []
         self.carpetas_creadas: list[str] = []
+        self.coloreadas: list[tuple[str, str]] = []
         self._archivos_por_carpeta: dict[str, list[_ArchivoFalso]] = {}
 
     def crear_carpeta(self, nombre: str, carpeta_padre_id: str | None = None) -> str:
@@ -56,6 +57,9 @@ class _ClienteFalso:
 
     def link_de_carpeta(self, carpeta_id: str) -> str:
         return f"https://drive.google.com/drive/folders/{carpeta_id.replace('folder-', '')}"
+
+    def colorear_carpeta(self, carpeta_id: str, color: str) -> None:
+        self.coloreadas.append((carpeta_id, color))
 
 
 class _ClientePorCarpeta(_ClienteFalso):
@@ -111,6 +115,26 @@ def test_subir_paquete_reusa_la_carpeta_de_entregas_si_ya_existe(tmp_path):
 
     assert "Proyectos para edición externa" not in cliente.carpetas_creadas
     assert cliente.carpetas_creadas == ["Casa Reforma", "Proxies"]
+
+
+def test_subir_paquete_colorea_la_carpeta_de_rojo(tmp_path):
+    cliente = _ClienteFalso()
+    prproj = tmp_path / "Casa Reforma.prproj"
+    prproj.write_text("x")
+
+    resultado = drive.subir_paquete(cliente, "Casa Reforma", prproj, [])
+
+    assert cliente.coloreadas == [(resultado.folder_id, drive.COLOR_FALTA_EDITAR)]
+
+
+def test_subir_de_nuevo_tambien_colorea_de_rojo(tmp_path):
+    cliente = _ClienteFalso()
+    prproj = tmp_path / "Casa Reforma.prproj"
+    prproj.write_text("x")
+
+    drive.subir_paquete(cliente, "Casa Reforma", prproj, [], carpeta_existente="folder-x")
+
+    assert cliente.coloreadas == [("folder-x", drive.COLOR_FALTA_EDITAR)]
 
 
 def test_subir_paquete_devuelve_la_fecha_del_prproj_subido(tmp_path):
@@ -276,6 +300,25 @@ def test_revisar_y_persistir_marca_al_editor_cuando_drive_tiene_cambios(tmp_path
 
     assert actualizado is True
     assert json.loads(ruta.read_text())["entrega"]["estado"] == EstadoEntrega.EDITOR_CONTESTO
+    assert cliente.coloreadas == [("folder-x", drive.COLOR_YA_REGRESO)]
+
+
+def test_revisar_y_persistir_sin_cambios_no_toca_el_color(tmp_path):
+    from clasificador_video.entrega import EstadoEntrega
+
+    ruta = tmp_path / "Casa Reforma.cvproj"
+    ruta.write_text(json.dumps({"entrega": EstadoEntrega(
+        EstadoEntrega.CON_EDITOR,
+        drive_folder_id="folder-x",
+        drive_prproj_modificado_en="2026-09-16T10:00:00Z",
+    ).to_dict()}))
+    cliente = _ClienteFalso([
+        _ArchivoFalso("prproj", "Casa Reforma.prproj", "2026-09-16T10:00:00Z"),
+    ])
+
+    drive.revisar_y_persistir(ruta, cliente)
+
+    assert cliente.coloreadas == []
 
 
 def test_revisar_y_persistir_sin_cambios_no_toca_el_proyecto(tmp_path):

@@ -106,7 +106,12 @@ cualquier otro error.
 
 - §3 (carpeta fija "Proyectos para edición externa") — **hecho**, con
   TDD, 2026-09-19.
-- §4 (color rojo/verde) — pendiente.
+- §4 (color rojo/verde) — **hecho**, con TDD, 2026-09-19. Los dos colores
+  viven en `drive.py`, no en `theme.py`: no son colores de la interfaz de
+  Clipify (que sí exige `theme.py`, ver `test_ningun_modulo_declara_colores_fuera_del_tema`),
+  son la paleta fija que exige la API de Drive para colorear una carpeta
+  -- Bruno los ve en su navegador, no en el mockup. Se excluyó `drive.py`
+  de esa prueba con un comentario explicando por qué.
 
 ## 6. Pruebas
 
@@ -116,9 +121,9 @@ cualquier otro error.
 - `subir_paquete` — reusa "Proyectos para edición externa" si ya existe,
   no la vuelve a crear. **Hecho.**
 - `subir_paquete` — llama a `colorear_carpeta` con `COLOR_FALTA_EDITAR`
-  sobre la carpeta que resultó (nueva o reusada). Pendiente.
+  sobre la carpeta que resultó (nueva o reusada). **Hecho.**
 - `revisar_y_persistir` — cuando hay cambios, llama a
   `colorear_carpeta` con `COLOR_YA_REGRESO` antes de guardar el estado.
-  Pendiente.
+  **Hecho.**
 - `revisar_y_persistir` — cuando NO hay cambios, no toca el color.
-  Pendiente.
+  **Hecho.**
