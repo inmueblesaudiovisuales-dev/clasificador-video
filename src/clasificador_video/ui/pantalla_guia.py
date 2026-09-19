@@ -13,6 +13,12 @@ class _Chip(QWidget):
     quitar_pedido = Signal()
     def __init__(self, cuarto, quitable=False, parent=None):
         super().__init__(parent); self.cuarto = cuarto; self._inicio = None
+        # Puestos por `_CajaDePasos._repintar` solo para los chips que
+        # viven en una columna real. `None` para los de la franja: la
+        # franja nunca pierde un cuarto por arrastrarlo (es el origen,
+        # no un destino), así que nunca hay de dónde quitarlo.
+        self.caja_de_origen = None
+        self.indice_de_origen = None
         self.setObjectName("guiaChip"); fila = QHBoxLayout(self)
         fila.setContentsMargins(8, 5, 8, 5); fila.addWidget(QLabel(cuarto), 1)
         if quitable:
@@ -21,12 +27,39 @@ class _Chip(QWidget):
     def mousePressEvent(self, e):
         if e.button() == Qt.MouseButton.LeftButton: self._inicio = e.position().toPoint()
         super().mousePressEvent(e)
+    def mouseReleaseEvent(self, e):
+        # Sin esto, soltar el botón sin haber cruzado el umbral de
+        # arrastre dejaba `_inicio` viejo -- y el siguiente click, aunque
+        # empezara en otro lugar, medía el arrastre desde el punto de la
+        # vez anterior (mismo cuidado que ya tiene `RoomRail` en el rail).
+        self._inicio = None
+        super().mouseReleaseEvent(e)
     def mouseMoveEvent(self, e):
         if self._inicio is None or not e.buttons() & Qt.MouseButton.LeftButton: return
         if (e.position().toPoint()-self._inicio).manhattanLength() < QApplication.startDragDistance(): return
+        self._inicio = None
+        self._arrastrar()
+    def _arrastrar(self):
+        """Arma el QDrag y decide, con el resultado, si hay que
+        desaparecer de la columna de origen.
+
+        Antes esto siempre usaba `CopyAction`: arrastrar de una columna a
+        otra dejaba el cuarto en LAS DOS, y `orden_final()` lo mandaba dos
+        veces a Premiere como si fueran pasos distintos. Ahora se ofrecen
+        las dos acciones y se PIDE `MoveAction` por default -- si el
+        destino la acepta (cualquier columna real), es que de verdad hubo
+        un movimiento y el origen se vacía; si se suelta sobre la franja
+        (que ignora el soltar) o fuera de cualquier caja, el resultado no
+        es `MoveAction` y el cuarto se queda donde estaba.
+        """
         mime = QMimeData(); mime.setData(MIME_PASO, self.cuarto.encode())
         drag = QDrag(self); drag.setMimeData(mime); drag.setPixmap(self.grab())
-        self._inicio = None; drag.exec(Qt.DropAction.CopyAction)
+        resultado = drag.exec(
+            Qt.DropAction.CopyAction | Qt.DropAction.MoveAction,
+            Qt.DropAction.MoveAction,
+        )
+        if resultado == Qt.DropAction.MoveAction and self.caja_de_origen is not None:
+            self.caja_de_origen.quitar(self.indice_de_origen)
 
 
 class _CajaDePasos(QWidget):
@@ -48,7 +81,10 @@ class _CajaDePasos(QWidget):
                 item.widget().deleteLater()
         for i, cuarto in enumerate(self._orden):
             chip = _Chip(cuarto, not self.es_franja)
-            if not self.es_franja: chip.quitar_pedido.connect(lambda i=i: self.quitar(i))
+            if not self.es_franja:
+                chip.caja_de_origen = self
+                chip.indice_de_origen = i
+                chip.quitar_pedido.connect(lambda i=i: self.quitar(i))
             if self.es_franja: self._layout.insertWidget(self._layout.count()-1, chip)
             else: self._layout.addWidget(chip)
     def dragEnterEvent(self, e):
@@ -56,9 +92,18 @@ class _CajaDePasos(QWidget):
     def dragMoveEvent(self, e):
         if e.mimeData().hasFormat(MIME_PASO): e.acceptProposedAction()
     def dropEvent(self, e):
-        if e.mimeData().hasFormat(MIME_PASO) and not self.es_franja:
-            self.agregar(bytes(e.mimeData().data(MIME_PASO)).decode()); self.cambio.emit()
-        e.acceptProposedAction()
+        if not e.mimeData().hasFormat(MIME_PASO):
+            return
+        if self.es_franja:
+            # La franja no es un destino real: soltar aquí no agrega nada,
+            # y al NO aceptar `MoveAction` el chip tampoco desaparece de
+            # la columna de donde vino (ver `_Chip._arrastrar`).
+            e.ignore()
+            return
+        self.agregar(bytes(e.mimeData().data(MIME_PASO)).decode())
+        self.cambio.emit()
+        e.setDropAction(Qt.DropAction.MoveAction)
+        e.accept()
 
 
 class PantallaGuia(QWidget):
@@ -90,6 +135,15 @@ class PantallaGuia(QWidget):
             self.aviso_label.setText(f"No se pudo clasificar ({clasificacion.error}). Acomoda los cuartos a mano."); return
         for cuarto, columna in clasificacion.columna_de.items():
             if columna in self.columnas: self.columnas[columna].agregar(cuarto)
+        if clasificacion.inventados:
+            # Se marca en vez de callarse: un cuarto que el modelo se
+            # inventó no es tuyo, y perderlo en silencio es justo el modo
+            # de falla que este aviso existe para evitar.
+            self.aviso_label.setText(
+                "El modelo mencionó algo que no es tuyo: "
+                + ", ".join(clasificacion.inventados) + "."
+            )
+            return
         self._refrescar_aviso()
     def mostrar_guia_aceptada(self, lista):
         self.columnas[logica.COLUMNAS[0].id].poner([r.cuarto for r in lista]); self._refrescar_aviso()
