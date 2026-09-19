@@ -39,15 +39,15 @@ def test_el_comando_toma_la_primera_pista_de_video():
     assert args[args.index("-map") + 1] == "0:v:0"
 
 
-def test_el_comando_escala_por_el_lado_corto():
-    """`scale=-2:720` a secas deja un clip VERTICAL en 720 de ancho, o sea
-    720x1280 donde deberia dar 405x720 -- un proxy mas pesado que el
-    original en el peor caso."""
+def test_el_comando_ya_no_escala___sale_al_tamano_real_del_original():
+    """El proxy deja de achicar el cuadro (spec 2026-09-18 §2): un clip de
+    4K da un proxy de 4K. Se abandonó 720p porque un editor externo que
+    reencuadra sobre un proxy de OTRO tamaño calcula el ajuste mal, y al
+    reconectar contra el original la imagen sale chica y cortada --
+    comprobado con capturas reales, no en teoría."""
     args = proxy_gen.comando(Path("a.MP4"), Path("b.mp4"), ffmpeg="ffmpeg")
-    filtro = args[args.index("-vf") + 1]
 
-    assert "gt(iw,ih)" in filtro   # decide mirando cual lado es el corto
-    assert "720" in filtro
+    assert "-vf" not in args
 
 
 def test_el_comando_no_falla_si_el_clip_no_trae_audio():

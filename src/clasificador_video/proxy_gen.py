@@ -21,11 +21,6 @@ from pathlib import Path
 
 from clasificador_video.binarios import ruta_de
 
-# El lado corto del proxy. 720 es lo que se midio y lo que la app ya
-# reproduce comodo; el lado LARGO sale de la proporcion del original, asi
-# que un clip vertical da 720x1280 y no al reves.
-LADO_CORTO = 720
-
 # Los proxies generados terminan igual que los de la Sony. No es cosmetica:
 # `ingest.es_archivo_de_proxy` descarta por ese sufijo, asi que si algun dia
 # alguien arrastra la carpeta de proxies como si fuera material, no entra
@@ -208,27 +203,21 @@ def ruta_de_proxy(original: Path, carpeta: Path) -> Path:
 def comando(original: Path, destino: Path, ffmpeg: str | None = None) -> list[str]:
     """El comando de ffmpeg, armado aparte para poder probarlo sin correrlo.
 
-    Los dos detalles que costaron una medicion equivocada y no se pueden
-    perder:
+    Ya NO escala (spec 2026-09-18 §2): el proxy sale exactamente al tamaño
+    del original. El peso lo decide el bitrate (`-b:v 6M`), no la
+    resolución -- medido: un proxy de 4K real pesa lo mismo que uno de
+    720p con el mismo bitrate.
 
-    - **`-map 0:v:0`.** Los MP4 del dron traen una miniatura JPEG incrustada
-      como SEGUNDA pista de video. Sin esto, ffmpeg elige esa por ser la de
-      mejor "calidad" y sale un proxy de 406 px de ancho.
-    - **El escalado mira cual lado es el corto.** `scale=-2:720` a secas
-      deja un clip vertical en 720 de ANCHO, o sea 720x1280 cuando deberia
-      ser 405x720. El `-2` mantiene la proporcion y ademas obliga a un
-      numero par, que H.264 necesita.
+    El unico detalle que sigue costando caro es `-map 0:v:0`: los MP4 del
+    dron traen una miniatura JPEG incrustada como SEGUNDA pista de video, y
+    sin esto ffmpeg elige esa por ser la de mejor "calidad".
     """
-    escala = (
-        f"scale='if(gt(iw,ih),-2,{LADO_CORTO})':'if(gt(iw,ih),{LADO_CORTO},-2)'"
-    )
     return [
         ffmpeg or str(ruta_de("ffmpeg")),
         "-y",                       # el destino ya se comprobo antes de llamar
         "-i", str(original),
         "-map", "0:v:0",            # el video de verdad, no la miniatura
         "-map", "0:a?",             # el audio si lo hay, y sin fallar si no
-        "-vf", escala,
         "-c:v", "h264_videotoolbox",  # el codificador del chip: sin el, 10x mas lento
         "-b:v", "6M",
         # A AAC y no `copy`: el audio del original puede venir en PCM, que no
