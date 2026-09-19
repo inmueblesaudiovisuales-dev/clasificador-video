@@ -30,6 +30,10 @@ IDS_DE_COLUMNA = frozenset(c.id for c in COLUMNAS)
 class Clasificacion:
     ok: bool
     columna_de: dict[str, str] = field(default_factory=dict)
+    # Cuartos que el modelo mencionó y NO son de los reales -- se marcan en
+    # vez de descartarse en silencio (spec del CLAUDE.md: "si sobra alguno,
+    # el panel lo marca en vez de enseñar la lista como si nada").
+    inventados: list[str] = field(default_factory=list)
     error: str = ""
 
 
@@ -92,13 +96,20 @@ def leer_clasificacion(texto: str | None, cuartos_reales: list[str]) -> Clasific
         return Clasificacion(False, error="La respuesta no se pudo leer.")
     if not isinstance(datos, dict) or not isinstance(datos.get("clasificacion"), list):
         return Clasificacion(False, error="La respuesta llegó con otra forma.")
-    reales = set(cuartos_reales or []); columna_de = {}
+    reales = set(cuartos_reales or []); columna_de = {}; inventados = []
     for renglon in datos["clasificacion"]:
         if not isinstance(renglon, dict): continue
         cuarto, columna = renglon.get("cuarto"), renglon.get("columna")
-        if cuarto in reales and columna in IDS_DE_COLUMNA:
-            columna_de.setdefault(cuarto, columna)
-    return Clasificacion(True, columna_de)
+        if columna not in IDS_DE_COLUMNA:
+            continue
+        if cuarto not in reales:
+            # el modelo se sacó un cuarto de la manga: no se inventa, se
+            # marca -- igualdad exacta de cadena, sin normalizar nada.
+            if isinstance(cuarto, str) and cuarto not in inventados:
+                inventados.append(cuarto)
+            continue
+        columna_de.setdefault(cuarto, columna)
+    return Clasificacion(True, columna_de, inventados)
 
 
 def cuartos_sin_usar(reales: list[str], pasos: list[str]) -> list[str]:

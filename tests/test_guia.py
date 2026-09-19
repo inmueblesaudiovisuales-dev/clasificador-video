@@ -52,6 +52,24 @@ def test_leer_clasificacion_ignora_datos_invalidos_y_repetidos():
     assert r.ok and r.columna_de == {"Sala": "sociales"}
 
 
+def test_leer_clasificacion_marca_un_cuarto_inventado_en_vez_de_callarlo():
+    # El CLAUDE.md del repo es explicito: "si sobra alguno, el panel lo
+    # marca en vez de enseñar la lista como si nada". Un cuarto que el
+    # modelo se saco de la manga no debe desaparecer sin dejar rastro.
+    crudo = json.dumps({"clasificacion": [
+        {"cuarto": "Sala", "columna": "sociales"},
+        {"cuarto": "Cuarto Inventado", "columna": "amenidades"}]})
+    r = guia.leer_clasificacion(crudo, ["Sala"])
+    assert r.ok
+    assert r.inventados == ["Cuarto Inventado"]
+
+
+def test_leer_clasificacion_sin_inventados_la_lista_queda_vacia():
+    crudo = json.dumps({"clasificacion": [{"cuarto": "Sala", "columna": "sociales"}]})
+    r = guia.leer_clasificacion(crudo, ["Sala"])
+    assert r.inventados == []
+
+
 def test_leer_clasificacion_respuesta_vacia():
     r = guia.leer_clasificacion(None, ["Sala"])
     assert not r.ok and r.error
