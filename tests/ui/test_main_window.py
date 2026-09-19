@@ -2378,6 +2378,40 @@ def test_enter_abre_la_paleta(qtbot):
     assert not window.room_palette.isHidden()
 
 
+def test_escape_cierra_la_paleta_en_vez_de_no_hacer_nada(qtbot):
+    """Reportado por Bruno el 2026-09-19: "pico enter en un clip ya
+    clasificado y le pico escape, no se quita". El atajo de ventana de
+    `esc` (`handle_key_press("escape")`) solo sabia de solo-video y del
+    modo hoja -- nunca de la paleta, asi que con la paleta abierta y
+    ambas capas ya en su estado de reposo, escape no hacia nada visible
+    y la paleta se quedaba flotando ahi para siempre."""
+    window = _window(qtbot, rooms=("Cocina",))
+    window.load_clips([_clip(1)])
+    window._asignar_cuarto(["Cocina"])  # el clip "ya fue clasificado"
+    window._on_enter()
+    assert not window.room_palette.isHidden()
+
+    window.handle_key_press("escape")
+
+    assert window.room_palette.isHidden()
+
+
+def test_escape_con_la_paleta_abierta_deshace_solo_esa_capa(qtbot):
+    """`esc` deshace UNA capa a la vez (ya documentado en
+    `handle_key_press`): con la paleta abierta encima del modo clip, el
+    primer escape cierra la paleta y NADA MAS -- no salta ademas al modo
+    hoja en el mismo tecleo."""
+    window = _window(qtbot, rooms=("Cocina",))
+    window.load_clips([_clip(1)])
+    window.alternar_modo_hoja()  # se queda en modo clip
+    window._on_enter()
+
+    window.handle_key_press("escape")
+
+    assert window.room_palette.isHidden()
+    assert not window._modo_hoja
+
+
 def test_enter_NO_abre_la_paleta_si_el_foco_esta_en_el_rail(qtbot):
     """Con una fila enfocada, `⏎` renombra ese cuarto. Un QShortcut normal se
     dispara sin importar quien tiene el foco y se lo robaria: renombrar

@@ -4697,7 +4697,17 @@ class MainWindow(QWidget):
             # `esc` es la salida universal, y deshace UNA capa por vez: si se
             # saltara una, saldrias de solo video y de la vista de clip con la
             # misma tecla sin haber visto el paso intermedio.
-            if self._solo_video:
+            #
+            # La paleta de cuartos es la capa MAS alta cuando esta abierta, y
+            # tiene que ir primero: ella misma sabe cerrarse con escape
+            # (`RoomPalette.keyPressEvent`), pero ese atajo de VENTANA se
+            # dispara igual mientras la paleta esta al frente y no sabia
+            # nada de ella -- Bruno lo vio como «pico escape, no se quita»,
+            # porque las otras dos capas ya estaban en su estado de reposo y
+            # no habia nada mas que escape pudiera deshacer.
+            if not self.room_palette.isHidden():
+                self.room_palette.cerrar()
+            elif self._solo_video:
                 self.alternar_solo_video()
             elif not self._modo_hoja:
                 self.alternar_modo_hoja()
