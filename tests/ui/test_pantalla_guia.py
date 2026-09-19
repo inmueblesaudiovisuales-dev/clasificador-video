@@ -1,178 +1,60 @@
+import pytest
+from PySide6.QtWidgets import QMessageBox
 from clasificador_video import guia as logica
-from clasificador_video.ui.pantalla_guia import TIPOS_DE_PROPIEDAD, PantallaGuia
+from clasificador_video.ui.pantalla_guia import PantallaGuia
 
 
-def _pantalla(qtbot) -> PantallaGuia:
-    p = PantallaGuia()
-    qtbot.addWidget(p)
-    p.resize(640, 560)
-    # Sin esto las geometrias salen todas en cero y comparar posiciones no
-    # diria nada.
-    p.layout().activate()
-    return p
+@pytest.fixture
+def pantalla(qtbot):
+    p = PantallaGuia(); qtbot.addWidget(p); p.resize(900, 600); return p
 
 
-def test_los_seis_tipos_de_propiedad(qtbot):
-    # Los que de verdad salieron en sus entregables de 2026. Ni cuatro ni
-    # los doce del rubro.
-    assert TIPOS_DE_PROPIEDAD == [
-        "Casa", "Departamento", "Terreno", "Local", "Quinta de campo", "Hospedaje",
-    ]
+def test_arranca_con_siete_columnas_vacias(pantalla):
+    assert len(pantalla.columnas) == 7
+    assert all(c.cuartos() == [] for c in pantalla.columnas.values())
 
 
-def test_no_pregunta_para_quien_es_el_video(qtbot):
-    # Se fue: todo es para redes, era un clic para decir lo de siempre.
-    p = _pantalla(qtbot)
-    textos = [w.text() for w in p.findChildren(type(p.titulo_lucir))]
-    assert not any("para quién" in t.lower() for t in textos)
+def test_franja_tiene_todos_los_cuartos(pantalla):
+    pantalla.poner_cuartos_reales(["Sala", "Cocina"])
+    assert pantalla.franja.cuartos() == ["Sala", "Cocina"]
 
 
-def test_lo_que_se_quiere_lucir_va_al_frente(qtbot):
-    p = _pantalla(qtbot)
-    # La caja de «lucir» esta ARRIBA de los chips de tipo: es la pregunta
-    # principal.
-    assert p.caja_lucir.y() < p.fila_tipos.y()
+def test_mostrar_clasificacion_coloca_chips(pantalla):
+    pantalla.poner_cuartos_reales(["Sala", "Roof garden"])
+    pantalla.mostrar_clasificacion(logica.Clasificacion(True, {"Sala": "sociales"}))
+    assert pantalla.columnas["sociales"].cuartos() == ["Sala"]
 
 
-def test_ensena_la_guia_que_llego(qtbot):
-    p = _pantalla(qtbot)
-    p.mostrar_respuesta(
-        logica.Respuesta(
-            ok=True,
-            recorrido="Abres por fuera.",
-            lista=[
-                logica.Renglon(cuarto="Fachada", porque="se entra aquí"),
-                logica.Renglon(cuarto="Alberca", porque="la subí", fuera_del_patron=True),
-            ],
-        ),
-        logica.Revision(),
-    )
-    texto = p.texto_del_resultado()
-    assert "Abres por fuera." in texto
-    assert "1. Fachada" in texto
-    assert "2. Alberca" in texto
+def test_clasificacion_fallida_deja_columnas_vacias_y_avisa(pantalla):
+    pantalla.mostrar_clasificacion(logica.Clasificacion(False, error="no hay red"))
+    assert all(c.cuartos() == [] for c in pantalla.columnas.values())
+    assert "no hay red" in pantalla.aviso_label.text().lower()
 
 
-def test_marca_el_cuarto_que_se_salio_del_patron(qtbot):
-    p = _pantalla(qtbot)
-    p.mostrar_respuesta(
-        logica.Respuesta(
-            ok=True, recorrido="x",
-            lista=[logica.Renglon(cuarto="Alberca", porque="la subí", fuera_del_patron=True)],
-        ),
-        logica.Revision(),
-    )
-    assert "la subí" in p.texto_del_resultado()
+def test_repetir_y_orden_final(pantalla):
+    pantalla.poner_cuartos_reales(["Dron", "Sala"])
+    pantalla.agregar_a_columna("apertura", "Dron")
+    pantalla.agregar_a_columna("sociales", "Sala")
+    pantalla.agregar_a_columna("aerea_final", "Dron")
+    assert pantalla.orden_final() == ["Dron", "Sala", "Dron"]
 
 
-def test_los_avisos_de_la_revision_se_ven_arriba(qtbot):
-    p = _pantalla(qtbot)
-    p.mostrar_respuesta(
-        logica.Respuesta(ok=True, recorrido="x", lista=[logica.Renglon(cuarto="Sala")]),
-        logica.Revision(faltan=["Cocina"]),
-    )
-    assert "Cocina" in p.avisos_label.text()
+def test_quitar_paso_y_aviso_sin_usar(pantalla):
+    pantalla.poner_cuartos_reales(["Sala"])
+    pantalla.agregar_a_columna("sociales", "Sala")
+    pantalla.columnas["sociales"].quitar(0)
+    assert "Sala" in pantalla.aviso_label.text()
 
 
-def test_un_error_se_ve_y_no_deja_lista_a_medias(qtbot):
-    p = _pantalla(qtbot)
-    p.mostrar_respuesta(
-        logica.Respuesta(ok=False, error="No se pudo armar la guía: no hay internet."),
-        logica.Revision(),
-    )
-    assert "internet" in p.avisos_label.text()
-    assert p.texto_del_resultado().strip() == ""
-    assert not p.usar_button.isEnabled()
+def test_usar_emite_lista_plana(pantalla, qtbot):
+    pantalla.agregar_a_columna("sociales", "Sala")
+    with qtbot.waitSignal(pantalla.orden_aceptado) as señal: pantalla.usar_button.click()
+    assert señal.args == [["Sala"]]
 
 
-def test_usar_este_orden_emite_el_orden(qtbot):
-    p = _pantalla(qtbot)
-    p.mostrar_respuesta(
-        logica.Respuesta(
-            ok=True, recorrido="x",
-            lista=[logica.Renglon(cuarto="Fachada"), logica.Renglon(cuarto="Sala")],
-        ),
-        logica.Revision(),
-    )
-    with qtbot.waitSignal(p.orden_aceptado) as blocker:
-        p.usar_button.click()
-    assert blocker.args[0] == ["Fachada", "Sala"]
-
-
-# --- Se tiene que poder cerrar ---------------------------------------
-# Bug del 2026-09-15: la pantalla se abría encima de la ventana y ahí se
-# quedaba. Sin botón de cerrar y sin Esc, la única salida era cerrar la app.
-
-def test_tiene_por_donde_cerrarse(qtbot):
-    p = _pantalla(qtbot)
-    with qtbot.waitSignal(p.cerrada):
-        p.cerrar_button.click()
-
-
-def test_escape_tambien_la_cierra(qtbot):
-    from PySide6.QtCore import Qt
-
-    p = _pantalla(qtbot)
-    p.show()
-    with qtbot.waitSignal(p.cerrada):
-        qtbot.keyClick(p, Qt.Key.Key_Escape)
-
-
-def test_escape_no_la_cierra_mientras_arma(qtbot):
-    # A media llamada, Esc cerraría la pantalla y la respuesta llegaría a
-    # una pantalla escondida: se ve como si no hubiera pasado nada.
-    from PySide6.QtCore import Qt
-
-    p = _pantalla(qtbot)
-    p.show()
-    p.armando()
-    with qtbot.assertNotEmitted(p.cerrada):
-        qtbot.keyClick(p, Qt.Key.Key_Escape)
-
-
-def test_mientras_arma_el_boton_de_cerrar_tambien_se_apaga(qtbot):
-    # Si Esc no cierra, el botón tampoco puede: lo que se ve y lo que se
-    # puede hacer tienen que ser la misma cosa.
-    p = _pantalla(qtbot)
-    p.armando()
-    assert not p.cerrar_button.isEnabled()
-
-    p.mostrar_respuesta(
-        logica.Respuesta(ok=False, error="No se pudo armar la guía: no hay internet."),
-        logica.Revision(),
-    )
-    assert p.cerrar_button.isEnabled()
-
-
-def test_un_cuarto_repetido_sale_marcado_la_segunda_vez(qtbot):
-    p = _pantalla(qtbot)
-    p.mostrar_respuesta(
-        logica.Respuesta(
-            ok=True, recorrido="x",
-            lista=[logica.Renglon("Aérea", "abres"),
-                   logica.Renglon("Sala"),
-                   logica.Renglon("Aérea", "cierras")],
-        ),
-        logica.Revision(),
-    )
-    texto = p.texto_del_resultado()
-    # La PRIMERA no se marca: marcarla diría que algo pasa con ella.
-    assert texto.index("otra vez") > texto.index("Sala")
-    assert texto.count("otra vez") == 1
-
-
-def test_los_pasos_se_numeran_todos(qtbot):
-    p = _pantalla(qtbot)
-    p.mostrar_respuesta(
-        logica.Respuesta(
-            ok=True, recorrido="x",
-            lista=[logica.Renglon("Aérea"), logica.Renglon("Sala"),
-                   logica.Renglon("Aérea")],
-        ),
-        logica.Revision(),
-    )
-    texto = p.texto_del_resultado()
-    # Tres pasos, no dos cuartos.
-    assert "1. Aérea" in texto
-    assert "2. Sala" in texto
-    assert "3. Aérea" in texto
+def test_reclasificar_confirma_si_hay_trabajo(pantalla, monkeypatch):
+    pantalla.agregar_a_columna("sociales", "Sala")
+    monkeypatch.setattr(QMessageBox, "question", lambda *a, **k: QMessageBox.StandardButton.No)
+    pedidos = []; pantalla.clasificacion_pedida.connect(lambda: pedidos.append(1))
+    pantalla.clasificar_de_nuevo_button.click()
+    assert pedidos == []
