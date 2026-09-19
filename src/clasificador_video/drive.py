@@ -119,8 +119,16 @@ def hay_token_guardado() -> bool:
     return _RUTA_TOKEN.exists()
 
 
-def revisar_y_persistir(ruta_cvproj: Path, cliente) -> bool:
-    """Revisa Drive y guarda el estado de respuesta del editor si cambió."""
+def revisar_y_persistir(ruta_cvproj: Path, cliente) -> ResultadoDeRevision | None:
+    """Revisa Drive y guarda el estado de respuesta del editor si cambió.
+
+    Devuelve el `ResultadoDeRevision` completo -- aunque no haya
+    cambios -- para que quien llama (el ⟳ de una fila, o "Traer de
+    vuelta" desde la lista de activos) pueda armar su propio mensaje sin
+    volver a preguntarle a Drive. `None` solo cuando no hay una entrega
+    con la que comparar (archivo ilegible, sin `entrega`, o sin
+    `drive_folder_id`).
+    """
     import json
     from dataclasses import replace
 
@@ -130,19 +138,18 @@ def revisar_y_persistir(ruta_cvproj: Path, cliente) -> bool:
     try:
         data = json.loads(ruta_cvproj.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
-        return False
+        return None
     estado = EstadoEntrega.de_dict(data.get("entrega"))
     if estado is None or estado.drive_folder_id is None:
-        return False
+        return None
     resultado = revisar_cambios(
         cliente, estado.drive_folder_id, estado.drive_prproj_modificado_en)
-    if not (resultado.hay_cambios or resultado.tiene_material_nuevo):
-        return False
-    cliente.colorear_carpeta(estado.drive_folder_id, COLOR_YA_REGRESO)
-    data["entrega"] = replace(
-        estado, estado=EstadoEntrega.EDITOR_CONTESTO).to_dict()
-    proyecto.guardar(ruta_cvproj, data)
-    return True
+    if resultado.hay_cambios or resultado.tiene_material_nuevo:
+        cliente.colorear_carpeta(estado.drive_folder_id, COLOR_YA_REGRESO)
+        data["entrega"] = replace(
+            estado, estado=EstadoEntrega.EDITOR_CONTESTO).to_dict()
+        proyecto.guardar(ruta_cvproj, data)
+    return resultado
 
 
 def traer_prproj(cliente, carpeta_id: str, destino: Path) -> None:

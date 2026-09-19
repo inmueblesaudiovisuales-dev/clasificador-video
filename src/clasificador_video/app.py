@@ -505,7 +505,8 @@ class Coordinador(QObject):
         except Exception:
             self.inicio.avisar("No se pudo conectar con Google Drive.")
             return
-        if drive.revisar_y_persistir(ruta, cliente):
+        resultado = drive.revisar_y_persistir(ruta, cliente)
+        if resultado is not None and (resultado.hay_cambios or resultado.tiene_material_nuevo):
             self._refrescar()
 
     # --- el ciclo de vida de las ventanas ---------------------------------

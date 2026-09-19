@@ -459,11 +459,13 @@ def test_refrescar_pedido_actualiza_la_lista_si_drive_encontro_cambios(
     refrescos = []
     monkeypatch.setattr(drive, "hay_token_guardado", lambda: True)
     monkeypatch.setattr(drive, "cliente_autorizado", lambda credenciales: cliente)
-    monkeypatch.setattr(
-        drive, "revisar_y_persistir",
-        lambda ruta_recibida, cliente_recibido: (
-            ruta_recibida == ruta and cliente_recibido is cliente),
-    )
+    def _revisar_y_persistir(ruta_recibida, cliente_recibido):
+        assert ruta_recibida == ruta
+        assert cliente_recibido is cliente
+        return drive.ResultadoDeRevision(
+            hay_cambios=True, prproj_modificado_en="x", tiene_material_nuevo=False)
+
+    monkeypatch.setattr(drive, "revisar_y_persistir", _revisar_y_persistir)
     monkeypatch.setattr(coord, "_refrescar", lambda: refrescos.append(True))
 
     coord.inicio.refrescar_pedido.emit(ruta)

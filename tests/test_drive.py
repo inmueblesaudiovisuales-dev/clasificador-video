@@ -296,9 +296,9 @@ def test_revisar_y_persistir_marca_al_editor_cuando_drive_tiene_cambios(tmp_path
         _ArchivoFalso("prproj", "Casa Reforma.prproj", "2026-09-18T12:00:00Z"),
     ])
 
-    actualizado = drive.revisar_y_persistir(ruta, cliente)
+    resultado = drive.revisar_y_persistir(ruta, cliente)
 
-    assert actualizado is True
+    assert resultado.hay_cambios is True
     assert json.loads(ruta.read_text())["entrega"]["estado"] == EstadoEntrega.EDITOR_CONTESTO
     assert cliente.coloreadas == [("folder-x", drive.COLOR_YA_REGRESO)]
 
@@ -316,8 +316,9 @@ def test_revisar_y_persistir_sin_cambios_no_toca_el_color(tmp_path):
         _ArchivoFalso("prproj", "Casa Reforma.prproj", "2026-09-16T10:00:00Z"),
     ])
 
-    drive.revisar_y_persistir(ruta, cliente)
+    resultado = drive.revisar_y_persistir(ruta, cliente)
 
+    assert resultado.hay_cambios is False
     assert cliente.coloreadas == []
 
 
@@ -336,16 +337,15 @@ def test_revisar_y_persistir_sin_cambios_no_toca_el_proyecto(tmp_path):
         _ArchivoFalso("prproj", "Casa Reforma.prproj", "2026-09-16T10:00:00Z"),
     ])
 
-    actualizado = drive.revisar_y_persistir(ruta, cliente)
+    drive.revisar_y_persistir(ruta, cliente)
 
-    assert actualizado is False
     assert ruta.read_text() == antes
 
 
-def test_revisar_y_persistir_sin_entrega_devuelve_falso(tmp_path):
+def test_revisar_y_persistir_sin_entrega_devuelve_none(tmp_path):
     ruta = tmp_path / "Casa Reforma.cvproj"
     ruta.write_text(json.dumps({"proyecto": "Casa Reforma"}))
 
-    actualizado = drive.revisar_y_persistir(ruta, _ClienteFalso())
+    resultado = drive.revisar_y_persistir(ruta, _ClienteFalso())
 
-    assert actualizado is False
+    assert resultado is None
