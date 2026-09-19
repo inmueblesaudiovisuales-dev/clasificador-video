@@ -81,10 +81,36 @@ def test_subir_paquete_crea_carpeta_y_sube_prproj_y_proxies(tmp_path):
         prproj=prproj, proxies=[proxy1],
     )
 
-    assert cliente.carpetas_creadas == ["Casa Reforma", "Proxies"]
+    assert cliente.carpetas_creadas == [
+        "Proyectos para edición externa", "Casa Reforma", "Proxies"]
     assert (cliente.subidos[0][1] == prproj)
     assert (cliente.subidos[1][1] == proxy1)
     assert resultado.folder_link.startswith("https://drive.google.com/")
+
+
+def test_subir_paquete_crea_la_carpeta_del_proyecto_dentro_de_entregas(tmp_path):
+    cliente = _ClienteFalso()
+    prproj = tmp_path / "Casa Reforma.prproj"
+    prproj.write_text("x")
+
+    drive.subir_paquete(cliente, "Casa Reforma", prproj, [])
+
+    entregas_id = "folder-Proyectos para edición externa"
+    hijos = cliente.listar_en_carpeta(entregas_id)
+    assert any(h.name == "Casa Reforma" for h in hijos)
+
+
+def test_subir_paquete_reusa_la_carpeta_de_entregas_si_ya_existe(tmp_path):
+    cliente = _ClienteFalso()
+    cliente.crear_carpeta("Proyectos para edición externa", carpeta_padre_id="root")
+    cliente.carpetas_creadas.clear()
+    prproj = tmp_path / "Casa Reforma.prproj"
+    prproj.write_text("x")
+
+    drive.subir_paquete(cliente, "Casa Reforma", prproj, [])
+
+    assert "Proyectos para edición externa" not in cliente.carpetas_creadas
+    assert cliente.carpetas_creadas == ["Casa Reforma", "Proxies"]
 
 
 def test_subir_paquete_devuelve_la_fecha_del_prproj_subido(tmp_path):

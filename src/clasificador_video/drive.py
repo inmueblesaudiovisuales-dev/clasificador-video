@@ -21,7 +21,9 @@ from pathlib import Path
 
 CARPETA_PROXIES = "Proxies"
 CARPETA_MATERIAL_NUEVO = "material nuevo"
+CARPETA_ENTREGAS = "Proyectos para edición externa"
 CARPETA_MIME = "application/vnd.google-apps.folder"
+_RAIZ_DE_DRIVE = "root"
 
 
 @dataclass(frozen=True)
@@ -49,8 +51,18 @@ def subir_paquete(cliente, nombre_proyecto: str, prproj: Path, proxies: list[Pat
                    carpeta_existente: str | None = None) -> ResultadoDeSubida:
     """Crea o reusa la carpeta de la entrega, sube su contenido y devuelve
     el link junto con la fecha del `.prproj` que acaba de quedar en Drive.
+
+    Una carpeta nueva se crea DENTRO de `CARPETA_ENTREGAS` (se reusa si ya
+    existe), nunca suelta en la raíz de Drive -- Bruno la mueve una vez a
+    donde quiera dentro de su Drive y de ahí en adelante las entregas
+    siguen cayendo ahí. `carpeta_existente` (de "Subir de nuevo") ya vive
+    donde vive, no se vuelve a tocar su ubicación.
     """
-    carpeta_id = carpeta_existente or cliente.crear_carpeta(nombre_proyecto)
+    if carpeta_existente:
+        carpeta_id = carpeta_existente
+    else:
+        entregas_id = _subcarpeta_existente_o_nueva(cliente, _RAIZ_DE_DRIVE, CARPETA_ENTREGAS)
+        carpeta_id = cliente.crear_carpeta(nombre_proyecto, carpeta_padre_id=entregas_id)
     cliente.subir_archivo(prproj, carpeta_id)
     proxies_id = _subcarpeta_existente_o_nueva(cliente, carpeta_id, CARPETA_PROXIES)
     for proxy in proxies:

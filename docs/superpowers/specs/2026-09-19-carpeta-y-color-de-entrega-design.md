@@ -12,70 +12,64 @@ Drive sin tener que abrir Clipify.)*
 Con la entrega ya funcional, dos cosas le faltaban a Bruno para que la
 use de verdad:
 
-- Cada entrega crea su carpeta en la **raíz** de su Drive. Bruno ya tiene
-  una carpeta propia donde quiere que caigan, no una lista suelta.
+- Cada entrega crea su carpeta en la **raíz** de su Drive. Bruno quiere
+  que caigan todas juntas en un solo lugar, no sueltas en la raíz.
 - Para saber si un editor ya contestó, hoy hay que abrir Clipify y
   refrescar. Bruno quiere poder verlo de un vistazo **en el propio
   Drive** — rojo si falta editar, verde si ya regresó.
 
-## 2. El permiso de Drive cambia de `drive.file` a `drive`
+## 2. El permiso de Drive NO cambia — decisión revertida
 
-Esta es la pieza que se decide primero porque las otras dos dependen de
-ella, y porque tocarla requiere a Bruno (reconectar la cuenta).
+Se intentó primero ampliar `drive.file` a `drive` (acceso completo) para
+poder escribir dentro de una carpeta que Bruno ya había creado a mano en
+el navegador. Al intentarlo en Google Cloud Console salió: *"Your app
+requires verification"* — `drive` es un permiso **restringido**, y
+publicar una app con un permiso restringido exige que Google audite la
+app (revisión de seguridad de terceros, pagada) para poder usarse fuera
+del modo de pruebas. Completamente desproporcionado para una app de un
+solo usuario.
 
-**Por qué hace falta cambiarlo:** con `drive.file` (el permiso actual,
-"Clipify solo toca lo que ella misma sube"), la app solo puede leer o
-escribir carpetas que **ella misma creó**. La carpeta destino que Bruno
-quiere usar la hizo él a mano en el navegador de Drive — la app no la
-puede "ver" con ese permiso, y el intento de crear algo adentro fallaría.
+Se confirmó revisando otro sistema de Bruno (`proposalinc_contratos` /
+"Velada", que también sube a Drive): ese sistema **nunca pidió acceso
+completo** — usa el mismo permiso acotado que Clipify ya tenía
+(`drive.file`, solo carpetas que la propia app crea), documentado en su
+propio repo casi con las mismas palabras que esta spec. Cuando quiso
+usar una carpeta que Bruno ya tenía, la nota en su documentación decía
+literalmente que para eso hacía falta el permiso completo — y ese
+sistema optó por no pedirlo.
 
-**Qué se descartó y por qué:** la alternativa de no tocar el permiso
-—dejar que la app cree la carpeta destino ella misma la primera vez, y
-que Bruno la arrastre después a donde quiera en el navegador de Drive—
-sí funcionaba con `drive.file`, porque mover un archivo no le quita el
-acceso a quien lo creó. Se descartó porque Bruno prefirió ampliar el
-permiso en vez de cambiar el orden de los pasos.
+**Se revierte al permiso original: `drive.file` no se toca.** La carpeta
+destino la crea la propia app (§3), nunca una que Bruno haya hecho a
+mano — así nunca hace falta el permiso amplio.
 
-**Qué implica el cambio (todo esto lo hace Bruno, no es código):**
-- Agregar el scope `https://www.googleapis.com/auth/drive` en la
-  pantalla "Data access" de Google Cloud Console (antes solo tenía
-  `drive.file`).
-- Borrar `~/.clasificador_video/drive_token.json` y volver a darle
-  "Conectar Google Drive" desde Configuración — el token viejo no tiene
-  el permiso nuevo, y las llamadas fallarían con un error de permiso
-  insuficiente si se reusa.
+## 3. Carpeta destino: fija, creada por la propia app
 
-**Qué cambia en el código:**
-- `_SCOPES` en `drive.py` pasa de `["…/auth/drive.file"]` a
-  `["…/auth/drive"]`.
-- El comentario sobre `cliente_autorizado()` que hoy dice "permiso
-  acotado… Clipify solo toca lo que ella misma sube" se corrige para
-  explicar el porqué del permiso completo (carpetas que Bruno crea a
-  mano, no solo las que crea la app).
+En vez de un campo en Configuración, la app usa un nombre fijo:
+**"Proyectos para edición externa"** (`drive.CARPETA_ENTREGAS`). Al subir
+un proyecto que no tiene ya una carpeta (primera vez, no "Subir de
+nuevo"), `subir_paquete`:
 
-No hay prueba de pytest para esto — es exactamente el mismo caso que el
-resto de `cliente_autorizado()`: necesita la cuenta real de Bruno.
+1. Busca esa carpeta en la raíz de Drive. Si no existe, la crea (mismo
+   patrón que ya usa con la subcarpeta "Proxies" —
+   `_subcarpeta_existente_o_nueva`, ahora reusado también para esto).
+2. Crea la carpeta del proyecto **dentro** de esa carpeta.
 
-## 3. Carpeta destino configurable
+Bruno puede mover "Proyectos para edición externa" a donde quiera dentro
+de su Drive (moverla no le quita el acceso a quien la creó) — la app la
+sigue encontrando por nombre en la raíz solo si nunca se movió; si Bruno
+la mueve, sigue sirviendo para las entregas ya creadas dentro de ella
+(no hace falta volver a encontrarla, cada proyecto ya sabe su propio
+`drive_folder_id`), pero una entrega **nueva** después de moverla
+volvería a crear "Proyectos para edición externa" en la raíz, sin
+darse cuenta de que ya existe movida. Esto es una limitación conocida y
+aceptada: si algún día molesta, la solución es guardar el ID de esa
+carpeta madre la primera vez que se crea (en vez de rebuscarla por
+nombre cada vez) — no se construye ahora porque no se sabe todavía si
+hace falta.
 
-Nuevo campo en Configuración, junto al de "Proxies" (mismo patrón que
-`carpeta_de_proyectos_premiere` en `preferencias.py`): un campo de texto
-donde Bruno pega el link de la carpeta de Drive (ej.
-`https://drive.google.com/drive/folders/1vOdb…`), y un botón para
-guardarlo. La app saca el ID de la carpeta del link con una función
-chica y testeable (`drive.id_de_carpeta_desde_link(url) -> str | None`),
-y si el link no tiene forma de carpeta de Drive, muestra un error en vez
-de guardar cualquier cosa.
-
-Se guarda en `preferencias.py` como `carpeta_destino_drive_id`, igual
-que las demás preferencias de carpeta.
-
-**Si nunca se configura, no cambia nada:** `subir_paquete` sigue creando
-la carpeta del proyecto en la raíz de Drive, como hace hoy. El campo
-nuevo es un parámetro opcional (`carpeta_padre_id: str | None = None`)
-que solo se usa al crear una carpeta **nueva** — si ya hay
-`carpeta_existente` (el caso de "Subir de nuevo"), ese parámetro no
-aplica, porque la carpeta ya vive donde vive.
+**Ya no aplica:** el campo de Configuración para pegar un link, y la
+función para parsear el ID de una URL — se descartan enteros junto con
+el permiso amplio.
 
 ## 4. Color de la carpeta
 
@@ -108,30 +102,23 @@ falla de red de `subir_paquete` o `revisar_y_persistir` — ya hay un
 `_TraidaDeDriveJob` vía `_al_refrescar_entrega`) que la reporta como
 cualquier otro error.
 
-## 5. Orden de implementación
+## 5. Estado de la implementación
 
-Bruno pidió partirlo en dos porque el primer paso lo requiere a él:
-
-1. **Ahora:** el cambio de permiso (§2) — código mínimo (una línea de
-   scope + un comentario), y la parte manual de Bruno (Cloud Console +
-   reconectar).
-2. **Después, con TDD:** carpeta destino configurable (§3) y color de
-   la carpeta (§4) — se implementan juntos porque comparten el mismo
-   punto de entrada (`subir_paquete`) y las mismas pruebas con el
-   cliente falso.
+- §3 (carpeta fija "Proyectos para edición externa") — **hecho**, con
+  TDD, 2026-09-19.
+- §4 (color rojo/verde) — pendiente.
 
 ## 6. Pruebas
 
-- `drive.id_de_carpeta_desde_link` — casos: link normal de carpeta,
-  link con `?usp=sharing` colgado, link que no es de Drive (da `None`).
-- `subir_paquete` con `carpeta_padre_id` — la carpeta nueva se crea
-  DENTRO de esa carpeta, no en la raíz.
-- `subir_paquete` sin `carpeta_padre_id` — sigue creando en la raíz
-  (no regresión).
+- `subir_paquete` sin `carpeta_existente` — crea "Proyectos para edición
+  externa" en la raíz si no existía, y la carpeta del proyecto dentro de
+  ella. **Hecho.**
+- `subir_paquete` — reusa "Proyectos para edición externa" si ya existe,
+  no la vuelve a crear. **Hecho.**
 - `subir_paquete` — llama a `colorear_carpeta` con `COLOR_FALTA_EDITAR`
-  sobre la carpeta que resultó (nueva o reusada).
+  sobre la carpeta que resultó (nueva o reusada). Pendiente.
 - `revisar_y_persistir` — cuando hay cambios, llama a
   `colorear_carpeta` con `COLOR_YA_REGRESO` antes de guardar el estado.
+  Pendiente.
 - `revisar_y_persistir` — cuando NO hay cambios, no toca el color.
-- Configuración: guardar un link válido guarda el ID; guardar un link
-  inválido muestra el error y no guarda nada.
+  Pendiente.
