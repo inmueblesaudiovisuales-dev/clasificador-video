@@ -43,19 +43,21 @@ async function crearEsqueleto(project, rootFolder) {
   }
 }
 
-// El camino completo de un clip: su cuarto y su estado, colgados de
-// «02. Clip». La app manda ["Cocina", "Picks"] y aqui se vuelve
-// ["02. Clip", "03. Cocina", "Picks"].
+// El camino completo de un clip: su cuarto (y su unidad, si tiene) colgados
+// de «02. Clip». La app manda ["Cocina"] o ["Casa A", "Cocina"] y aqui se
+// vuelve ["02. Clip", "03. Cocina"] o ["02. Clip", "Casa A", "03. Cocina"].
 //
-// `ordenDeLaGuia` son los cuartos en el orden que Bruno acepto. Si el cuarto
-// no esta ahi --o si el manifest no trajo guia-- la carpeta se crea SIN
-// numero, exactamente como antes de que esto existiera.
+// El CUARTO es el ultimo segmento (categoryPath.length - 1) y es el unico
+// que lleva numero, con el orden de la guia que ya existia. La UNIDAD --
+// cuando hay una, el primer segmento -- no lleva numero: no existe todavia
+// una guia de unidades (spec 2026-09-20 §7-§8, decidido fuera de alcance).
 function caminoDelClip(categoryPath, ordenDeLaGuia) {
   const camino = (categoryPath || []).slice();
   const orden = ordenDeLaGuia || [];
   if (camino.length) {
-    const lugar = orden.indexOf(camino[0]);
-    if (lugar !== -1) camino[0] = conNumero(camino[0], lugar + 1);
+    const indiceDelCuarto = camino.length - 1;
+    const lugar = orden.indexOf(camino[indiceDelCuarto]);
+    if (lugar !== -1) camino[indiceDelCuarto] = conNumero(camino[indiceDelCuarto], lugar + 1);
   }
   return [CARPETA_DE_CLIPS].concat(camino);
 }

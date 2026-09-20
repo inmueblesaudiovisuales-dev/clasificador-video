@@ -96,10 +96,17 @@ module.exports = function (ctx) {
       },
     },
     {
+      // El segundo segmento aqui era "Picks", de un esquema de subcarpeta
+      // de estado que se fue el 2026-09-08 (el estado viaja en la marca del
+      // nombre, no en una carpeta). Con unidades, un categoryPath de dos
+      // segmentos SI vuelve a existir pero significa otra cosa: unidad +
+      // cuarto, y el que se numera es el ULTIMO -- ese caso vive en
+      // estructura.pruebas.js. Aqui se deja el caso original, de un solo
+      // segmento, que sigue siendo valido.
       nombre: "caminoDelClip numera el cuarto segun la guia",
       fn: () => {
-        const r = ctx.caminoDelClip(["Cocina", "Picks"], ["Fachada", "Cocina"]);
-        return { ok: r.join(" > ") === "02. Clip > 02. Cocina > Picks", detalle: r.join(" > ") };
+        const r = ctx.caminoDelClip(["Cocina"], ["Fachada", "Cocina"]);
+        return { ok: r.join(" > ") === "02. Clip > 02. Cocina", detalle: r.join(" > ") };
       },
     },
     {

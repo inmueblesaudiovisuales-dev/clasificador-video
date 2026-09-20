@@ -62,6 +62,7 @@ const casos = [].concat(
   pruebas.carpetas(contexto),
   require("./avance.pruebas.js")(contexto)
   , require("./secuencia.pruebas.js")(contexto)
+  , require("./estructura.pruebas.js")(contexto)
 );
 
 let fallidas = 0;
