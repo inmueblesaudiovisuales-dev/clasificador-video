@@ -2198,6 +2198,13 @@ class MainWindow(QWidget):
             # resuelva, generando proxies o no.
             if nombre_de_bin not in self._bins_pendientes_de_preguntar:
                 self._bins_pendientes_de_preguntar.append(nombre_de_bin)
+                # Sin esto, un bin que llega mientras otra tanda corre no
+                # dice nada de si mismo hasta que le toca su turno -- que
+                # puede ser minutos despues, con Bruno ya clasificando otra
+                # cosa. La insignia es la misma que usa la cola manual
+                # (`_cola_de_proxies`): es la misma espera vista desde otro
+                # camino, y las dos merecen el mismo aviso.
+                self.clip_sheet.set_bin_en_cola(nombre_de_bin, True)
             return True
         if any(self.clips[i].ruta_proxy is not None for i in indices):
             return False        # este bin ya tiene proxies enganchados
@@ -3560,6 +3567,11 @@ class MainWindow(QWidget):
         """
         while self._bins_pendientes_de_preguntar:
             nombre = self._bins_pendientes_de_preguntar.pop(0)
+            # Le toca su turno: la insignia de «en cola» que se puso al
+            # entrar a la lista ya no aplica, conteste lo que conteste
+            # `_ofrecer_proxies_antes` -- si vuelve a encolarse (otra tanda
+            # arrancó mientras tanto) la pone de nuevo ella misma.
+            self.clip_sheet.set_bin_en_cola(nombre, False)
             if nombre not in self.bins.nombres():
                 continue  # se fue del proyecto mientras esperaba
             indices = self.bins.clips_de(nombre)

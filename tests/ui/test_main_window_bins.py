@@ -2575,6 +2575,25 @@ def test_un_bin_que_llega_con_otra_tanda_corriendo_no_se_pierde_la_pregunta(
     assert window._bins_pendientes_de_preguntar == ["Card C"]
 
 
+def test_el_bin_que_espera_su_turno_lo_dice_en_la_hoja(qtbot, monkeypatch):
+    """Antes, un bin que llegaba con otra tanda corriendo se quedaba en
+    `_bins_pendientes_de_preguntar` sin decir nada en la hoja -- Bruno lo vio
+    como «subo una segunda carpeta y no me pide hacer los proxies», porque no
+    hay ninguna señal de que la pregunta va a llegar despues. La insignia es
+    la misma que ya usa la cola manual (`_cola_de_proxies`): es la misma
+    espera vista desde otro camino."""
+    window = _ventana_con_bins(qtbot)
+    _corriendo(window)  # "Card A" tiene una tanda en vuelo
+    monkeypatch.setattr(window, "_schedule_thumbnails", lambda indices=None: None)
+    avisos = []
+    monkeypatch.setattr(window.clip_sheet, "set_bin_en_cola",
+                        lambda nombre, en_cola: avisos.append((nombre, en_cola)))
+
+    window.agregar_clips([_clip(10, "/y/C0010.MP4")], "Card C", Path("/y"))
+
+    assert avisos == [("Card C", True)]
+
+
 def test_el_bin_pendiente_se_pregunta_al_terminar_la_tanda(qtbot, monkeypatch):
     window = _ventana_con_bins(qtbot)
     _corriendo(window)
@@ -2585,6 +2604,9 @@ def test_el_bin_pendiente_se_pregunta_al_terminar_la_tanda(qtbot, monkeypatch):
     pedidas = []
     monkeypatch.setattr(window, "_schedule_thumbnails",
                         lambda indices=None: pedidas.append(indices))
+    avisos = []
+    monkeypatch.setattr(window.clip_sheet, "set_bin_en_cola",
+                        lambda nombre, en_cola: avisos.append((nombre, en_cola)))
 
     window._generando_proxies = None
     window._preguntar_pendientes_de_proxies()
@@ -2592,6 +2614,7 @@ def test_el_bin_pendiente_se_pregunta_al_terminar_la_tanda(qtbot, monkeypatch):
     assert preguntados == ["Card C"]
     assert pedidas                              # dijiste que no: salen del original
     assert window._bins_pendientes_de_preguntar == []
+    assert avisos == [("Card C", False)]        # le tocó turno: se quita la insignia
 
 
 def test_si_aceptas_crear_para_el_pendiente_arranca_una_tanda_nueva(
