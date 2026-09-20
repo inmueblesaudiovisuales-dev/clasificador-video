@@ -83,6 +83,7 @@ from clasificador_video.ui.clip_sheet import SIN_BIN, ClipSheet, ClipThumbnail
 from clasificador_video.ui.pantalla_config import PantallaConfig, _formatear_bytes
 from clasificador_video.ui.pantalla_guia import PantallaGuia
 from clasificador_video.ui.room_palette import RoomPalette
+from clasificador_video.ui.unit_palette import UnitPalette
 from clasificador_video.ui.room_rail import RoomRail
 from clasificador_video.ui.status_bar import StatusBar
 from clasificador_video.ui.title_bar import TitleBar
@@ -1089,6 +1090,10 @@ class MainWindow(QWidget):
         self.room_palette.room_chosen.connect(self._on_room_elegido_en_paleta)
         self.room_palette.room_created.connect(self._on_room_creado_en_paleta)
 
+        self.unit_palette = UnitPalette(self)
+        self.unit_palette.unit_activated.connect(self._on_unidad_elegida_en_paleta)
+        self.unit_palette.unit_created.connect(self._on_unidad_creada_en_paleta)
+
         self._install_shortcuts()
         self._refresh_rail()
 
@@ -1256,6 +1261,7 @@ class MainWindow(QWidget):
             # F2 y el atajo no existia
             ("Ctrl+E", self._on_export_manifest),
             ("Ctrl+R", self.room_rail.focus_rooms),
+            ("Ctrl+U", self._abrir_paleta_de_unidades),
         ]
         # Los digitos NO van aqui a proposito: ver `keyPressEvent`. Un
         # QShortcut consume la tecla y nunca avisa de que se solto, asi que
@@ -1551,6 +1557,42 @@ class MainWindow(QWidget):
 
     def _on_room_elegido_en_paleta(self, nombre: str) -> None:
         self._asignar_cuarto([nombre])
+
+    # ------------------------------------------------------------------
+    # la paleta de unidades (`Ctrl+U`)
+    # ------------------------------------------------------------------
+
+    def _abrir_paleta_de_unidades(self) -> None:
+        self.unit_palette.abrir(
+            self.unit_selection.active_rooms(),
+            self._conteos_por_unidad(),
+        )
+        self._colocar_paleta_de_unidades()
+
+    def _conteos_por_unidad(self) -> dict[str, int]:
+        from collections import Counter
+
+        cuenta: Counter[str] = Counter()
+        for clip in self.clips:
+            unidad = self._unidad_de(clip.categoria_path)
+            if unidad is not None:
+                cuenta[unidad] += 1
+        return dict(cuenta)
+
+    def _colocar_paleta_de_unidades(self) -> None:
+        """Centrada sobre el video, igual que `_colocar_paleta` con la
+        paleta de cuartos -- mismo calculo, otro widget."""
+        etapa = self.video_stage
+        origen = etapa.mapTo(self, etapa.rect().topLeft())
+        x = origen.x() + (etapa.width() - self.unit_palette.width()) // 2
+        self.unit_palette.move(max(0, x), origen.y() + 90)
+
+    def _on_unidad_elegida_en_paleta(self, nombre: str) -> None:
+        self._activar_unidad(nombre)
+
+    def _on_unidad_creada_en_paleta(self, nombre: str) -> None:
+        self.unit_selection.add(nombre)
+        self._activar_unidad(nombre)
 
     def _on_room_creado_en_paleta(self, nombre: str) -> None:
         """Crear y asignar de una: crear y volver a apuntar serian dos pasos

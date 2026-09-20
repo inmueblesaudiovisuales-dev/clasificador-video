@@ -106,3 +106,29 @@ def test_guardar_y_reabrir_conserva_unidades_y_sus_cuartos(qtbot, tmp_path, main
     assert reabierta.room_selections["Casa A"].active_rooms() == ["Cocina"]
     assert (reabierta.room_selection.active_rooms()
             == reabierta.room_selections[""].active_rooms())
+
+
+def test_ctrl_u_abre_la_paleta_de_unidades(main_window, qtbot):
+    main_window.unit_selection.add("Casa A")
+    main_window._abrir_paleta_de_unidades()
+    assert not main_window.unit_palette.isHidden()
+
+
+def test_elegir_unidad_en_la_paleta_activa_esa_unidad(main_window):
+    main_window.unit_selection.add("Casa A")
+    main_window._on_unidad_elegida_en_paleta("Casa A")
+    assert main_window._unidad_activa == "Casa A"
+
+
+def test_crear_unidad_en_la_paleta_la_agrega_y_la_activa(main_window):
+    main_window._on_unidad_creada_en_paleta("Casa Nueva")
+    assert main_window.unit_selection.active_rooms() == ["Casa Nueva"]
+    assert main_window._unidad_activa == "Casa Nueva"
+
+
+def test_on_enter_ofrece_solo_los_cuartos_de_la_unidad_activa(main_window):
+    main_window.unit_selection.add("Casa A")
+    main_window._activar_unidad("Casa A")
+    main_window.room_selection.add("Cocina A")
+    main_window._on_enter()
+    assert main_window.room_palette.opciones_visibles() == ["Cocina A"]
