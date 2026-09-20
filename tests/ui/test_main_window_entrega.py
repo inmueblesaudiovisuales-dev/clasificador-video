@@ -152,6 +152,64 @@ def test_subir_a_drive_sube_todos_los_clips_con_proxy_sin_importar_el_flag(
     assert set(llamado["args"][3]) == {proxy_pick, proxy_reject, proxy_sin_marcar}
 
 
+def test_subir_a_drive_manda_los_recursos_locales_que_encuentra(
+    ventana, tmp_path, monkeypatch,
+):
+    """Punto 10 de la tanda del shooting del 2026-09-19: lo que Bruno ya
+    trae en sus carpetas de música/fotos/gráficos viaja con el proyecto
+    -- spec 2026-09-20-subir-recursos-a-drive-design.md."""
+    from clasificador_video import drive
+    from clasificador_video.drive import ResultadoDeSubida
+
+    musica_dir = tmp_path / "01. ASSETS VIDEO" / "05. MUSICA Y AUDIO"
+    musica_dir.mkdir(parents=True)
+    cancion = musica_dir / "cancion.mp3"
+    cancion.write_text("x")
+    # "fotos" no existe localmente: no debe aparecer en el diccionario.
+    monkeypatch.setattr(ventana, "_raiz_del_proyecto", lambda: tmp_path)
+
+    ventana._drive_cliente = object()
+    trabajos = []
+    llamado = {}
+    monkeypatch.setattr(ventana._drive_pool, "start", trabajos.append)
+    monkeypatch.setattr(
+        drive, "subir_paquete",
+        lambda *args, **kwargs: (llamado.update(kwargs=kwargs),
+                                 ResultadoDeSubida("folder-x", "link", "fecha"))[1],
+    )
+    monkeypatch.setattr(ventana, "_autosave", lambda: None)
+
+    ventana._subir_a_drive(tmp_path / "Casa Reforma.prproj")
+    trabajos.pop().run()
+
+    assert llamado["kwargs"]["recursos"] == {"musica y audio": [cancion]}
+
+
+def test_subir_a_drive_sin_raiz_de_proyecto_no_manda_recursos(
+    ventana, tmp_path, monkeypatch,
+):
+    """Sin bins con material todavía no hay raíz de proyecto -- no hay de
+    dónde sacar carpetas de recursos, y no debe reventar."""
+    from clasificador_video import drive
+    from clasificador_video.drive import ResultadoDeSubida
+
+    ventana._drive_cliente = object()
+    trabajos = []
+    llamado = {}
+    monkeypatch.setattr(ventana._drive_pool, "start", trabajos.append)
+    monkeypatch.setattr(
+        drive, "subir_paquete",
+        lambda *args, **kwargs: (llamado.update(kwargs=kwargs),
+                                 ResultadoDeSubida("folder-x", "link", "fecha"))[1],
+    )
+    monkeypatch.setattr(ventana, "_autosave", lambda: None)
+
+    ventana._subir_a_drive(tmp_path / "Casa Reforma.prproj")
+    trabajos.pop().run()
+
+    assert llamado["kwargs"]["recursos"] == {}
+
+
 def test_el_trabajo_de_subida_avisa_el_progreso_a_la_barra(ventana, tmp_path, monkeypatch):
     """La barra decía «Subiendo… 0%» y nunca se movía, aunque el trabajo
     siguiera subiendo archivos. El trabajo le pasa a Drive el aviso de

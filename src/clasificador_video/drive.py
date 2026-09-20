@@ -22,6 +22,7 @@ from pathlib import Path
 from typing import Callable
 
 CARPETA_PROXIES = "Proxies"
+CARPETA_RECURSOS = "Recursos"
 CARPETA_MATERIAL_NUEVO = "material nuevo"
 CARPETA_ENTREGAS = "Proyectos para edición externa"
 CARPETA_MIME = "application/vnd.google-apps.folder"
@@ -57,7 +58,8 @@ def _fecha_del_prproj(cliente, carpeta_id: str) -> str | None:
 
 def subir_paquete(cliente, nombre_proyecto: str, prproj: Path, proxies: list[Path],
                    carpeta_existente: str | None = None,
-                   progreso: Callable[[int], None] | None = None) -> ResultadoDeSubida:
+                   progreso: Callable[[int], None] | None = None,
+                   recursos: dict[str, list[Path]] | None = None) -> ResultadoDeSubida:
     """Crea o reusa la carpeta de la entrega, sube su contenido y devuelve
     el link junto con la fecha del `.prproj` que acaba de quedar en Drive.
 
@@ -71,8 +73,20 @@ def subir_paquete(cliente, nombre_proyecto: str, prproj: Path, proxies: list[Pat
     subido -- 214 proxies a 0% fijo parecen una app trabada. Cuenta
     archivos y no bytes: los proxies pesan unos cuantos MB y el avance por
     archivo ya se siente continuo.
+
+    `recursos` -- nombre de categoría (mismas que
+    `mapa_de_categorias_de_material_nuevo`) a la lista de archivos locales
+    de esa categoría, spec 2026-09-20-subir-recursos-a-drive-design.md.
+    Viajan a `CARPETA_RECURSOS/<categoría>/`, separada de `material
+    nuevo/` -- esa sigue siendo exclusiva de lo que el editor manda de
+    vuelta. Una categoría sin archivos, o `recursos` vacío/`None`, no crea
+    ninguna subcarpeta -- ni siquiera `CARPETA_RECURSOS` misma.
     """
-    total = 1 + len(proxies)
+    recursos = {
+        categoria: archivos for categoria, archivos in (recursos or {}).items()
+        if archivos
+    }
+    total = 1 + len(proxies) + sum(len(archivos) for archivos in recursos.values())
     hechos = 0
 
     def _avanzar() -> None:
@@ -92,6 +106,13 @@ def subir_paquete(cliente, nombre_proyecto: str, prproj: Path, proxies: list[Pat
     for proxy in proxies:
         cliente.subir_archivo(proxy, proxies_id)
         _avanzar()
+    if recursos:
+        recursos_id = _subcarpeta_existente_o_nueva(cliente, carpeta_id, CARPETA_RECURSOS)
+        for categoria, archivos in recursos.items():
+            categoria_id = _subcarpeta_existente_o_nueva(cliente, recursos_id, categoria)
+            for archivo in archivos:
+                cliente.subir_archivo(archivo, categoria_id)
+                _avanzar()
     cliente.colorear_carpeta(carpeta_id, COLOR_FALTA_EDITAR)
     return ResultadoDeSubida(
         folder_id=carpeta_id, folder_link=cliente.link_de_carpeta(carpeta_id),

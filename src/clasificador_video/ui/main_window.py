@@ -591,13 +591,15 @@ class _GeneracionDeProxyJob(QRunnable):
 class _SubidaADriveJob(QRunnable):
     """Sube la entrega fuera del hilo de la interfaz."""
 
-    def __init__(self, cliente, nombre_proyecto, prproj, proxies, carpeta_existente, señales):
+    def __init__(self, cliente, nombre_proyecto, prproj, proxies, carpeta_existente, señales,
+                 recursos=None):
         super().__init__()
         self._cliente = cliente
         self._nombre_proyecto = nombre_proyecto
         self._prproj = prproj
         self._proxies = proxies
         self._carpeta_existente = carpeta_existente
+        self._recursos = recursos
         self.signals = señales
 
     def run(self) -> None:
@@ -605,7 +607,8 @@ class _SubidaADriveJob(QRunnable):
             resultado = drive.subir_paquete(
                 self._cliente, self._nombre_proyecto, self._prproj, self._proxies,
                 carpeta_existente=self._carpeta_existente,
-                progreso=self.signals.drive_subida_progreso.emit)
+                progreso=self.signals.drive_subida_progreso.emit,
+                recursos=self._recursos)
         except Exception as e:
             self.signals.drive_subida_lista.emit(None, str(e))
             return
@@ -3177,7 +3180,26 @@ class MainWindow(QWidget):
         self.title_bar.set_subiendo(0)
         self._drive_pool.start(_SubidaADriveJob(
             cliente, self.project_name, prproj, proxies, carpeta_existente,
-            self._señales_de_trabajos))
+            self._señales_de_trabajos, recursos=self._recursos_locales()))
+
+    def _recursos_locales(self) -> dict[str, list[Path]]:
+        """Los archivos sueltos que Bruno ya tiene en sus carpetas de
+        música/fotos/gráficos, listos para subir junto con el proyecto
+        (spec 2026-09-20-subir-recursos-a-drive-design.md). Mismo mapa de
+        categorías que ya usa `_TraidaDeDriveJob` en sentido inverso --
+        sin raíz de proyecto (cero bins con material todavía) no hay nada
+        que ofrecer."""
+        raiz = self._raiz_del_proyecto()
+        if raiz is None:
+            return {}
+        recursos: dict[str, list[Path]] = {}
+        for categoria, ruta in drive.mapa_de_categorias_de_material_nuevo().items():
+            carpeta_local = raiz / ruta
+            if carpeta_local.is_dir():
+                recursos[categoria] = sorted(
+                    p for p in carpeta_local.iterdir() if p.is_file()
+                )
+        return recursos
 
     def _on_drive_subida_progreso(self, porcentaje: int) -> None:
         """Avanza el «Subiendo… N%» mientras el trabajo sube archivos.

@@ -188,6 +188,95 @@ def test_subir_de_nuevo_reusa_la_carpeta_existente(tmp_path):
     assert "Casa Reforma" not in cliente.carpetas_creadas
 
 
+def test_subir_paquete_sube_los_recursos_por_categoria(tmp_path):
+    """Punto 10 de la tanda del shooting del 2026-09-19: los recursos que
+    Bruno ya trae localmente (música, fotos, gráficos) viajan a
+    "Recursos/<categoria>/" -- spec 2026-09-20-subir-recursos-a-drive-design.md."""
+    cliente = _ClienteFalso()
+    prproj = tmp_path / "Casa Reforma.prproj"
+    prproj.write_text("x")
+    cancion = tmp_path / "cancion.mp3"
+    cancion.write_text("x")
+    logo = tmp_path / "logo.png"
+    logo.write_text("x")
+
+    drive.subir_paquete(
+        cliente, "Casa Reforma", prproj, [],
+        recursos={"musica y audio": [cancion], "graficos y branding": [logo]},
+    )
+
+    assert cliente.carpetas_creadas == [
+        "Proyectos para edición externa", "Casa Reforma", "Proxies",
+        "Recursos", "musica y audio", "graficos y branding",
+    ]
+    assert cancion in [ruta for _carpeta, ruta in cliente.subidos]
+    assert logo in [ruta for _carpeta, ruta in cliente.subidos]
+
+
+def test_subir_paquete_omite_categorias_vacias(tmp_path):
+    cliente = _ClienteFalso()
+    prproj = tmp_path / "Casa Reforma.prproj"
+    prproj.write_text("x")
+    cancion = tmp_path / "cancion.mp3"
+    cancion.write_text("x")
+
+    drive.subir_paquete(
+        cliente, "Casa Reforma", prproj, [],
+        recursos={"musica y audio": [cancion], "fotos": []},
+    )
+
+    assert "fotos" not in cliente.carpetas_creadas
+
+
+def test_subir_paquete_sin_recursos_no_crea_la_carpeta(tmp_path):
+    cliente = _ClienteFalso()
+    prproj = tmp_path / "Casa Reforma.prproj"
+    prproj.write_text("x")
+
+    drive.subir_paquete(cliente, "Casa Reforma", prproj, [], recursos={})
+
+    assert "Recursos" not in cliente.carpetas_creadas
+
+
+def test_subir_paquete_recursos_none_no_crea_la_carpeta(tmp_path):
+    cliente = _ClienteFalso()
+    prproj = tmp_path / "Casa Reforma.prproj"
+    prproj.write_text("x")
+
+    drive.subir_paquete(cliente, "Casa Reforma", prproj, [], recursos=None)
+
+    assert "Recursos" not in cliente.carpetas_creadas
+
+
+def test_subir_paquete_todas_las_categorias_vacias_no_crea_la_carpeta(tmp_path):
+    cliente = _ClienteFalso()
+    prproj = tmp_path / "Casa Reforma.prproj"
+    prproj.write_text("x")
+
+    drive.subir_paquete(
+        cliente, "Casa Reforma", prproj, [],
+        recursos={"musica y audio": [], "fotos": []},
+    )
+
+    assert "Recursos" not in cliente.carpetas_creadas
+
+
+def test_subir_paquete_cuenta_los_recursos_en_el_progreso(tmp_path):
+    cliente = _ClienteFalso()
+    prproj = tmp_path / "Casa Reforma.prproj"
+    prproj.write_text("x")
+    cancion = tmp_path / "cancion.mp3"
+    cancion.write_text("x")
+    avances = []
+
+    drive.subir_paquete(
+        cliente, "Casa Reforma", prproj, [],
+        recursos={"musica y audio": [cancion]}, progreso=avances.append,
+    )
+
+    assert avances == [50, 100]
+
+
 def test_subir_de_nuevo_reusa_la_subcarpeta_de_proxies_si_ya_existe(tmp_path):
     cliente = _ClienteFalso()
     cliente.crear_carpeta("Proxies", carpeta_padre_id="folder-x")
