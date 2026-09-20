@@ -1173,6 +1173,35 @@ def test_configuracion_guarda_la_llave_sin_ventana_de_proyecto(
     assert guardadas == ["otra-llave"]
 
 
+def test_configuracion_crece_la_ventana_de_inicio_si_hace_falta_y_la_devuelve(
+        qtbot, tmp_path, monkeypatch):
+    """El bug que Bruno reportó: la pantalla de inicio (560x480) es mucho
+    mas chica que la de un proyecto, y los mismos márgenes que le quedan
+    comodos a MainWindow ahi dejaban el contenido de Configuración
+    amontonado encima de si mismo."""
+    from clasificador_video import llave, preferencias
+
+    coord = _coordinador(tmp_path)
+    qtbot.addWidget(coord.inicio)
+    monkeypatch.setattr(llave, "leer", lambda: "")
+    monkeypatch.setattr(preferencias, "modo_economico", lambda: False)
+    monkeypatch.setattr(preferencias, "modo_rapido", lambda: False)
+    alto_original = coord.inicio.height()
+
+    coord.inicio.configuracion_pedida.emit()
+
+    assert coord.inicio.height() > alto_original
+    geometria = coord._pantalla_config.geometry()
+    # Con el ancho que le toca, el contenido no debe pedir mas alto del que
+    # se le dio -- si algun dia crece una sección y esto empieza a fallar,
+    # es que hace falta agrandar la cuenta de arriba, no bajar la prueba.
+    assert coord._pantalla_config.heightForWidth(geometria.width()) <= geometria.height()
+
+    coord._pantalla_config.cerrada.emit()
+
+    assert coord.inicio.height() == alto_original
+
+
 def test_configuracion_guarda_modo_economico_y_rapido_como_preferencia(
         qtbot, tmp_path, monkeypatch):
     from clasificador_video import llave, preferencias

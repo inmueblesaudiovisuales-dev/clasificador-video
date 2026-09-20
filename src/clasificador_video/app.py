@@ -461,6 +461,7 @@ class Coordinador(QObject):
         self.inicio.configuracion_pedida.connect(self._abrir_configuracion)
         self._pantalla_config: PantallaConfig | None = None
         self._drive_cliente_config = None
+        self._inicio_alto_original: int | None = None
         self._drive_pool = QThreadPool(self)
         self._señales_de_drive = _SeñalesDeDrive(self)
         self._señales_de_drive.traida_lista.connect(self._al_terminar_traida_activa)
@@ -507,18 +508,42 @@ class Coordinador(QObject):
             self._pantalla_config.miniaturas_borrar_pedido.connect(
                 self._al_pedir_borrar_miniaturas
             )
-            self._pantalla_config.cerrada.connect(self._pantalla_config.hide)
+            self._pantalla_config.cerrada.connect(self._al_cerrar_configuracion)
         self._pantalla_config.cargar(
             llave.leer(), preferencias.modo_economico(), preferencias.modo_rapido()
         )
         self._pantalla_config.mostrar_peso_de_miniaturas(
             tamano_del_cache(default_cache_root())
         )
+        # `PantallaInicio` mide 560x480 -- pensada para la lista de
+        # recientes, no para el contenido de configuración, que con sus
+        # textos con `wordWrap` pide unos 750px de alto una vez que se le da
+        # un ancho razonable (`heightForWidth`, no un tamaño fijo a ojo: si
+        # algun dia se le agrega o se le quita una sección, este cálculo se
+        # ajusta solo). Los mismos márgenes que usa `MainWindow` (110/80) le
+        # quedaban comodos a una ventana maximizada; aquí, sobre una ventana
+        # chica, dejaban apenas 340x320 y el contenido se amontonaba encima
+        # de sí mismo. Se crece la ventana de inicio lo que haga falta -- y
+        # se devuelve a su tamaño de siempre al cerrar Configuración.
+        margen = 40
+        ancho_contenido = max(self.inicio.width() - 2 * margen, 360)
+        alto_contenido = self._pantalla_config.heightForWidth(ancho_contenido) + 20
+        alto_necesario = alto_contenido + 2 * margen
+        if self.inicio.height() < alto_necesario:
+            if self._inicio_alto_original is None:
+                self._inicio_alto_original = self.inicio.height()
+            self.inicio.resize(self.inicio.width(), alto_necesario)
         self._pantalla_config.setGeometry(
-            self.inicio.rect().adjusted(110, 80, -110, -80)
+            self.inicio.rect().adjusted(margen, margen, -margen, -margen)
         )
         self._pantalla_config.show()
         self._pantalla_config.raise_()
+
+    def _al_cerrar_configuracion(self) -> None:
+        self._pantalla_config.hide()
+        if self._inicio_alto_original is not None:
+            self.inicio.resize(self.inicio.width(), self._inicio_alto_original)
+            self._inicio_alto_original = None
 
     def _al_pedir_borrar_miniaturas(self) -> None:
         cache_root = default_cache_root()

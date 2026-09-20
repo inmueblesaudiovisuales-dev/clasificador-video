@@ -68,9 +68,18 @@ así que no hace falta un dibujo custom con `QPainter`.
     (atributo nuevo, solo para esto) en vez de en una ventana — sirve nada
     más para que la sesión de `PantallaConfig` no vuelva a pedir OAuth si
     se cierra y se reabre desde el mismo `Coordinador`.
-- Posicionamiento: igual que en `MainWindow`,
-  `setGeometry(self.inicio.rect().adjusted(...))` centrado sobre
-  `PantallaInicio`.
+- Posicionamiento: **no** igual que en `MainWindow`. `PantallaInicio` mide
+  560x480 (pensada para la lista de recientes, chica a propósito), y los
+  mismos márgenes de `MainWindow` (110/80, cómodos sobre una ventana
+  maximizada) ahí dejaban apenas 340x320 para un contenido que con sus
+  `wordWrap` pide unos 750px de alto una vez que se le da un ancho
+  razonable. Primer intento salió así: encimado, ilegible — reportado por
+  Bruno con captura. El arreglo: `heightForWidth` sobre el ancho real que
+  le va a tocar (no un número fijo a ojo, para que si el contenido cambia
+  el cálculo se ajuste solo), y si `PantallaInicio` no alcanza, se crece su
+  alto lo que haga falta — y se devuelve a su tamaño de siempre al cerrar
+  Configuración (`_al_cerrar_configuracion`, guarda el alto original en
+  `_inicio_alto_original` la primera vez que hace falta crecer).
 
 ## Qué NO cambia
 
