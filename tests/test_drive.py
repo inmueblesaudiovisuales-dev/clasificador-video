@@ -117,6 +117,35 @@ def test_subir_paquete_reusa_la_carpeta_de_entregas_si_ya_existe(tmp_path):
     assert cliente.carpetas_creadas == ["Casa Reforma", "Proxies"]
 
 
+def test_subir_paquete_avisa_el_progreso_por_archivo(tmp_path):
+    """El botón decía «Subiendo… 0%» y ahí se quedaba hasta terminar: con
+    214 proxies eso se lee como app trabada, aunque Drive sí esté
+    recibiendo. El avance se cuenta por archivo subido."""
+    cliente = _ClienteFalso()
+    prproj = tmp_path / "Casa Reforma.prproj"
+    prproj.write_text("x")
+    proxy1 = tmp_path / "C0001S03.mp4"
+    proxy1.write_text("x")
+    proxy2 = tmp_path / "C0002S03.mp4"
+    proxy2.write_text("x")
+    avances = []
+
+    drive.subir_paquete(
+        cliente, "Casa Reforma", prproj, [proxy1, proxy2], progreso=avances.append)
+
+    assert avances == [33, 67, 100]
+
+
+def test_subir_paquete_sin_progreso_no_falla(tmp_path):
+    cliente = _ClienteFalso()
+    prproj = tmp_path / "Casa Reforma.prproj"
+    prproj.write_text("x")
+
+    resultado = drive.subir_paquete(cliente, "Casa Reforma", prproj, [])
+
+    assert resultado.folder_id == "folder-Casa Reforma"
+
+
 def test_subir_paquete_colorea_la_carpeta_de_rojo(tmp_path):
     cliente = _ClienteFalso()
     prproj = tmp_path / "Casa Reforma.prproj"

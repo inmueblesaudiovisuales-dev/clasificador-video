@@ -19,6 +19,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Callable
 
 CARPETA_PROXIES = "Proxies"
 CARPETA_MATERIAL_NUEVO = "material nuevo"
@@ -55,7 +56,8 @@ def _fecha_del_prproj(cliente, carpeta_id: str) -> str | None:
 
 
 def subir_paquete(cliente, nombre_proyecto: str, prproj: Path, proxies: list[Path],
-                   carpeta_existente: str | None = None) -> ResultadoDeSubida:
+                   carpeta_existente: str | None = None,
+                   progreso: Callable[[int], None] | None = None) -> ResultadoDeSubida:
     """Crea o reusa la carpeta de la entrega, sube su contenido y devuelve
     el link junto con la fecha del `.prproj` que acaba de quedar en Drive.
 
@@ -64,16 +66,32 @@ def subir_paquete(cliente, nombre_proyecto: str, prproj: Path, proxies: list[Pat
     donde quiera dentro de su Drive y de ahí en adelante las entregas
     siguen cayendo ahí. `carpeta_existente` (de "Subir de nuevo") ya vive
     donde vive, no se vuelve a tocar su ubicación.
+
+    `progreso` recibe, si se pasa, un entero 0-100 después de cada archivo
+    subido -- 214 proxies a 0% fijo parecen una app trabada. Cuenta
+    archivos y no bytes: los proxies pesan unos cuantos MB y el avance por
+    archivo ya se siente continuo.
     """
+    total = 1 + len(proxies)
+    hechos = 0
+
+    def _avanzar() -> None:
+        nonlocal hechos
+        hechos += 1
+        if progreso is not None:
+            progreso(round(100 * hechos / total))
+
     if carpeta_existente:
         carpeta_id = carpeta_existente
     else:
         entregas_id = _subcarpeta_existente_o_nueva(cliente, _RAIZ_DE_DRIVE, CARPETA_ENTREGAS)
         carpeta_id = cliente.crear_carpeta(nombre_proyecto, carpeta_padre_id=entregas_id)
     cliente.subir_archivo(prproj, carpeta_id)
+    _avanzar()
     proxies_id = _subcarpeta_existente_o_nueva(cliente, carpeta_id, CARPETA_PROXIES)
     for proxy in proxies:
         cliente.subir_archivo(proxy, proxies_id)
+        _avanzar()
     cliente.colorear_carpeta(carpeta_id, COLOR_FALTA_EDITAR)
     return ResultadoDeSubida(
         folder_id=carpeta_id, folder_link=cliente.link_de_carpeta(carpeta_id),

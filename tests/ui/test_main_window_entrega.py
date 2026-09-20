@@ -141,8 +141,8 @@ def test_subir_a_drive_sube_todos_los_clips_con_proxy_sin_importar_el_flag(
     monkeypatch.setattr(ventana._drive_pool, "start", trabajos.append)
     monkeypatch.setattr(
         drive, "subir_paquete",
-        lambda *args, **kwargs: (llamado.update(args=args), ResultadoDeSubida(
-            "folder-x", "link", "fecha"))[1],
+        lambda *args, **kwargs: (llamado.update(args=args, kwargs=kwargs),
+                                 ResultadoDeSubida("folder-x", "link", "fecha"))[1],
     )
     monkeypatch.setattr(ventana, "_autosave", lambda: None)
 
@@ -150,6 +150,32 @@ def test_subir_a_drive_sube_todos_los_clips_con_proxy_sin_importar_el_flag(
     trabajos.pop().run()
 
     assert set(llamado["args"][3]) == {proxy_pick, proxy_reject, proxy_sin_marcar}
+
+
+def test_el_trabajo_de_subida_avisa_el_progreso_a_la_barra(ventana, tmp_path, monkeypatch):
+    """La barra decía «Subiendo… 0%» y nunca se movía, aunque el trabajo
+    siguiera subiendo archivos. El trabajo le pasa a Drive el aviso de
+    progreso y ese aviso termina pintado en el botón."""
+    from clasificador_video import drive
+    from clasificador_video.drive import ResultadoDeSubida
+
+    ventana._drive_cliente = object()
+    trabajos = []
+    llamado = {}
+    monkeypatch.setattr(ventana._drive_pool, "start", trabajos.append)
+    monkeypatch.setattr(
+        drive, "subir_paquete",
+        lambda *args, **kwargs: (llamado.update(kwargs=kwargs),
+                                 ResultadoDeSubida("folder-x", "link", "fecha"))[1],
+    )
+    monkeypatch.setattr(ventana, "_autosave", lambda: None)
+
+    ventana._subir_a_drive(tmp_path / "Casa Reforma.prproj")
+    trabajos.pop().run()
+    llamado["kwargs"]["progreso"](42)
+
+    assert "42%" in ventana.title_bar.subir_button.text()
+    assert not ventana.title_bar.subir_button.isEnabled()
 
 
 def test_subir_a_drive_encola_el_trabajo_y_reusa_la_carpeta(ventana, tmp_path, monkeypatch):

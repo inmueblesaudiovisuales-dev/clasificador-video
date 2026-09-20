@@ -349,6 +349,7 @@ class SeñalesDeTrabajos(QObject):
     # generacion, indice, ruta del proxy generado (o None), motivo del fallo
     proxy_generado = Signal(int, int, object, str)
     drive_subida_lista = Signal(object, str)   # ResultadoDeSubida | None, error
+    drive_subida_progreso = Signal(int)         # 0-100, archivos subidos
     drive_traida_lista = Signal(str)            # error
 
 
@@ -589,7 +590,8 @@ class _SubidaADriveJob(QRunnable):
         try:
             resultado = drive.subir_paquete(
                 self._cliente, self._nombre_proyecto, self._prproj, self._proxies,
-                carpeta_existente=self._carpeta_existente)
+                carpeta_existente=self._carpeta_existente,
+                progreso=self.signals.drive_subida_progreso.emit)
         except Exception as e:
             self.signals.drive_subida_lista.emit(None, str(e))
             return
@@ -691,6 +693,8 @@ class MainWindow(QWidget):
         self._señales_de_trabajos.media_revisada.connect(self._on_media_revisada)
         self._señales_de_trabajos.proxy_generado.connect(self._on_proxy_generado)
         self._señales_de_trabajos.drive_subida_lista.connect(self._on_drive_subida_lista)
+        self._señales_de_trabajos.drive_subida_progreso.connect(
+            self._on_drive_subida_progreso)
         self._señales_de_trabajos.drive_traida_lista.connect(self._on_drive_traida_lista)
         # hijo de la ventana A PROPOSITO: su destructor espera a los trabajos
         # en vuelo, y esa espera es lo que impide que una señal llegue
@@ -3145,6 +3149,14 @@ class MainWindow(QWidget):
         self._drive_pool.start(_SubidaADriveJob(
             cliente, self.project_name, prproj, proxies, carpeta_existente,
             self._señales_de_trabajos))
+
+    def _on_drive_subida_progreso(self, porcentaje: int) -> None:
+        """Avanza el «Subiendo… N%» mientras el trabajo sube archivos.
+
+        Sin esto la barra se quedaba en 0% toda la subida -- 214 proxies
+        tardan, y un número que nunca se mueve se lee como app trabada.
+        """
+        self.title_bar.set_subiendo(porcentaje)
 
     def _on_drive_subida_lista(self, resultado, error: str) -> None:
         from datetime import datetime
