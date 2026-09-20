@@ -49,6 +49,7 @@ class PantallaConfig(QWidget):
     llave_guardada = Signal(str)
     llave_borrada = Signal()
     modo_economico_cambiado = Signal(bool)
+    modo_rapido_cambiado = Signal(bool)
     carpeta_premiere_guardada = Signal(Path)
     drive_conectado = Signal()
     drive_estado_cambiado = Signal(str)
@@ -149,6 +150,31 @@ class PantallaConfig(QWidget):
         economico_label.setWordWrap(True)
         raiz.addWidget(economico_label)
 
+        titulo_rapido = QLabel("Modo rápido")
+        titulo_rapido.setObjectName("configTitulo")
+        raiz.addWidget(titulo_rapido)
+
+        self.rapido_check = QCheckBox(
+            "Miniaturas chicas y pocas, todas a la vez"
+        )
+        self.rapido_check.setObjectName("configRapido")
+        self.rapido_check.checkStateChanged.connect(
+            lambda estado: self.modo_rapido_cambiado.emit(
+                estado == Qt.CheckState.Checked
+            )
+        )
+        raiz.addWidget(self.rapido_check)
+
+        rapido_label = QLabel(
+            "Mismas miniaturas chicas que el modo económico (menos fotos "
+            "por tira, menos resolución), pero sin el freno de \"una a la "
+            "vez\" -- para cuando tu computadora aguanta procesar varias al "
+            "mismo tiempo y solo quieres terminar rápido."
+        )
+        rapido_label.setObjectName("configDonde")
+        rapido_label.setWordWrap(True)
+        raiz.addWidget(rapido_label)
+
         titulo_miniaturas = QLabel("Miniaturas guardadas")
         titulo_miniaturas.setObjectName("configTitulo")
         raiz.addWidget(titulo_miniaturas)
@@ -222,7 +248,8 @@ class PantallaConfig(QWidget):
         else:
             self.drive_button.setEnabled(True)
 
-    def cargar(self, llave: str, modo_economico: bool = False) -> None:
+    def cargar(self, llave: str, modo_economico: bool = False,
+              modo_rapido: bool = False) -> None:
         """Enseña qué hay guardado. La caja se queda VACÍA aunque haya
         llave: precargarla sería enseñarla entera, que es justo lo que
         `tapada` existe para evitar."""
@@ -240,6 +267,9 @@ class PantallaConfig(QWidget):
         self.economico_check.blockSignals(True)
         self.economico_check.setChecked(modo_economico)
         self.economico_check.blockSignals(False)
+        self.rapido_check.blockSignals(True)
+        self.rapido_check.setChecked(modo_rapido)
+        self.rapido_check.blockSignals(False)
 
     def _al_guardar(self) -> None:
         # Sin espacios: uno pegado al copiar tumbaba la llamada con un «la

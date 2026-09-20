@@ -4,11 +4,11 @@ import pytest
 from clasificador_video.ui.pantalla_config import PantallaConfig
 
 
-def _pantalla(qtbot, llave="", modo_economico=False) -> PantallaConfig:
+def _pantalla(qtbot, llave="", modo_economico=False, modo_rapido=False) -> PantallaConfig:
     p = PantallaConfig()
     qtbot.addWidget(p)
     p.resize(520, 300)
-    p.cargar(llave, modo_economico)
+    p.cargar(llave, modo_economico, modo_rapido)
     return p
 
 
@@ -118,6 +118,50 @@ def test_cargar_no_reemite_la_señal_al_solo_reflejar_lo_guardado(qtbot):
     p.cargar("", True)
     assert not disparo
     assert p.economico_check.isChecked()
+
+
+def test_el_modo_rapido_nace_apagado_por_default(qtbot):
+    p = _pantalla(qtbot)
+    assert not p.rapido_check.isChecked()
+
+
+def test_cargar_refleja_el_modo_rapido_guardado(qtbot):
+    p = _pantalla(qtbot, modo_rapido=True)
+    assert p.rapido_check.isChecked()
+
+
+def test_marcar_el_check_rapido_emite_true(qtbot):
+    p = _pantalla(qtbot)
+    with qtbot.waitSignal(p.modo_rapido_cambiado) as blocker:
+        p.rapido_check.setChecked(True)
+    assert blocker.args[0] is True
+
+
+def test_desmarcar_el_check_rapido_emite_false(qtbot):
+    p = _pantalla(qtbot, modo_rapido=True)
+    with qtbot.waitSignal(p.modo_rapido_cambiado) as blocker:
+        p.rapido_check.setChecked(False)
+    assert blocker.args[0] is False
+
+
+def test_cargar_no_reemite_la_señal_de_rapido_al_solo_reflejar_lo_guardado(qtbot):
+    p = _pantalla(qtbot)
+    disparo = False
+
+    def _marcar(_valor):
+        nonlocal disparo
+        disparo = True
+
+    p.modo_rapido_cambiado.connect(_marcar)
+    p.cargar("", False, True)
+    assert not disparo
+    assert p.rapido_check.isChecked()
+
+
+def test_economico_y_rapido_son_independientes(qtbot):
+    p = _pantalla(qtbot, modo_economico=True, modo_rapido=False)
+    assert p.economico_check.isChecked()
+    assert not p.rapido_check.isChecked()
 
 
 def test_elegir_carpeta_premiere_emite_la_señal(config_screen, monkeypatch, tmp_path):

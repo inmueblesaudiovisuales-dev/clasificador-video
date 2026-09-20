@@ -51,3 +51,23 @@ def test_guardar_y_leer_carpeta_de_proyectos_premiere(tmp_path):
     mod.guardar_carpeta_de_proyectos_premiere(carpeta, ruta)
 
     assert mod.carpeta_de_proyectos_premiere(ruta) == carpeta
+
+
+def test_sin_archivo_modo_rapido_es_falso(tmp_path: Path):
+    # A diferencia de economico, este SI viene apagado por default: cambia
+    # como se ve el escrubeo, no evita que la app se trabe.
+    assert mod.modo_rapido(tmp_path / "no-existe.json") is False
+
+
+def test_guardar_y_leer_modo_rapido(tmp_path: Path):
+    destino = tmp_path / "preferencias.json"
+    mod.guardar_modo_rapido(True, destino)
+    assert mod.modo_rapido(destino) is True
+
+
+def test_modo_rapido_no_pisa_modo_economico_en_el_mismo_archivo(tmp_path: Path):
+    destino = tmp_path / "preferencias.json"
+    mod.guardar_modo_economico(True, destino)
+    mod.guardar_modo_rapido(True, destino)
+    assert mod.modo_economico(destino) is True
+    assert mod.modo_rapido(destino) is True

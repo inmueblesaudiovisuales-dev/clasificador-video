@@ -47,6 +47,27 @@ def guardar_modo_economico(valor: bool, ruta: Path | None = None) -> None:
     destino.write_text(json.dumps(datos), encoding="utf-8")
 
 
+def modo_rapido(ruta: Path | None = None) -> bool:
+    """Miniaturas chicas y pocas, como el modo económico, pero SIN su
+    freno de paralelismo (ver `preferencias.md` -- spec
+    2026-09-20-modo-rapido-de-miniaturas-design.md). Independiente de
+    `modo_economico`: los dos se combinan en `main_window.py`.
+
+    Por default apagado -- a diferencia de económico, esto no evita que
+    la app se trabe, cambia cómo se ve el escrubeo, así que es Bruno
+    quien lo prende cuando lo quiere.
+    """
+    return bool(_leer_todo(ruta).get("modo_rapido", False))
+
+
+def guardar_modo_rapido(valor: bool, ruta: Path | None = None) -> None:
+    destino = _destino(ruta)
+    destino.parent.mkdir(parents=True, exist_ok=True)
+    datos = _leer_todo(ruta)
+    datos["modo_rapido"] = bool(valor)
+    destino.write_text(json.dumps(datos), encoding="utf-8")
+
+
 def carpeta_de_proyectos_premiere(ruta: Path | None = None) -> Path | None:
     """Dónde busca `buscar_prproj.buscar_por_folio`. `None` hasta que
     Bruno la ponga en Configuración -- sin ella, "Subir a Drive" cae

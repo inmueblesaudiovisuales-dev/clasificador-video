@@ -4346,6 +4346,79 @@ def test_modo_economico_baja_cuantos_ffprobe_corren_a_la_vez_al_importar(
     assert workers == [SONDEOS_EN_PARALELO_ECONOMICO]
 
 
+def test_modo_rapido_no_frena_aunque_economico_este_prendido(qtbot, monkeypatch):
+    """El punto 8 de la tanda del 2026-09-19: rapido gana la precedencia
+    sobre el freno de "una a la vez", aunque economico tambien este
+    marcado (spec 2026-09-20-modo-rapido-de-miniaturas-design.md, tabla
+    de la seccion 2)."""
+    from clasificador_video import preferencias
+    from clasificador_video.ui.main_window import (
+        HILOS_DE_MINIATURAS_NORMAL,
+        LIMITE_DE_TIRAS_VIVAS_NORMAL,
+    )
+    window = _window_with_video(qtbot)
+    monkeypatch.setattr(preferencias, "guardar_modo_economico", lambda v: None)
+    monkeypatch.setattr(preferencias, "guardar_modo_rapido", lambda v: None)
+    monkeypatch.setattr(preferencias, "modo_rapido", lambda: True)
+
+    window._cambiar_modo_economico(True)
+
+    assert window._thread_pool.maxThreadCount() == HILOS_DE_MINIATURAS_NORMAL
+    assert window.clip_sheet._limite_de_tiras_vivas == LIMITE_DE_TIRAS_VIVAS_NORMAL
+
+
+def test_modo_rapido_solo_quita_el_freno_al_prenderse(qtbot, monkeypatch):
+    from clasificador_video import preferencias
+    from clasificador_video.ui.main_window import (
+        HILOS_DE_MINIATURAS_ECONOMICO,
+        HILOS_DE_MINIATURAS_NORMAL,
+        LIMITE_DE_TIRAS_VIVAS_ECONOMICO,
+        LIMITE_DE_TIRAS_VIVAS_NORMAL,
+    )
+    window = _window_with_video(qtbot)
+    monkeypatch.setattr(preferencias, "guardar_modo_rapido", lambda v: None)
+    monkeypatch.setattr(preferencias, "modo_economico", lambda: True)
+
+    # arranca frenado: economico prendido, rapido todavia no
+    window._aplicar_freno_de_paralelismo(economico=True, rapido=False)
+    assert window._thread_pool.maxThreadCount() == HILOS_DE_MINIATURAS_ECONOMICO
+
+    window._cambiar_modo_rapido(True)
+
+    assert window._thread_pool.maxThreadCount() == HILOS_DE_MINIATURAS_NORMAL
+    assert window.clip_sheet._limite_de_tiras_vivas == LIMITE_DE_TIRAS_VIVAS_NORMAL
+
+    window._cambiar_modo_rapido(False)
+
+    assert window._thread_pool.maxThreadCount() == HILOS_DE_MINIATURAS_ECONOMICO
+    assert window.clip_sheet._limite_de_tiras_vivas == LIMITE_DE_TIRAS_VIVAS_ECONOMICO
+
+
+def test_modo_rapido_solo_saca_miniaturas_chicas_sin_frenar(qtbot, monkeypatch, tmp_path):
+    """rapido activa el mismo tamaño/cantidad chica que economico en
+    `_schedule_thumbnails`, sin que economico este prendido."""
+    from clasificador_video import preferencias
+    from clasificador_video.ui.main_window import _ThumbnailJob
+
+    monkeypatch.setattr(preferencias, "modo_rapido", lambda: True)
+    window = _window_with_video(qtbot, cache_root=tmp_path / "cache")
+    clip_path = tmp_path / "a.MP4"
+    clip_path.write_bytes(b"contenido de prueba")
+
+    llamados = {}
+    monkeypatch.setattr(
+        "clasificador_video.ui.main_window.extract_thumbnail_strip",
+        lambda video, duration, count, *a, **k: (llamados.update(count=count), [])[1],
+    )
+    window.load_clips([Clip(orden=1, ruta=clip_path, categoria_path=[], fps=30.0)])
+    window._clip_durations[0] = 4.0
+
+    window._schedule_thumbnails()
+    window._thread_pool.waitForDone(3000)
+
+    assert llamados["count"] == _ThumbnailJob.STRIP_COUNT_ECONOMICO
+
+
 def test_una_tira_cacheada_del_original_no_bloquea_la_del_proxy(qtbot, monkeypatch, tmp_path):
     """El bug de la cache pegada al original, 2026-09-18: la clave del
     directorio de cache usaba siempre `clip.ruta` (el original), sin

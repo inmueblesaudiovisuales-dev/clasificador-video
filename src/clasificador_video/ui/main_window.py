@@ -302,6 +302,20 @@ LIMITE_DE_TIRAS_VIVAS_NORMAL = clip_sheet_module.LIMITE_DE_TIRAS_VIVAS
 LIMITE_DE_TIRAS_VIVAS_ECONOMICO = 8
 
 
+def _miniaturas_chicas() -> bool:
+    """Miniaturas chicas y con menos fotos por tira: modo economico O modo
+    rapido activan esto -- cualquiera de los dos alcanza. Ver el spec
+    2026-09-20-modo-rapido-de-miniaturas-design.md."""
+    return preferencias.modo_economico() or preferencias.modo_rapido()
+
+
+def _hilos_limitados() -> bool:
+    """El freno de "procesar de una en una": solo si modo economico esta
+    prendido Y modo rapido no -- rapido siempre gana, porque frenar
+    contradice justo lo que rapido pide."""
+    return preferencias.modo_economico() and not preferencias.modo_rapido()
+
+
 class SeñalesDeTrabajos(QObject):
     """El UNICO portador de las señales de los trabajos en segundo plano.
 
@@ -750,7 +764,7 @@ class MainWindow(QWidget):
         # decodificando HEVC empuja a la maquina a usar swap.
         self._thread_pool.setMaxThreadCount(
             HILOS_DE_MINIATURAS_ECONOMICO
-            if preferencias.modo_economico()
+            if _hilos_limitados()
             else HILOS_DE_MINIATURAS_NORMAL
         )
         self._thumb_generation = 0
@@ -941,7 +955,7 @@ class MainWindow(QWidget):
 
         self.clip_sheet = ClipSheet()
         self.clip_sheet.set_limite_de_tiras_vivas(
-            LIMITE_DE_TIRAS_VIVAS_ECONOMICO if preferencias.modo_economico()
+            LIMITE_DE_TIRAS_VIVAS_ECONOMICO if _hilos_limitados()
             else LIMITE_DE_TIRAS_VIVAS_NORMAL
         )
         self.clip_sheet.clip_clicked.connect(self.select_clip)
@@ -2743,7 +2757,7 @@ class MainWindow(QWidget):
         # El resultado se recoge EN ORDEN (`map` lo garantiza) porque el
         # orden de los clips es el orden en que se ven y el que viaja al
         # manifest.
-        paralelo = (SONDEOS_EN_PARALELO_ECONOMICO if preferencias.modo_economico()
+        paralelo = (SONDEOS_EN_PARALELO_ECONOMICO if _hilos_limitados()
                    else SONDEOS_EN_PARALELO)
         with ThreadPoolExecutor(paralelo) as sondeadores:
             infos = list(sondeadores.map(self._sondear_sin_reventar, archivos))
@@ -4178,7 +4192,7 @@ class MainWindow(QWidget):
             self._miniaturas_totales = len(self.clips)
         generation = self._thumb_generation
         cache_root = self._thumbnail_cache_root
-        economico = preferencias.modo_economico()
+        economico = _miniaturas_chicas()
         for index in alcance:
             if index in self._faltantes:
                 # el archivo no está: extraerle una portada es lanzar mpv
@@ -4988,6 +5002,9 @@ class MainWindow(QWidget):
             self._pantalla_config.modo_economico_cambiado.connect(
                 self._cambiar_modo_economico
             )
+            self._pantalla_config.modo_rapido_cambiado.connect(
+                self._cambiar_modo_rapido
+            )
             self._pantalla_config.carpeta_premiere_guardada.connect(
                 preferencias.guardar_carpeta_de_proyectos_premiere
             )
@@ -5000,7 +5017,9 @@ class MainWindow(QWidget):
             self._pantalla_config.cerrada.connect(self._pantalla_config.hide)
         # Se relee del disco cada vez que se abre y no se cachea: la llave
         # se puede haber puesto desde otra ventana de Clipify.
-        self._pantalla_config.cargar(llave.leer(), preferencias.modo_economico())
+        self._pantalla_config.cargar(
+            llave.leer(), preferencias.modo_economico(), preferencias.modo_rapido()
+        )
         self._pantalla_config.mostrar_peso_de_miniaturas(
             tamano_del_cache(self._thumbnail_cache_root)
         )
@@ -5047,11 +5066,29 @@ class MainWindow(QWidget):
         riesgo de cortar una miniatura a medias.
         """
         preferencias.guardar_modo_economico(activo)
+        self._aplicar_freno_de_paralelismo(economico=activo, rapido=preferencias.modo_rapido())
+
+    def _cambiar_modo_rapido(self, activo: bool) -> None:
+        """Mismo criterio que `_cambiar_modo_economico`: se aplica de
+        inmediato. Rapido no toca el tamaño/cantidad de miniatura aqui --
+        eso lo lee `_schedule_thumbnails` en cada tanda nueva -- solo el
+        freno de paralelismo, que es lo unico de lo que rapido manda."""
+        preferencias.guardar_modo_rapido(activo)
+        self._aplicar_freno_de_paralelismo(economico=preferencias.modo_economico(), rapido=activo)
+
+    def _aplicar_freno_de_paralelismo(self, economico: bool, rapido: bool) -> None:
+        """Ajusta el pool y el limite de tiras vivas segun la combinacion
+        de los dos checkboxes -- lo unico que el freno controla (ver
+        `_hilos_limitados`). Recibe los dos valores en vez de releerlos los
+        dos de `preferencias`: el que acaba de cambiar puede no haberse
+        persistido todavia (o para nada, en pruebas), asi que se usa el
+        valor que de verdad se acaba de aplicar."""
+        limitado = economico and not rapido
         self._thread_pool.setMaxThreadCount(
-            HILOS_DE_MINIATURAS_ECONOMICO if activo else HILOS_DE_MINIATURAS_NORMAL
+            HILOS_DE_MINIATURAS_ECONOMICO if limitado else HILOS_DE_MINIATURAS_NORMAL
         )
         self.clip_sheet.set_limite_de_tiras_vivas(
-            LIMITE_DE_TIRAS_VIVAS_ECONOMICO if activo else LIMITE_DE_TIRAS_VIVAS_NORMAL
+            LIMITE_DE_TIRAS_VIVAS_ECONOMICO if limitado else LIMITE_DE_TIRAS_VIVAS_NORMAL
         )
 
     def _abrir_pantalla_de_guia(self) -> None:
