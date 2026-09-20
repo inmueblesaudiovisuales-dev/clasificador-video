@@ -1092,6 +1092,18 @@ def build_stylesheet() -> str:
         font-size: {FONT_MICRO}px;
         font-weight: 650;
     }}
+    /* La banda de unidad va ARRIBA del encabezado de cuarto, asi que tiene
+       que verse todavia mas discreta que el -- si no, la jerarquia se
+       invierte y la unidad, que es el dato de menos peso en esta lista,
+       termina gritando mas fuerte que el cuarto. Mismo color y tamano que
+       `#groupTitle`; sin la regla, el QLabel hereda el color por defecto
+       de QWidget (blanco pleno) y sale mas grande y mas fuerte que el
+       cuarto de abajo -- justo al reves de lo pretendido. */
+    QLabel#unitHeaderTitle {{
+        color: {TEXT_3};
+        font-size: {FONT_MICRO}px;
+        font-weight: 650;
+    }}
     QWidget#groupLine {{
         background-color: {LINE_SOFT};
     }}
