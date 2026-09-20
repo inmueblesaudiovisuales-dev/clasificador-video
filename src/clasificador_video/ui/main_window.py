@@ -3193,6 +3193,16 @@ class MainWindow(QWidget):
         )
         self.title_bar.set_estado_de_entrega(
             self._entrega.estado, self._entrega.subido_en or "")
+        # El link quedaba guardado en `self._entrega` --y en el .cvproj-- pero
+        # nunca se le enseñaba a Bruno, asi que no tenia como pasarselo al
+        # editor (paso 4 del flujo de entrega). Se copia solo al portapapeles
+        # para que el siguiente paso sea pegarlo donde sea, sin ir a buscarlo.
+        QApplication.clipboard().setText(resultado.folder_link)
+        QMessageBox.information(
+            self, "Subir a Drive",
+            "Se subió a Drive y copiamos el enlace al portapapeles:\n\n"
+            f"{resultado.folder_link}",
+        )
         self._autosave()
 
     def _al_pedir_traer_de_vuelta(self) -> None:

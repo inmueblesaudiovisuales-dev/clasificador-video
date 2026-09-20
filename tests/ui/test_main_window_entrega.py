@@ -214,6 +214,29 @@ def test_error_de_subida_rehabilita_el_boton(ventana, monkeypatch):
     assert "Subiendo" not in ventana.title_bar.subir_button.text()
 
 
+def test_subida_lista_avisa_y_copia_el_enlace_de_la_carpeta(ventana, monkeypatch):
+    """Bruno: «al subir a Drive no da el enlace». El link ya se guardaba en
+    `self._entrega` -- se veía en el .cvproj -- pero nunca se le enseñaba
+    en la ventana, así que no tenía cómo pasárselo al editor por WhatsApp
+    o correo, que es justo el paso 4 del flujo de entrega."""
+    from clasificador_video.drive import ResultadoDeSubida
+    from PySide6.QtWidgets import QApplication
+
+    avisos = []
+    monkeypatch.setattr(QMessageBox, "information",
+                        lambda self, titulo, texto: avisos.append(texto))
+    monkeypatch.setattr(ventana, "_autosave", lambda: None)
+    ventana._prproj_subiendo = Path("/tmp/Casa Reforma.prproj")
+
+    resultado = ResultadoDeSubida(
+        "folder-x", "https://drive.google.com/drive/folders/folder-x", "fecha")
+    ventana._on_drive_subida_lista(resultado, "")
+
+    assert avisos and "https://drive.google.com/drive/folders/folder-x" in avisos[0]
+    assert QApplication.clipboard().text() == \
+        "https://drive.google.com/drive/folders/folder-x"
+
+
 def test_cliente_de_drive_reusa_el_token_guardado_sin_ir_a_configuracion(
         ventana, monkeypatch):
     """Antes, una ventana nueva nacía con `_drive_cliente` en `None` y solo
