@@ -23,6 +23,7 @@ from clasificador_video.keyboard import KeyboardRouter
 from clasificador_video.manifest import Clip
 from clasificador_video.recientes import Recientes
 from clasificador_video.rooms import RoomSelection
+from clasificador_video.units import UnitSelection
 from clasificador_video.thumbnails import borrar_cache, default_cache_root, tamano_del_cache
 from clasificador_video.ui.main_window import MainWindow
 from clasificador_video.ui.pantalla_config import PantallaConfig, _formatear_bytes
@@ -58,6 +59,13 @@ def _rebuild_room_selection(rooms: list[str]) -> RoomSelection:
     sel = RoomSelection()
     for room in rooms:
         sel.add(room)
+    return sel
+
+
+def _rebuild_unit_selection(units: list[str]) -> UnitSelection:
+    sel = UnitSelection()
+    for unidad in units:
+        sel.add(unidad)
     return sel
 
 
@@ -160,9 +168,22 @@ def _poblar_ventana(window: MainWindow, data: dict, clips: list[Clip]) -> None:
     """
     window.project_name = str(data.get("proyecto") or "Shooting sin nombre")
     rooms = data.get("rooms")
-    window.room_selection = _rebuild_room_selection(
+    window.room_selections = {"": _rebuild_room_selection(
         [str(r) for r in rooms] if isinstance(rooms, list) else []
+    )}
+    units = data.get("units")
+    window.unit_selection = _rebuild_unit_selection(
+        [str(u) for u in units] if isinstance(units, list) else []
     )
+    rooms_por_unidad = data.get("rooms_por_unidad")
+    if isinstance(rooms_por_unidad, dict):
+        for nombre_unidad in window.unit_selection.active_rooms():
+            crudos = rooms_por_unidad.get(nombre_unidad)
+            window.room_selections[nombre_unidad] = _rebuild_room_selection(
+                [str(r) for r in crudos] if isinstance(crudos, list) else []
+            )
+    window.room_selection = window.room_selections[""]
+    window._unidad_activa = None
     # `category_tree` de proyectos viejos se ignora a proposito: los
     # subcuartos murieron en la F3 y los paths se aplanan al cuarto padre.
     window._router = KeyboardRouter(active_rooms=window.room_selection.active_rooms())

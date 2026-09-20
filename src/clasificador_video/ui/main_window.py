@@ -57,6 +57,7 @@ from clasificador_video.proxy_match import (
     patron_de_proxy,
 )
 from clasificador_video.rooms import RoomSelection
+from clasificador_video.units import UnitSelection
 from clasificador_video.thumbnails import (
     MARCA_DE_COMPLETA,
     borrar_cache,
@@ -706,7 +707,10 @@ class MainWindow(QWidget):
         super().__init__(parent)
         self.setWindowTitle(project_name)
         self.project_name = project_name
+        self.room_selections: dict[str, RoomSelection] = {"": room_selection}
         self.room_selection = room_selection
+        self.unit_selection = UnitSelection()
+        self._unidad_activa: str | None = None
         self.clips: list[Clip] = []
         self.current_index = 0
         self.selected_indices: list[int] = []
@@ -1941,6 +1945,23 @@ class MainWindow(QWidget):
         self._refresh_sheet()
         self._autosave()
 
+    def _activar_unidad(self, nombre: str | None) -> None:
+        """Cambia cual catalogo de cuartos esta detras de `room_selection`.
+
+        `None` es "sin unidad activa": el catalogo de siempre (llave `""`),
+        que es exactamente lo que hay en un proyecto que nunca creo una
+        unidad. Elegir una unidad NO reasigna nada -- solo dice sobre que
+        catalogo actuan de ahora en adelante la paleta de cuartos, el rail
+        y las teclas 1-9, hasta que se elija otra o se cierre la paleta de
+        unidades (spec 2026-09-20 §3).
+        """
+        llave = nombre or ""
+        if llave not in self.room_selections:
+            self.room_selections[llave] = RoomSelection()
+        self._unidad_activa = nombre
+        self.room_selection = self.room_selections[llave]
+        self._sync_rooms()
+
     def _on_room_created(self, nombre: str) -> None:
         self.room_selection.add(nombre)
         self._sync_rooms()
@@ -2343,7 +2364,12 @@ class MainWindow(QWidget):
         """
         data = proyecto.a_dict(
             proyecto=self.project_name,
-            rooms=self.room_selection.active_rooms(),
+            # SIEMPRE el catalogo "sin unidad", sin importar cual este
+            # activo al momento de autoguardar: si aqui fuera
+            # `self.room_selection`, autoguardar con una unidad activa
+            # escribiria su catalogo bajo la llave vieja y el catalogo
+            # real "sin unidad" se perderia.
+            rooms=self.room_selections[""].active_rooms(),
             clips=self.clips,
             bins=self.bins,
             tamanos=self._clip_sizes,
@@ -2360,6 +2386,12 @@ class MainWindow(QWidget):
             carpeta_de_proxies=self._carpeta_de_proxies,
             guia=self._guia_para_la_sesion(),
             entrega=self._entrega.to_dict() if self._entrega is not None else None,
+            units=self.unit_selection.active_rooms(),
+            rooms_por_unidad={
+                nombre: self.room_selections[nombre].active_rooms()
+                for nombre in self.unit_selection.active_rooms()
+                if nombre in self.room_selections
+            },
         )
         return data
 
