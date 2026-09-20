@@ -1,5 +1,5 @@
 // Las marcas de cámara -- "[SONY] ", "[POCKET] ", "[DRONE] "-- en el
-// nombre de la carpeta de un cuarto en Premiere.
+// nombre de la carpeta de un cuarto O una unidad en Premiere.
 //
 // POR QUE ES UNA SEÑAL APARTE DE LA CAMARA (`label.js`): el color del
 // clip ya dice de que camara salio, mirando el nombre del ARCHIVO. Esto
@@ -29,25 +29,35 @@ function sinMarcaDeCamara(nombre) {
   return s.replace(marca, "");
 }
 
-// Las marcas que aplican a este cuarto, en el orden fijo Sony/Pocket/Drone.
-function _marcasDelCuarto(clipsDelManifest, nombreDeCuarto) {
+// Las marcas que aplican a este PREFIJO de categoria_path -- un cuarto
+// (["Cocina"] o ["Casa A", "Cocina"]) o una unidad sola (["Casa A"], que
+// agrega la marca de TODOS los cuartos que tiene adentro).
+function _marcasDelPrefijo(clipsDelManifest, prefijo) {
   return _MARCAS
-    .filter(({ campo }) => _cuartoTieneAlgunClipDe(clipsDelManifest, nombreDeCuarto, campo))
+    .filter(({ campo }) => _algunClipEmpiezaCon(clipsDelManifest, prefijo, campo))
     .map(({ palabra }) => palabra);
 }
 
-function _cuartoTieneAlgunClipDe(clipsDelManifest, nombreDeCuarto, campo) {
-  return (clipsDelManifest || []).some(
-    (c) => c && c.categoria_path && c.categoria_path[0] === nombreDeCuarto && c[campo] === true
-  );
+function _algunClipEmpiezaCon(clipsDelManifest, prefijo, campo) {
+  return (clipsDelManifest || []).some((c) => {
+    if (!c || !c.categoria_path || c[campo] !== true) return false;
+    if (c.categoria_path.length < prefijo.length) return false;
+    return prefijo.every((segmento, indice) => c.categoria_path[indice] === segmento);
+  });
 }
 
 // Arma el nombre final de la carpeta: numero (si lo hay) + marca(s) (si
-// aplican) + nombre del cuarto -- EN ESE ORDEN, pegado al nombre nunca
-// antes del numero: "03. [SONY+DRONE] Cocina", no
-// "[SONY+DRONE] 03. Cocina".
-function nombreDelCuartoConMarca(nombreConNumero, nombreSinNumero, clipsDelManifest) {
-  const marcas = _marcasDelCuarto(clipsDelManifest, nombreSinNumero);
+// aplican) + nombre -- EN ESE ORDEN, pegado al nombre nunca antes del
+// numero: "03. [SONY+DRONE] Cocina", no "[SONY+DRONE] 03. Cocina".
+//
+// `prefijoDeCategoria` es el categoria_path (crudo, SIN numero ni marca)
+// hasta este nivel: `["Cocina"]` para un cuarto sin unidad, `["Casa A",
+// "Cocina"]` para un cuarto con unidad, o `["Casa A"]` para marcar la
+// UNIDAD misma con la combinacion de todos sus cuartos. Si se omite, se
+// asume `[nombreSinNumero]` -- el comportamiento de siempre.
+function nombreDelCuartoConMarca(nombreConNumero, nombreSinNumero, clipsDelManifest, prefijoDeCategoria) {
+  const prefijo = prefijoDeCategoria || [nombreSinNumero];
+  const marcas = _marcasDelPrefijo(clipsDelManifest, prefijo);
   if (!marcas.length) return nombreConNumero;
   const numero = nombreConNumero.slice(
     0, nombreConNumero.length - nombreSinNumero.length);
