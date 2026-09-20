@@ -75,6 +75,16 @@ CAMARA_COLORES = {
 BIN_TINT_ALPHA = 46          # el .18 del mockup, en 0-255
 BIN_INK_LIGHTEN = 0.45       # cuanto se aclara el glifo sobre ese tinte
 
+# --- IDENTIDAD DE UNIDAD: un canal mas, distinto de ROOM_PALETTE (cuarto) y
+# de CAMARA_COLORES (camara). Mismo espiritu apagado que ROOM_PALETTE: no
+# compite con verde/rojo/ambar de estado. Colores propios, sin repetir los
+# de los otros dos canales -- dos identidades que se ven igual no son dos
+# identidades.
+UNIT_PALETTE = [
+    "#a8724f", "#5a8a9e", "#7e6a9e", "#4a8a72", "#8a9e5a",
+    "#5a7e9e", "#9e7e6a", "#9e5a72", "#6a7e8a",
+]
+
 # lo que falta clasificar: el tramo apagado de la barra de progreso y el
 # punto gris de la leyenda son el mismo dato, y por eso el mismo color.
 PENDING_COLOR = "#2a2f38"
@@ -208,6 +218,12 @@ def room_color(index: int) -> str:
     para que la identidad visual de un cuarto no cambie durante la sesion.
     """
     return ROOM_PALETTE[index % len(ROOM_PALETTE)]
+
+
+def unit_color(index: int) -> str:
+    """Color de identidad estable para la unidad en la posicion `index` de
+    la lista de unidades activas -- mismo criterio que `room_color`."""
+    return UNIT_PALETTE[index % len(UNIT_PALETTE)]
 
 
 def camara_color(camara: str) -> str:

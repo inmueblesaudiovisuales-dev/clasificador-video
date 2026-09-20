@@ -251,3 +251,23 @@ def test_la_paleta_de_cuartos_sale_del_mockup_de_verdad():
     root = mockup.read_text(encoding="utf-8").split(":root{")[1].split("}")[0]
     variables = dict(re.findall(r"--([a-z0-9-]+):\s*(#[0-9a-fA-F]{6})", root))
     assert theme.ROOM_PALETTE == [variables[f"r{i}"] for i in range(1, 10)]
+
+
+# ---------------------------------------------------------------------------
+# Identidad de UNIDAD: tercer canal de color, aparte de cuarto y camara.
+# ---------------------------------------------------------------------------
+
+
+def test_unit_color_es_estable_por_indice():
+    assert theme.unit_color(0) == theme.unit_color(0)
+
+
+def test_unit_color_no_repite_room_color_ni_camara_color():
+    # tres canales distintos: unidad, cuarto y camara no pueden compartir
+    # paleta o dos identidades se verian iguales sin serlo
+    assert set(theme.UNIT_PALETTE).isdisjoint(theme.ROOM_PALETTE)
+    assert set(theme.UNIT_PALETTE).isdisjoint(theme.CAMARA_COLORES.values())
+
+
+def test_unit_color_da_vuelta_igual_que_room_color():
+    assert theme.unit_color(len(theme.UNIT_PALETTE)) == theme.unit_color(0)
