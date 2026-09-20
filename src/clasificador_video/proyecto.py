@@ -133,7 +133,9 @@ def a_dict(proyecto: str, rooms: list[str], clips: list, bins,
            modo_horizontal: bool = False,
            carpeta_de_proxies: Path | None = None,
            guia: dict | None = None,
-           entrega: dict | None = None) -> dict:
+           entrega: dict | None = None,
+           units: list[str] | None = None,
+           rooms_por_unidad: dict[str, list[str]] | None = None) -> dict:
     """La forma del documento. **Puro: no toca disco.**
 
     Los pesos que salen de aqui son los que ya se sabian (`bytes_conocidos`,
@@ -144,6 +146,14 @@ def a_dict(proyecto: str, rooms: list[str], clips: list, bins,
         "version": VERSION,
         "proyecto": proyecto,
         "rooms": list(rooms),
+        # Nivel opcional arriba de cuarto. Vacios en todo proyecto que
+        # nunca crea una unidad -- ahi el documento sale identico al de
+        # siempre salvo por estas dos llaves de mas, que nadie lee.
+        "units": list(units) if units else [],
+        "rooms_por_unidad": (
+            {u: list(r) for u, r in rooms_por_unidad.items()}
+            if rooms_por_unidad else {}
+        ),
         "clips": [c.to_dict() for c in clips],
         # Todo esto va AL LADO de los clips y no adentro: `Clip.to_dict()`
         # es el contrato con el plugin de Premiere y no se toca.

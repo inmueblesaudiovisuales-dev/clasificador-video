@@ -429,6 +429,30 @@ def test_un_proyecto_sin_guia_sigue_siendo_valido(tmp_path):
     assert data["guia"] is None
 
 
+def test_a_dict_guarda_units_y_rooms_por_unidad_vacios_por_default():
+    data = a_dict(
+        proyecto="Prueba", rooms=["Cocina"], clips=[], bins=_bins_vacio(),
+        tamanos={}, duraciones={}, rotaciones={},
+    )
+
+    assert data["units"] == []
+    assert data["rooms_por_unidad"] == {}
+
+
+def test_a_dict_guarda_units_y_rooms_por_unidad_con_datos():
+    data = a_dict(
+        proyecto="Prueba", rooms=[], clips=[], bins=_bins_vacio(),
+        tamanos={}, duraciones={}, rotaciones={},
+        units=["Casa A", "Casa B"],
+        rooms_por_unidad={"Casa A": ["Cocina"], "Casa B": ["Cocina", "Baño"]},
+    )
+
+    assert data["units"] == ["Casa A", "Casa B"]
+    assert data["rooms_por_unidad"] == {
+        "Casa A": ["Cocina"], "Casa B": ["Cocina", "Baño"],
+    }
+
+
 def test_raiz_de_assets_de_lee_los_bins_del_documento():
     from clasificador_video.proyecto import raiz_de_assets_de
 
