@@ -36,12 +36,20 @@ const raiz = path.join(__dirname, "..");
 // `marcaCamara.js` es logica pura entera: pone y quita las marcas de cámara
 // del nombre de un cuarto. Va antes que `numeroDeCuarto.js` porque
 // `esElMismoCuarto` usa su `sinMarcaDeCamara`.
+//
+// `processManifest.js` entra SOLO por `indicesDelCamino`, que es logica
+// pura (decide en que indice de `camino` vive la unidad y el cuarto). El
+// resto del archivo hace `require("premierepro")` y llama a `logToPanel`/
+// `runTransaction` -- pero esas llamadas viven DENTRO de funciones que aqui
+// nunca se invocan, asi que cargarlo (parsearlo, no ejecutarlo) es seguro,
+// igual que ya pasa con `estructura.js` y sus dos `require("premierepro")`.
 const ARCHIVOS = [
   "js/marcaCamara.js",
   "js/estructura.js",
   "js/numeroDeCuarto.js",
   "js/avance.js",
   "js/secuencia.js",
+  "js/processManifest.js",
 ];
 
 const contexto = vm.createContext({ console });
@@ -63,6 +71,7 @@ const casos = [].concat(
   require("./avance.pruebas.js")(contexto)
   , require("./secuencia.pruebas.js")(contexto)
   , require("./estructura.pruebas.js")(contexto)
+  , require("./processManifest.pruebas.js")(contexto)
 );
 
 let fallidas = 0;

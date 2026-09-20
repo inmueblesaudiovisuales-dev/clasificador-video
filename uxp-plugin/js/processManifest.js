@@ -1,3 +1,15 @@
+// Donde vive cada segmento dentro de `camino` (que ya trae CARPETA_DE_CLIPS
+// al frente, ver caminoDelClip): sin unidad, camino = [CARPETA_DE_CLIPS,
+// cuarto, ...resto]; con unidad, camino = [CARPETA_DE_CLIPS, unidad,
+// cuarto, ...resto]. Logica pura, se prueba sin Premiere.
+function indicesDelCamino(categoryPath) {
+  const hayUnidad = (categoryPath || []).length > 1;
+  return {
+    indiceUnidad: hayUnidad ? 1 : null,
+    indiceCuarto: hayUnidad ? 2 : 1,
+  };
+}
+
 // Procesa un manifest ya parseado (objeto JS, ver formato en el spec).
 // Devuelve { ok: [nombresDeArchivo], errores: [{archivo, mensaje}] }.
 async function processManifest(project, manifest) {
@@ -54,21 +66,38 @@ async function processManifest(project, manifest) {
         categoryPath = clipData.categoria_path;
       }
 
-      // El PRIMER segmento es el cuarto y es el unico que lleva numero,
-      // asi que pasa por `resolverCuarto` --que renumera la carpeta que ya
-      // existe en vez de crear una segunda--. Lo que cuelgue debajo sigue
-      // por el camino de siempre.
+      // El CUARTO es el unico segmento que lleva numero, y su indice
+      // cambia si hay unidad o no -- `indicesDelCamino` lo dice. Pasa por
+      // `resolverCuarto` --que renumera la carpeta que ya existe en vez de
+      // crear una segunda--. Lo que cuelgue debajo sigue por el camino de
+      // siempre.
       const camino = caminoDelClip(categoryPath, ordenDeLaGuia);
-      // camino[1] ya trae el numero (o no, sin guia). Aqui se le suma la
-      // marca [DRONE] si TODOS los clips de este cuarto, en ESTE
-      // manifiesto, vinieron de un bin que dice "dron" -- ver
-      // marcaDron.js y spec 2026-09-18.
-      camino[1] = nombreDelCuartoConMarca(camino[1], categoryPath[0], manifest.clips);
-      const carpetaDelCuarto = await resolverCuarto(
-        project, carpetaDeClips, camino[1]);
-      const targetFolder = camino.length > 2
-        ? await resolveBinChain(project, carpetaDelCuarto, camino.slice(2))
-        : carpetaDelCuarto;
+      const { indiceUnidad, indiceCuarto } = indicesDelCamino(categoryPath);
+      // camino[indiceCuarto] ya trae el numero (o no, sin guia). Aqui se le
+      // suma la marca [DRONE]/[SONY]/etc si TODOS los clips de este cuarto,
+      // en ESTE manifiesto, vinieron de esa camara -- ver marcaCamara.js y
+      // spec 2026-09-18.
+      const nombreCuartoSinNumero = categoryPath[categoryPath.length - 1];
+      camino[indiceCuarto] = nombreDelCuartoConMarca(
+        camino[indiceCuarto], nombreCuartoSinNumero, manifest.clips, categoryPath
+      );
+
+      // La UNIDAD, cuando hay una, NUNCA lleva numero (spec 2026-09-20
+      // §7-§8: no hay guia de unidades), asi que usa `resolveBinChain`
+      // simple -- crea o reusa por nombre exacto -- y no `resolverCuarto`,
+      // cuyo renumerado entre pasadas no le aplica.
+      let carpetaBase = carpetaDeClips;
+      if (indiceUnidad !== null) {
+        const nombreUnidad = nombreDelCuartoConMarca(
+          camino[indiceUnidad], camino[indiceUnidad], manifest.clips, [categoryPath[0]]
+        );
+        carpetaBase = await resolveBinChain(project, carpetaDeClips, [nombreUnidad]);
+      }
+      const carpetaDelCuartoObj = await resolverCuarto(
+        project, carpetaBase, camino[indiceCuarto]);
+      const targetFolder = camino.length > indiceCuarto + 1
+        ? await resolveBinChain(project, carpetaDelCuartoObj, camino.slice(indiceCuarto + 1))
+        : carpetaDelCuartoObj;
       const clipItem = await importOrReuseClip(project, targetFolder, clipData.ruta, indiceDeClips);
 
       if (!clipItem) {
