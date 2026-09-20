@@ -739,15 +739,6 @@ class MainWindow(QWidget):
         # de antes describiria un bin que ya no es ese. La lista se calcula
         # cuando le toca (ver el spec).
         self._cola_de_proxies: list[str] = []
-        # Bins que llegaron mientras otra tanda de proxies corria y por eso
-        # nunca se les pregunto "¿te los creo primero?" (`_ofrecer_proxies_
-        # antes` corta en silencio si `_generando_proxies` no es None). Se
-        # guarda el NOMBRE, mismo motivo que la cola de arriba. Se preguntan
-        # en cuanto la tanda que corre termina (`_preguntar_pendientes_de_
-        # proxies`). Antes se perdian sin aviso -- en una Mac lenta, donde
-        # una tanda tarda mucho mas, era mucho mas facil que un segundo
-        # import cayera justo en esa ventana. Le paso a Bruno en la Air.
-        self._bins_pendientes_de_preguntar: list[str] = []
         # Lo que llevan TODAS las tandas de esta fila, para el cartel unico
         # del final. Se vacia cuando la fila arranca desde cero.
         self._resumen_de_la_fila: dict = {"creados": 0, "fallidos": []}
@@ -2186,34 +2177,27 @@ class MainWindow(QWidget):
         Se pregunta en vez de decidirlo la app porque las dos respuestas son
         razonables: generar son minutos, y a veces uno solo quiere ver qué
         trajo la tarjeta. Bruno lo eligió así el 2026-08-10.
+
+        Se pregunta AHORA aunque ya haya otra tanda corriendo -- antes se
+        aplazaba la pregunta hasta que esa tanda terminara, y Bruno la vivía
+        como que la app simplemente no le preguntaba nada, sin forma de
+        adelantarse y dejar la computadora sola sabiendo que todo iba a
+        quedar en cola. Bruno lo pidió así el 2026-09-19: la ventana encima
+        de una vez, y que lo que contestes se quede formado. Si aceptas
+        "crear" con otra tanda en vuelo, `generar_proxies_de_bin` ya sabe
+        formarse detrás en vez de arrancar encima (ver `_cola_de_proxies`).
         """
         if nombre_de_bin is None or not indices:
             return False
-        if self._generando_proxies is not None:
-            # Ya hay una tanda corriendo; no encimar otra. Pero la pregunta
-            # no se pierde: se reintenta cuando esa tanda termine (ver
-            # `_preguntar_pendientes_de_proxies`). Devolver True frena las
-            # portadas de este bin por ahora, igual que si Bruno hubiera
-            # aceptado crear los proxies -- se piden solas cuando se
-            # resuelva, generando proxies o no.
-            if nombre_de_bin not in self._bins_pendientes_de_preguntar:
-                self._bins_pendientes_de_preguntar.append(nombre_de_bin)
-                # Sin esto, un bin que llega mientras otra tanda corre no
-                # dice nada de si mismo hasta que le toca su turno -- que
-                # puede ser minutos despues, con Bruno ya clasificando otra
-                # cosa. La insignia es la misma que usa la cola manual
-                # (`_cola_de_proxies`): es la misma espera vista desde otro
-                # camino, y las dos merecen el mismo aviso.
-                self.clip_sheet.set_bin_en_cola(nombre_de_bin, True)
-            return True
         if any(self.clips[i].ruta_proxy is not None for i in indices):
             return False        # este bin ya tiene proxies enganchados
         eleccion = self._preguntar_que_hacer_con_proxies(nombre_de_bin, indices)
         if eleccion == "crear":
             self.generar_proxies_de_bin(nombre_de_bin, preguntar=False)
-            # si por lo que sea no arrancó, las portadas no se pueden quedar
-            # esperando a algo que no va a pasar
-            return self._generando_proxies is not None
+            # si por lo que sea no arrancó NI se formó en la fila, las
+            # portadas no se pueden quedar esperando a algo que no va a pasar
+            return (self._generando_proxies is not None
+                    or nombre_de_bin in self._cola_de_proxies)
         if eleccion == "enlazar":
             self.adjuntar_proxies_de_bin(nombre_de_bin)
             # Si enganchó, `_sondear_proxies` ya volvió a pedir las portadas
@@ -3548,39 +3532,10 @@ class MainWindow(QWidget):
             estado["hechos"] - len(estado["fallidos"])
         )
         self._resumen_de_la_fila["fallidos"].extend(estado["fallidos"])
-        self._preguntar_pendientes_de_proxies()
-        if self._generando_proxies is not None:
-            return  # la pregunta arranco una tanda nueva; sigue cuando esa termine
         if self._cola_de_proxies:
             self._arrancar_siguiente_de_la_fila()
             return
         self._avisar_del_final_de_la_fila()
-
-    def _preguntar_pendientes_de_proxies(self) -> None:
-        """Los bins que llegaron mientras otra tanda corria y se quedaron
-        sin preguntar (ver `_ofrecer_proxies_antes`).
-
-        Uno a la vez: preguntar por el primero puede aceptar "crear", y ahi
-        `_generando_proxies` vuelve a no ser None -- el resto espera a que
-        ESA tanda termine, y se re-intenta solo porque esta misma funcion
-        se llama de nuevo al final de cada tanda.
-        """
-        while self._bins_pendientes_de_preguntar:
-            nombre = self._bins_pendientes_de_preguntar.pop(0)
-            # Le toca su turno: la insignia de «en cola» que se puso al
-            # entrar a la lista ya no aplica, conteste lo que conteste
-            # `_ofrecer_proxies_antes` -- si vuelve a encolarse (otra tanda
-            # arrancó mientras tanto) la pone de nuevo ella misma.
-            self.clip_sheet.set_bin_en_cola(nombre, False)
-            if nombre not in self.bins.nombres():
-                continue  # se fue del proyecto mientras esperaba
-            indices = self.bins.clips_de(nombre)
-            if not indices:
-                continue
-            if not self._ofrecer_proxies_antes(nombre, indices):
-                self._schedule_thumbnails(indices)
-            if self._generando_proxies is not None:
-                return
 
     def _recoger_proxies_sin_enganchar(self, nombre_de_bin: str, carpeta) -> None:
         """Los que se generaron y se quedaron sin enganchar.

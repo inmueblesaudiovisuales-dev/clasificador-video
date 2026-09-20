@@ -2555,99 +2555,51 @@ def test_recoger_no_toca_los_que_ya_estan_enganchados(qtbot, monkeypatch, tmp_pa
     assert sondeados == []
 
 
-def test_un_bin_que_llega_con_otra_tanda_corriendo_no_se_pierde_la_pregunta(
+def test_un_bin_que_llega_con_otra_tanda_corriendo_se_pregunta_de_inmediato(
         qtbot, monkeypatch):
-    """El bug de la MacBook Air, 2026-09-18: `_ofrecer_proxies_antes` cortaba
-    en silencio si `_generando_proxies` no era None, y el bin recien
-    importado se iba derecho a las portadas del original SIN haber sido
-    preguntado. En una Mac lenta, donde una tanda tarda mucho mas, esa
-    ventana es mucho mas ancha y es facil que un segundo import caiga
-    adentro. Ahora se encola y se pregunta al terminar."""
+    """Bruno lo pidió así el 2026-09-19: antes, un bin que llegaba con otra
+    tanda corriendo se aplazaba en silencio hasta que esa tanda terminara --
+    lo vivía como «subo una segunda carpeta y no me pide hacer los proxies».
+    Ahora se pregunta en el momento, aunque haya otra tanda en vuelo: la
+    ventana llega encima de una vez, y lo que contestes se queda formado
+    (`_cola_de_proxies`) para cuando la tanda que corre termine."""
     window = _ventana_con_bins(qtbot)
     _corriendo(window)  # "Card A" tiene una tanda en vuelo
-    pedidas = []
-    monkeypatch.setattr(window, "_schedule_thumbnails",
-                        lambda indices=None: pedidas.append(indices))
-
-    window.agregar_clips([_clip(10, "/y/C0010.MP4")], "Card C", Path("/y"))
-
-    assert pedidas == []      # no salio a los originales todavia
-    assert window._bins_pendientes_de_preguntar == ["Card C"]
-
-
-def test_el_bin_que_espera_su_turno_lo_dice_en_la_hoja(qtbot, monkeypatch):
-    """Antes, un bin que llegaba con otra tanda corriendo se quedaba en
-    `_bins_pendientes_de_preguntar` sin decir nada en la hoja -- Bruno lo vio
-    como «subo una segunda carpeta y no me pide hacer los proxies», porque no
-    hay ninguna señal de que la pregunta va a llegar despues. La insignia es
-    la misma que ya usa la cola manual (`_cola_de_proxies`): es la misma
-    espera vista desde otro camino."""
-    window = _ventana_con_bins(qtbot)
-    _corriendo(window)  # "Card A" tiene una tanda en vuelo
-    monkeypatch.setattr(window, "_schedule_thumbnails", lambda indices=None: None)
-    avisos = []
-    monkeypatch.setattr(window.clip_sheet, "set_bin_en_cola",
-                        lambda nombre, en_cola: avisos.append((nombre, en_cola)))
-
-    window.agregar_clips([_clip(10, "/y/C0010.MP4")], "Card C", Path("/y"))
-
-    assert avisos == [("Card C", True)]
-
-
-def test_el_bin_pendiente_se_pregunta_al_terminar_la_tanda(qtbot, monkeypatch):
-    window = _ventana_con_bins(qtbot)
-    _corriendo(window)
-    window.agregar_clips([_clip(10, "/y/C0010.MP4")], "Card C", Path("/y"))
     preguntados = []
     monkeypatch.setattr(window, "_preguntar_que_hacer_con_proxies",
                         lambda nombre, indices: preguntados.append(nombre) or "no")
     pedidas = []
     monkeypatch.setattr(window, "_schedule_thumbnails",
                         lambda indices=None: pedidas.append(indices))
-    avisos = []
-    monkeypatch.setattr(window.clip_sheet, "set_bin_en_cola",
-                        lambda nombre, en_cola: avisos.append((nombre, en_cola)))
 
-    window._generando_proxies = None
-    window._preguntar_pendientes_de_proxies()
-
-    assert preguntados == ["Card C"]
-    assert pedidas                              # dijiste que no: salen del original
-    assert window._bins_pendientes_de_preguntar == []
-    assert avisos == [("Card C", False)]        # le tocó turno: se quita la insignia
-
-
-def test_si_aceptas_crear_para_el_pendiente_arranca_una_tanda_nueva(
-        qtbot, monkeypatch):
-    window = _ventana_con_bins(qtbot)
-    _corriendo(window)
     window.agregar_clips([_clip(10, "/y/C0010.MP4")], "Card C", Path("/y"))
+
+    assert preguntados == ["Card C"]   # se preguntó YA, sin esperar a nada
+    assert pedidas                     # dijiste que no: las portadas salen del original
+
+
+def test_si_aceptas_crear_con_otra_tanda_corriendo_se_forma_en_la_fila(
+        qtbot, monkeypatch):
+    """Aceptar «crear proxies» mientras otra tanda corre no arranca dos a la
+    vez -- se forma detrás, igual que pedirlo a mano desde el menú del bin
+    (`generar_proxies_de_bin` ya sabe encolar). Las portadas de este bin NO
+    se piden del original todavía: van a salir solas cuando le toque turno."""
+    window = _ventana_con_bins(qtbot)
+    _corriendo(window)  # "Card A" tiene una tanda en vuelo
     monkeypatch.setattr(window, "_preguntar_que_hacer_con_proxies",
                         lambda nombre, indices: "crear")
-    arrancados = []
-    monkeypatch.setattr(window, "generar_proxies_de_bin",
-                        lambda nombre, preguntar=True: arrancados.append(nombre))
-    monkeypatch.setattr(window, "_schedule_thumbnails", lambda indices=None: None)
+    pedidas = []
+    monkeypatch.setattr(window, "_schedule_thumbnails",
+                        lambda indices=None: pedidas.append(indices))
+    avisos = []
+    monkeypatch.setattr(window.clip_sheet, "set_bin_en_cola",
+                        lambda nombre, en_cola: avisos.append((nombre, en_cola)))
 
-    window._generando_proxies = None
-    window._preguntar_pendientes_de_proxies()
+    window.agregar_clips([_clip(10, "/y/C0010.MP4")], "Card C", Path("/y"))
 
-    assert arrancados == ["Card C"]
-
-
-def test_un_bin_pendiente_que_se_fue_del_proyecto_no_se_pregunta(qtbot, monkeypatch):
-    """Se quito el bin mientras esperaba: preguntar por algo que ya no existe
-    no tiene sentido, igual que la fila explicita (`_cola_de_proxies`)."""
-    window = _ventana_con_bins(qtbot)
-    window._bins_pendientes_de_preguntar = ["Fantasma"]
-    preguntados = []
-    monkeypatch.setattr(window, "_preguntar_que_hacer_con_proxies",
-                        lambda nombre, indices: preguntados.append(nombre) or "no")
-
-    window._preguntar_pendientes_de_proxies()
-
-    assert preguntados == []
-    assert window._bins_pendientes_de_preguntar == []
+    assert window._cola_de_proxies == ["Card C"]
+    assert pedidas == []                        # no salió a los originales
+    assert ("Card C", True) in avisos            # y lo dice en la hoja
 
 
 def _bin_con_proxies_en_disco(qtbot, tmp_path, cuantos_en_disco, cuantos_sin):
