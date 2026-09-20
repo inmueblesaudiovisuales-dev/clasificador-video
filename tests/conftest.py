@@ -3,6 +3,20 @@ import pytest
 
 
 @pytest.fixture(autouse=True)
+def sin_log_de_fila_de_proxies(monkeypatch):
+    """El registro TEMPORAL de la fila de proxies (main_window.py, ver el
+    comentario junto a `_log_fila_de_proxies`) escribe en
+    `~/.clasificador_video/`, la carpeta real de Bruno -- sin esto, cada
+    corrida de la suite le dejaria ahi un archivo que nadie pidio."""
+    monkeypatch.setattr(
+        "clasificador_video.ui.main_window._preparar_log_de_fila_de_proxies",
+        lambda: None,
+        raising=False,
+    )
+    yield
+
+
+@pytest.fixture(autouse=True)
 def preferencias_de_prueba(monkeypatch):
     """Ningun test depende de lo que haya guardado en la maquina real donde
     corre la suite --`preferencias.modo_economico()` sin argumentos lee

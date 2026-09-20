@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import shutil
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -289,6 +290,35 @@ class _GuiaJob(QRunnable):
 # baja a 3: mas lento, menos carga.
 SONDEOS_EN_PARALELO = 8
 SONDEOS_EN_PARALELO_ECONOMICO = 3
+
+# --- registro TEMPORAL para cazar el bug de la fila de proxies -----------
+# Bruno lo reporto en vivo el 2026-09-20: con Sony-1 generando y Sony-2 en
+# cola, pidio proxies de Drone -- Sony-2 perdio su insignia "en cola" sin
+# generar nada, y Drone arranco directo, como si la fila hubiera estado
+# vacia. Hay una hipotesis por lectura estatica (un QMessageBox.question dejo
+# correr al hilo de fondo mientras esperaba la respuesta, y eso movio la
+# fila DEBAJO de la funcion que la estaba leyendo) pero no se pudo confirmar
+# sin datos reales -- ver
+# docs/superpowers/HANDOFF-2026-09-20-reportes-en-vivo-y-diseno-de-unidades.md
+# Borrar este bloque y sus `_log_fila_de_proxies.info(...)` en cuanto el bug
+# quede resuelto o descartado.
+_log_fila_de_proxies = logging.getLogger("clasificador_video.fila_de_proxies")
+
+
+def _preparar_log_de_fila_de_proxies() -> None:
+    if _log_fila_de_proxies.handlers:
+        return  # ya armado -- se puede llamar mas de una vez por sesion
+    ruta = Path.home() / ".clasificador_video" / "fila_de_proxies.log"
+    try:
+        ruta.parent.mkdir(parents=True, exist_ok=True)
+        manejador = logging.FileHandler(ruta, encoding="utf-8")
+    except OSError:
+        return
+    manejador.setFormatter(logging.Formatter("%(asctime)s %(message)s"))
+    _log_fila_de_proxies.addHandler(manejador)
+    _log_fila_de_proxies.setLevel(logging.INFO)
+    _log_fila_de_proxies.propagate = False
+
 
 # Miniaturas en paralelo: normal, y en modo economico (ver preferencias.py).
 # Uno a la vez en modo economico porque es el minimo que sigue siendo
@@ -761,6 +791,7 @@ class MainWindow(QWidget):
         # de antes describiria un bin que ya no es ese. La lista se calcula
         # cuando le toca (ver el spec).
         self._cola_de_proxies: list[str] = []
+        _preparar_log_de_fila_de_proxies()  # temporal, ver arriba
         # Lo que llevan TODAS las tandas de esta fila, para el cartel unico
         # del final. Se vacia cuando la fila arranca desde cero.
         self._resumen_de_la_fila: dict = {"creados": 0, "fallidos": []}
@@ -2978,6 +3009,12 @@ class MainWindow(QWidget):
         tomas son varios minutos, y ver el material aligerarse conforme
         avanza es lo que hace que la espera no se sienta muerta.
         """
+        _log_fila_de_proxies.info(
+            "pedido %r -- generando=%r cola=%r",
+            nombre_de_bin,
+            self._generando_proxies and self._generando_proxies["bin"],
+            list(self._cola_de_proxies),
+        )
         if self._esta_pedido(nombre_de_bin):
             QMessageBox.information(
                 self, "Ya está pedido",
@@ -3002,6 +3039,11 @@ class MainWindow(QWidget):
             # el tiempo va en el aviso porque es lo unico que uno quiere
             # saber antes de decir que si, y son minutos, no segundos
             minutos = max(1, round(self._segundos_estimados(pendientes) / 60))
+            _log_fila_de_proxies.info(
+                "%r -- abriendo el dialogo de confirmacion (aqui puede colarse "
+                "un aviso de fondo mientras esperamos la respuesta)",
+                nombre_de_bin,
+            )
             respuesta = QMessageBox.question(
                 self, "Crear proxies",
                 f"Se van a crear {len(pendientes)} proxies de «{nombre_de_bin}».\n\n"
@@ -3012,6 +3054,12 @@ class MainWindow(QWidget):
                 f"Puedes seguir clasificando mientras corre, y cancelarlo "
                 f"desde el menú del bin.",
             )
+            _log_fila_de_proxies.info(
+                "%r -- dialogo cerrado, si=%s -- generando=%r cola=%r",
+                nombre_de_bin, respuesta == QMessageBox.StandardButton.Yes,
+                self._generando_proxies and self._generando_proxies["bin"],
+                list(self._cola_de_proxies),
+            )
             if respuesta != QMessageBox.StandardButton.Yes:
                 return
 
@@ -3019,9 +3067,12 @@ class MainWindow(QWidget):
             # ya hay una corriendo: este se forma. La lista de clips que se
             # acaba de calcular NO se guarda -- se vuelve a calcular cuando
             # le toque, porque para entonces el bin pudo cambiar.
+            _log_fila_de_proxies.info("%r -- se forma detras de %r",
+                                      nombre_de_bin, self._generando_proxies["bin"])
             self._cola_de_proxies.append(nombre_de_bin)
             self.clip_sheet.set_bin_en_cola(nombre_de_bin, True)
             return
+        _log_fila_de_proxies.info("%r -- arranca directo (nada corriendo)", nombre_de_bin)
         self._resumen_de_la_fila = {"creados": 0, "fallidos": []}
         self._arrancar_tanda_de_proxies(nombre_de_bin)
 
@@ -3397,9 +3448,14 @@ class MainWindow(QWidget):
         """
         reparto = self._repartir_proxies_del_bin(nombre_de_bin)
         if reparto is None:
+            _log_fila_de_proxies.info(
+                "%r -- reparto vacio (sin clips), pasa al siguiente", nombre_de_bin)
             self._arrancar_siguiente_de_la_fila()
             return
         carpeta, ya_en_disco, pendientes = reparto
+        _log_fila_de_proxies.info(
+            "%r -- reparto: %d ya en disco, %d pendientes",
+            nombre_de_bin, len(ya_en_disco), len(pendientes))
         # Los pedazos de una tanda que se corto de golpe. AQUI y no al pedir
         # el bin: este es el unico momento en que se sabe que no hay ningun
         # `.parcial` en vuelo -- se genera de uno en uno, y la fila arranca
@@ -3430,6 +3486,8 @@ class MainWindow(QWidget):
                 pedir_miniaturas=not pendientes,
             )
         if not pendientes:
+            _log_fila_de_proxies.info(
+                "%r -- nada pendiente que generar, pasa al siguiente", nombre_de_bin)
             self._arrancar_siguiente_de_la_fila()
             return
         self._generacion_de_proxies += 1
@@ -3442,6 +3500,9 @@ class MainWindow(QWidget):
             "cancelado": False,
             "carpeta": carpeta,
         }
+        _log_fila_de_proxies.info(
+            "%r -- arranca de verdad, generacion=%d, %d clips",
+            nombre_de_bin, self._generacion_de_proxies, len(pendientes))
         # sale de la fila y entra a correr: el encabezado tiene que dejar de
         # decir «en cola» o taparia el avance
         self.clip_sheet.set_bin_en_cola(nombre_de_bin, False)
@@ -3462,12 +3523,17 @@ class MainWindow(QWidget):
         esperaba turno se salta y se sigue con el que sigue. Con `if`, la
         fila se quedaba parada detras de el y los demas no arrancaban nunca.
         """
+        _log_fila_de_proxies.info("arrancando el siguiente de la fila: %r",
+                                  list(self._cola_de_proxies))
         while self._cola_de_proxies:
             nombre = self._cola_de_proxies.pop(0)
             self.clip_sheet.set_bin_en_cola(nombre, False)
             if nombre in self.bins.nombres():
+                _log_fila_de_proxies.info("%r -- le toca, lo arranca", nombre)
                 self._arrancar_tanda_de_proxies(nombre)
                 return
+            _log_fila_de_proxies.info(
+                "%r -- ya no esta en el proyecto, se salta sin avisar", nombre)
 
     def _descartar_generacion_de_proxies(self) -> None:
         """Tira la tanda que corre, sin avisos ni resúmenes.
@@ -3487,6 +3553,11 @@ class MainWindow(QWidget):
         # La fila entera se va con la tanda, y por el mismo motivo: guarda
         # nombres de bin, pero lo que arrancaria de ella engancha por INDICE
         # de clip, y los indices se acaban de correr.
+        _log_fila_de_proxies.info(
+            "descartando TODA la fila -- generando=%r cola=%r",
+            self._generando_proxies and self._generando_proxies["bin"],
+            list(self._cola_de_proxies),
+        )
         self._vaciar_la_fila_de_proxies()
         estado = self._generando_proxies
         if estado is None:
@@ -3597,6 +3668,11 @@ class MainWindow(QWidget):
         estado = self._generando_proxies
         if estado is None:
             return
+        _log_fila_de_proxies.info(
+            "%r -- termino (hechos=%d, fallidos=%d), cola=%r",
+            estado["bin"], estado["hechos"], len(estado["fallidos"]),
+            list(self._cola_de_proxies),
+        )
         self._generando_proxies = None
         # apagar el aviso: la insignia vuelve sola al conteo real
         self.clip_sheet.set_bin_generando(estado["bin"], None)
