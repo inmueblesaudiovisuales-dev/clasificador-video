@@ -13,6 +13,17 @@ def rail(qtbot):
     return r
 
 
+def _mismos_argumentos():
+    return dict(
+        unidades=["Casa A", "Casa B"],
+        rooms_por_unidad={
+            "": ["Sin migrar"],
+            "Casa A": ["Cocina"],
+            "Casa B": ["Cocina", "Baño"],
+        },
+    )
+
+
 def test_sin_unidades_se_comporta_como_antes(rail):
     rail.set_rooms_agrupados(
         unidades=[], rooms_por_unidad={"": ["Cocina", "Baño"]},
@@ -42,3 +53,139 @@ def test_bloque_sin_unidad_no_aparece_si_esta_vacio(rail):
         counts={},
     )
     assert [b.nombre for b in rail.unit_bands] == ["Casa A"]
+
+
+# --- problema 1: reusar la optimizacion de `set_rooms` (widgets huerfanos) --
+
+
+def test_llamar_dos_veces_igual_no_recrea_widgets(rail):
+    """El mismo bug que ya resolvio `set_rooms`: reconstruir en cada tecla
+    aunque nada cambio deja widgets huerfanos (1237 tras 60 teclas, medido
+    en la F3). `set_rooms_agrupados` corre en cada tecla via
+    `MainWindow._refresh_rail`, asi que necesita el mismo criterio."""
+    rail.set_rooms_agrupados(**_mismos_argumentos(), counts={("Casa A", "Cocina"): 1})
+
+    bandas_antes = list(rail.unit_bands)
+    filas_antes = {llave: list(filas) for llave, filas in rail.rows_por_unidad.items()}
+
+    # solo cambian los conteos, la estructura es identica
+    rail.set_rooms_agrupados(**_mismos_argumentos(), counts={("Casa A", "Cocina"): 7})
+
+    assert rail.unit_bands == bandas_antes
+    for llave, filas in filas_antes.items():
+        assert rail.rows_por_unidad[llave] == filas
+    fila_cocina_a = rail.rows_por_unidad["Casa A"][0]
+    assert fila_cocina_a.count_label.text() == "7"
+
+
+def test_cambiar_la_estructura_si_reconstruye(rail):
+    rail.set_rooms_agrupados(**_mismos_argumentos(), counts={})
+    bandas_antes = list(rail.unit_bands)
+
+    otros_argumentos = dict(
+        unidades=["Casa A", "Casa B", "Casa C"],
+        rooms_por_unidad={
+            "": ["Sin migrar"],
+            "Casa A": ["Cocina"],
+            "Casa B": ["Cocina", "Baño"],
+            "Casa C": ["Recamara"],
+        },
+    )
+    rail.set_rooms_agrupados(**otros_argumentos, counts={})
+
+    assert rail.unit_bands != bandas_antes
+    assert [b.nombre for b in rail.unit_bands] == [
+        "Sin unidad", "Casa A", "Casa B", "Casa C",
+    ]
+
+
+# --- problema 2: mover/arrastrar un cuarto no debe tocar la unidad ---------
+# ---              equivocada cuando dos unidades repiten un nombre --------
+
+
+def test_mover_un_cuarto_de_una_banda_avisa_con_SU_unidad(rail):
+    """`Cocina` existe en Casa A y en Casa B: el aviso tiene que decir de
+    cual banda salio, para que quien lo consuma no adivine con la unidad
+    activa (que puede ser la otra)."""
+    rail.set_rooms_agrupados(**_mismos_argumentos(), counts={})
+    avisos = []
+    rail.room_moved_en_unidad.connect(lambda n, d, u: avisos.append((n, d, u)))
+
+    fila_cocina_b = rail.rows_por_unidad["Casa B"][0]
+    assert fila_cocina_b.nombre == "Cocina"
+    fila_cocina_b.pedir_mover(+1)
+
+    assert avisos == [("Cocina", 1, "Casa B")]
+
+
+def test_soltar_un_cuarto_dentro_de_SU_PROPIA_banda_avisa_con_su_unidad(qtbot, rail):
+    rail.resize(200, 700)
+    rail.set_rooms_agrupados(**_mismos_argumentos(), counts={})
+    rail.show()
+    qtbot.waitExposed(rail)
+
+    avisos = []
+    rail.room_reordered_en_unidad.connect(lambda n, p, u: avisos.append((n, p, u)))
+
+    fila_cocina_b = rail.rows_por_unidad["Casa B"][0]   # Casa B: [Cocina, Baño]
+    # posicion 4 = el final de la lista PLANA ("Sin migrar", Cocina@A,
+    # Cocina@B, Baño@B), que es tambien el final de la banda de Casa B --
+    # despues de "Baño"
+    rail.soltar_cuarto("Cocina", 4, origen=fila_cocina_b)
+
+    assert avisos == [("Cocina", 1, "Casa B")]
+
+
+def test_soltar_un_cuarto_en_OTRA_banda_se_ignora(qtbot, rail):
+    """Arrastrar el `Cocina` de Casa B hasta la banda de Casa A no puede
+    reordenar el `Cocina` de Casa A en silencio -- son cuartos distintos que
+    comparten nombre."""
+    rail.resize(200, 700)
+    rail.set_rooms_agrupados(**_mismos_argumentos(), counts={})
+    rail.show()
+    qtbot.waitExposed(rail)
+
+    avisos_unidad = []
+    avisos_planos = []
+    rail.room_reordered_en_unidad.connect(lambda n, p, u: avisos_unidad.append((n, p, u)))
+    rail.room_reordered.connect(lambda n, p: avisos_planos.append((n, p)))
+
+    fila_cocina_b = rail.rows_por_unidad["Casa B"][0]
+    # posicion 1: dentro de la banda de "Casa A" ("Sin migrar" ocupa 0,
+    # "Cocina" de Casa A ocupa 1) -- no es la banda de origen
+    rail.soltar_cuarto("Cocina", 1, origen=fila_cocina_b)
+
+    assert avisos_unidad == []
+    assert avisos_planos == []
+
+
+def test_soltar_sin_saber_de_donde_salio_se_ignora_si_hay_bandas(qtbot, rail):
+    """Sin el origen (`event.source()` no era la fila que esperabamos) no
+    hay forma segura de saber a que catalogo pertenece -- mejor no tocar
+    nada que adivinar mal."""
+    rail.resize(200, 700)
+    rail.set_rooms_agrupados(**_mismos_argumentos(), counts={})
+    rail.show()
+    qtbot.waitExposed(rail)
+
+    avisos = []
+    rail.room_reordered_en_unidad.connect(lambda n, p, u: avisos.append((n, p, u)))
+
+    rail.soltar_cuarto("Cocina", 2, origen=None)
+
+    assert avisos == []
+
+
+def test_sin_bandas_soltar_cuarto_se_comporta_exactamente_como_antes(qtbot, rail):
+    """Cero regresion para el 90% de los proyectos, que no usan unidades."""
+    rail.resize(200, 700)
+    rail.set_rooms(["Fachada", "Sala", "Alberca"], {})
+    rail.show()
+    qtbot.waitExposed(rail)
+
+    avisos = []
+    rail.room_reordered.connect(lambda n, p: avisos.append((n, p)))
+
+    rail.soltar_cuarto("Alberca", 0)
+
+    assert avisos == [("Alberca", 0)]

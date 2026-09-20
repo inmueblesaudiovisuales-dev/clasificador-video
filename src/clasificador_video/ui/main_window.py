@@ -987,6 +987,8 @@ class MainWindow(QWidget):
         self.room_rail.room_renamed.connect(self._on_room_renamed)
         self.room_rail.room_moved.connect(self._on_room_moved)
         self.room_rail.room_reordered.connect(self._on_room_reordered)
+        self.room_rail.room_moved_en_unidad.connect(self._on_room_moved_en_unidad)
+        self.room_rail.room_reordered_en_unidad.connect(self._on_room_reordered_en_unidad)
         self.room_rail.room_removed.connect(self._on_room_removed)
         self.room_rail.revert_requested.connect(self.revert)
         # el boton «Cuartos ⌘R» estuvo muerto desde la F2: emitia una señal
@@ -2104,6 +2106,39 @@ class MainWindow(QWidget):
         """
         self.room_selection.mover_a(nombre, posicion)
         self._sync_rooms()
+
+    def _on_room_moved_en_unidad(self, nombre: str, delta: int, unidad: str) -> None:
+        """Gemela de `_on_room_moved`, para cuando el rail muestra bandas.
+
+        El rail YA identifico de que unidad salio el cuarto -- ver
+        `RoomRail._FilaCuarto.unidad` -- asi que aca se opera sobre ESE
+        catalogo (`self.room_selections[unidad]`), nunca sobre
+        `self.room_selection` a ciegas: dos unidades pueden repetir un
+        nombre de cuarto (`Cocina` en Casa A y en Casa B), y adivinar con la
+        unidad activa reordenaria el cuarto equivocado en silencio.
+        """
+        catalogo = self.room_selections.get(unidad)
+        if catalogo is None:
+            return
+        catalogo.move(nombre, delta)
+        if unidad == (self._unidad_activa or ""):
+            self._sync_rooms()
+        else:
+            self._refresh_rail()
+            self._autosave()
+
+    def _on_room_reordered_en_unidad(self, nombre: str, posicion: int, unidad: str) -> None:
+        """Gemela de `_on_room_reordered`: mismo criterio que
+        `_on_room_moved_en_unidad`, para el arrastre."""
+        catalogo = self.room_selections.get(unidad)
+        if catalogo is None:
+            return
+        catalogo.mover_a(nombre, posicion)
+        if unidad == (self._unidad_activa or ""):
+            self._sync_rooms()
+        else:
+            self._refresh_rail()
+            self._autosave()
 
     def _on_room_removed(self, nombre: str) -> None:
         # la unica operacion del rail que destruye trabajo, y por eso la unica

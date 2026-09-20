@@ -180,6 +180,12 @@ class _FilaCuarto(QWidget):
     remove_requested = Signal(str)
     mover_foco_requested = Signal(object, int)   # fila, direccion
 
+    # La unidad DUEÑA de esta fila (`""` cuando el proyecto no usa unidades,
+    # o para el bloque migratorio "Sin unidad"). La pone `RoomRail` al
+    # crearla; se necesita para saber -- sin ambiguedad de nombres repetidos
+    # entre unidades -- de que catalogo salio un arrastre o un "Subir/Bajar".
+    unidad: str = ""
+
     def __init__(self, numero: int | None, nombre: str, color: str, cuantos: int, parent=None):
         super().__init__(parent)
         self.setObjectName("roomRow")
@@ -456,6 +462,15 @@ class RoomRail(QWidget):
     room_moved = Signal(str, int)
     room_removed = Signal(str)
     revert_requested = Signal(int)
+    # Gemelas de `room_moved`/`room_reordered`, pero para cuando el rail
+    # muestra bandas por unidad. Se necesitan APARTE y no como un tercer
+    # parametro de las de arriba: dos unidades pueden repetir un nombre de
+    # cuarto ("Cocina" en Casa A y en Casa B es el uso normal, no la
+    # excepcion), asi que el nombre solo no alcanza para saber a que
+    # catalogo pertenece -- hace falta la unidad de origen, y solo el camino
+    # agrupado la conoce.
+    room_moved_en_unidad = Signal(str, int, str)       # nombre, delta, unidad
+    room_reordered_en_unidad = Signal(str, int, str)   # nombre, posicion, unidad
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -656,6 +671,11 @@ class RoomRail(QWidget):
             [counts.get(c, 0) for c in rooms], self._pendientes
         )
 
+    # La ULTIMA estructura usada para reconstruir bandas: `(unidades,
+    # rooms_por_unidad)` sin conteos. `None` fuerza reconstruccion la
+    # proxima vez que haya unidades -- pasa por el camino sin unidades.
+    _ultimo_agrupado: tuple | None = None
+
     def set_rooms_agrupados(self, unidades: list[str],
                              rooms_por_unidad: dict[str, list[str]],
                              counts: dict[tuple[str, str], int]) -> None:
@@ -667,12 +687,31 @@ class RoomRail(QWidget):
         `rooms_por_unidad` trae la llave `""` para el bloque "Sin unidad"
         -- migratorio, solo se banda si tiene cuartos Y el proyecto ya
         tiene alguna unidad creada.
+
+        Si la ESTRUCTURA no cambio desde la ultima llamada --mismas
+        unidades, mismos cuartos en cada una-- solo se actualizan los
+        conteos. `MainWindow._refresh_rail` llama esto en cada tecla, y sin
+        este atajo --el mismo que ya usa `set_rooms`-- cada tecla reconstruye
+        todas las bandas y filas de cero: el mismo bug de widgets huerfanos
+        que `set_rooms` resolvio, pero reintroducido para todo proyecto que
+        use unidades.
         """
         if not unidades:
             self.set_rooms(rooms_por_unidad.get("", []),
                             {c: n for (u, c), n in counts.items() if u == ""})
             self._limpiar_bandas()
+            self._ultimo_agrupado = None
             return
+
+        firma = (tuple(unidades),
+                 tuple((llave, tuple(rooms_por_unidad.get(llave, [])))
+                       for llave in ([""] + list(unidades))))
+        if firma == self._ultimo_agrupado:
+            for llave, filas in self.rows_por_unidad.items():
+                for fila in filas:
+                    fila.count_label.setText(str(counts.get((llave, fila.nombre), 0)))
+            return
+        self._ultimo_agrupado = firma
 
         self._limpiar_bandas()
         self._rooms_layout.removeWidget(self.new_room_row)
@@ -686,9 +725,16 @@ class RoomRail(QWidget):
                 numero = indice + 1 if indice < MAX_TECLAS else None
                 fila = _FilaCuarto(numero, cuarto, theme.room_color(indice),
                                     counts.get((llave, cuarto), 0))
+                # la unidad DUEÑA de la fila: dos unidades pueden repetir un
+                # nombre de cuarto, y sin esto mover/arrastrar solo con el
+                # nombre no sabria distinguir de cual salio.
+                fila.unidad = llave
                 fila.assign_requested.connect(self.room_assign_requested.emit)
                 fila.rename_requested.connect(self.room_renamed.emit)
-                fila.move_requested.connect(self.room_moved.emit)
+                fila.move_requested.connect(
+                    lambda nombre, delta, u=llave: self.room_moved_en_unidad.emit(
+                        nombre, delta, u)
+                )
                 fila.remove_requested.connect(self.room_removed.emit)
                 fila.mover_foco_requested.connect(self._mover_foco)
                 self._rooms_layout.addWidget(fila)
@@ -737,8 +783,12 @@ class RoomRail(QWidget):
         if not mime.hasFormat(MIME_CUARTO):
             return
         nombre = bytes(mime.data(MIME_CUARTO)).decode(errors="ignore")
+        # `event.source()` es la `_FilaCuarto` que arranco el arrastre (la
+        # crea con `QDrag(self)`): de ahi sale la unidad de origen SIN
+        # ambiguedad, incluso si otra unidad tiene un cuarto con el mismo
+        # nombre. El nombre solo no alcanza para eso.
         self.soltar_cuarto(nombre, self.posicion_para_soltar(
-            event.position().toPoint().y()))
+            event.position().toPoint().y()), origen=event.source())
         event.acceptProposedAction()
 
     def mostrar_linea_de_destino(self, insercion: int) -> None:
@@ -786,7 +836,7 @@ class RoomRail(QWidget):
                 return indice
         return len(self.rows)
 
-    def soltar_cuarto(self, nombre: str, insercion: int) -> None:
+    def soltar_cuarto(self, nombre: str, insercion: int, origen=None) -> None:
         """Termina el arrastre. `insercion` es donde estaba la LINEA.
 
         El desfase de mover hacia abajo se corrige aqui: al sacar el cuarto
@@ -798,16 +848,53 @@ class RoomRail(QWidget):
         No avisa si el cuarto no se movio: cada clic-sin-arrastrar meteria
         una accion que no hizo nada, y reordenar cambia la TECLA de los
         cuartos -- una accion vacia que igual repinta el rail entero.
+
+        `origen` es la `_FilaCuarto` de la que salio el arrastre
+        (`event.source()` en `dropEvent`; el resto de las llamadas -- todas
+        de tests, sin unidades -- lo dejan en `None` a proposito). Sin
+        bandas de unidad (`self.rows_por_unidad` vacio) se ignora entero y
+        el comportamiento es EXACTAMENTE el de siempre. Con bandas, el
+        arrastre queda limitado a reordenar dentro de la banda de `origen`:
+        dos unidades pueden repetir un nombre de cuarto (`Cocina` en Casa A
+        y en Casa B), asi que soltar en la banda de otra unidad -- o sin
+        saber de cual banda salio -- se ignora en vez de adivinar y mover el
+        cuarto equivocado en silencio.
         """
-        actual = [f.nombre for f in self.rows]
+        if not self.rows_por_unidad:
+            actual = [f.nombre for f in self.rows]
+            if nombre not in actual:
+                return
+            origen_idx = actual.index(nombre)
+            destino = insercion - 1 if origen_idx < insercion else insercion
+            destino = max(0, min(destino, len(actual) - 1))
+            if destino == origen_idx:
+                return
+            self.room_reordered.emit(nombre, destino)
+            return
+
+        unidad = getattr(origen, "unidad", None) if origen is not None else None
+        filas_de_la_unidad = self.rows_por_unidad.get(unidad) if unidad is not None else None
+        if filas_de_la_unidad is None:
+            return   # no sabemos de donde salio: no tocar nada
+
+        offset = 0
+        for llave, filas in self.rows_por_unidad.items():
+            if llave == unidad:
+                break
+            offset += len(filas)
+        insercion_local = insercion - offset
+        if not 0 <= insercion_local <= len(filas_de_la_unidad):
+            return   # se solto en la banda de OTRA unidad
+
+        actual = [f.nombre for f in filas_de_la_unidad]
         if nombre not in actual:
             return
-        origen = actual.index(nombre)
-        destino = insercion - 1 if origen < insercion else insercion
+        origen_idx = actual.index(nombre)
+        destino = insercion_local - 1 if origen_idx < insercion_local else insercion_local
         destino = max(0, min(destino, len(actual) - 1))
-        if destino == origen:
+        if destino == origen_idx:
             return
-        self.room_reordered.emit(nombre, destino)
+        self.room_reordered_en_unidad.emit(nombre, destino, unidad)
 
     def set_same_room(self, nombre: str | None, color: str | None) -> None:
         """El cuarto que aplicaria `S`, o `None` si no hay ninguno atras.

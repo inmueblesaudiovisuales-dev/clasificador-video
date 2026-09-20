@@ -198,3 +198,61 @@ def test_elegir_unidad_con_lote_seleccionado_reasigna_y_activa(main_window):
     assert main_window.clips[0].categoria_path == ["Casa A", "Cocina"]
     assert main_window.clips[1].categoria_path == ["Casa A", "Baño"]
     assert main_window._unidad_activa == "Casa A"
+
+
+# --- mover/reordenar por unidad: mismo nombre repetido entre unidades -----
+# --- (hallazgo de revision sobre "El rail agrupa por unidad") -------------
+
+
+def _con_dos_unidades_y_mismo_nombre_de_cuarto(main_window):
+    """Casa A y Casa B, cada una con su propia `Cocina` -- el uso normal
+    segun el spec: un cuarto existe una vez POR unidad."""
+    main_window.unit_selection.add("Casa A")
+    main_window.unit_selection.add("Casa B")
+    main_window.room_selections["Casa A"] = RoomSelection()
+    main_window.room_selections["Casa A"].add("Cocina")
+    main_window.room_selections["Casa B"] = RoomSelection()
+    main_window.room_selections["Casa B"].add("Cocina")
+    main_window.room_selections["Casa B"].add("Baño")
+    return main_window
+
+
+def test_mover_un_cuarto_de_una_unidad_NO_activa_no_toca_la_activa(main_window):
+    """Casa A esta activa; mover el `Cocina` de Casa B no puede tocar el
+    `Cocina` de Casa A -- son cuartos distintos con el mismo nombre."""
+    _con_dos_unidades_y_mismo_nombre_de_cuarto(main_window)
+    main_window._activar_unidad("Casa A")
+
+    main_window.room_rail.room_moved_en_unidad.emit("Cocina", 1, "Casa B")
+
+    assert main_window.room_selections["Casa A"].active_rooms() == ["Cocina"]
+    assert main_window.room_selections["Casa B"].active_rooms() == ["Baño", "Cocina"]
+
+
+def test_reordenar_un_cuarto_de_una_unidad_NO_activa_no_toca_la_activa(main_window):
+    _con_dos_unidades_y_mismo_nombre_de_cuarto(main_window)
+    main_window._activar_unidad("Casa A")
+
+    main_window.room_rail.room_reordered_en_unidad.emit("Cocina", 1, "Casa B")
+
+    assert main_window.room_selections["Casa A"].active_rooms() == ["Cocina"]
+    assert main_window.room_selections["Casa B"].active_rooms() == ["Baño", "Cocina"]
+
+
+def test_mover_un_cuarto_de_la_unidad_activa_si_la_aplica(main_window):
+    _con_dos_unidades_y_mismo_nombre_de_cuarto(main_window)
+    main_window._activar_unidad("Casa B")
+
+    main_window.room_rail.room_moved_en_unidad.emit("Cocina", 1, "Casa B")
+
+    assert main_window.room_selections["Casa B"].active_rooms() == ["Baño", "Cocina"]
+    assert main_window.room_selection is main_window.room_selections["Casa B"]
+
+
+def test_mover_una_unidad_inexistente_no_revienta(main_window):
+    _con_dos_unidades_y_mismo_nombre_de_cuarto(main_window)
+    main_window._activar_unidad("Casa A")
+
+    main_window.room_rail.room_moved_en_unidad.emit("Cocina", 1, "Casa Z")
+
+    assert main_window.room_selections["Casa A"].active_rooms() == ["Cocina"]
