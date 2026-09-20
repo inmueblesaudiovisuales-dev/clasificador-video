@@ -20,12 +20,16 @@
 // vez que se le pasa el mismo item subyacente (getItems() tambien devuelve
 // items estables entre llamadas), asi que dos rutas de busqueda distintas
 // que lleguen al mismo bin real terminan comparando iguales.
-async function importOrReuseClip(project, targetFolder, filePath) {
+// `indice`, si se pasa, es el resultado de `indexarClipsPorRuta`: evita que
+// esta funcion tenga que recorrer el proyecto entero para saber si el clip
+// ya existe. Sin `indice` cae de vuelta a la busqueda vieja (recorrer desde
+// la raiz), asi que sigue funcionando para quien la llame sin uno.
+async function importOrReuseClip(project, targetFolder, filePath, indice) {
   const premierepro = require("premierepro");
   const rootItem = await project.getRootItem();
   const rootFolder = premierepro.FolderItem.cast(rootItem);
 
-  const found = await findClipByPath(rootFolder, filePath);
+  const found = indice ? indice.get(filePath) : await findClipByPath(rootFolder, filePath);
   if (found) {
     // Comparar la carpeta REAL por referencia, no por nombre: hay bins
     // homonimos en ramas distintas (Recamara 1 > Bano vs Recamara 2 > Bano).
@@ -35,6 +39,7 @@ async function importOrReuseClip(project, targetFolder, filePath) {
         () => rootFolder.createMoveItemAction(found.clipItem, targetFolder),
         "Mover clip existente"
       );
+      if (indice) indice.set(filePath, { clipItem: found.clipItem, parentFolder: targetFolder });
     }
     return found.clipItem;
   }
@@ -45,10 +50,47 @@ async function importOrReuseClip(project, targetFolder, filePath) {
   // ruta dentro del bin destino (validado en el spike de proxy).
   for (let intento = 1; intento <= 10; intento++) {
     const clip = await findClipByPath(targetFolder, filePath);
-    if (clip) return clip.clipItem;
+    if (clip) {
+      if (indice) indice.set(filePath, { clipItem: clip.clipItem, parentFolder: targetFolder });
+      return clip.clipItem;
+    }
     await new Promise((r) => setTimeout(r, 300));
   }
   return null;
+}
+
+// Todos los clips que YA estan en el proyecto, por su ruta real en disco, en
+// una sola pasada por el arbol -- para que `importOrReuseClip` no tenga que
+// recorrer el proyecto entero por cada clip del manifiesto. Mismo
+// razonamiento que `contarLosQueSeVanAMover` en estructura.js: la version
+// obvia (preguntarle a `findClipByPath` desde la raiz por cada clip) recorre
+// el proyecto entero una vez POR CLIP, con un `getMediaFilePath()` async en
+// cada item ya importado -- con 205 clips eso es mas trabajo que la
+// importacion completa, y es lo que hacia lenta la importacion entera.
+async function indexarClipsPorRuta(rootFolder) {
+  const premierepro = require("premierepro");
+  const indice = new Map();
+
+  async function recorrer(folder) {
+    for (const item of (await folder.getItems()) || []) {
+      if (!item) continue;
+      const clipItem = premierepro.ClipProjectItem.cast(item);
+      if (clipItem) {
+        try {
+          const mediaPath = await clipItem.getMediaFilePath();
+          indice.set(mediaPath, { clipItem, parentFolder: folder });
+        } catch (e) {
+          // no es un clip con archivo de medios (ej. una secuencia); seguir.
+        }
+        continue;
+      }
+      const subFolder = premierepro.FolderItem.cast(item);
+      if (subFolder) await recorrer(subFolder);
+    }
+  }
+
+  await recorrer(rootFolder);
+  return indice;
 }
 
 // Recorre el arbol de bins buscando un ClipProjectItem con ese media path.

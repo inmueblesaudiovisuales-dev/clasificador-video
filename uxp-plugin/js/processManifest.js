@@ -17,6 +17,13 @@ async function processManifest(project, manifest) {
   // ANTES de tocar nada.
   const carpetaDeClips = await resolveBinChain(project, rootFolder, [CARPETA_DE_CLIPS]);
   const porMover = await contarLosQueSeVanAMover(rootFolder, manifest, carpetaDeClips);
+
+  // Una sola pasada por el proyecto para saber que clips ya estan
+  // importados -- ver `indexarClipsPorRuta` en importClip.js. Sin esto,
+  // `importOrReuseClip` recorria el proyecto entero POR CADA CLIP del
+  // manifiesto para ver si ya existia, y eso era lo que hacia lenta la
+  // importacion completa con un rodaje grande.
+  const indiceDeClips = await indexarClipsPorRuta(rootFolder);
   if (porMover > 0) {
     logToPanel(
       porMover + " clip(s) que ya estaban en el proyecto se van a mover a «" +
@@ -62,7 +69,7 @@ async function processManifest(project, manifest) {
       const targetFolder = camino.length > 2
         ? await resolveBinChain(project, carpetaDelCuarto, camino.slice(2))
         : carpetaDelCuarto;
-      const clipItem = await importOrReuseClip(project, targetFolder, clipData.ruta);
+      const clipItem = await importOrReuseClip(project, targetFolder, clipData.ruta, indiceDeClips);
 
       if (!clipItem) {
         throw new Error("No se pudo importar ni encontrar el clip");
