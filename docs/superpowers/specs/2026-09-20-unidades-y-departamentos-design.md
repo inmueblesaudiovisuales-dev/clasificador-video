@@ -68,6 +68,14 @@ selecciona en la hoja los clips de cada sufijo para reasignarles la unidad
 y el cuarto real, en lote. **Sin detección automática del patrón `-A`/`-B`**
 — Bruno prefirió control manual sobre adivinar, y es una sola vez.
 
+**Estado mixto, mientras dura la migración**: desde que existe la primera
+unidad del proyecto, un clip con `categoria_path = [cuarto]` (todavía sin
+migrar) se agrupa aparte, en un bloque **«Sin unidad»**, separado de los
+grupos por unidad — ni mezclado adentro de una unidad ni repartido por la
+hoja. Así se ven de un vistazo cuántos faltan y se seleccionan juntos para
+migrarlos en lote (2026-09-20, decidido con Bruno). El bloque desaparece
+solo cuando ya no queda ningún clip sin unidad.
+
 ## 5. Rail y hoja
 
 Rail: banda de unidad (mockup, `.unit-header`) arriba de cada grupo de
