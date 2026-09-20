@@ -1,0 +1,387 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Mockup — unidades y departamentos</title>
+<style>
+  :root {
+    --bg-app: #0a0b0d;
+    --bg-surface-0: #101216;
+    --bg-surface-1: #16191e;
+    --bg-surface-2: #1d2128;
+    --line: #262b33;
+    --line-soft: #1e222a;
+    --text: #e6e9ee;
+    --text-2: #9aa3b0;
+    --text-3: #626b78;
+    --accent: #e8a33d;
+    --pick: #55c08a;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: #050506;
+    color: var(--text);
+    font-family: -apple-system, "Helvetica Neue", Arial, sans-serif;
+    font-size: 12px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 40px;
+    padding: 40px;
+  }
+  h2 {
+    font-size: 13px;
+    color: var(--text-2);
+    font-weight: 600;
+    margin: 0 0 10px 2px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  .frame {
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* --- rail --- */
+  .rail {
+    width: 220px;
+    background: var(--bg-surface-0);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 14px 10px;
+  }
+  .rail-header {
+    font-size: 9px;
+    letter-spacing: 0.08em;
+    color: var(--text-3);
+    text-transform: uppercase;
+    padding: 4px 6px 8px;
+  }
+  .unit-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 6px 4px;
+    margin-top: 6px;
+  }
+  .unit-header:first-of-type { margin-top: 0; }
+  .unit-swatch {
+    width: 10px;
+    height: 10px;
+    border-radius: 3px;
+  }
+  .unit-name {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    color: var(--text);
+    text-transform: uppercase;
+  }
+  .unit-count {
+    margin-left: auto;
+    font-size: 10px;
+    color: var(--text-3);
+  }
+  .room-row {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 6px 6px 6px 22px;
+    border-radius: 6px;
+  }
+  .room-row.active { background: var(--bg-surface-2); }
+  .key-cap {
+    width: 16px;
+    height: 16px;
+    border-radius: 4px;
+    background: var(--bg-surface-2);
+    color: var(--text-2);
+    font-size: 9px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  .swatch {
+    width: 3px;
+    height: 13px;
+    border-radius: 2px;
+    flex-shrink: 0;
+  }
+  .room-name {
+    flex: 1;
+    color: var(--text);
+    font-size: 12px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .room-count {
+    color: var(--text-3);
+    font-size: 11px;
+  }
+
+  /* --- paleta de unidades --- */
+  .stage {
+    width: 420px;
+    height: 300px;
+    background: #000;
+    border-radius: 8px;
+    position: relative;
+    overflow: hidden;
+    border: 1px solid var(--line);
+  }
+  .stage::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: repeating-linear-gradient(135deg, #0d0e10 0 12px, #101114 12px 24px);
+    opacity: 0.6;
+  }
+  .palette {
+    position: absolute;
+    top: 60px;
+    left: 45px;
+    width: 330px;
+    background: var(--bg-surface-1);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.55);
+    overflow: hidden;
+  }
+  .pal-input {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--line-soft);
+  }
+  .pal-input input {
+    all: unset;
+    flex: 1;
+    color: var(--text);
+    font-size: 13px;
+  }
+  .pal-scope {
+    font-size: 10px;
+    color: var(--text-3);
+  }
+  .pal-option {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 7px 12px;
+  }
+  .pal-option.activa { background: var(--bg-surface-2); }
+  .pal-name { flex: 1; font-size: 12px; color: var(--text); }
+  .pal-count { color: var(--text-3); font-size: 11px; }
+  .pal-create {
+    padding: 7px 12px;
+    color: var(--pick);
+    font-size: 12px;
+  }
+  .pal-foot {
+    padding: 7px 12px;
+    color: var(--text-3);
+    font-size: 10px;
+    border-top: 1px solid var(--line-soft);
+  }
+  .pal-title {
+    position: absolute;
+    top: 14px;
+    left: 45px;
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-3);
+  }
+
+  /* --- hoja agrupada --- */
+  .sheet {
+    width: 520px;
+    background: var(--bg-app);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 16px;
+  }
+  .unit-band {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 4px 6px;
+    margin-top: 14px;
+  }
+  .unit-band:first-child { margin-top: 0; }
+  .unit-band .unit-swatch { width: 12px; height: 12px; }
+  .unit-band .unit-name {
+    font-size: 13px;
+  }
+  .bin-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 4px 6px 18px;
+    color: var(--text-2);
+    font-size: 12px;
+    font-weight: 600;
+  }
+  .bin-header .swatch { width: 3px; height: 12px; }
+  .cards {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 6px;
+    padding: 0 4px 10px 18px;
+  }
+  .card {
+    aspect-ratio: 16/9;
+    background: var(--bg-surface-1);
+    border-radius: 4px;
+    border: 1px solid var(--line-soft);
+  }
+
+  .caption {
+    margin-top: 10px;
+    font-size: 11px;
+    color: var(--text-3);
+    max-width: 420px;
+    line-height: 1.5;
+  }
+</style>
+</head>
+<body>
+
+  <div class="frame">
+    <h2>Rail — agrupado por unidad</h2>
+    <div class="rail">
+      <div class="rail-header">Unidades &amp; cuartos</div>
+
+      <div class="unit-header">
+        <div class="unit-swatch" style="background:#c0885a"></div>
+        <div class="unit-name">Casa A</div>
+        <div class="unit-count">42</div>
+      </div>
+      <div class="room-row active">
+        <div class="key-cap">1</div>
+        <div class="swatch" style="background:#6d8ca8"></div>
+        <div class="room-name">Cocina</div>
+        <div class="room-count">12</div>
+      </div>
+      <div class="room-row">
+        <div class="key-cap">2</div>
+        <div class="swatch" style="background:#8b7ca8"></div>
+        <div class="room-name">Comedor</div>
+        <div class="room-count">9</div>
+      </div>
+      <div class="room-row">
+        <div class="key-cap">3</div>
+        <div class="swatch" style="background:#4f9a8e"></div>
+        <div class="room-name">Recámara 1</div>
+        <div class="room-count">21</div>
+      </div>
+
+      <div class="unit-header">
+        <div class="unit-swatch" style="background:#3e9bc0"></div>
+        <div class="unit-name">Casa B</div>
+        <div class="unit-count">38</div>
+      </div>
+      <div class="room-row">
+        <div class="key-cap">1</div>
+        <div class="swatch" style="background:#6d8ca8"></div>
+        <div class="room-name">Cocina</div>
+        <div class="room-count">10</div>
+      </div>
+      <div class="room-row">
+        <div class="key-cap">2</div>
+        <div class="swatch" style="background:#8b7ca8"></div>
+        <div class="room-name">Comedor</div>
+        <div class="room-count">11</div>
+      </div>
+      <div class="room-row">
+        <div class="key-cap">3</div>
+        <div class="swatch" style="background:#4f9a8e"></div>
+        <div class="room-name">Recámara 1</div>
+        <div class="room-count">17</div>
+      </div>
+    </div>
+    <p class="caption">
+      Cada unidad es un encabezado propio, con su color. Los cuartos van
+      adentro, igual que hoy — "Cocina" existe una vez por unidad, sin
+      chocar entre Casa A y Casa B.
+    </p>
+  </div>
+
+  <div class="frame">
+    <h2>Paleta de unidades (tecla nueva)</h2>
+    <div class="stage">
+      <div class="pal-title">unidad activa: ninguna</div>
+      <div class="palette">
+        <div class="pal-input">
+          <input value="cas" readonly>
+          <div class="pal-scope"></div>
+        </div>
+        <div class="pal-option activa">
+          <div class="key-cap">1</div>
+          <div class="swatch" style="background:#c0885a"></div>
+          <div class="pal-name">Casa A</div>
+          <div class="pal-count">42</div>
+        </div>
+        <div class="pal-option">
+          <div class="key-cap">2</div>
+          <div class="swatch" style="background:#3e9bc0"></div>
+          <div class="pal-name">Casa B</div>
+          <div class="pal-count">38</div>
+        </div>
+        <div class="pal-create">+ &nbsp;Crear unidad «cas»</div>
+        <div class="pal-foot">↑ ↓ elegir &nbsp;&nbsp; ⏎ activar &nbsp;&nbsp; esc cancelar</div>
+      </div>
+    </div>
+    <p class="caption">
+      Misma pieza que ya conoces (la paleta de cuartos), un nivel arriba.
+      La aprietas, eliges «Casa A», y se queda activa: los cuartos que
+      asignes después son de esa unidad, sin volver a elegirla cada vez.
+    </p>
+  </div>
+
+  <div class="frame">
+    <h2>Hoja — clips agrupados por unidad y cuarto</h2>
+    <div class="sheet">
+      <div class="unit-band">
+        <div class="unit-swatch" style="background:#c0885a"></div>
+        <div class="unit-name">Casa A</div>
+      </div>
+      <div class="bin-header">
+        <div class="swatch" style="background:#6d8ca8"></div>
+        Cocina
+      </div>
+      <div class="cards">
+        <div class="card"></div><div class="card"></div><div class="card"></div><div class="card"></div>
+      </div>
+      <div class="bin-header">
+        <div class="swatch" style="background:#8b7ca8"></div>
+        Comedor
+      </div>
+      <div class="cards">
+        <div class="card"></div><div class="card"></div><div class="card"></div>
+      </div>
+
+      <div class="unit-band">
+        <div class="unit-swatch" style="background:#3e9bc0"></div>
+        <div class="unit-name">Casa B</div>
+      </div>
+      <div class="bin-header">
+        <div class="swatch" style="background:#6d8ca8"></div>
+        Cocina
+      </div>
+      <div class="cards">
+        <div class="card"></div><div class="card"></div><div class="card"></div><div class="card"></div>
+      </div>
+    </div>
+    <p class="caption">
+      Misma idea que el rail: la unidad es la banda grande, el cuarto es
+      el encabezado de siempre adentro. Así sale también en Premiere —
+      Casa A con sus cuartos, Casa B con los suyos.
+    </p>
+  </div>
+
+</body>
+</html>
