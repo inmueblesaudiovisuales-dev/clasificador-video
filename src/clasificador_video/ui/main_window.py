@@ -1902,18 +1902,26 @@ class MainWindow(QWidget):
     def _refresh_rail(self) -> None:
         from collections import Counter
 
-        counts: Counter[str] = Counter()
+        counts: Counter[tuple[str, str]] = Counter()
         for clip in self.clips:
-            if clip.categoria_path:
-                counts[self._cuarto_de(clip.categoria_path)] += 1
+            cuarto = self._cuarto_de(clip.categoria_path)
+            if cuarto is not None:
+                unidad = self._unidad_de(clip.categoria_path) or ""
+                counts[(unidad, cuarto)] += 1
         rooms = self.room_selection.active_rooms()
+        unidades = self.unit_selection.active_rooms()
+        rooms_por_unidad = {
+            llave: self.room_selections[llave].active_rooms()
+            for llave in [""] + unidades
+            if llave in self.room_selections
+        }
         total = len(self.clips)
         sin_clasificar = sum(1 for c in self.clips if not c.categoria_path)
         picks = sum(1 for c in self.clips if c.flag == "pick")
         rejects = sum(1 for c in self.clips if c.flag == "reject")
 
         self.room_rail.set_progress(total - sin_clasificar, total, sin_clasificar)
-        self.room_rail.set_rooms(rooms, dict(counts))
+        self.room_rail.set_rooms_agrupados(unidades, rooms_por_unidad, dict(counts))
         destacados = sum(1 for c in self.clips if c.flag == "destacado")
         self.room_rail.set_flags(picks, rejects, sin_clasificar, destacados)
         clip = self.current_clip

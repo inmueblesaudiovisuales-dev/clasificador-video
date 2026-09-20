@@ -1107,6 +1107,15 @@ def build_stylesheet() -> str:
     QWidget#groupLine {{
         background-color: {LINE_SOFT};
     }}
+    /* La banda de unidad del RAIL (no la hoja): mismo criterio apagado que
+       `#unitHeaderTitle` de arriba -- es la banda con menos peso de la
+       columna, y sin esta regla el QLabel hereda el color pleno de QWidget
+       y sale mas grande y mas fuerte que el cuarto que agrupa. */
+    QLabel#unitBandLabel {{
+        color: {TEXT_3};
+        font-size: {FONT_MICRO}px;
+        font-weight: 650;
+    }}
     QLabel#groupCount {{
         color: {TEXT_3};
         font-family: {MONO_FONT};

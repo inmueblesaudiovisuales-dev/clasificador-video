@@ -30,6 +30,10 @@ MAX_TECLAS = 9      # los atajos numericos llegan hasta el noveno cuarto
 MIME_CUARTO = "application/x-clasificador-cuarto"
 MAX_HISTORIAL = 4   # el rail mide 200 px: mas filas empujan la lista de cuartos
 
+# El rotulo del bloque migratorio: cuartos que ya existian antes de que el
+# proyecto tuviera unidades, y todavia no se les asigno una.
+SIN_UNIDAD_ETIQUETA = "Sin unidad"
+
 
 class _BarraProgreso(QWidget):
     """Barra segmentada por cuarto: un tramo por cuarto con su color de
@@ -411,6 +415,31 @@ class _FilaHistorial(QWidget):
         layout.addWidget(self.undo_button)
 
 
+class _BandaDeUnidad(QWidget):
+    """El encabezado de un grupo de cuartos por unidad. `color=None` es el
+    bloque "Sin unidad" -- sin swatch, solo el rotulo, porque no es una
+    identidad de unidad sino la ausencia de una."""
+
+    def __init__(self, nombre: str, color: str | None, parent=None):
+        super().__init__(parent)
+        self.nombre = nombre
+        self.setObjectName("unitBand")
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(2, 8, 2, 4)
+        layout.setSpacing(6)
+        if color is not None:
+            swatch = QLabel("")
+            swatch.setFixedSize(11, 11)
+            swatch.setAttribute(Qt.WA_StyledBackground, True)
+            swatch.setStyleSheet(f"background-color: {color}; border-radius: 3px;")
+            layout.addWidget(swatch)
+        etiqueta = QLabel(nombre.upper())
+        etiqueta.setObjectName("unitBandLabel")
+        theme.apply_letter_spacing(etiqueta)
+        layout.addWidget(etiqueta)
+        layout.addStretch(1)
+
+
 class RoomRail(QWidget):
     """Columna izquierda de 200 px: progreso y cuartos.
 
@@ -517,6 +546,11 @@ class RoomRail(QWidget):
         self._rooms_layout.setSpacing(0)
         self._rooms_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
         self.rows: list[_FilaCuarto] = []
+        # Agrupamiento por unidad: vacios mientras el proyecto no tiene
+        # unidades -- ahi `set_rooms_agrupados` delega entero en `set_rooms`
+        # y estas listas ni se tocan.
+        self.unit_bands: list[_BandaDeUnidad] = []
+        self.rows_por_unidad: dict[str, list[_FilaCuarto]] = {}
 
         # --- la fila fija de `S`: repetir el cuarto del clip anterior ---
         # Va arriba de los cuartos y FUERA de `self.rows`: `set_rooms`
@@ -621,6 +655,65 @@ class RoomRail(QWidget):
         self.progress_bar.set_counts(
             [counts.get(c, 0) for c in rooms], self._pendientes
         )
+
+    def set_rooms_agrupados(self, unidades: list[str],
+                             rooms_por_unidad: dict[str, list[str]],
+                             counts: dict[tuple[str, str], int]) -> None:
+        """Repuebla el rail agrupado por unidad. `unidades` vacia es un
+        proyecto sin unidades: ahi se comporta exactamente como
+        `set_rooms` de siempre, sin ninguna banda -- el catalogo `""`
+        (sin unidad) es el unico que existe.
+
+        `rooms_por_unidad` trae la llave `""` para el bloque "Sin unidad"
+        -- migratorio, solo se banda si tiene cuartos Y el proyecto ya
+        tiene alguna unidad creada.
+        """
+        if not unidades:
+            self.set_rooms(rooms_por_unidad.get("", []),
+                            {c: n for (u, c), n in counts.items() if u == ""})
+            self._limpiar_bandas()
+            return
+
+        self._limpiar_bandas()
+        self._rooms_layout.removeWidget(self.new_room_row)
+        orden = ([""] if rooms_por_unidad.get("") else []) + list(unidades)
+        for llave in orden:
+            nombre_banda = SIN_UNIDAD_ETIQUETA if llave == "" else llave
+            banda = self._crear_banda(nombre_banda)
+            self.unit_bands.append(banda)
+            filas = []
+            for indice, cuarto in enumerate(rooms_por_unidad.get(llave, [])):
+                numero = indice + 1 if indice < MAX_TECLAS else None
+                fila = _FilaCuarto(numero, cuarto, theme.room_color(indice),
+                                    counts.get((llave, cuarto), 0))
+                fila.assign_requested.connect(self.room_assign_requested.emit)
+                fila.rename_requested.connect(self.room_renamed.emit)
+                fila.move_requested.connect(self.room_moved.emit)
+                fila.remove_requested.connect(self.room_removed.emit)
+                fila.mover_foco_requested.connect(self._mover_foco)
+                self._rooms_layout.addWidget(fila)
+                filas.append(fila)
+            self.rows_por_unidad[llave] = filas
+        self._rooms_layout.addWidget(self.new_room_row)
+        self.rows = [f for filas in self.rows_por_unidad.values() for f in filas]
+
+    def _limpiar_bandas(self) -> None:
+        for banda in self.unit_bands:
+            banda.setParent(None)
+            banda.deleteLater()
+        self.unit_bands = []
+        for filas in self.rows_por_unidad.values():
+            for fila in filas:
+                fila.setParent(None)
+                fila.deleteLater()
+        self.rows_por_unidad = {}
+
+    def _crear_banda(self, nombre: str) -> "_BandaDeUnidad":
+        indice = len([b for b in self.unit_bands if b.nombre != SIN_UNIDAD_ETIQUETA])
+        color = None if nombre == SIN_UNIDAD_ETIQUETA else theme.unit_color(indice)
+        banda = _BandaDeUnidad(nombre, color)
+        self._rooms_layout.addWidget(banda)
+        return banda
 
     def dragEnterEvent(self, event) -> None:  # noqa: N802 -- override de Qt
         if event.mimeData().hasFormat(MIME_CUARTO):
