@@ -4193,7 +4193,16 @@ class MainWindow(QWidget):
             # Se usa el candidato aunque todavia no haya validado: para una
             # miniatura alcanza, y esperar a la validacion --3.4 s de ffprobe
             # en 128 clips-- retrasaria justo lo que se quiere acelerar.
-            fuente = self._proxy_candidatos.get(index, clip.ruta)
+            #
+            # `clip.ruta_proxy` PRIMERO: es lo que se restaura del .cvproj
+            # al reabrir el proyecto, ya validado en una sesion anterior.
+            # `_proxy_candidatos` en cambio es de la sesion en curso --
+            # `load_clips` lo vacia -- y sin este orden, reabrir el proyecto
+            # pedia la miniatura del original cada vez, aunque el proxy
+            # siguiera ahi: una fuente distinta a la que genero el cache la
+            # sesion anterior, cache-miss seguro y a extraer del 4K completo
+            # de nuevo. Bug del punto 6 del 2026-09-19.
+            fuente = clip.ruta_proxy or self._proxy_candidatos.get(index, clip.ruta)
             # La cache tiene que ser de la FUENTE, no siempre del original:
             # si no, una tira ya sacada del 4K antes de que el proxy
             # existiera quedaba marcada «completa» para siempre, y enganchar

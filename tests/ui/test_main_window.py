@@ -4382,6 +4382,41 @@ def test_una_tira_cacheada_del_original_no_bloquea_la_del_proxy(qtbot, monkeypat
     assert fuentes_pedidas == [clip_path, proxy_path]
 
 
+def test_al_reabrir_el_proyecto_las_miniaturas_salen_del_proxy_ya_validado(qtbot, monkeypatch, tmp_path):
+    """El bug del punto 6 del 2026-09-19: Bruno reportaba que las miniaturas
+    se regeneraban cada vez que volvia a abrir el proyecto.
+
+    `clip.ruta_proxy` es lo que se restaura del `.cvproj` al reabrir -- ya
+    validado en una sesion anterior. `_proxy_candidatos`, en cambio, es un
+    diccionario de la sesion en curso (`load_clips` lo vacia) que solo se
+    vuelve a llenar si se relanza un sondeo. `_schedule_thumbnails` miraba
+    SOLO `_proxy_candidatos` y caia al original apenas se reabria el
+    proyecto -- una fuente distinta a la que genero el cache la sesion
+    anterior, asi que era cache-miss seguro y una extraccion nueva del 4K
+    completo en cada apertura, aunque el proxy siguiera ahi."""
+    cache_root = tmp_path / "cache"
+    clip_path = tmp_path / "a.MP4"
+    clip_path.write_bytes(b"contenido de prueba")
+    proxy_path = tmp_path / "a_proxy.MP4"
+    proxy_path.write_bytes(b"contenido del proxy")
+    window = _window_with_video(qtbot, cache_root=cache_root)
+
+    fuentes_pedidas = []
+    monkeypatch.setattr(
+        "clasificador_video.ui.main_window.extract_thumbnail_strip",
+        lambda video, *a, **k: fuentes_pedidas.append(video) or [],
+    )
+    clip = Clip(orden=1, ruta=clip_path, categoria_path=[], fps=30.0)
+    clip.ruta_proxy = proxy_path        # como llega restaurado del .cvproj
+    window.load_clips([clip])           # vacia _proxy_candidatos, como al abrir
+    window._clip_durations[0] = 4.0
+
+    window._schedule_thumbnails()
+    window._thread_pool.waitForDone(3000)
+
+    assert fuentes_pedidas == [proxy_path]
+
+
 def test_una_portada_vieja_no_impide_sacar_la_tira_de_escrubeo(qtbot, monkeypatch, tmp_path):
     """El bug que Bruno reporto con su material: «¿por que no puedo
     escrubear en los de la FX30 pero si en los del dron?».
