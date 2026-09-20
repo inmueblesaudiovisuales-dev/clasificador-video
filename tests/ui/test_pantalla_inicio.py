@@ -12,6 +12,18 @@ def _entrada_de_prueba():
                     disponible=True)
 
 
+def test_boton_de_configuracion_emite_la_señal(qtbot):
+    pantalla = PantallaInicio()
+    qtbot.addWidget(pantalla)
+
+    recibidas = []
+    pantalla.configuracion_pedida.connect(lambda: recibidas.append(True))
+    pantalla.boton_configuracion.click()
+
+    assert pantalla.boton_configuracion.toolTip() == "Configuración"
+    assert recibidas == [True]
+
+
 def test_fila_activa_con_editor_muestra_los_tres_controles(qtbot):
     from clasificador_video.entrega import EstadoEntrega
     from clasificador_video.ui.pantalla_inicio import _FilaActiva

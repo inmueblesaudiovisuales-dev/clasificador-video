@@ -275,6 +275,7 @@ class PantallaInicio(QWidget):
     refrescar_pedido = Signal(Path)
     traer_de_vuelta_pedido = Signal(Path)
     ya_entregado_pedido = Signal(Path)
+    configuracion_pedida = Signal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -287,9 +288,25 @@ class PantallaInicio(QWidget):
         raiz.setContentsMargins(MARGEN, MARGEN, MARGEN, MARGEN)
         raiz.setSpacing(14)
 
+        fila_titulo = QHBoxLayout()
+        fila_titulo.setContentsMargins(0, 0, 0, 0)
+        fila_titulo.setSpacing(8)
         self.titulo = QLabel("Tus proyectos")
         self.titulo.setObjectName("inicioTitulo")
-        raiz.addWidget(self.titulo)
+        fila_titulo.addWidget(self.titulo)
+        fila_titulo.addStretch(1)
+        # Un glifo unicode como texto de boton, no un dibujo custom con
+        # QPainter: mismo camino que ya usa `refrescar_button` mas abajo. En
+        # la barra de titulo de MainWindow este mismo boton es con palabra
+        # -- ahi un engrane solo, apretado entre otros botones con texto, se
+        # veia como un punto perdido. Aqui va solo, sin nada al lado que le
+        # compita, asi que un engrane chico se lee bien.
+        self.boton_configuracion = QPushButton("⚙")
+        self.boton_configuracion.setObjectName("inicioConfigBoton")
+        self.boton_configuracion.setToolTip("Configuración")
+        self.boton_configuracion.clicked.connect(self.configuracion_pedida.emit)
+        fila_titulo.addWidget(self.boton_configuracion)
+        raiz.addLayout(fila_titulo)
 
         # Un renglon aqui adentro y no un `QMessageBox`: los modales bloquean
         # con `exec` por dentro y esta pantalla es justo donde Bruno esta

@@ -1375,6 +1375,16 @@ def build_stylesheet() -> str:
         font-size: {FONT_BIG}px;
         font-weight: 600;
     }}
+    QPushButton#inicioConfigBoton {{
+        background: transparent;
+        border: none;
+        color: {TEXT_3};
+        font-size: {FONT_BIG}px;
+        padding: 0px 4px;
+    }}
+    QPushButton#inicioConfigBoton:hover {{
+        color: {TEXT};
+    }}
     /* `text-align: left` y `padding: 0`: la regla generica de QPushButton
        centra y mete 8x14 px, y aqui adentro hay un layout con dos renglones
        --el relleno lo pone la fila, no el estilo del boton. */

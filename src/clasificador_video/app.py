@@ -16,14 +16,16 @@ from PySide6.QtCore import QObject, QRunnable, QThreadPool, Signal
 from PySide6.QtGui import QSurfaceFormat
 from PySide6.QtWidgets import QApplication, QFileDialog, QMessageBox
 
-from clasificador_video import proyecto
+from clasificador_video import llave, preferencias, proyecto
 from clasificador_video.autosave import load_session
 from clasificador_video.bins import BinTree
 from clasificador_video.keyboard import KeyboardRouter
 from clasificador_video.manifest import Clip
 from clasificador_video.recientes import Recientes
 from clasificador_video.rooms import RoomSelection
+from clasificador_video.thumbnails import borrar_cache, default_cache_root, tamano_del_cache
 from clasificador_video.ui.main_window import MainWindow
+from clasificador_video.ui.pantalla_config import PantallaConfig, _formatear_bytes
 from clasificador_video.ui.pantalla_de_carga import PantallaDeCarga
 from clasificador_video.ui.pantalla_inicio import PantallaInicio
 from clasificador_video.ui.theme import build_stylesheet
@@ -456,6 +458,9 @@ class Coordinador(QObject):
         self.inicio.refrescar_pedido.connect(self._al_refrescar)
         self.inicio.traer_de_vuelta_pedido.connect(self._al_pedir_traer_de_vuelta_activo)
         self.inicio.ya_entregado_pedido.connect(self._al_pedir_ya_entregado)
+        self.inicio.configuracion_pedida.connect(self._abrir_configuracion)
+        self._pantalla_config: PantallaConfig | None = None
+        self._drive_cliente_config = None
         self._drive_pool = QThreadPool(self)
         self._señales_de_drive = _SeñalesDeDrive(self)
         self._señales_de_drive.traida_lista.connect(self._al_terminar_traida_activa)
@@ -470,6 +475,64 @@ class Coordinador(QObject):
         self._refrescar()
         self.inicio.show()
         self.inicio.raise_()
+
+    def _abrir_configuracion(self) -> None:
+        """La pantalla de configuracion, encima de la pantalla de inicio.
+
+        Copia fiel de `MainWindow._abrir_configuracion`: misma clase, mismas
+        señales, no modal por la misma razon (el `exec()` viejo colgaba la
+        suite bajo `offscreen`, murio con la F3). Lo unico que cambia es que
+        no hay ventana de proyecto de la cual tirar del pool de hilos --
+        aqui guardar la preferencia basta, la proxima ventana que se abra ya
+        la lee al construirse.
+        """
+        if self._pantalla_config is None:
+            self._pantalla_config = PantallaConfig(self.inicio)
+            self._pantalla_config.llave_guardada.connect(llave.guardar)
+            self._pantalla_config.llave_borrada.connect(llave.borrar)
+            self._pantalla_config.modo_economico_cambiado.connect(
+                preferencias.guardar_modo_economico
+            )
+            self._pantalla_config.modo_rapido_cambiado.connect(
+                preferencias.guardar_modo_rapido
+            )
+            self._pantalla_config.carpeta_premiere_guardada.connect(
+                preferencias.guardar_carpeta_de_proyectos_premiere
+            )
+            self._pantalla_config.drive_conectado.connect(
+                lambda: setattr(
+                    self, "_drive_cliente_config", self._pantalla_config.cliente_drive
+                )
+            )
+            self._pantalla_config.miniaturas_borrar_pedido.connect(
+                self._al_pedir_borrar_miniaturas
+            )
+            self._pantalla_config.cerrada.connect(self._pantalla_config.hide)
+        self._pantalla_config.cargar(
+            llave.leer(), preferencias.modo_economico(), preferencias.modo_rapido()
+        )
+        self._pantalla_config.mostrar_peso_de_miniaturas(
+            tamano_del_cache(default_cache_root())
+        )
+        self._pantalla_config.setGeometry(
+            self.inicio.rect().adjusted(110, 80, -110, -80)
+        )
+        self._pantalla_config.show()
+        self._pantalla_config.raise_()
+
+    def _al_pedir_borrar_miniaturas(self) -> None:
+        cache_root = default_cache_root()
+        peso = _formatear_bytes(tamano_del_cache(cache_root))
+        respuesta = QMessageBox.question(
+            self.inicio, "Borrar miniaturas",
+            f"Vas a borrar {peso} de miniaturas guardadas. Se vuelven a "
+            "generar solas la próxima vez que se necesiten -- pero eso "
+            "tarda.\n\n¿Borrarlas?",
+        )
+        if respuesta != QMessageBox.StandardButton.Yes:
+            return
+        borrar_cache(cache_root)
+        self._pantalla_config.mostrar_peso_de_miniaturas(0)
 
     def migrar_lo_viejo(self, sesion: Path | None = None,
                         carpeta: Path | None = None) -> Path | None:
