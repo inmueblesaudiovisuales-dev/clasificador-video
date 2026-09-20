@@ -61,17 +61,25 @@ def _rebuild_room_selection(rooms: list[str]) -> RoomSelection:
     return sel
 
 
-def _aplanar_categoria(path: list) -> list[str]:
-    """Sesiones guardadas antes de la F3 pueden traer `["Recámara 1", "Baño"]`.
+def _aplanar_categoria(path: list, hay_unidades: bool) -> list[str]:
+    """Sesiones guardadas antes de la F3 pueden traer `["Recámara 1", "Baño"]`
+    -- un subcuarto, que ya no es representable, y se descarta conservando
+    el CUARTO PADRE.
 
-    Se conserva el CUARTO PADRE, que sigue existiendo en el rail, y se
-    descarta el subcuarto, que ya no es representable. Tirar el clip entero
-    o dejarlo sin clasificar seria peor: el editor ya tomo esa decision.
+    Con unidades, un `categoria_path` de 2 elementos deja de ser ese caso
+    viejo: es `[unidad, cuarto]` legitimo, y aplanarlo perderia el cuarto
+    de cada clip en silencio apenas se reabriera el proyecto. `hay_unidades`
+    -- si el documento declara `"units"` no vacio -- es lo unico que
+    distingue un caso del otro: la forma de la lista es identica en los dos.
     """
-    return [str(path[0])] if path else []
+    if not path:
+        return []
+    if hay_unidades:
+        return [str(elemento) for elemento in path[:2]]
+    return [str(path[0])]
 
 
-def _clip_from_dict(d: dict) -> Clip:
+def _clip_from_dict(d: dict, hay_unidades: bool) -> Clip:
     """Un clip desde el JSON. **Truena** si el dato no sirve -- ver `_clips_de`,
     que es quien atrapa: aqui adentro no se puede decidir si un proyecto a
     medio corromper se abre igual o no se abre.
@@ -82,7 +90,7 @@ def _clip_from_dict(d: dict) -> Clip:
     return Clip(
         orden=int(d["orden"]),
         ruta=Path(d["ruta"]),
-        categoria_path=_aplanar_categoria(list(d.get("categoria_path") or [])),
+        categoria_path=_aplanar_categoria(list(d.get("categoria_path") or []), hay_unidades),
         fps=float(d["fps"]),
         in_frame=d.get("in_frame"),
         out_frame=d.get("out_frame"),
@@ -110,8 +118,9 @@ def _clips_de(data: dict) -> list[Clip] | None:
         return []
     if not isinstance(crudos, list):
         return None
+    hay_unidades = bool(data.get("units"))
     try:
-        return [_clip_from_dict(d) for d in crudos]
+        return [_clip_from_dict(d, hay_unidades) for d in crudos]
     except (AttributeError, KeyError, TypeError, ValueError):
         return None
 

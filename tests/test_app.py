@@ -103,12 +103,36 @@ def test_una_sesion_vieja_con_subcuartos_se_aplana_al_cuarto_padre():
     clip = app_module._clip_from_dict({
         "orden": 1, "ruta": "/x.MP4", "fps": 30.0,
         "categoria_path": ["Recámara 1", "Baño"],
-    })
+    }, hay_unidades=False)
     assert clip.categoria_path == ["Recámara 1"]
 
 
 def test_el_dialogo_de_configuracion_ya_no_existe():
     assert not hasattr(app_module, "RoomConfigDialog")
+
+
+def test_categoria_de_2_niveles_se_conserva_si_el_proyecto_tiene_unidades():
+    d = {"orden": 0, "ruta": "/x.mp4", "fps": 30.0,
+         "categoria_path": ["Casa A", "Cocina"]}
+    clip = app_module._clip_from_dict(d, hay_unidades=True)
+    assert clip.categoria_path == ["Casa A", "Cocina"]
+
+
+def test_categoria_de_2_niveles_se_aplana_si_el_proyecto_no_tiene_unidades():
+    # sesion pre-F3: subcuarto, se descarta y se conserva el padre
+    d = {"orden": 0, "ruta": "/x.mp4", "fps": 30.0,
+         "categoria_path": ["Recámara 1", "Baño"]}
+    clip = app_module._clip_from_dict(d, hay_unidades=False)
+    assert clip.categoria_path == ["Recámara 1"]
+
+
+def test_categoria_de_3_niveles_se_recorta_a_2_aunque_haya_unidades():
+    # nunca deberia pasar -- no hay subcuartos-de-unidad -- pero si un
+    # archivo viniera corrupto, recortar es mas seguro que reventar
+    d = {"orden": 0, "ruta": "/x.mp4", "fps": 30.0,
+         "categoria_path": ["Casa A", "Cocina", "Extra"]}
+    clip = app_module._clip_from_dict(d, hay_unidades=True)
+    assert clip.categoria_path == ["Casa A", "Cocina"]
 
 
 # --- abrir un proyecto -----------------------------------------------------
