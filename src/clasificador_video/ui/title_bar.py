@@ -17,6 +17,19 @@ TECLA_MODO = "⇥"
 VISOR_ANCHO = "Ancho"
 
 
+class _ProjectLabel(QLabel):
+    """El nombre del proyecto: doble clic para corregirlo.
+
+    Mismo mecanismo que renombrar un cuarto (doble clic en el rail) --
+    Bruno ya lo conoce de ahi."""
+
+    doble_clic = Signal()
+
+    def mouseDoubleClickEvent(self, event) -> None:  # noqa: N802 -- override de Qt
+        self.doble_clic.emit()
+        super().mouseDoubleClickEvent(event)
+
+
 def _boton(texto: str, atajo: str, object_name: str) -> QPushButton:
     boton = QPushButton(f"{texto}  {atajo}")
     boton.setObjectName(object_name)
@@ -36,6 +49,7 @@ class TitleBar(QWidget):
     """
 
     export_requested = Signal()
+    rename_requested = Signal()
     guia_requested = Signal()
     config_requested = Signal()
     proxies_requested = Signal()
@@ -62,8 +76,9 @@ class TitleBar(QWidget):
         self.mark.setPixmap(marca.glifo(self.mark.size()))
         self.mark.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
-        self.project_label = QLabel("")
+        self.project_label = _ProjectLabel("")
         self.project_label.setObjectName("projectLabel")
+        self.project_label.doble_clic.connect(self.rename_requested)
         self.subtitle_label = QLabel("")
         self.subtitle_label.setObjectName("projectSubtitle")
 

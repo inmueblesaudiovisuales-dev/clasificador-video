@@ -760,6 +760,8 @@ class Coordinador(QObject):
     def _tomar(self, ventana: MainWindow) -> None:
         self.ventanas.append(ventana)
         ventana.cerrada.connect(lambda: self._al_cerrarse(ventana))
+        ventana.proyecto_renombrado.connect(
+            lambda nuevo: self._al_renombrar(ventana, nuevo))
         self.inicio.hide()
         # La pantalla de carga ANTES de mostrar la ventana: abrir un proyecto
         # grande son unos segundos de portadas, y sin nada en pantalla esos
@@ -777,6 +779,13 @@ class Coordinador(QObject):
         # cada vez que abres un proyecto a 530 ms por cuadro atras en vez de
         # 22. Era herencia del `main()` viejo, que armaba la ventana sin
         # pasar por aqui.
+
+    def _al_renombrar(self, ventana: MainWindow, nuevo: str) -> None:
+        # `registrar` es un upsert por ruta: no duplica el reciente, lo
+        # actualiza. Sin esto, la pantalla de inicio se queda mostrando el
+        # nombre viejo hasta que cierras la ventana.
+        if ventana.session_path is not None:
+            Recientes(self._recientes_path).registrar(ventana.session_path, nuevo)
 
     def _al_cerrarse(self, ventana: MainWindow) -> None:
         if ventana in self.ventanas:

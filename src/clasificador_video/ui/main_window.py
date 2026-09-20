@@ -15,6 +15,7 @@ from PySide6.QtGui import QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QApplication,
     QFileDialog,
+    QInputDialog,
     QLabel,
     QHBoxLayout,
     QMessageBox,
@@ -659,6 +660,10 @@ class MainWindow(QWidget):
     # `WA_DeleteOnClose`, y destruirla desde el aviso de su propia
     # destruccion es de donde salieron varios segfaults de este proyecto.
     cerrada = Signal()
+    # Avisa con el nombre NUEVO -- quien guarda «recientes» (fuera de esta
+    # ventana, en el coordinador) no tiene por que enterarse mirando
+    # `project_name` por su cuenta.
+    proyecto_renombrado = Signal(str)
 
     def __init__(
         self,
@@ -924,6 +929,7 @@ class MainWindow(QWidget):
         self.title_bar = TitleBar()
         self.title_bar.set_project(project_name, 0)
         self.title_bar.export_requested.connect(self._on_export_manifest)
+        self.title_bar.rename_requested.connect(self._pedir_renombrar_proyecto)
         self.title_bar.guia_requested.connect(self._abrir_pantalla_de_guia)
         self.title_bar.config_requested.connect(self._abrir_configuracion)
         self.title_bar.mode_toggled.connect(self.alternar_modo_hoja)
@@ -5314,6 +5320,30 @@ class MainWindow(QWidget):
         if self.guia_actual is None or not self.guia_actual.ok:
             return None
         return Guia(orden=[r.cuarto for r in self.guia_actual.lista])
+
+    def _pedir_renombrar_proyecto(self) -> None:
+        nuevo, ok = QInputDialog.getText(
+            self, "Renombrar proyecto", "Nombre:", text=self.project_name
+        )
+        if ok:
+            self.renombrar_proyecto(nuevo)
+
+    def renombrar_proyecto(self, nuevo: str) -> None:
+        """Corrige el nombre ANTES de que el plugin arme las secuencias en
+        Premiere con el (spec 2026-09-20): `secuencia.js` las nombra con
+        `manifest.proyecto`, y un error de dedo ahi se arrastraba hasta
+        Premiere sin forma de corregirlo.
+
+        No toca ninguna carpeta ni archivo: solo el dato, en los tres
+        lugares que lo muestran."""
+        nuevo = nuevo.strip()
+        if not nuevo or nuevo == self.project_name:
+            return
+        self.project_name = nuevo
+        self.setWindowTitle(nuevo)
+        self.title_bar.set_project(nuevo, len(self.clips), bins=len(self.bins.nombres()))
+        self._autosave()
+        self.proyecto_renombrado.emit(nuevo)
 
     def _on_export_manifest(self) -> None:
         # Se AVISA, no se decide solo: misma regla que el dialogo de

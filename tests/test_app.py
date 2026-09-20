@@ -757,6 +757,27 @@ def test_proyecto_nuevo_pide_donde_guardarlo(qtbot, tmp_path, monkeypatch):
     coord.ventanas[0].close()
 
 
+def test_renombrar_actualiza_recientes(qtbot, tmp_path, monkeypatch):
+    """`Recientes` vive fuera de la ventana --el coordinador la conecta--:
+    sin este cableado, renombrar en la ventana corrige el titulo pero la
+    pantalla de inicio se queda mostrando el nombre viejo."""
+    from clasificador_video.recientes import Recientes
+
+    destino = tmp_path / "Casa Nueva.cvproj"
+    monkeypatch.setattr(QFileDialog, "getSaveFileName",
+                        lambda *a, **k: (str(destino), ""))
+    coord = _coordinador(tmp_path)
+    qtbot.addWidget(coord.inicio)
+    coord.mostrar_inicio()
+    coord.inicio.nuevo_pedido.emit()
+    ventana = coord.ventanas[0]
+
+    ventana.renombrar_proyecto("Casa Corregida")
+
+    assert [e.nombre for e in Recientes(tmp_path / "r.json").lista()] == ["Casa Corregida"]
+    ventana.close()
+
+
 def test_cancelar_el_selector_no_crea_nada(qtbot, tmp_path, monkeypatch):
     monkeypatch.setattr(QFileDialog, "getSaveFileName", lambda *a, **k: ("", ""))
     coord = _coordinador(tmp_path)

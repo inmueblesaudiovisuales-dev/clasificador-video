@@ -756,6 +756,64 @@ def test_cerrar_la_ventana_no_pierde_la_ultima_edicion_sin_guardar(qtbot, tmp_pa
     assert saved["clips"][0]["categoria_path"] == ["Sala"]
 
 
+# --- renombrar el proyecto (spec 2026-09-20) ---------------------------
+
+
+def test_renombrar_proyecto_actualiza_titulo_barra_y_autoguardado(qtbot, tmp_path):
+    window = _window_with_video(qtbot)
+    window.session_path = tmp_path / "sesion.cvproj"
+    window.load_clips([Clip(orden=1, ruta=Path("/a.MP4"), categoria_path=[], fps=30.0)])
+
+    window.renombrar_proyecto("Casa Buena")
+
+    assert window.project_name == "Casa Buena"
+    assert window.windowTitle() == "Casa Buena"
+    assert window.title_bar.project_label.text() == "Casa Buena"
+    window._flush_autosave()
+    import json
+    saved = json.loads(window.session_path.read_text())
+    assert saved["proyecto"] == "Casa Buena"
+
+
+def test_renombrar_proyecto_vacio_o_igual_no_hace_nada(qtbot):
+    window = _window_with_video(qtbot)
+    original = window.project_name
+    renombrados = []
+    window.proyecto_renombrado.connect(renombrados.append)
+
+    window.renombrar_proyecto("   ")
+    window.renombrar_proyecto(original)
+
+    assert renombrados == []
+    assert window.project_name == original
+
+
+def test_doble_clic_en_el_titulo_pide_renombrar(qtbot, monkeypatch):
+    from PySide6.QtCore import Qt
+    from PySide6.QtWidgets import QInputDialog
+
+    window = _window_with_video(qtbot)
+    monkeypatch.setattr(QInputDialog, "getText",
+                        lambda *a, **k: ("Casa Nueva", True))
+
+    qtbot.mouseDClick(window.title_bar.project_label, Qt.MouseButton.LeftButton)
+
+    assert window.project_name == "Casa Nueva"
+
+
+def test_doble_clic_y_cancelar_el_dialogo_no_cambia_nada(qtbot, monkeypatch):
+    from PySide6.QtCore import Qt
+    from PySide6.QtWidgets import QInputDialog
+
+    window = _window_with_video(qtbot)
+    original = window.project_name
+    monkeypatch.setattr(QInputDialog, "getText", lambda *a, **k: ("", False))
+
+    qtbot.mouseDClick(window.title_bar.project_label, Qt.MouseButton.LeftButton)
+
+    assert window.project_name == original
+
+
 def test_exportar_pide_cinco_secuencias_sin_elegir_formato(qtbot, monkeypatch, tmp_path):
     from PySide6.QtWidgets import QMessageBox
     window = _window_with_video(qtbot)
