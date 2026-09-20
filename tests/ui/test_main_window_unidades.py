@@ -158,3 +158,43 @@ def test_ultimo_cuarto_usado_no_lleva_la_unidad(main_window):
     main_window._activar_unidad("Casa A")
     main_window._asignar_cuarto(["Cocina"])
     assert main_window._ultimo_cuarto_usado == "Cocina"
+
+
+def test_asignar_unidad_conserva_el_cuarto_del_clip(main_window):
+    main_window.load_clips([Clip(orden=1, ruta=Path("/a.MP4"), categoria_path=[], fps=30.0)])
+    main_window.clips[0].categoria_path = ["Cocina"]
+    main_window.unit_selection.add("Casa A")
+    main_window._asignar_unidad("Casa A")
+    assert main_window.clips[0].categoria_path == ["Casa A", "Cocina"]
+
+
+def test_asignar_unidad_a_clip_sin_cuarto_lo_deja_sin_cuarto(main_window):
+    main_window.load_clips([Clip(orden=1, ruta=Path("/a.MP4"), categoria_path=[], fps=30.0)])
+    main_window.clips[0].categoria_path = []
+    main_window.unit_selection.add("Casa A")
+    main_window._asignar_unidad("Casa A")
+    assert main_window.clips[0].categoria_path == []
+
+
+def test_asignar_unidad_reemplaza_la_unidad_anterior(main_window):
+    main_window.load_clips([Clip(orden=1, ruta=Path("/a.MP4"), categoria_path=[], fps=30.0)])
+    main_window.clips[0].categoria_path = ["Casa A", "Cocina"]
+    main_window.unit_selection.add("Casa A")
+    main_window.unit_selection.add("Casa B")
+    main_window._asignar_unidad("Casa B")
+    assert main_window.clips[0].categoria_path == ["Casa B", "Cocina"]
+
+
+def test_elegir_unidad_con_lote_seleccionado_reasigna_y_activa(main_window):
+    main_window.load_clips([
+        Clip(orden=1, ruta=Path("/a.MP4"), categoria_path=[], fps=30.0),
+        Clip(orden=2, ruta=Path("/b.MP4"), categoria_path=[], fps=30.0),
+    ])
+    main_window.clips[0].categoria_path = ["Cocina"]
+    main_window.clips[1].categoria_path = ["Baño"]
+    main_window.selected_indices = [0, 1]
+    main_window.unit_selection.add("Casa A")
+    main_window._on_unidad_elegida_en_paleta("Casa A")
+    assert main_window.clips[0].categoria_path == ["Casa A", "Cocina"]
+    assert main_window.clips[1].categoria_path == ["Casa A", "Baño"]
+    assert main_window._unidad_activa == "Casa A"

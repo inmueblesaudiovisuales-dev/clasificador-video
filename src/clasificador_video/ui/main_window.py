@@ -1588,6 +1588,13 @@ class MainWindow(QWidget):
         self.unit_palette.move(max(0, x), origen.y() + 90)
 
     def _on_unidad_elegida_en_paleta(self, nombre: str) -> None:
+        """Con mas de un clip seleccionado, elegir una unidad no solo la
+        activa: reasigna el lote a esa unidad de una vez. Es el camino de
+        migracion de Bruno -- seleccionar los clips de `Cocina-A` en la
+        hoja y ponerles la unidad "Casa A" -- resuelto en el mismo gesto
+        con el que ya activa la unidad para lo que sigue clasificando."""
+        if len(self.selected_indices) > 1:
+            self._asignar_unidad(nombre)
         self._activar_unidad(nombre)
 
     def _on_unidad_creada_en_paleta(self, nombre: str) -> None:
@@ -1628,6 +1635,41 @@ class MainWindow(QWidget):
         # la cola, y quedarse en el obligaria a apretar la flecha 128 veces
         # de mas
         self._avanzar_en_la_cola()
+
+    def _asignar_unidad(self, unidad: str) -> None:
+        """Mueve los clips del alcance actual a `unidad`, SIN tocar su
+        cuarto. Es el camino de migracion: crear las unidades y, con la
+        seleccion de la hoja, reasignarles la unidad en lote a los clips
+        que ya tenian un `Cocina-A`/`Cocina-B` puesto a mano (spec
+        2026-09-20 §4). Un clip sin cuarto todavia (categoria_path vacio)
+        no gana un cuarto de la nada -- se queda sin cuarto y sin unidad.
+        """
+        indices = self._bulk_target_indices()
+        if not indices:
+            return
+        nuevos = {}
+        for indice in indices:
+            actual = self.clips[indice].categoria_path
+            cuarto = self._cuarto_de(actual)
+            nuevos[indice] = [unidad, cuarto] if cuarto is not None else []
+        afectados = [i for i in indices if nuevos[i] != self.clips[i].categoria_path]
+        if not afectados:
+            return
+        self._registrar(
+            etiqueta=unidad,
+            detalle=self._detalle(afectados),
+            color=self._color_de_unidad(unidad),
+            clips=afectados,
+            campos=("categoria_path",),
+        )
+        for indice in afectados:
+            self.clips[indice].categoria_path = nuevos[indice]
+        self._refresh_sheet()
+        self._autosave()
+
+    def _color_de_unidad(self, unidad: str) -> str:
+        unidades = self.unit_selection.active_rooms()
+        return theme.unit_color(unidades.index(unidad)) if unidad in unidades else theme.TEXT_3
 
     def _cuarto_para_la_tecla_s(self) -> str | None:
         """Lo que pone `S`: el ultimo cuarto que usaste en esta sesion.
