@@ -843,6 +843,11 @@ class MainWindow(QWidget):
         # Los que hay que rehacer en cuanto termine lo que corre: pasa cuando
         # se enganchan los proxies a media extraccion y la fuente cambia.
         self._miniaturas_a_rehacer: set[int] = set()
+        # Un reintento por clip: es para la mala suerte de una conexion IPC
+        # que se tarda de mas bajo carga, no para un clip que de verdad no
+        # da frames. Sin tope, ese reintentaria para siempre y la barra de
+        # progreso nunca terminaria de bajar.
+        self._miniaturas_reintentadas: set[int] = set()
         # Los que YA entregaron una tira de verdad al menos una vez. Rehacer
         # una desde el proxy despues de que el original ya la entrego es un
         # ahorro de fondo, no trabajo nuevo que Bruno este esperando -- por
@@ -4361,6 +4366,13 @@ class MainWindow(QWidget):
         ya_entregado = index in self._miniaturas_entregadas
         if frames:
             self._miniaturas_entregadas.add(index)
+        elif not vencida and index not in self._miniaturas_reintentadas:
+            # la extraccion fallo -- bajo carga, con proxies generandose al
+            # mismo tiempo, una conexion IPC de mpv se tarda de mas y falla.
+            # sin esto el clip se quedaba sin tira para el resto de la
+            # sesion: nadie volvia a pedirla.
+            self._miniaturas_reintentadas.add(index)
+            self._miniaturas_a_rehacer.add(index)
         if index in self._miniaturas_a_rehacer:
             self._miniaturas_a_rehacer.discard(index)
             # ahora si: con la fuente nueva, o con la tanda nueva, y sin

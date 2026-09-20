@@ -4451,8 +4451,17 @@ def test_una_tira_cacheada_del_original_no_bloquea_la_del_proxy(qtbot, monkeypat
     window._proxy_candidatos[0] = proxy_path
     window._schedule_thumbnails([0])
     window._thread_pool.waitForDone(3000)
+    # el reintento de la primera extraccion sigue en vuelo cuando se pide el
+    # proxy -- este segundo giro entrega su resultado y recien ahi dispara
+    # el cambio a la fuente nueva (ver mas abajo)
+    QApplication.processEvents()
+    window._thread_pool.waitForDone(3000)
 
-    assert fuentes_pedidas == [clip_path, proxy_path]
+    # `extract_thumbnail_strip` siempre devuelve `[]` en este test, asi que
+    # la primera extraccion del original --antes de enganchar el proxy--
+    # cuenta como fallida y se reintenta sola una vez (ver
+    # `test_una_extraccion_fallida_se_reintenta_sola`).
+    assert fuentes_pedidas == [clip_path, clip_path, proxy_path]
 
 
 def test_al_reabrir_el_proyecto_las_miniaturas_salen_del_proxy_ya_validado(qtbot, monkeypatch, tmp_path):
@@ -4986,6 +4995,52 @@ def test_reconectar_un_proxy_a_medio_extraer_no_congela_el_contador(qtbot, tmp_p
     # esta resuelto, sin importar que atras siga corriendo la version mas
     # barata del proxy
     assert window._miniaturas_pendientes == 0
+
+
+def test_una_extraccion_fallida_se_reintenta_sola(qtbot, monkeypatch, tmp_path):
+    """Reportado en vivo el 2026-09-20, en modo rapido (3 extracciones en
+    paralelo) mientras generaba proxies al mismo tiempo -- ambos usan el
+    chip de video, y alguna conexion IPC de mpv se tarda de mas y falla.
+
+    Antes, `frames is None` limpiaba el registro de «en vuelo» y ahi se
+    quedaba: esa tarjeta no volvia a pedir su tira por el resto de la
+    sesion, aunque el resto del proyecto siguiera extrayendo bien.
+    Reabrir el proyecto si la recuperaba -- `_schedule_thumbnails` sin
+    `indices` vuelve a barrer todo -- pero eso no sirve a media sesion."""
+    window = _window_with_video(qtbot, cache_root=tmp_path / "cache")
+    window.load_clips([Clip(orden=1, ruta=tmp_path / "a.MP4", categoria_path=[], fps=30.0)])
+    window._miniaturas_en_vuelo[0] = tmp_path / "a.MP4"
+
+    reintentados = []
+    monkeypatch.setattr(
+        window, "_schedule_thumbnails",
+        lambda indices=None: reintentados.append(indices),
+    )
+
+    window._on_thumbnail_ready(window._thumb_generation, 0, None)
+
+    assert reintentados == [[0]]
+
+
+def test_una_extraccion_que_sigue_fallando_no_reintenta_para_siempre(qtbot, monkeypatch, tmp_path):
+    """El reintento es para una falla de mala suerte --carga del sistema--,
+    no para un clip que de verdad no da frames (por ejemplo, `mtime` o
+    duracion invalidos). Sin tope, ese clip reintentaria sin parar y la
+    barra de progreso nunca terminaria de bajar."""
+    window = _window_with_video(qtbot, cache_root=tmp_path / "cache")
+    monkeypatch.setattr("clasificador_video.ui.main_window.extract_thumbnail_strip",
+                        lambda *a, **k: [])
+    window.load_clips([Clip(orden=1, ruta=tmp_path / "a.MP4", categoria_path=[], fps=30.0)])
+    window._clip_durations[0] = 4.0
+
+    window._schedule_thumbnails([0])
+    from PySide6.QtWidgets import QApplication
+    for _ in range(3):
+        window._thread_pool.waitForDone(2000)
+        QApplication.processEvents()
+
+    assert window._miniaturas_pendientes == 0
+    assert 0 not in window._miniaturas_en_vuelo
 
 
 # --- borrar las miniaturas guardadas, desde Configuración ---------------
