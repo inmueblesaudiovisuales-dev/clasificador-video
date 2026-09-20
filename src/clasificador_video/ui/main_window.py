@@ -1452,11 +1452,11 @@ class MainWindow(QWidget):
         indices = self._bulk_target_indices()
         if not indices:
             return
-        cuarto = path[-1]
+        cuarto = self._cuarto_de(path)
         self._registrar(
             etiqueta=cuarto,
             detalle=self._detalle(indices),
-            color=self._color_de_cuarto(path[0]),
+            color=self._color_de_cuarto(cuarto),
             clips=indices,
             campos=("categoria_path",),
         )
@@ -1534,7 +1534,7 @@ class MainWindow(QWidget):
         cuenta: Counter[str] = Counter()
         for clip in self.clips:
             if clip.categoria_path:
-                cuenta[clip.categoria_path[0]] += 1
+                cuenta[self._cuarto_de(clip.categoria_path)] += 1
         return dict(cuenta)
 
     def _colocar_paleta(self) -> None:
@@ -1653,6 +1653,29 @@ class MainWindow(QWidget):
         if len(indices) == 1:
             return f"→ clip {self.clips[indices[0]].orden:03d}"
         return f"→ {len(indices)} clips"
+
+    @staticmethod
+    def _cuarto_de(categoria_path: list[str]) -> str | None:
+        """El nombre del cuarto, tenga o no unidad delante.
+
+        El largo decide: `[cuarto]` (sin unidad) o `[unidad, cuarto]` (con
+        unidad) -- nunca hay un tercer nivel, los subcuartos se fueron en la
+        F3. Punto unico de lectura: sin esto, cada sitio que asumia
+        `categoria_path[0]` == cuarto se actualiza por su cuenta el dia que
+        aparece la primera unidad, y el que se olvida queda leyendo la
+        unidad como si fuera el cuarto -- en silencio.
+        """
+        if not categoria_path:
+            return None
+        return categoria_path[-1]
+
+    @staticmethod
+    def _unidad_de(categoria_path: list[str]) -> str | None:
+        """El nombre de la unidad, o `None` si el clip no tiene (proyecto
+        sin unidades, o clip en el bloque «Sin unidad»)."""
+        if len(categoria_path) > 1:
+            return categoria_path[0]
+        return None
 
     def _color_de_cuarto(self, cuarto: str) -> str:
         rooms = self.room_selection.active_rooms()
@@ -1786,7 +1809,7 @@ class MainWindow(QWidget):
         counts: Counter[str] = Counter()
         for clip in self.clips:
             if clip.categoria_path:
-                counts[clip.categoria_path[0]] += 1
+                counts[self._cuarto_de(clip.categoria_path)] += 1
         rooms = self.room_selection.active_rooms()
         total = len(self.clips)
         sin_clasificar = sum(1 for c in self.clips if not c.categoria_path)
@@ -1799,7 +1822,7 @@ class MainWindow(QWidget):
         self.room_rail.set_flags(picks, rejects, sin_clasificar, destacados)
         clip = self.current_clip
         self.room_rail.set_current_room(
-            clip.categoria_path[0] if clip and clip.categoria_path else None
+            self._cuarto_de(clip.categoria_path) if clip and clip.categoria_path else None
         )
         # la MISMA fuente que la tecla: lo que se ve y lo que hace `S` no
         # pueden contradecirse
@@ -1869,9 +1892,10 @@ class MainWindow(QWidget):
 
         cuarto = " › ".join(clip.categoria_path) if clip.categoria_path else None
         active_rooms = self.room_selection.active_rooms()
+        cuarto_actual = self._cuarto_de(clip.categoria_path) if clip.categoria_path else None
         color = (
-            theme.room_color(active_rooms.index(clip.categoria_path[0]))
-            if clip.categoria_path and clip.categoria_path[0] in active_rooms
+            theme.room_color(active_rooms.index(cuarto_actual))
+            if cuarto_actual and cuarto_actual in active_rooms
             else None
         )
         stage.badges.set_room(cuarto, color)
@@ -1930,8 +1954,8 @@ class MainWindow(QWidget):
         # apuntando a un cuarto que ya no existe y desaparecerian del rail
         # sin haberse movido a ningun lado
         for clip in self.clips:
-            if clip.categoria_path and clip.categoria_path[0] == viejo:
-                clip.categoria_path = [nuevo]
+            if clip.categoria_path and self._cuarto_de(clip.categoria_path) == viejo:
+                clip.categoria_path = clip.categoria_path[:-1] + [nuevo]
         # y el historial, que guarda el `categoria_path` ANTERIOR de cada
         # clip: ahi tambien vive el nombre viejo. Sin esto, deshacer una
         # accion previa al renombrado devolvia un cuarto que ya no existe.
@@ -1966,7 +1990,7 @@ class MainWindow(QWidget):
         # datos y se revierten a mano en un gesto
         afectados = [
             i for i, c in enumerate(self.clips)
-            if c.categoria_path and c.categoria_path[0] == nombre
+            if c.categoria_path and self._cuarto_de(c.categoria_path) == nombre
         ]
         rooms = self.room_selection.active_rooms()
         self._registrar(
@@ -5571,8 +5595,8 @@ class MainWindow(QWidget):
                 room_label=clip.categoria_path[-1] if clip.categoria_path else "Sin clasificar",
                 flag=clip.flag,
                 room_color=(
-                    theme.room_color(active_rooms.index(clip.categoria_path[0]))
-                    if clip.categoria_path and clip.categoria_path[0] in active_rooms
+                    theme.room_color(active_rooms.index(self._cuarto_de(clip.categoria_path)))
+                    if clip.categoria_path and self._cuarto_de(clip.categoria_path) in active_rooms
                     else None
                 ),
                 numero=clip.orden,
