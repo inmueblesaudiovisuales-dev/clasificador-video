@@ -33,11 +33,13 @@ class _Opcion(QWidget):
     tecla fueran distintos, habria que volver a aprender cual es cual.
     """
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, swatch_size: tuple[int, int] = (3, 13),
+                 swatch_radius: int = 2):
         super().__init__(parent)
         self.setObjectName("palOption")
         self.setAttribute(Qt.WA_StyledBackground, True)
         self.nombre = ""
+        self._swatch_radius = swatch_radius
 
         layout = QHBoxLayout(self)
         layout.setContentsMargins(12, 7, 12, 7)
@@ -47,7 +49,7 @@ class _Opcion(QWidget):
         self.key_cap.setFixedSize(18, 18)
         self.key_cap.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.swatch = QLabel("")
-        self.swatch.setFixedSize(3, 13)
+        self.swatch.setFixedSize(*swatch_size)
         self.swatch.setAttribute(Qt.WA_StyledBackground, True)
         self.name_label = ElidedLabel("")
         self.name_label.setObjectName("palName")
@@ -63,7 +65,9 @@ class _Opcion(QWidget):
         self.name_label.setText(nombre)
         self.key_cap.setText("" if numero is None else str(numero))
         self.key_cap.setProperty("sin_tecla", numero is None)
-        self.swatch.setStyleSheet(f"background-color: {color}; border-radius: 2px;")
+        self.swatch.setStyleSheet(
+            f"background-color: {color}; border-radius: {self._swatch_radius}px;"
+        )
         self.count_label.setText(str(cuantos))
 
     def marcar_activa(self, activa: bool) -> None:
@@ -87,7 +91,10 @@ class RoomPalette(QWidget):
     room_chosen = Signal(str)
     room_created = Signal(str)
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, color_fn=theme.room_color,
+                 swatch_size: tuple[int, int] = (3, 13),
+                 swatch_radius: int = 2,
+                 placeholder: str = "Buscar o crear cuarto…") -> None:
         super().__init__(parent)
         self.setObjectName("roomPalette")
         self.setAttribute(Qt.WA_StyledBackground, True)
@@ -95,6 +102,9 @@ class RoomPalette(QWidget):
         self._cuartos: list[str] = []
         self._conteos: dict[str, int] = {}
         self._activa = 0
+        self._color_fn = color_fn
+        self._swatch_size = swatch_size
+        self._swatch_radius = swatch_radius
 
         raiz = QVBoxLayout(self)
         raiz.setContentsMargins(0, 0, 0, 0)
@@ -107,7 +117,7 @@ class RoomPalette(QWidget):
         fl.setSpacing(9)
         self.input = QLineEdit()
         self.input.setObjectName("palQuery")
-        self.input.setPlaceholderText("Buscar o crear cuarto…")
+        self.input.setPlaceholderText(placeholder)
         self.input.textChanged.connect(self._al_escribir)
         self.alcance_label = QLabel("")
         self.alcance_label.setObjectName("palScope")
@@ -208,7 +218,7 @@ class RoomPalette(QWidget):
         """Crea las filas que falten. Se reusan entre aperturas: destruirlas
         y rehacerlas en cada tecla haria parpadear la paleta."""
         while len(self.opciones) < cuantas:
-            fila = _Opcion(self._contenido)
+            fila = _Opcion(self._contenido, self._swatch_size, self._swatch_radius)
             # antes del stretch, que va siempre al final para que las filas
             # se apilen arriba en vez de repartirse el alto
             self._layout_de_opciones.insertWidget(
@@ -226,7 +236,7 @@ class RoomPalette(QWidget):
             # en vez de mentir con un numero que no funciona. Son justamente
             # los cuartos por los que esta paleta existe.
             numero = indice + 1 if indice < 9 else None
-            fila.poner(nombre, numero, theme.room_color(indice),
+            fila.poner(nombre, numero, self._color_fn(indice),
                        self._conteos.get(nombre, 0))
             fila.show()
         # El alto de la lista se DECLARA, no se deduce. Un `QScrollArea` da un
