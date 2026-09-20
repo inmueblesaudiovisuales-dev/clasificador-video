@@ -60,6 +60,14 @@ SIN_BIN = "Sin bin"
 # de cuarto, que es justo lo que significa este modo. Ver el spec
 # `2026-08-15-agrupar-o-solo-etiquetar-design.md`.
 SIN_AGRUPAR = ""
+# El bloque migratorio: clips que todavia no tienen unidad asignada,
+# mientras el proyecto YA tiene al menos una unidad. Mismo criterio que
+# `SIN_BIN`/`SIN_CLASIFICAR` -- va arriba porque es cola de trabajo. Un
+# proyecto SIN ninguna unidad no gana este nivel de agrupamiento en
+# absoluto: ahi `_group_of` ni siquiera pone la unidad en la clave (ver
+# `_hay_unidades`), y la hoja se ve exactamente igual que antes de que esto
+# existiera.
+SIN_UNIDAD = "Sin unidad"
 # Las dos posiciones del interruptor, tal como se leen.
 AGRUPADO_POR_CUARTO = "Cuarto"
 AGRUPADO_POR_RODAJE = "Rodaje"
@@ -148,6 +156,11 @@ class ClipThumbnail:
     # insignia del BIN --un conteo, «21/23»-- y ahi no hay forma de saber
     # CUALES son los dos que faltaron.
     tiene_proxy: bool = False
+    # La unidad del clip (departamento/casa), cuando el proyecto las usa.
+    # `None` por dos motivos distintos que se leen igual desde aqui: el
+    # proyecto no tiene unidades, o este clip todavia no tiene una asignada
+    # -- `_group_of` es quien distingue los dos casos.
+    unit_label: str | None = None
 
 
 class _CardOverlay(QWidget):
@@ -1670,15 +1683,17 @@ class _GroupBlock(QWidget):
     que llevar la cuenta de en que fila arranca cada cuarto, y esa
     aritmetica se rompe apenas un grupo se vacia.
 
-    Desde la F4 el grupo es `(bin, cuarto)` --la propuesta A del mockup--
-    pero el bloque solo escribe el CUARTO: el bin ya lo dice su encabezado
-    unas lineas mas arriba, y repetirlo en cada subgrupo seria ruido.
+    Desde la F4 el grupo es `(bin, cuarto)` --la propuesta A del mockup-- y
+    desde esta tarea es `(bin, unidad, cuarto)`, con la unidad en medio.
+    El bloque solo escribe el CUARTO: el bin ya lo dice su encabezado unas
+    lineas mas arriba, la unidad su propio encabezado (`_UnitHeader`) justo
+    encima, y repetirlos en cada subgrupo seria ruido.
     """
 
-    def __init__(self, clave: tuple[str, str], parent=None):
+    def __init__(self, clave: tuple[str, str | None, str], parent=None):
         super().__init__(parent)
         self.titulo = clave
-        self.bin_nombre, self.cuarto = clave
+        self.bin_nombre, self.unidad, self.cuarto = clave
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(GAP)
@@ -1718,6 +1733,46 @@ class _GroupBlock(QWidget):
 
     def set_count(self, cuantos: int) -> None:
         self.count_label.setText(str(cuantos))
+
+
+class _UnitHeader(QWidget):
+    """Encabezado de unidad: va ARRIBA de los bloques de cuarto de esa
+    unidad, DEBAJO del encabezado del bin al que pertenece (una unidad
+    puede tener material en mas de un bin -- la misma casa grabada con la
+    Sony y con el dron).
+
+    Es deliberadamente mas simple que `_BinHeader`: no colapsa, no tiene
+    menu ni renombrado -- eso vive en `UnitPalette`. Solo dice de que
+    unidad se trata, con el mismo swatch cuadrado de 11px y
+    `border-radius: 3px` que usa `UnitPalette` para la misma unidad, para
+    que el color se lea igual en los dos lugares.
+
+    El bloque migratorio «Sin unidad» llega con `color=None` y no dibuja
+    swatch: no hay unidad que pintar, y un color inventado mentiria.
+    """
+
+    def __init__(self, nombre: str, color: str | None, parent=None):
+        super().__init__(parent)
+        self.setObjectName("unitHeader")
+        self.nombre = nombre
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(0, 6, 0, 0)
+        layout.setSpacing(8)
+        if color is not None:
+            self.swatch = QLabel("")
+            self.swatch.setFixedSize(11, 11)
+            self.swatch.setAttribute(Qt.WA_StyledBackground, True)
+            self.swatch.setStyleSheet(
+                f"background-color: {color}; border-radius: 3px;"
+            )
+            layout.addWidget(self.swatch)
+        else:
+            self.swatch = None
+        self.title_label = QLabel(nombre.upper())
+        self.title_label.setObjectName("unitHeaderTitle")
+        theme.apply_letter_spacing(self.title_label)
+        layout.addWidget(self.title_label)
+        layout.addStretch(1)
 
 
 class _Chip(QPushButton):
@@ -1877,7 +1932,7 @@ class ClipSheet(QWidget):
         self._pasos = {False: 0, True: PASO_HOJA}
         self._congelado = False
         self._pincel_activo = False
-        self._blocks: dict[tuple[str, str], _GroupBlock] = {}
+        self._blocks: dict[tuple[str, str | None, str], _GroupBlock] = {}
         # Las ultimas tarjetas que escrubeaste, de la mas vieja a la mas
         # reciente. Son las unicas que conservan su tira de 12 fotos: ver
         # `LIMITE_DE_TIRAS_VIVAS`.
@@ -1892,7 +1947,18 @@ class ClipSheet(QWidget):
         # adivina --se lo dicen, igual que el de los bins-- porque quien
         # decide es Bruno y quien lo guarda es `RoomSelection`.
         self._room_order: list[str] = []
+        # El orden de las unidades del proyecto, igual que `_room_order`
+        # pero un nivel mas arriba. Vacio == proyecto sin unidades: ahi
+        # `_hay_unidades` es `False` y este nivel de agrupamiento no existe
+        # -- ni en la clave de `_group_of` ni en la banda visual.
+        self._unit_order: list[str] = []
+        self._hay_unidades = False
         self._bin_headers: dict[str, _BinHeader] = {}
+        # los encabezados de unidad, uno por (bin, unidad) -- la misma
+        # unidad puede tener material en mas de un bin. Se reconstruyen en
+        # cada `_regroup`, igual que `_blocks`: no cuelgan tarjetas, asi que
+        # tirarlos y rehacerlos no pierde ninguna miniatura ya cargada.
+        self._unit_headers: dict[tuple[str, str], _UnitHeader] = {}
         # el renglon de «bin vacio», uno por bin de verdad. Vive aparte del
         # encabezado y no adentro porque el encabezado tambien se dibuja
         # FLOTANDO (`self._pegado`), y ahi un renglon de invitacion no va.
@@ -2304,8 +2370,12 @@ class ClipSheet(QWidget):
     def count(self) -> int:
         return len(self.item_widgets)
 
-    def group_titles(self) -> list[tuple[str, str]]:
-        """Las claves `(bin, cuarto)` en el orden en que se dibujan."""
+    def group_titles(self) -> list[tuple[str, str | None, str]]:
+        """Las claves `(bin, unidad, cuarto)` en el orden en que se dibujan.
+
+        `unidad` es `None` en un proyecto sin unidades -- es decir, siempre,
+        hasta que alguien llame `set_unit_order` con algo adentro.
+        """
         return [b.titulo for b in self._ordered_blocks()]
 
     def set_bin_order(self, nombres: list[str]) -> None:
@@ -2338,6 +2408,21 @@ class ClipSheet(QWidget):
         if list(nombres) == self._room_order:
             return
         self._room_order = list(nombres)
+        self._firma = None
+        self._regroup()
+
+    def set_unit_order(self, units: list[str]) -> None:
+        """El orden de unidades del proyecto, hermano de `set_room_order`.
+
+        Vacio == proyecto sin unidades: ahi `_group_of` no agrega el nivel
+        de unidad y todo se comporta exactamente como antes de que esto
+        existiera -- ni banda visual, ni «Sin unidad», ni cambio en la
+        clave de agrupamiento.
+        """
+        if list(units) == self._unit_order:
+            return
+        self._unit_order = list(units)
+        self._hay_unidades = bool(units)
         self._firma = None
         self._regroup()
 
@@ -2595,7 +2680,7 @@ class ClipSheet(QWidget):
         for i, card in enumerate(self.item_widgets):
             card.setVisible(self._se_dibuja(i))
 
-    def _group_of(self, clip: ClipThumbnail) -> tuple[str, str]:
+    def _group_of(self, clip: ClipThumbnail) -> tuple[str, str | None, str]:
         """La seccion en la que cae la tarjeta.
 
         Un clip suelto llega con `bin_nombre` vacio --asi lo representa el
@@ -2610,10 +2695,18 @@ class ClipSheet(QWidget):
         tarjetas en el orden de `item_widgets` --que es el de rodaje-- y
         `⌘A` seleccionando el bin entero, porque «el grupo donde estas» pasa
         a ser el bin.
+
+        La unidad va en medio, entre bin y cuarto. `None` --y no
+        `SIN_UNIDAD`-- cuando el proyecto no tiene ninguna unidad: ahi este
+        nivel de agrupamiento no existe, ni siquiera como bloque migratorio,
+        y la hoja se ve exactamente igual que antes de que esto existiera.
         """
         cuarto = (clip.room_label or SIN_CLASIFICAR) if self._agrupar_por_cuarto \
             else SIN_AGRUPAR
-        return (clip.bin_nombre or SIN_BIN, cuarto)
+        unidad = None
+        if self._hay_unidades:
+            unidad = clip.unit_label or SIN_UNIDAD
+        return (clip.bin_nombre or SIN_BIN, unidad, cuarto)
 
     def agrupar_por_cuarto(self) -> bool:
         return self._agrupar_por_cuarto
@@ -2673,19 +2766,33 @@ class ClipSheet(QWidget):
             w for w in self._widgets_del_contenido() if isinstance(w, _GroupBlock)
         ]
 
-    def _orden_de_grupo(self, clave: tuple[str, str]) -> tuple:
-        """Primero el bin --por su posicion de importacion-- y adentro los
-        cuartos, con «Sin clasificar» arriba porque es la cola de trabajo."""
-        bin_nombre, cuarto = clave
+    def _orden_de_grupo(self, clave: tuple[str, str | None, str]) -> tuple:
+        """Bin primero --por su posicion de importacion--, unidad despues
+        --por el orden de la paleta de unidades, «Sin unidad» arriba porque
+        es la cola de trabajo de la migracion-- y adentro los cuartos, con
+        «Sin clasificar» arriba porque es la cola de trabajo."""
+        bin_nombre, unidad, cuarto = clave
         if bin_nombre == SIN_BIN:
             # los sueltos van ARRIBA de todo, por el mismo motivo que «Sin
             # clasificar» va arriba dentro de un bin: es lo que falta
             # acomodar, y al final de una columna larga no se ve
-            pos = -1
+            pos_bin = -1
         elif bin_nombre in self._bin_order:
-            pos = self._bin_order.index(bin_nombre)
+            pos_bin = self._bin_order.index(bin_nombre)
         else:
-            pos = len(self._bin_order)
+            pos_bin = len(self._bin_order)
+
+        if unidad is None:
+            # proyecto sin unidades: no hay nivel que ordenar
+            pos_unidad = -1
+        elif unidad == SIN_UNIDAD:
+            # el bloque migratorio va arriba, antes que las unidades reales
+            pos_unidad = -1
+        elif unidad in self._unit_order:
+            pos_unidad = self._unit_order.index(unidad) + 1
+        else:
+            pos_unidad = len(self._unit_order) + 1
+
         # Los cuartos van EN EL ORDEN DEL RAIL. Antes esto ordenaba por el
         # NOMBRE --o sea por abecedario-- y contradecia al rail: subir un
         # cuarto alla no movia un pixel aqui, y el numero de la tecla, que
@@ -2698,10 +2805,11 @@ class ClipSheet(QWidget):
         # llegaron.
         pos_cuarto = (self._room_order.index(cuarto)
                       if cuarto in self._room_order else len(self._room_order))
-        return (pos, bin_nombre, cuarto != SIN_CLASIFICAR, pos_cuarto, cuarto)
+        return (pos_bin, bin_nombre, pos_unidad, unidad, cuarto != SIN_CLASIFICAR,
+                pos_cuarto, cuarto)
 
     def _regroup(self) -> None:
-        titulos: list[tuple[str, str]] = []
+        titulos: list[tuple[str, str | None, str]] = []
         for card in self.item_widgets:
             titulo = self._group_of(card.clip)
             if titulo not in titulos:
@@ -2732,6 +2840,7 @@ class ClipSheet(QWidget):
 
         bins_presentes = self._bins_presentes(titulos)
         self._sincronizar_encabezados(bins_presentes)
+        self._sincronizar_encabezados_de_unidad(titulos)
 
         while self._content_layout.count():
             self._content_layout.takeAt(0)
@@ -2747,16 +2856,27 @@ class ClipSheet(QWidget):
             renglon = self._renglones_vacios.get(bin_nombre)
             if renglon is not None:
                 self._content_layout.addWidget(renglon)
+            # la unidad DECIDE que centinela nunca es igual a una unidad
+            # real, ni siquiera `None`: asi el primer titulo del bin siempre
+            # dispara su propio encabezado de unidad.
+            unidad_pintada = ...
             for titulo in titulos:
-                if titulo[0] == bin_nombre:
-                    self._content_layout.addWidget(self._blocks[titulo])
+                if titulo[0] != bin_nombre:
+                    continue
+                unidad = titulo[1]
+                if self._hay_unidades and unidad != unidad_pintada:
+                    self._content_layout.addWidget(
+                        self._unit_headers[(bin_nombre, unidad)]
+                    )
+                    unidad_pintada = unidad
+                self._content_layout.addWidget(self._blocks[titulo])
         # al final de todo y escondida: solo se muestra mientras hay un
         # arrastre encima (ver `_marcar_zona`). Se re-agrega aqui porque este
         # bucle vacia el layout entero en cada reagrupada.
         self._content_layout.addWidget(self._zona_nueva)
         self._refrescar_encabezados()
 
-    def _bins_presentes(self, titulos: list[tuple[str, str]]) -> list[str]:
+    def _bins_presentes(self, titulos: list[tuple[str, str | None, str]]) -> list[str]:
         """Que secciones llevan encabezado, y en que orden.
 
         Los bins los DECLARA quien llama, con `set_bin_order`; no se deducen
@@ -2774,7 +2894,7 @@ class ClipSheet(QWidget):
           y refrescar el orden; sin esto sus tarjetas se quedarian sin
           encabezado y sin bloque, o sea invisibles.
         """
-        con_clips = list(dict.fromkeys(b for b, _ in titulos))
+        con_clips = list(dict.fromkeys(b for b, _, _ in titulos))
         presentes = [SIN_BIN] if SIN_BIN in con_clips else []
         presentes += list(self._bin_order)
         presentes += [b for b in con_clips if b not in presentes]
@@ -2782,6 +2902,44 @@ class ClipSheet(QWidget):
         # y colocar dos veces el mismo encabezado lo movería de lugar en la
         # segunda pasada en vez de dibujarlo dos veces.
         return list(dict.fromkeys(presentes))
+
+    def _color_de_unidad(self, unidad: str) -> str | None:
+        """El color del swatch de una unidad, o `None` para no dibujarlo.
+
+        Sin swatch en dos casos: el bloque migratorio «Sin unidad» --no hay
+        unidad que pintar-- y una unidad que todavia no esta en el orden
+        declarado --pasa en el instante entre agregar material nuevo y que
+        `set_unit_order` se entere, igual que con los bins-- porque ahi el
+        indice de color no significa nada todavia.
+        """
+        if unidad == SIN_UNIDAD or unidad not in self._unit_order:
+            return None
+        return theme.unit_color(self._unit_order.index(unidad))
+
+    def _sincronizar_encabezados_de_unidad(
+        self, titulos: list[tuple[str, str | None, str]]
+    ) -> None:
+        """Crea el encabezado de cada (bin, unidad) presente y tira los que
+        ya no lo estan. Mismo criterio que `_sincronizar_encabezados`, pero
+        mas simple: un `_UnitHeader` no cuelga tarjetas ni conserva estado
+        propio --ni colapso, ni menu-- asi que no hace falta preservar nada
+        entre reagrupadas mas alla del widget mismo.
+        """
+        presentes: list[tuple[str, str]] = []
+        if self._hay_unidades:
+            for bin_nombre, unidad, _ in titulos:
+                clave = (bin_nombre, unidad)
+                if clave not in presentes:
+                    presentes.append(clave)
+        for clave in presentes:
+            if clave not in self._unit_headers:
+                _, unidad = clave
+                self._unit_headers[clave] = _UnitHeader(
+                    unidad, self._color_de_unidad(unidad)
+                )
+        for clave in list(self._unit_headers):
+            if clave not in presentes:
+                self._desechar(self._unit_headers.pop(clave))
 
     def _sincronizar_encabezados(self, presentes: list[str]) -> None:
         """Crea el encabezado de cada seccion presente y tira el de las que

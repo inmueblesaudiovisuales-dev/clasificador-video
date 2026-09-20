@@ -160,13 +160,13 @@ def test_update_clips_preserva_la_miniatura_si_no_cambio_nada(qtbot):
 
 def test_los_clips_se_agrupan_por_cuarto(qtbot):
     sheet = _sheet(qtbot, [_clip(0, "Sala"), _clip(1, "Cocina"), _clip(2, "Sala")])
-    assert set(sheet.group_titles()) == {(SIN_BIN, "Sala"), (SIN_BIN, "Cocina")}
+    assert set(sheet.group_titles()) == {(SIN_BIN, None, "Sala"), (SIN_BIN, None, "Cocina")}
 
 
 def test_los_sin_clasificar_van_primero(qtbot):
     """Es la cola de trabajo: lo que falta va arriba."""
     sheet = _sheet(qtbot, [_clip(0, "Sala"), _clip(1, None)])
-    assert sheet.group_titles()[0] == (SIN_BIN, SIN_CLASIFICAR)
+    assert sheet.group_titles()[0] == (SIN_BIN, None, SIN_CLASIFICAR)
 
 
 def test_un_grupo_que_se_vacia_desaparece(qtbot):
@@ -175,7 +175,7 @@ def test_un_grupo_que_se_vacia_desaparece(qtbot):
     assert len(sheet.group_titles()) == 2
     clips[0] = _clip(0, "Cocina")
     sheet.update_clips(clips)
-    assert sheet.group_titles() == [(SIN_BIN, "Cocina")]
+    assert sheet.group_titles() == [(SIN_BIN, None, "Cocina")]
 
 
 def test_el_encabezado_de_grupo_lleva_su_conteo(qtbot):
@@ -683,7 +683,7 @@ def test_un_cambio_de_grupo_si_recoloca(qtbot):
     sheet._relayout()
     clips[0] = _clip(0, "Cocina")
     sheet.update_clips(clips)
-    assert set(sheet.group_titles()) == {(SIN_BIN, "Sala"), (SIN_BIN, "Cocina")}
+    assert set(sheet.group_titles()) == {(SIN_BIN, None, "Sala"), (SIN_BIN, None, "Cocina")}
 
 
 def test_esconder_por_filtro_si_recoloca(qtbot):
@@ -1378,7 +1378,7 @@ def test_los_bins_van_en_orden_de_importacion_y_los_cuartos_adentro(qtbot):
     ])
 
     assert hoja.group_titles() == [
-        ("Sony", SIN_CLASIFICAR), ("Sony", "Cocina"), ("Dron", "Exteriores"),
+        ("Sony", None, SIN_CLASIFICAR), ("Sony", None, "Cocina"), ("Dron", None, "Exteriores"),
     ]
 
 
@@ -1390,7 +1390,7 @@ def test_un_clip_sin_bin_cae_en_uno_solo_y_no_revienta(qtbot):
     qtbot.addWidget(hoja)
     hoja.set_clips([_thumb(0, room_label="Cocina")])
 
-    assert hoja.group_titles() == [(SIN_BIN, "Cocina")]
+    assert hoja.group_titles() == [(SIN_BIN, None, "Cocina")]
 
 
 def test_un_bin_que_no_esta_en_el_orden_va_al_final(qtbot):
@@ -1409,7 +1409,7 @@ def test_un_bin_que_no_esta_en_el_orden_va_al_final(qtbot):
         _thumb(1, bin_nombre="Sony", room_label="Cocina"),
     ])
 
-    assert hoja.group_titles() == [("Sony", "Cocina"), ("Recien llegado", "Cocina")]
+    assert hoja.group_titles() == [("Sony", None, "Cocina"), ("Recien llegado", None, "Cocina")]
     assert hoja.bin_headers() == ["Sony", "Recien llegado"]
 
 
@@ -1424,7 +1424,7 @@ def test_el_mismo_cuarto_en_dos_bins_son_dos_bloques(qtbot):
         _thumb(1, bin_nombre="Dron", room_label="Cocina"),
     ])
 
-    assert hoja.group_titles() == [("Sony", "Cocina"), ("Dron", "Cocina")]
+    assert hoja.group_titles() == [("Sony", None, "Cocina"), ("Dron", None, "Cocina")]
 
 
 def test_el_bloque_de_cuarto_solo_muestra_el_cuarto(qtbot):
@@ -1472,7 +1472,7 @@ def test_el_encabezado_va_antes_que_los_bloques_de_su_bin(qtbot):
         for w in hoja._widgets_del_contenido()
         if hasattr(w, "nombre") or hasattr(w, "titulo")
     ]
-    assert orden == ["Sony", ("Sony", "Cocina"), "Dron", ("Dron", "Exteriores")]
+    assert orden == ["Sony", ("Sony", None, "Cocina"), "Dron", ("Dron", None, "Exteriores")]
 
 
 def test_el_encabezado_dice_cuantos_clips_tiene_su_bin(qtbot):
@@ -2209,7 +2209,7 @@ def test_el_bloque_de_grupo_que_se_vacia_tampoco(qtbot):
     qtbot.addWidget(hoja)
     hoja.set_clips([_thumb(0, room_label="Cocina")])
     destruido = []
-    hoja._blocks[(SIN_BIN, "Cocina")].destroyed.connect(lambda *_: destruido.append(1))
+    hoja._blocks[(SIN_BIN, None, "Cocina")].destroyed.connect(lambda *_: destruido.append(1))
 
     hoja.set_clips([_thumb(0, room_label="Baño")])
 
@@ -2717,7 +2717,7 @@ def test_por_omision_la_hoja_agrupa_por_cuarto(qtbot):
     hoja = _sheet(qtbot, [_clip(0, "Cocina"), _clip(1, "Sala")])
 
     assert hoja.agrupar_por_cuarto() is True
-    assert hoja.group_titles() == [("Sin bin", "Cocina"), ("Sin bin", "Sala")]
+    assert hoja.group_titles() == [("Sin bin", None, "Cocina"), ("Sin bin", None, "Sala")]
 
 
 def test_sin_agrupar_queda_una_sola_grilla_por_bin(qtbot):
@@ -2726,7 +2726,7 @@ def test_sin_agrupar_queda_una_sola_grilla_por_bin(qtbot):
 
     hoja.set_agrupar_por_cuarto(False)
 
-    assert [b for b, _ in hoja.group_titles()] == ["Sin bin"]
+    assert [b for b, _, _ in hoja.group_titles()] == ["Sin bin"]
     assert len(hoja.group_titles()) == 1
 
 
@@ -2766,7 +2766,7 @@ def test_sin_agrupar_el_bin_sigue_partiendo_la_hoja(qtbot):
 
     hoja.set_agrupar_por_cuarto(False)
 
-    assert sorted(b for b, _ in hoja.group_titles()) == ["Dron", "Sony"]
+    assert sorted(b for b, _, _ in hoja.group_titles()) == ["Dron", "Sony"]
 
 
 def test_sin_agrupar_cmd_a_selecciona_el_bin_entero(qtbot):
@@ -2828,7 +2828,7 @@ def test_el_orden_visual_sigue_al_dibujado_y_no_al_de_creacion(qtbot):
     hoja = _sheet(qtbot, [_clip(1, "Sala"), _clip(2, "Sala")])
     hoja.update_clips([_clip(1, "Sala"), _clip(2, "Cocina")])
 
-    assert hoja.group_titles() == [(SIN_BIN, "Cocina"), (SIN_BIN, "Sala")]
+    assert hoja.group_titles() == [(SIN_BIN, None, "Cocina"), (SIN_BIN, None, "Sala")]
     assert hoja.orden_visual() == [2, 1]
 
 

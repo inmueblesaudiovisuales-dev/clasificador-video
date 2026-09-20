@@ -5735,6 +5735,7 @@ class MainWindow(QWidget):
                 aspect_ratio=self.aspect_ratio_for(index),
                 bin_nombre=bin_de.get(index, ""),
                 tiene_proxy=clip.ruta_proxy is not None,
+                unit_label=self._unidad_de(clip.categoria_path),
             )
             for index, clip in enumerate(self.clips)
         ]
@@ -5745,6 +5746,7 @@ class MainWindow(QWidget):
         # el MISMO orden que el rail: las dos listas no pueden decir cosas
         # distintas (ver `_orden_de_grupo`)
         self.clip_sheet.set_room_order(self.room_selection.active_rooms())
+        self.clip_sheet.set_unit_order(self.unit_selection.active_rooms())
         if force_rebuild:
             self.clip_sheet.set_clips(thumbs)
         elif len(thumbs) > self.clip_sheet.count():
