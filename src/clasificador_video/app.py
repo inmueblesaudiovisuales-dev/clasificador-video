@@ -558,7 +558,15 @@ class Coordinador(QObject):
         except Exception:
             self.inicio.avisar("No se pudo conectar con Google Drive.")
             return
-        resultado = drive.revisar_y_persistir(ruta, cliente)
+        try:
+            resultado = drive.revisar_y_persistir(ruta, cliente)
+        except Exception as e:
+            # Sin esto, un fallo de red o un token vencido a media revision
+            # no decia nada: el click en «⟳» no hacia nada visible, y asi es
+            # como Bruno lo vivia -- «no hay un aviso de que fallo, solo no
+            # se hace».
+            self.inicio.avisar(f"No se pudo revisar Drive: {e}")
+            return
         if resultado is not None and (resultado.hay_cambios or resultado.tiene_material_nuevo):
             self._refrescar()
 
@@ -590,7 +598,11 @@ class Coordinador(QObject):
         cliente = self._cliente_de_drive_o_avisar()
         if cliente is None:
             return
-        resultado = drive.revisar_y_persistir(ruta_cvproj, cliente)
+        try:
+            resultado = drive.revisar_y_persistir(ruta_cvproj, cliente)
+        except Exception as e:
+            self.inicio.avisar(f"No se pudo revisar Drive: {e}")
+            return
         if resultado is None:
             return
         nombre = str(data.get("proyecto") or ruta_cvproj.stem)

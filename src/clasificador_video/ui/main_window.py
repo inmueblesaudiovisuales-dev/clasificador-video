@@ -3078,7 +3078,23 @@ class MainWindow(QWidget):
         self.title_bar.set_estado_de_entrega(estado, cuando or "")
 
     def _cliente_de_drive(self):
-        """Cliente ya autorizado e inyectado; nunca abre OAuth desde aquí."""
+        """Cliente ya autorizado. Nunca abre OAuth en el navegador desde
+        aquí -- eso solo pasa desde el botón de Configuración.
+
+        Pero SÍ reusa el permiso ya guardado en disco si esta ventana
+        todavía no lo cargó: cada ventana nueva nacía con `_drive_cliente`
+        en `None`, y la única forma de llenarlo era entrar a Configuración
+        y apretar «Conectar» -- aunque el permiso siguiera ahí de una
+        sesión anterior. Bruno lo vivía como «Drive se desconecta cada vez
+        que cierro la app». `cliente_autorizado` con un token válido no
+        toca la red ni abre nada: solo lee el archivo guardado.
+        """
+        if self._drive_cliente is None and drive.hay_token_guardado():
+            try:
+                self._drive_cliente = drive.cliente_autorizado(
+                    Path.home() / ".clasificador_video" / "credenciales_google.json")
+            except Exception:
+                pass  # sigue en None; el mensaje de abajo lo explica
         if self._drive_cliente is None:
             raise RuntimeError("Conecta Google Drive desde Configuración antes de subir.")
         return self._drive_cliente
@@ -3132,7 +3148,15 @@ class MainWindow(QWidget):
         que ya tienen uno generado -- sin filtrar por pick/reject: el
         editor externo corta con el material completo, no solo lo que
         Bruno ya filtró."""
-        cliente = self._cliente_de_drive()
+        try:
+            cliente = self._cliente_de_drive()
+        except Exception as e:
+            # Sin esto, no tener Drive conectado en esta ventana tumbaba
+            # el boton en silencio: el mensaje de `_cliente_de_drive` ya
+            # decia exactamente que hacer, pero nadie lo atrapaba para
+            # enseñarselo a Bruno.
+            QMessageBox.warning(self, "Subir a Drive", str(e))
+            return
         proxies = [clip.ruta_proxy for clip in self.clips if clip.ruta_proxy is not None]
         carpeta_existente = self._entrega.drive_folder_id if self._entrega is not None else None
         self._prproj_subiendo = prproj

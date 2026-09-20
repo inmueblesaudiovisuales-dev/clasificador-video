@@ -212,6 +212,52 @@ def test_error_de_subida_rehabilita_el_boton(ventana, monkeypatch):
 
     assert ventana.title_bar.subir_button.isEnabled()
     assert "Subiendo" not in ventana.title_bar.subir_button.text()
+
+
+def test_cliente_de_drive_reusa_el_token_guardado_sin_ir_a_configuracion(
+        ventana, monkeypatch):
+    """Antes, una ventana nueva nacía con `_drive_cliente` en `None` y solo
+    se llenaba pasando por Configuración -- aunque el permiso ya estuviera
+    guardado de una sesión anterior. Bruno lo vivía como «Drive se
+    desconecta cada vez que cierro la app»."""
+    from clasificador_video import drive
+
+    cliente = object()
+    monkeypatch.setattr(drive, "hay_token_guardado", lambda: True)
+    monkeypatch.setattr(drive, "cliente_autorizado", lambda ruta: cliente)
+
+    assert ventana._cliente_de_drive() is cliente
+    assert ventana._drive_cliente is cliente
+
+
+def test_cliente_de_drive_sin_token_guardado_sigue_pidiendo_conectar(
+        ventana, monkeypatch):
+    from clasificador_video import drive
+
+    monkeypatch.setattr(drive, "hay_token_guardado", lambda: False)
+
+    with pytest.raises(RuntimeError):
+        ventana._cliente_de_drive()
+
+
+def test_subir_a_drive_sin_conexion_avisa_en_vez_de_no_hacer_nada(
+        ventana, tmp_path, monkeypatch):
+    """El bug que Bruno reportó: sin Drive conectado, el botón «Subir» no
+    hacía nada visible -- `_cliente_de_drive` ya traía el mensaje correcto,
+    pero nadie lo atrapaba para enseñárselo."""
+    from clasificador_video import drive
+
+    monkeypatch.setattr(drive, "hay_token_guardado", lambda: False)
+    avisos = []
+    monkeypatch.setattr(QMessageBox, "warning",
+                        lambda self, titulo, texto: avisos.append(texto))
+    trabajos = []
+    monkeypatch.setattr(ventana._drive_pool, "start", trabajos.append)
+
+    ventana._subir_a_drive(tmp_path / "Casa Reforma.prproj")
+
+    assert avisos == ["Conecta Google Drive desde Configuración antes de subir."]
+    assert trabajos == []
     assert avisos
 
 

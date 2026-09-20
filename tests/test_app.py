@@ -492,6 +492,29 @@ def test_refrescar_pedido_sin_token_avisa_sin_intentar_conectarse(
     assert avisos == ["Conecta Google Drive desde Configuración antes de revisar."]
 
 
+def test_refrescar_pedido_con_drive_caido_a_medias_lo_avisa(qtbot, tmp_path, monkeypatch):
+    """El bug que Bruno reportó: si Drive fallaba DESPUÉS de conectarse --
+    red caída, token vencido a medio camino-- el «⟳» de la fila no hacía
+    nada visible. `revisar_y_persistir` no estaba dentro de ningún
+    try/except."""
+    from clasificador_video import drive
+
+    coord = _coordinador(tmp_path)
+    qtbot.addWidget(coord.inicio)
+    ruta = _proyecto_en(tmp_path)
+    avisos = []
+    monkeypatch.setattr(drive, "hay_token_guardado", lambda: True)
+    monkeypatch.setattr(drive, "cliente_autorizado", lambda credenciales: object())
+    def _revienta(ruta_recibida, cliente_recibido):
+        raise RuntimeError("red caída")
+    monkeypatch.setattr(drive, "revisar_y_persistir", _revienta)
+    monkeypatch.setattr(coord.inicio, "avisar", avisos.append)
+
+    coord.inicio.refrescar_pedido.emit(ruta)
+
+    assert avisos == ["No se pudo revisar Drive: red caída"]
+
+
 def test_ya_entregado_pedido_cierra_la_entrega_y_refresca(qtbot, tmp_path, monkeypatch):
     from clasificador_video.entrega import EstadoEntrega
 
@@ -609,6 +632,30 @@ def test_traer_de_vuelta_activo_sin_token_avisa_sin_conectar(qtbot, tmp_path, mo
     coord.inicio.traer_de_vuelta_pedido.emit(ruta)
 
     assert avisos == ["Conecta Google Drive desde Configuración antes de continuar."]
+
+
+def test_traer_de_vuelta_activo_con_drive_caido_a_medias_lo_avisa(
+        qtbot, tmp_path, monkeypatch):
+    """Mismo bug que el «⟳» de refrescar, en «Traer de vuelta»:
+    `revisar_y_persistir` tampoco estaba protegido aquí."""
+    from clasificador_video import drive
+    from clasificador_video.entrega import EstadoEntrega
+
+    coord = _coordinador(tmp_path)
+    qtbot.addWidget(coord.inicio)
+    ruta = _proyecto_en(tmp_path, extra={"entrega": EstadoEntrega(
+        EstadoEntrega.CON_EDITOR, drive_folder_id="folder-x").to_dict()})
+    monkeypatch.setattr(drive, "hay_token_guardado", lambda: True)
+    monkeypatch.setattr(drive, "cliente_autorizado", lambda credenciales: object())
+    def _revienta(ruta_recibida, cliente_recibido):
+        raise RuntimeError("red caída")
+    monkeypatch.setattr(drive, "revisar_y_persistir", _revienta)
+    avisos = []
+    monkeypatch.setattr(coord.inicio, "avisar", avisos.append)
+
+    coord.inicio.traer_de_vuelta_pedido.emit(ruta)
+
+    assert avisos == ["No se pudo revisar Drive: red caída"]
 
 
 def test_abrir_desde_la_pantalla_esconde_la_pantalla(qtbot, tmp_path):
