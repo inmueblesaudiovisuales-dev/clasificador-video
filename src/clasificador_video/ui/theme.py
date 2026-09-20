@@ -689,41 +689,19 @@ def build_stylesheet() -> str:
         border: 1px solid {LINE};
         border-radius: 10px;
     }}
-    QLabel#guiaTitulo {{
-        color: {TEXT};
-        font-size: 14px;
-        font-weight: 600;
-    }}
-    QTextEdit#guiaLucir, QTextEdit#guiaResultado {{
-        background-color: {BG_SURFACE_1};
-        border: 1px solid {LINE};
-        border-radius: 6px;
-        color: {TEXT};
-        padding: 8px;
-    }}
-    QLabel#guiaAvisos {{
-        color: {CURRENT_COLOR};
-    }}
-    QPushButton#guiaArmar, QPushButton#guiaUsar,
-    QPushButton#guiaCerrar {{
+    QWidget#guiaChip {{
         background-color: {BG_SURFACE_2};
         border: 1px solid {LINE};
         border-radius: 6px;
-        color: {TEXT};
-        padding: 6px 14px;
     }}
-    QPushButton#guiaArmar:hover, QPushButton#guiaUsar:hover,
-    QPushButton#guiaCerrar:hover {{
-        background-color: {LINE};
-    }}
-    /* «Usar este orden» antes de que haya una guia. Sin esta regla se veia
-       igual que el otro boton -- se leia como si ya pudieras apretarlo, y
-       eso es una promesa que la pantalla no cumple. */
-    QPushButton#guiaArmar:disabled, QPushButton#guiaUsar:disabled,
-    QPushButton#guiaCerrar:disabled {{
-        background-color: {BG_SURFACE_0};
-        border-color: {LINE_SOFT};
+    QWidget#guiaChip QPushButton {{
+        background: transparent;
+        border: none;
         color: {TEXT_3};
+        padding: 0px;
+    }}
+    QWidget#guiaChip QPushButton:hover {{
+        color: {TEXT};
     }}
 
     QWidget#statusBar {{

@@ -110,6 +110,14 @@ class PantallaGuia(QWidget):
     clasificacion_pedida = Signal(); orden_aceptado = Signal(list); cerrada = Signal()
     def __init__(self, parent=None):
         super().__init__(parent); self.setObjectName("pantallaGuia"); self._cuartos_reales=[]; self._armando=False
+        # `VideoWidget` es un QOpenGLWidget: Qt lo compone en una capa aparte
+        # y `raise_()` NO alcanza para taparlo -- sin este atributo, la
+        # pantalla se abre pero el video (o su fondo negro) se sigue viendo
+        # encima de todo, y eso es lo que se veia como "un cuadro negro".
+        # `WA_AlwaysStackOnTop` es el mecanismo que Qt da para overlays
+        # sobre un QOpenGLWidget; sin el, ni el orden en el arbol de
+        # widgets ni `raise_()` cambian nada.
+        self.setAttribute(Qt.WidgetAttribute.WA_AlwaysStackOnTop)
         raiz=QVBoxLayout(self); cab=QHBoxLayout(); cab.addWidget(QLabel("Guía de edición")); cab.addStretch()
         cerrar=QPushButton("Cerrar"); cerrar.clicked.connect(self.cerrada); cab.addWidget(cerrar); raiz.addLayout(cab)
         self.aviso_label=QLabel(); self.aviso_label.setWordWrap(True); raiz.addWidget(self.aviso_label)
