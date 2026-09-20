@@ -102,34 +102,39 @@ de este punto. **No asumir una respuesta** la próxima vez que se retome —
 volver a preguntar, puede que haya cambiado de opinión sobre el alcance o
 directamente ya no lo quiera.
 
-## Sin empezar todavía
+## Resuelto el 2026-09-20 (retomando esta misma lista, uno por uno)
 
-Quedan, en el orden original:
+5. **Punto 6** — las miniaturas se regeneraban al reabrir el proyecto.
+   Causa real: `_schedule_thumbnails` sacaba la fuente de
+   `_proxy_candidatos` (vacío al reabrir — `load_clips` lo limpia y nada
+   lo vuelve a llenar solo) y nunca miraba `clip.ruta_proxy`, que sí llega
+   restaurado y ya validado del `.cvproj`. Caía al original en 4K cada vez
+   — cache-miss seguro contra el cache que había generado el proxy la
+   sesión anterior. Ahora mira `clip.ruta_proxy` primero.
+6. **Punto 9** — no daba el enlace al subir a Drive. El link ya se
+   guardaba en `self._entrega` (y en el `.cvproj`) pero nunca se le
+   enseñaba a Bruno. Ahora `_on_drive_subida_lista` lo copia al
+   portapapeles y avisa con un `QMessageBox`.
+7. **Punto 8** — modo rápido. SÍ necesitó brainstorm, como se esperaba:
+   salió que Bruno estaba confundido sobre qué hace modo económico hoy
+   (ya saca miniaturas chicas y pocas — lo que lo hace *lento* es un
+   freno de paralelismo aparte, pensado para una Mac chica). Se diseñó
+   como un interruptor independiente que comparte el tamaño/cantidad de
+   económico pero nunca frena, con precedencia sobre económico si los dos
+   están marcados. Spec:
+   `specs/2026-09-20-modo-rapido-de-miniaturas-design.md`.
+8. **Punto 10** — subir recursos a Drive. También necesitó spec: se
+   definió una carpeta nueva `Recursos/<categoría>/`, separada de
+   `material nuevo/` (que sigue siendo exclusiva de lo que el editor
+   manda de vuelta), reusando el mismo mapa de categorías que ya existía
+   para la traída, en sentido inverso. Spec:
+   `specs/2026-09-20-subir-recursos-a-drive-design.md`.
 
-- **Punto 6** — las miniaturas se regeneran cada vez que se abre el proyecto
-  de nuevo. Sin investigar. Sospecha inicial: revisar el cache de miniaturas
-  (`thumbnail_cache_root`, ver `docs/superpowers/archive/RESULTADO-2026-09-13-ram-y-cpu-en-reposo.md`
-  para el diseño de ese cache) — puede ser que la clave de cache no esté
-  encontrando lo que ya generó una sesión anterior, o que se esté invalidando
-  de más.
-- **Punto 8** — modo rápido: combinar el modo económico con generar menos
-  miniaturas. Esto es una FEATURE nueva, no un bug — según `CLAUDE.md` hace
-  falta brainstorm (`superpowers:brainstorming`) antes de construir nada,
-  salvo que ya exista un spec escrito que lo cubra (revisar
-  `docs/superpowers/specs/` primero, por si ya se habló de esto).
-- **Punto 9** — no da el enlace al subir a Drive. Sin investigar. Revisar
-  `_on_drive_subida_lista` en `main_window.py` y qué hace con
-  `resultado.folder_link` — puede que se guarde pero no se muestre en ningún
-  lado, o que la barra de progreso reemplace el aviso antes de que se vea.
-- **Punto 10** — subir carpetas de recursos (música, etc.) a Drive. También
-  toca decisión de diseño: `drive.py::subir_paquete` hoy solo sube el
-  `.prproj` y la lista de proxies — agregar carpetas de recursos es una
-  feature nueva. Revisar si ya se habló de esto en algún spec antes de
-  inventar la estructura.
+Los cuatro con pruebas nuevas (TDD) y la suite completa corrida en verde
+después de cada uno.
 
-## Cómo retomar
+## Estado: los diez puntos de la tanda quedaron resueltos
 
-Preguntarle a Bruno cuál sigue (mismo patrón que toda la sesión: uno por uno,
-avisando antes de actuar cuando algo no es obvio). Los puntos 8 y 10 son
-features y necesitan brainstorm o un spec ya escrito antes de construir nada
-— no tratarlos como bugs de una línea.
+No queda nada pendiente de esta lista. Si sale algo más del uso real,
+es una tanda nueva — no reabrir esta a menos que alguno de los cuatro
+de arriba resulte estar mal resuelto.
