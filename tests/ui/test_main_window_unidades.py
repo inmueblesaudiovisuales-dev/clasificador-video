@@ -2,9 +2,11 @@
 posicion fija. Sin unidad es [cuarto]; con unidad es [unidad, cuarto] --
 nunca hay un tercer nivel, los subcuartos murieron en la F3."""
 import json
+from pathlib import Path
 
 import pytest
 
+from clasificador_video.manifest import Clip
 from clasificador_video.rooms import RoomSelection
 from clasificador_video.ui.main_window import MainWindow
 
@@ -132,3 +134,27 @@ def test_on_enter_ofrece_solo_los_cuartos_de_la_unidad_activa(main_window):
     main_window.room_selection.add("Cocina A")
     main_window._on_enter()
     assert main_window.room_palette.opciones_visibles() == ["Cocina A"]
+
+
+def test_asignar_cuarto_sin_unidad_activa_no_cambia(main_window):
+    main_window.load_clips([Clip(orden=1, ruta=Path("/a.MP4"), categoria_path=[], fps=30.0)])
+    main_window._asignar_cuarto(["Cocina"])
+    assert main_window.clips[0].categoria_path == ["Cocina"]
+
+
+def test_asignar_cuarto_con_unidad_activa_prefija_la_unidad(main_window):
+    main_window.load_clips([Clip(orden=1, ruta=Path("/a.MP4"), categoria_path=[], fps=30.0)])
+    main_window.unit_selection.add("Casa A")
+    main_window._activar_unidad("Casa A")
+    main_window._asignar_cuarto(["Cocina"])
+    assert main_window.clips[0].categoria_path == ["Casa A", "Cocina"]
+
+
+def test_ultimo_cuarto_usado_no_lleva_la_unidad(main_window):
+    # _ultimo_cuarto_usado es el nombre del CUARTO -- lo que S vuelve a
+    # ofrecer -- no el categoria_path completo
+    main_window.load_clips([Clip(orden=1, ruta=Path("/a.MP4"), categoria_path=[], fps=30.0)])
+    main_window.unit_selection.add("Casa A")
+    main_window._activar_unidad("Casa A")
+    main_window._asignar_cuarto(["Cocina"])
+    assert main_window._ultimo_cuarto_usado == "Cocina"

@@ -1606,6 +1606,11 @@ class MainWindow(QWidget):
 
         Con dos caminos, `S` seria una asignacion de segunda: no registraria
         en el historial, o no avanzaria, y eso no se ve hasta usarla.
+
+        Con una unidad activa, el `categoria_path` que se escribe lleva la
+        unidad delante (`[unidad, cuarto]`) -- pero `room_path` que llega
+        aqui SIGUE siendo solo el cuarto: quien llama (digitos, `S`, la
+        paleta) no necesita saber si hay una unidad activa o no.
         """
         # Aqui y no en cada tecla: por esta funcion pasan TODAS las formas de
         # asignar --el digito, la `S`, el buscador, el rail, el pincel y el
@@ -1613,7 +1618,10 @@ class MainWindow(QWidget):
         # no por donde entro.
         if room_path:
             self._ultimo_cuarto_usado = room_path[0]
-        self._apply_categoria_to_targets(room_path)
+        completo = (
+            [self._unidad_activa] + room_path if self._unidad_activa else room_path
+        )
+        self._apply_categoria_to_targets(completo)
         self._refresh_sheet()
         self._autosave()
         # «asignar cuarto y avanzar»: el clip recien resuelto suele salir de
