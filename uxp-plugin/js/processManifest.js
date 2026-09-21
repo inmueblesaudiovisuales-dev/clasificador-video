@@ -48,11 +48,17 @@ async function processManifest(project, manifest) {
   // numero, igual que siempre.
   const ordenDeLaGuia = (manifest.guia && manifest.guia.orden) || [];
 
+  // El numero secuencial de cada clip DENTRO de su cuarto, en el orden del
+  // manifiesto. Se calcula una sola vez para toda la corrida -- ver
+  // `numerosDeClip` en `nombre.js`.
+  const numerosDeLosClips = numerosDeClip(manifest.clips);
+
   // El aviso de «no pude renombrar» se da una vez por importacion, no una
   // por clip. Ver `nombre.js`.
   reiniciarAvisoDeRenombrar();
 
-  for (const clipData of manifest.clips) {
+  for (let indice = 0; indice < manifest.clips.length; indice++) {
+    const clipData = manifest.clips[indice];
     let nombreArchivo = "(sin ruta)";
     // Se declara AFUERA del try para que el mensaje de error pueda decir a
     // donde iba el clip. Sin eso, un fallo solo decia el nombre del archivo
@@ -105,7 +111,14 @@ async function processManifest(project, manifest) {
       }
 
       applyCameraLabel(project, clipItem, clipData.camara);
-      applyFlagPrefix(project, clipItem, clipData.flag);
+      // El nombre del clip: [símbolo ]Cuarto NN [CAMARA]. El cuarto es el
+      // último segmento de categoria_path y la marca de cámara sale de la
+      // MISMA fuente que la de la carpeta (`marcaCamara.js`), para que las
+      // dos no digan cosas distintas. Ver `nombre.js` y spec 2026-09-21.
+      aplicarNombreDeClip(
+        project, clipItem, nombreCuartoSinNumero, numerosDeLosClips[indice],
+        marcaDeCamaraDelPrefijo(manifest.clips, categoryPath), clipData.flag
+      );
 
       if (clipData.in_frame !== null && clipData.out_frame !== null) {
         applyInOut(project, clipItem, clipData.fps, clipData.in_frame, clipData.out_frame);

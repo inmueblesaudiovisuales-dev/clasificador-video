@@ -45,7 +45,7 @@ async function resolveBinChain(project, rootFolder, categoryPath) {
 // cambia el numero a esa en vez de crear otra.
 //
 // NO SE LE CREE A LA DOCUMENTACION DE ADOBE sobre como se renombra: el
-// metodo se busca en el objeto de verdad, igual que `applyFlagPrefix` en
+// metodo se busca en el objeto de verdad, igual que `aplicarNombreDeClip` en
 // `nombre.js`. Si ninguno esta, la carpeta se REUSA con su numero viejo --
 // un numero desfasado es un orden raro; una segunda carpeta es la mitad de
 // los clips escondida.
