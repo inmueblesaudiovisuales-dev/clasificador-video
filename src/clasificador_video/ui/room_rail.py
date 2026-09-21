@@ -471,6 +471,12 @@ class RoomRail(QWidget):
     # agrupado la conoce.
     room_moved_en_unidad = Signal(str, int, str)       # nombre, delta, unidad
     room_reordered_en_unidad = Signal(str, int, str)   # nombre, posicion, unidad
+    # Mismo motivo que las de arriba, para renombrar y borrar: el rail es
+    # quien sabe de que unidad salio el cuarto (`_FilaCuarto.unidad`), y
+    # renombrar/borrar por nombre a ciegas puede tocar el cuarto de OTRA
+    # unidad cuando dos unidades repiten un nombre.
+    room_renamed_en_unidad = Signal(str, str, str)      # viejo, nuevo, unidad
+    room_removed_en_unidad = Signal(str, str)           # nombre, unidad
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -730,12 +736,17 @@ class RoomRail(QWidget):
                 # nombre no sabria distinguir de cual salio.
                 fila.unidad = llave
                 fila.assign_requested.connect(self.room_assign_requested.emit)
-                fila.rename_requested.connect(self.room_renamed.emit)
+                fila.rename_requested.connect(
+                    lambda viejo, nuevo, u=llave: self.room_renamed_en_unidad.emit(
+                        viejo, nuevo, u)
+                )
                 fila.move_requested.connect(
                     lambda nombre, delta, u=llave: self.room_moved_en_unidad.emit(
                         nombre, delta, u)
                 )
-                fila.remove_requested.connect(self.room_removed.emit)
+                fila.remove_requested.connect(
+                    lambda nombre, u=llave: self.room_removed_en_unidad.emit(nombre, u)
+                )
                 fila.mover_foco_requested.connect(self._mover_foco)
                 self._rooms_layout.addWidget(fila)
                 filas.append(fila)

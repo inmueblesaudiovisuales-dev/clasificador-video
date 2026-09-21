@@ -989,7 +989,9 @@ class MainWindow(QWidget):
         self.room_rail.room_reordered.connect(self._on_room_reordered)
         self.room_rail.room_moved_en_unidad.connect(self._on_room_moved_en_unidad)
         self.room_rail.room_reordered_en_unidad.connect(self._on_room_reordered_en_unidad)
+        self.room_rail.room_renamed_en_unidad.connect(self._on_room_renamed_en_unidad)
         self.room_rail.room_removed.connect(self._on_room_removed)
+        self.room_rail.room_removed_en_unidad.connect(self._on_room_removed_en_unidad)
         self.room_rail.revert_requested.connect(self.revert)
         # el boton «Cuartos ⌘R» estuvo muerto desde la F2: emitia una señal
         # que nadie escuchaba. Ahora lleva el foco al rail, para renombrar,
@@ -2140,6 +2142,39 @@ class MainWindow(QWidget):
             self._refresh_rail()
             self._autosave()
 
+    def _on_room_renamed_en_unidad(self, viejo: str, nuevo: str, unidad: str) -> None:
+        """Gemela de `_on_room_renamed`, para cuando el rail muestra bandas.
+
+        Mismo criterio que `_on_room_moved_en_unidad`: opera sobre
+        `self.room_selections[unidad]`, la unidad de ORIGEN del cuarto, nunca
+        sobre la unidad activa a ciegas -- y a diferencia de mover/reordenar,
+        esto SI reescribe `categoria_path` de clips, asi que el filtro de
+        clips tambien exige la unidad correcta ademas del nombre de cuarto:
+        sin eso, un cuarto con el mismo nombre en OTRA unidad se renombraria
+        tambien por error.
+        """
+        catalogo = self.room_selections.get(unidad)
+        if catalogo is None:
+            return
+        antes = catalogo.active_rooms()
+        catalogo.rename(viejo, nuevo)
+        if catalogo.active_rooms() == antes:
+            return  # el nombre estaba repetido o vacio: no se toca nada
+        for clip in self.clips:
+            if (clip.categoria_path
+                    and self._cuarto_de(clip.categoria_path) == viejo
+                    and (self._unidad_de(clip.categoria_path) or "") == unidad):
+                clip.categoria_path = clip.categoria_path[:-1] + [nuevo]
+        self.history.renombrar_cuarto(viejo, nuevo)
+        if self._ultimo_cuarto_usado == viejo:
+            self._ultimo_cuarto_usado = nuevo
+        self._refresh_history()
+        if unidad == (self._unidad_activa or ""):
+            self._sync_rooms()
+        else:
+            self._refresh_rail()
+            self._autosave()
+
     def _on_room_removed(self, nombre: str) -> None:
         # la unica operacion del rail que destruye trabajo, y por eso la unica
         # que deja entrada en el historial: crear, renombrar y mover no pierden
@@ -2168,6 +2203,42 @@ class MainWindow(QWidget):
         for indice in afectados:
             self.clips[indice].categoria_path = []
         self._sync_rooms()
+
+    def _on_room_removed_en_unidad(self, nombre: str, unidad: str) -> None:
+        """Gemela de `_on_room_removed`, para cuando el rail muestra bandas.
+
+        Mismo criterio que `_on_room_renamed_en_unidad`: opera sobre el
+        catalogo de la unidad de ORIGEN, y el filtro de `afectados` exige esa
+        misma unidad ademas del nombre de cuarto.
+        """
+        catalogo = self.room_selections.get(unidad)
+        if catalogo is None:
+            return
+        afectados = [
+            i for i, c in enumerate(self.clips)
+            if c.categoria_path and self._cuarto_de(c.categoria_path) == nombre
+            and (self._unidad_de(c.categoria_path) or "") == unidad
+        ]
+        rooms = catalogo.active_rooms()
+        color = theme.room_color(rooms.index(nombre)) if nombre in rooms else theme.TEXT_3
+        self._registrar(
+            etiqueta=nombre,
+            detalle="cuarto borrado",
+            color=color,
+            clips=afectados,
+            campos=("categoria_path",),
+            cuarto_borrado=(nombre, rooms.index(nombre)) if nombre in rooms else None,
+        )
+        catalogo.remove(nombre)
+        if self._ultimo_cuarto_usado == nombre:
+            self._ultimo_cuarto_usado = None
+        for indice in afectados:
+            self.clips[indice].categoria_path = []
+        if unidad == (self._unidad_activa or ""):
+            self._sync_rooms()
+        else:
+            self._refresh_rail()
+            self._autosave()
 
     def _tick_saved_indicator(self) -> None:
         if self._last_saved_at is None:

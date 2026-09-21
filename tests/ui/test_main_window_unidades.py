@@ -256,3 +256,96 @@ def test_mover_una_unidad_inexistente_no_revienta(main_window):
     main_window.room_rail.room_moved_en_unidad.emit("Cocina", 1, "Casa Z")
 
     assert main_window.room_selections["Casa A"].active_rooms() == ["Cocina"]
+
+
+# --- renombrar/borrar por unidad: mismo riesgo que mover/reordenar --------
+
+
+def test_renombrar_un_cuarto_de_una_unidad_NO_activa_no_toca_la_activa(main_window):
+    """Casa A esta activa; renombrar el `Cocina` de Casa B no puede tocar el
+    `Cocina` de Casa A -- son cuartos distintos con el mismo nombre."""
+    _con_dos_unidades_y_mismo_nombre_de_cuarto(main_window)
+    main_window._activar_unidad("Casa A")
+
+    main_window.room_rail.room_renamed_en_unidad.emit("Cocina", "Cocina grande", "Casa B")
+
+    assert main_window.room_selections["Casa A"].active_rooms() == ["Cocina"]
+    assert main_window.room_selections["Casa B"].active_rooms() == ["Cocina grande", "Baño"]
+
+
+def test_renombrar_un_cuarto_de_otra_unidad_solo_mueve_los_clips_de_esa_unidad(main_window):
+    _con_dos_unidades_y_mismo_nombre_de_cuarto(main_window)
+    main_window._activar_unidad("Casa A")
+    main_window.load_clips([
+        Clip(orden=1, ruta=Path("/a.MP4"), categoria_path=["Casa A", "Cocina"], fps=30.0),
+        Clip(orden=2, ruta=Path("/b.MP4"), categoria_path=["Casa B", "Cocina"], fps=30.0),
+    ])
+
+    main_window.room_rail.room_renamed_en_unidad.emit("Cocina", "Cocina grande", "Casa B")
+
+    assert main_window.clips[0].categoria_path == ["Casa A", "Cocina"]
+    assert main_window.clips[1].categoria_path == ["Casa B", "Cocina grande"]
+
+
+def test_renombrar_un_cuarto_de_la_unidad_activa_si_la_aplica(main_window):
+    _con_dos_unidades_y_mismo_nombre_de_cuarto(main_window)
+    main_window._activar_unidad("Casa B")
+
+    main_window.room_rail.room_renamed_en_unidad.emit("Cocina", "Cocina grande", "Casa B")
+
+    assert main_window.room_selections["Casa B"].active_rooms() == ["Cocina grande", "Baño"]
+    assert main_window.room_selection is main_window.room_selections["Casa B"]
+
+
+def test_renombrar_en_una_unidad_inexistente_no_revienta(main_window):
+    _con_dos_unidades_y_mismo_nombre_de_cuarto(main_window)
+    main_window._activar_unidad("Casa A")
+
+    main_window.room_rail.room_renamed_en_unidad.emit("Cocina", "Cocina grande", "Casa Z")
+
+    assert main_window.room_selections["Casa A"].active_rooms() == ["Cocina"]
+
+
+def test_borrar_un_cuarto_de_una_unidad_NO_activa_no_toca_la_activa(main_window):
+    """Casa A esta activa; borrar el `Cocina` de Casa B no puede tocar el
+    `Cocina` de Casa A -- son cuartos distintos con el mismo nombre."""
+    _con_dos_unidades_y_mismo_nombre_de_cuarto(main_window)
+    main_window._activar_unidad("Casa A")
+
+    main_window.room_rail.room_removed_en_unidad.emit("Cocina", "Casa B")
+
+    assert main_window.room_selections["Casa A"].active_rooms() == ["Cocina"]
+    assert main_window.room_selections["Casa B"].active_rooms() == ["Baño"]
+
+
+def test_borrar_un_cuarto_de_otra_unidad_solo_suelta_los_clips_de_esa_unidad(main_window):
+    _con_dos_unidades_y_mismo_nombre_de_cuarto(main_window)
+    main_window._activar_unidad("Casa A")
+    main_window.load_clips([
+        Clip(orden=1, ruta=Path("/a.MP4"), categoria_path=["Casa A", "Cocina"], fps=30.0),
+        Clip(orden=2, ruta=Path("/b.MP4"), categoria_path=["Casa B", "Cocina"], fps=30.0),
+    ])
+
+    main_window.room_rail.room_removed_en_unidad.emit("Cocina", "Casa B")
+
+    assert main_window.clips[0].categoria_path == ["Casa A", "Cocina"]
+    assert main_window.clips[1].categoria_path == []
+
+
+def test_borrar_un_cuarto_de_la_unidad_activa_si_la_aplica(main_window):
+    _con_dos_unidades_y_mismo_nombre_de_cuarto(main_window)
+    main_window._activar_unidad("Casa B")
+
+    main_window.room_rail.room_removed_en_unidad.emit("Cocina", "Casa B")
+
+    assert main_window.room_selections["Casa B"].active_rooms() == ["Baño"]
+    assert main_window.room_selection is main_window.room_selections["Casa B"]
+
+
+def test_borrar_en_una_unidad_inexistente_no_revienta(main_window):
+    _con_dos_unidades_y_mismo_nombre_de_cuarto(main_window)
+    main_window._activar_unidad("Casa A")
+
+    main_window.room_rail.room_removed_en_unidad.emit("Cocina", "Casa Z")
+
+    assert main_window.room_selections["Casa A"].active_rooms() == ["Cocina"]
