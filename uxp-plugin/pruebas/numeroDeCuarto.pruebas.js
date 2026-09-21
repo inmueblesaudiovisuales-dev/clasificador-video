@@ -72,17 +72,27 @@ module.exports = function (ctx) {
     {
       // spec 2026-09-18 §5: la marca [DRONE] es presentacion del plugin,
       // igual que el numero -- puede aparecer o desaparecer entre dos
-      // importaciones sin que el cuarto sea otro.
-      nombre: "esElMismoCuarto ignora la marca [DRONE]",
+      // importaciones sin que el cuarto sea otro. Desde el 2026-09-21 la
+      // marca va al FINAL del nombre (spec 2026-09-21).
+      nombre: "esElMismoCuarto ignora la marca [DRONE] al final",
       fn: () => {
-        const r = ctx.esElMismoCuarto("02. [DRONE] Aerea", "04. Aerea");
+        const r = ctx.esElMismoCuarto("02. Aerea [DRONE]", "04. Aerea");
         return { ok: r === true, detalle: String(r) };
       },
     },
     {
       nombre: "esElMismoCuarto ignora la marca aunque solo un lado la tenga",
       fn: () => {
-        const r = ctx.esElMismoCuarto("[DRONE] Aerea", "Aerea");
+        const r = ctx.esElMismoCuarto("Aerea [DRONE]", "Aerea");
+        return { ok: r === true, detalle: String(r) };
+      },
+    },
+    {
+      // Una carpeta de una importacion anterior trae la marca al inicio.
+      // Tiene que seguir leyendose como el mismo cuarto para no duplicarla.
+      nombre: "esElMismoCuarto ignora la marca del formato viejo, al inicio",
+      fn: () => {
+        const r = ctx.esElMismoCuarto("02. [DRONE] Aerea", "04. Aerea");
         return { ok: r === true, detalle: String(r) };
       },
     },

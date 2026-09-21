@@ -1,5 +1,6 @@
 // Las marcas de cámara -- "[SONY] ", "[POCKET] ", "[DRONE] "-- en el
-// nombre de la carpeta de un cuarto O una unidad en Premiere.
+// nombre de la carpeta de un cuarto O una unidad en Premiere, y también en
+// el nombre de cada clip (ver `nombre.js`).
 //
 // POR QUE ES UNA SEÑAL APARTE DE LA CAMARA (`label.js`): el color del
 // clip ya dice de que camara salio, mirando el nombre del ARCHIVO. Esto
@@ -13,6 +14,11 @@
 // se apaga ante cualquier mezcla-- un cuarto con mas de una camara se
 // marca con las dos, COMBINADAS, en el orden fijo Sony/Pocket/Drone.
 //
+// DESDE EL 2026-09-21 LA MARCA VA AL FINAL DEL NOMBRE del cuarto
+// («03. Cocina [SONY+DRONE]», no «03. [SONY+DRONE] Cocina»), para que el
+// cuarto se lea primero. Ver
+// docs/superpowers/specs/2026-09-21-nombre-de-clip-en-premiere-design.md.
+//
 // Logica pura: se prueba con `node uxp-plugin/pruebas/correr.js`.
 
 const _MARCAS = [
@@ -21,12 +27,21 @@ const _MARCAS = [
   { palabra: "DRONE", campo: "bin_dron" },
 ];
 
+const _MARCA_CONOCIDA = "(?:SONY|POCKET|DRONE)(?:\\+(?:SONY|POCKET|DRONE))*";
+
 // Quita solo una marca de cámara conocida --incluida una compuesta-- y solo
-// si esta al inicio. Un nombre que Bruno haya escrito el mismo no se toca.
+// si esta al inicio O al final. Un nombre que Bruno haya escrito el mismo no
+// se toca.
+//
+// Las DOS posiciones a proposito: la marca vive al final desde el
+// 2026-09-21, pero una carpeta de una importacion anterior la trae al
+// inicio. Si no se quitaran las dos, esa carpeta se leeria como otro cuarto
+// y Premiere le crearia una segunda -- la familia de bug del 2026-08-22.
 function sinMarcaDeCamara(nombre) {
   const s = String(nombre || "");
-  const marca = /^\[(?:SONY|POCKET|DRONE)(?:\+(?:SONY|POCKET|DRONE))*\] /;
-  return s.replace(marca, "");
+  return s
+    .replace(new RegExp("^\\[" + _MARCA_CONOCIDA + "\\] "), "")
+    .replace(new RegExp(" \\[" + _MARCA_CONOCIDA + "\\]$"), "");
 }
 
 // Las marcas que aplican a este PREFIJO de categoria_path -- un cuarto
@@ -38,6 +53,14 @@ function _marcasDelPrefijo(clipsDelManifest, prefijo) {
     .map(({ palabra }) => palabra);
 }
 
+// La marca ya armada ("SONY", "SONY+DRONE", "SONY+POCKET+DRONE") o "" si no
+// hay ninguna camara reconocible. La usan el nombre de la carpeta y el del
+// clip, para que los dos digan exactamente lo mismo.
+function marcaDeCamaraDelPrefijo(clipsDelManifest, prefijo) {
+  const marcas = _marcasDelPrefijo(clipsDelManifest, prefijo);
+  return marcas.length ? marcas.join("+") : "";
+}
+
 function _algunClipEmpiezaCon(clipsDelManifest, prefijo, campo) {
   return (clipsDelManifest || []).some((c) => {
     if (!c || !c.categoria_path || c[campo] !== true) return false;
@@ -46,9 +69,8 @@ function _algunClipEmpiezaCon(clipsDelManifest, prefijo, campo) {
   });
 }
 
-// Arma el nombre final de la carpeta: numero (si lo hay) + marca(s) (si
-// aplican) + nombre -- EN ESE ORDEN, pegado al nombre nunca antes del
-// numero: "03. [SONY+DRONE] Cocina", no "[SONY+DRONE] 03. Cocina".
+// Arma el nombre final de la carpeta: numero (si lo hay) + nombre + marca(s)
+// (si aplican) -- EN ESE ORDEN, la marca al final: "03. Cocina [SONY+DRONE]".
 //
 // `prefijoDeCategoria` es el categoria_path (crudo, SIN numero ni marca)
 // hasta este nivel: `["Cocina"]` para un cuarto sin unidad, `["Casa A",
@@ -57,9 +79,7 @@ function _algunClipEmpiezaCon(clipsDelManifest, prefijo, campo) {
 // asume `[nombreSinNumero]` -- el comportamiento de siempre.
 function nombreDelCuartoConMarca(nombreConNumero, nombreSinNumero, clipsDelManifest, prefijoDeCategoria) {
   const prefijo = prefijoDeCategoria || [nombreSinNumero];
-  const marcas = _marcasDelPrefijo(clipsDelManifest, prefijo);
-  if (!marcas.length) return nombreConNumero;
-  const numero = nombreConNumero.slice(
-    0, nombreConNumero.length - nombreSinNumero.length);
-  return numero + "[" + marcas.join("+") + "] " + nombreSinNumero;
+  const marca = marcaDeCamaraDelPrefijo(clipsDelManifest, prefijo);
+  if (!marca) return nombreConNumero;
+  return nombreConNumero + " [" + marca + "]";
 }
