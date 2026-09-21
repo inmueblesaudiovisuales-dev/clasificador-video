@@ -25,9 +25,17 @@ def preferencias_de_prueba(monkeypatch):
     modo economico y esperan su tamaño de tira y paralelismo de siempre.
     Los tests que SI quieren probar el modo economico lo prenden ellos
     mismos, parchando `preferencias.modo_economico` encima de este.
+
+    `modo_rapido` es la misma trampa por el mismo motivo, y se le olvido
+    aislar cuando se agrego (spec 2026-09-20-modo-rapido-de-miniaturas):
+    con `modo_rapido` prendido de verdad en la maquina de quien corre la
+    suite, 5 tests de miniaturas que nunca lo mencionan fallaban --leian
+    su valor real del disco, no el default que asumen. Mismo criterio:
+    los tests que SI quieren probar modo rapido lo prenden ellos mismos.
     """
     from clasificador_video import preferencias
     monkeypatch.setattr(preferencias, "modo_economico", lambda *a, **k: False)
+    monkeypatch.setattr(preferencias, "modo_rapido", lambda *a, **k: False)
     yield
 
 
