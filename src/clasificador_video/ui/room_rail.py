@@ -856,10 +856,10 @@ class RoomRail(QWidget):
         return set(self._colapsadas)
 
     def set_unidades_colapsadas(self, nombres) -> None:
-        """Lo pone quien restaura el proyecto (`app._poblar_ventana`, tarea
-        futura). No emite `unidad_colapso_cambiado`: restaurar no es una
-        accion del usuario, y emitirla dispararia un autoguardado sin que
-        nada haya cambiado de verdad."""
+        """Lo pone `app._poblar_ventana` al restaurar un proyecto. No emite
+        `unidad_colapso_cambiado`: restaurar no es una accion del usuario, y
+        emitirla dispararia un autoguardado sin que nada haya cambiado de
+        verdad."""
         self._colapsadas = set(nombres)
         for llave, banda in self._banda_por_unidad.items():
             banda.set_colapsado(llave in self._colapsadas)
@@ -869,8 +869,9 @@ class RoomRail(QWidget):
 
     def expandir_unidad(self, llave: str) -> None:
         """La abre si estaba colapsada -- para cuando le llega un cuarto
-        nuevo y hace falta verlo (tarea futura). No hace nada si ya estaba
-        abierta: no hay nada que avisar."""
+        nuevo y hace falta verlo (`MainWindow._asignar_cuarto`, con una
+        unidad activa). No hace nada si ya estaba abierta: no hay nada que
+        avisar."""
         if llave not in self._colapsadas:
             return
         self._colapsadas.discard(llave)
