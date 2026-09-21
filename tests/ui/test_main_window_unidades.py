@@ -349,3 +349,9 @@ def test_borrar_en_una_unidad_inexistente_no_revienta(main_window):
     main_window.room_rail.room_removed_en_unidad.emit("Cocina", "Casa Z")
 
     assert main_window.room_selections["Casa A"].active_rooms() == ["Cocina"]
+
+
+def test_crear_unidad_desde_el_boton_del_rail_no_la_activa(main_window):
+    main_window._on_unit_created_en_rail("Casa C")
+    assert "Casa C" in main_window.unit_selection.active_rooms()
+    assert main_window._unidad_activa is None

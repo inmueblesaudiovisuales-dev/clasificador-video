@@ -992,6 +992,7 @@ class MainWindow(QWidget):
         self.room_rail.room_renamed_en_unidad.connect(self._on_room_renamed_en_unidad)
         self.room_rail.room_removed.connect(self._on_room_removed)
         self.room_rail.room_removed_en_unidad.connect(self._on_room_removed_en_unidad)
+        self.room_rail.unit_created.connect(self._on_unit_created_en_rail)
         self.room_rail.revert_requested.connect(self.revert)
         # el boton «Cuartos ⌘R» estuvo muerto desde la F2: emitia una señal
         # que nadie escuchaba. Ahora lleva el foco al rail, para renombrar,
@@ -1604,6 +1605,16 @@ class MainWindow(QWidget):
     def _on_unidad_creada_en_paleta(self, nombre: str) -> None:
         self.unit_selection.add(nombre)
         self._activar_unidad(nombre)
+
+    def _on_unit_created_en_rail(self, nombre: str) -> None:
+        """El boton "+" del rail: crea SIN activar. A diferencia de la
+        paleta (que crea Y activa, porque uno la abrio para seguir
+        clasificando ya mismo), el boton es para el caso "quiero armar mis
+        unidades antes de empezar" -- activar de mas aqui obligaria a
+        desactivar despues de crear cada una."""
+        self.unit_selection.add(nombre)
+        self._refresh_rail()
+        self._autosave()
 
     def _on_room_creado_en_paleta(self, nombre: str) -> None:
         """Crear y asignar de una: crear y volver a apuntar serian dos pasos
