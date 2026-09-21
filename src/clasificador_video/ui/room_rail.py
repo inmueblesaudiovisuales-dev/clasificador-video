@@ -423,27 +423,68 @@ class _FilaHistorial(QWidget):
 
 class _BandaDeUnidad(QWidget):
     """El encabezado de un grupo de cuartos por unidad. `color=None` es el
-    bloque "Sin unidad" -- sin swatch, solo el rotulo, porque no es una
-    identidad de unidad sino la ausencia de una."""
+    bloque "Sin unidad" -- sin swatch y sin flecha de colapsar, porque no
+    es una unidad de verdad sino un bloque migratorio (spec 2026-09-21 S3:
+    colapsar aplica a unidades, no a este bloque)."""
 
-    def __init__(self, nombre: str, color: str | None, parent=None):
+    toggle_solicitado = Signal(str)   # llave
+
+    def __init__(self, nombre: str, color: str | None, llave: str,
+                 conteo: int, colapsado: bool, parent=None):
         super().__init__(parent)
         self.nombre = nombre
+        self.llave = llave
+        self._colapsable = color is not None
         self.setObjectName("unitBand")
+        self.setAttribute(Qt.WA_StyledBackground, True)
         layout = QHBoxLayout(self)
         layout.setContentsMargins(2, 8, 2, 4)
         layout.setSpacing(6)
+
+        self.chevron = QLabel("")
+        self.chevron.setObjectName("unitBandChevron")
+        self.chevron.setFixedWidth(12)
+        layout.addWidget(self.chevron)
+
         if color is not None:
             swatch = QLabel("")
             swatch.setFixedSize(11, 11)
             swatch.setAttribute(Qt.WA_StyledBackground, True)
             swatch.setStyleSheet(f"background-color: {color}; border-radius: 3px;")
             layout.addWidget(swatch)
+
         etiqueta = QLabel(nombre.upper())
         etiqueta.setObjectName("unitBandLabel")
         theme.apply_letter_spacing(etiqueta)
         layout.addWidget(etiqueta)
         layout.addStretch(1)
+
+        self.contador = QLabel(str(conteo))
+        self.contador.setObjectName("unitBandCount")
+        layout.addWidget(self.contador)
+
+        self.set_colapsado(colapsado)
+
+    def set_colapsado(self, colapsado: bool) -> None:
+        self._colapsado = colapsado
+        if not self._colapsable:
+            return
+        self.chevron.setText("▸" if colapsado else "▾")
+
+    def set_destino_de_arrastre(self, activo: bool) -> None:
+        """Resalte de "aqui se suelta" mientras arrastras un cuarto sobre
+        esta banda (tarea futura). Aparte de `setStyleSheet` a mano: usa la
+        propiedad dinamica + QSS, mismo mecanismo que `roomRow[actual]`."""
+        if self.property("arrastreDestino") == activo:
+            return
+        self.setProperty("arrastreDestino", activo)
+        self.style().unpolish(self)
+        self.style().polish(self)
+
+    def mousePressEvent(self, event) -> None:  # noqa: N802 -- override de Qt
+        if self._colapsable and event.button() == Qt.MouseButton.LeftButton:
+            self.toggle_solicitado.emit(self.llave)
+        super().mousePressEvent(event)
 
 
 class RoomRail(QWidget):
@@ -478,6 +519,7 @@ class RoomRail(QWidget):
     # unidad cuando dos unidades repiten un nombre.
     room_renamed_en_unidad = Signal(str, str, str)      # viejo, nuevo, unidad
     room_removed_en_unidad = Signal(str, str)           # nombre, unidad
+    unidad_colapso_cambiado = Signal(str, bool)   # llave, colapsada
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -580,6 +622,12 @@ class RoomRail(QWidget):
         # y estas listas ni se tocan.
         self.unit_bands: list[_BandaDeUnidad] = []
         self.rows_por_unidad: dict[str, list[_FilaCuarto]] = {}
+        self._banda_por_unidad: dict[str, "_BandaDeUnidad"] = {}
+        # Que unidades estan colapsadas. Vive ACA, no en MainWindow -- mismo
+        # criterio que `ClipSheet._colapsados` para los bins: es estado de
+        # vista del widget. MainWindow solo lo lee al autoguardar y lo
+        # escribe al restaurar (spec 2026-09-21 S3, tarea futura).
+        self._colapsadas: set[str] = set()
 
         # --- la fila fija de `S`: repetir el cuarto del clip anterior ---
         # Va arriba de los cuartos y FUERA de `self.rows`: `set_rooms`
@@ -724,6 +772,11 @@ class RoomRail(QWidget):
             for llave, filas in self.rows_por_unidad.items():
                 for fila in filas:
                     fila.count_label.setText(str(counts.get((llave, fila.nombre), 0)))
+                banda = self._banda_por_unidad.get(llave)
+                if banda is not None:
+                    banda.contador.setText(
+                        str(sum(counts.get((llave, f.nombre), 0) for f in filas))
+                    )
             return
         self._ultimo_agrupado = firma
 
@@ -732,10 +785,13 @@ class RoomRail(QWidget):
         orden = ([""] if rooms_por_unidad.get("") else []) + list(unidades)
         for llave in orden:
             nombre_banda = SIN_UNIDAD_ETIQUETA if llave == "" else llave
-            banda = self._crear_banda(nombre_banda)
+            cuartos_de_la_unidad = rooms_por_unidad.get(llave, [])
+            conteo_unidad = sum(counts.get((llave, c), 0) for c in cuartos_de_la_unidad)
+            banda = self._crear_banda(nombre_banda, llave, conteo_unidad)
             self.unit_bands.append(banda)
+            self._banda_por_unidad[llave] = banda
             filas = []
-            for indice, cuarto in enumerate(rooms_por_unidad.get(llave, [])):
+            for indice, cuarto in enumerate(cuartos_de_la_unidad):
                 numero = indice + 1 if indice < MAX_TECLAS else None
                 fila = _FilaCuarto(numero, cuarto, theme.room_color(indice),
                                     counts.get((llave, cuarto), 0))
@@ -743,6 +799,7 @@ class RoomRail(QWidget):
                 # nombre de cuarto, y sin esto mover/arrastrar solo con el
                 # nombre no sabria distinguir de cual salio.
                 fila.unidad = llave
+                fila.setVisible(llave not in self._colapsadas)
                 fila.assign_requested.connect(self.room_assign_requested.emit)
                 fila.rename_requested.connect(
                     lambda viejo, nuevo, u=llave: self.room_renamed_en_unidad.emit(
@@ -767,18 +824,62 @@ class RoomRail(QWidget):
             banda.setParent(None)
             banda.deleteLater()
         self.unit_bands = []
+        self._banda_por_unidad = {}
         for filas in self.rows_por_unidad.values():
             for fila in filas:
                 fila.setParent(None)
                 fila.deleteLater()
         self.rows_por_unidad = {}
 
-    def _crear_banda(self, nombre: str) -> "_BandaDeUnidad":
+    def _crear_banda(self, nombre: str, llave: str, conteo: int) -> "_BandaDeUnidad":
         indice = len([b for b in self.unit_bands if b.nombre != SIN_UNIDAD_ETIQUETA])
         color = None if nombre == SIN_UNIDAD_ETIQUETA else theme.unit_color(indice)
-        banda = _BandaDeUnidad(nombre, color)
+        banda = _BandaDeUnidad(nombre, color, llave, conteo, llave in self._colapsadas)
+        banda.toggle_solicitado.connect(self._on_toggle_de_banda)
         self._rooms_layout.addWidget(banda)
         return banda
+
+    def _on_toggle_de_banda(self, llave: str) -> None:
+        if llave in self._colapsadas:
+            self._colapsadas.discard(llave)
+        else:
+            self._colapsadas.add(llave)
+        colapsada = llave in self._colapsadas
+        banda = self._banda_por_unidad.get(llave)
+        if banda is not None:
+            banda.set_colapsado(colapsada)
+        for fila in self.rows_por_unidad.get(llave, []):
+            fila.setVisible(not colapsada)
+        self.unidad_colapso_cambiado.emit(llave, colapsada)
+
+    def unidades_colapsadas(self) -> set[str]:
+        return set(self._colapsadas)
+
+    def set_unidades_colapsadas(self, nombres) -> None:
+        """Lo pone quien restaura el proyecto (`app._poblar_ventana`, tarea
+        futura). No emite `unidad_colapso_cambiado`: restaurar no es una
+        accion del usuario, y emitirla dispararia un autoguardado sin que
+        nada haya cambiado de verdad."""
+        self._colapsadas = set(nombres)
+        for llave, banda in self._banda_por_unidad.items():
+            banda.set_colapsado(llave in self._colapsadas)
+        for llave, filas in self.rows_por_unidad.items():
+            for fila in filas:
+                fila.setVisible(llave not in self._colapsadas)
+
+    def expandir_unidad(self, llave: str) -> None:
+        """La abre si estaba colapsada -- para cuando le llega un cuarto
+        nuevo y hace falta verlo (tarea futura). No hace nada si ya estaba
+        abierta: no hay nada que avisar."""
+        if llave not in self._colapsadas:
+            return
+        self._colapsadas.discard(llave)
+        banda = self._banda_por_unidad.get(llave)
+        if banda is not None:
+            banda.set_colapsado(False)
+        for fila in self.rows_por_unidad.get(llave, []):
+            fila.setVisible(True)
+        self.unidad_colapso_cambiado.emit(llave, False)
 
     def dragEnterEvent(self, event) -> None:  # noqa: N802 -- override de Qt
         if event.mimeData().hasFormat(MIME_CUARTO):

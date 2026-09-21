@@ -1130,6 +1130,22 @@ def build_stylesheet() -> str:
         font-size: {FONT_MICRO}px;
         font-weight: 650;
     }}
+    QLabel#unitBandChevron {{
+        color: {TEXT_3};
+        font-size: {FONT_MICRO}px;
+    }}
+    QLabel#unitBandCount {{
+        color: {TEXT_3};
+        font-family: {MONO_FONT};
+        font-size: {FONT_MICRO}px;
+    }}
+    /* Se resalta mientras arrastras un cuarto encima (tarea futura) -- mismo
+       ambar de "aqui es donde apuntas" que ya usa `lineaDeDestino`. */
+    QWidget#unitBand[arrastreDestino="true"] {{
+        background-color: {con_alfa_qss(CURRENT_COLOR, 31)};
+        border: 1px dashed {CURRENT_COLOR};
+        border-radius: {RADIUS_SM}px;
+    }}
     QLabel#groupCount {{
         color: {TEXT_3};
         font-family: {MONO_FONT};

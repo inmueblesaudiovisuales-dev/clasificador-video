@@ -203,3 +203,125 @@ def test_boton_nueva_unidad_ignora_nombre_vacio(rail):
     rail.unit_created.connect(emitidos.append)
     rail._crear_unidad("   ")
     assert emitidos == []
+
+
+# --- bandas colapsables -----------------------------------------------------
+
+
+def test_banda_de_unidad_arranca_expandida(qtbot, rail):
+    # `isVisible()` de Qt solo dice la verdad con la ventana MOSTRADA -- sin
+    # `show()`, cualquier hijo reporta `False` aunque nunca se haya
+    # escondido (mismo motivo por el que los tests de arrastre de mas
+    # arriba en este archivo llaman `rail.show()` antes de mirar geometria).
+    rail.resize(200, 700)
+    rail.show()
+    qtbot.waitExposed(rail)
+    rail.set_rooms_agrupados(**_mismos_argumentos(), counts={})
+    qtbot.wait(50)
+    banda_casa_a = next(b for b in rail.unit_bands if b.nombre == "Casa A")
+    assert banda_casa_a.chevron.text() == "▾"
+    assert all(f.isVisible() for f in rail.rows_por_unidad["Casa A"])
+
+
+def test_banda_sin_unidad_no_tiene_flecha(rail):
+    rail.set_rooms_agrupados(**_mismos_argumentos(), counts={})
+    banda_sin_unidad = next(b for b in rail.unit_bands if b.nombre == "Sin unidad")
+    assert banda_sin_unidad.chevron.text() == ""
+
+
+def test_clic_en_la_banda_colapsa_y_esconde_sus_filas(rail):
+    rail.set_rooms_agrupados(**_mismos_argumentos(), counts={})
+    banda_casa_b = next(b for b in rail.unit_bands if b.nombre == "Casa B")
+
+    rail._on_toggle_de_banda("Casa B")
+
+    assert banda_casa_b.chevron.text() == "▸"
+    assert all(not f.isVisible() for f in rail.rows_por_unidad["Casa B"])
+    assert "Casa B" in rail.unidades_colapsadas()
+
+
+def test_clic_dos_veces_la_vuelve_a_expandir(qtbot, rail):
+    rail.show()
+    qtbot.waitExposed(rail)
+    rail.set_rooms_agrupados(**_mismos_argumentos(), counts={})
+    qtbot.wait(50)
+    rail._on_toggle_de_banda("Casa B")
+    rail._on_toggle_de_banda("Casa B")
+
+    banda_casa_b = next(b for b in rail.unit_bands if b.nombre == "Casa B")
+    assert banda_casa_b.chevron.text() == "▾"
+    assert all(f.isVisible() for f in rail.rows_por_unidad["Casa B"])
+    assert "Casa B" not in rail.unidades_colapsadas()
+
+
+def test_colapsar_emite_unidad_colapso_cambiado(rail):
+    rail.set_rooms_agrupados(**_mismos_argumentos(), counts={})
+    avisos = []
+    rail.unidad_colapso_cambiado.connect(lambda u, c: avisos.append((u, c)))
+    rail._on_toggle_de_banda("Casa B")
+    assert avisos == [("Casa B", True)]
+
+
+def test_set_unidades_colapsadas_aplica_a_bandas_existentes(rail):
+    rail.set_rooms_agrupados(**_mismos_argumentos(), counts={})
+    rail.set_unidades_colapsadas(["Casa A"])
+
+    banda_casa_a = next(b for b in rail.unit_bands if b.nombre == "Casa A")
+    assert banda_casa_a.chevron.text() == "▸"
+    assert all(not f.isVisible() for f in rail.rows_por_unidad["Casa A"])
+
+
+def test_set_unidades_colapsadas_antes_de_poblar_se_aplica_al_construir(rail):
+    rail.set_unidades_colapsadas(["Casa B"])
+    rail.set_rooms_agrupados(**_mismos_argumentos(), counts={})
+
+    banda_casa_b = next(b for b in rail.unit_bands if b.nombre == "Casa B")
+    assert banda_casa_b.chevron.text() == "▸"
+    assert all(not f.isVisible() for f in rail.rows_por_unidad["Casa B"])
+
+
+def test_expandir_unidad_la_abre_y_avisa(rail):
+    rail.set_rooms_agrupados(**_mismos_argumentos(), counts={})
+    rail._on_toggle_de_banda("Casa B")
+    avisos = []
+    rail.unidad_colapso_cambiado.connect(lambda u, c: avisos.append((u, c)))
+
+    rail.expandir_unidad("Casa B")
+
+    banda_casa_b = next(b for b in rail.unit_bands if b.nombre == "Casa B")
+    assert banda_casa_b.chevron.text() == "▾"
+    assert avisos == [("Casa B", False)]
+
+
+def test_expandir_unidad_ya_abierta_no_hace_nada(rail):
+    rail.set_rooms_agrupados(**_mismos_argumentos(), counts={})
+    avisos = []
+    rail.unidad_colapso_cambiado.connect(lambda u, c: avisos.append((u, c)))
+    rail.expandir_unidad("Casa A")
+    assert avisos == []
+
+
+def test_conteo_de_la_banda_suma_sus_cuartos(rail):
+    rail.set_rooms_agrupados(
+        **_mismos_argumentos(),
+        counts={("Casa B", "Cocina"): 3, ("Casa B", "Baño"): 2},
+    )
+    banda_casa_b = next(b for b in rail.unit_bands if b.nombre == "Casa B")
+    assert banda_casa_b.contador.text() == "5"
+
+
+def test_conteo_de_la_banda_se_actualiza_sin_reconstruir(rail):
+    rail.set_rooms_agrupados(
+        **_mismos_argumentos(),
+        counts={("Casa B", "Cocina"): 3, ("Casa B", "Baño"): 2},
+    )
+    banda_antes = next(b for b in rail.unit_bands if b.nombre == "Casa B")
+
+    rail.set_rooms_agrupados(
+        **_mismos_argumentos(),
+        counts={("Casa B", "Cocina"): 4, ("Casa B", "Baño"): 2},
+    )
+
+    banda_despues = next(b for b in rail.unit_bands if b.nombre == "Casa B")
+    assert banda_despues is banda_antes
+    assert banda_despues.contador.text() == "6"
