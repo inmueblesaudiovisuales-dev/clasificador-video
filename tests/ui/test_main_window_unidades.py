@@ -592,3 +592,15 @@ def test_on_rooms_movidos_expande_la_unidad_destino(main_window, monkeypatch):
     main_window._on_rooms_movidos_a_unidad(["Cocina"], "Casa A", "Casa B")
 
     assert "Casa B" not in main_window.room_rail.unidades_colapsadas()
+
+
+# --- ultima conexion: la senal del rail hasta MainWindow (tarea 11) --------
+
+
+def test_arrastrar_grupo_en_el_rail_llega_hasta_mover_cuarto(main_window):
+    _con_dos_unidades(main_window)
+    main_window.load_clips([
+        Clip(orden=1, ruta=Path("/a.MP4"), categoria_path=["Casa A", "Cocina"], fps=30.0),
+    ])
+    main_window.room_rail.mover_grupo_a_unidad(["Cocina"], "Casa A", "Casa B")
+    assert main_window.clips[0].categoria_path == ["Casa B", "Cocina"]

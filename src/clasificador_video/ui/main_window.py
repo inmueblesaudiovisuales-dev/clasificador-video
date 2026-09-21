@@ -993,6 +993,8 @@ class MainWindow(QWidget):
         self.room_rail.room_removed.connect(self._on_room_removed)
         self.room_rail.room_removed_en_unidad.connect(self._on_room_removed_en_unidad)
         self.room_rail.unit_created.connect(self._on_unit_created_en_rail)
+        self.room_rail.rooms_movidos_a_unidad.connect(self._on_rooms_movidos_a_unidad)
+        self.room_rail.unidad_colapso_cambiado.connect(lambda *_: self._autosave())
         self.room_rail.revert_requested.connect(self.revert)
         # el boton «Cuartos ⌘R» estuvo muerto desde la F2: emitia una señal
         # que nadie escuchaba. Ahora lleva el foco al rail, para renombrar,
