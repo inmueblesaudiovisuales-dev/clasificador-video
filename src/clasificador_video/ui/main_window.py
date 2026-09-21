@@ -953,13 +953,17 @@ class MainWindow(QWidget):
         self._modo_horizontal = False
         # guarda de reentrada de `_refresh_sheet` (ver ahi el porque)
         self._refrescando_hoja = False
-        # La guia armada, si es que se armo. `None` es lo normal.
-        self.guia_actual = None
+        # La guia armada, POR UNIDAD (spec 2026-09-21): la llave "" es «sin
+        # unidad». Un proyecto sin unidades tiene una sola entrada, y por eso
+        # `guia_actual` y `_cuartos_de_la_guia` siguen existiendo como
+        # propiedades que leen y escriben la entrada "".
+        self._guias_por_unidad: dict = {}
+        self._cuartos_de_la_guia_por_unidad: dict[str, list[str]] = {}
+        # De que unidad era la clasificacion que va en vuelo, para no
+        # aplicarsela a otra si Bruno cambia de unidad mientras espera.
+        self._unidad_clasificando = ""
         self._pantalla_guia = None
         self._pantalla_config = None
-        # Los cuartos que habia cuando se acepto la guia. Con esto se
-        # sabe si quedo vieja (§11 del spec).
-        self._cuartos_de_la_guia: list[str] = []
 
         # ---------------- las tres filas ----------------
         self.title_bar = TitleBar()
@@ -2752,6 +2756,7 @@ class MainWindow(QWidget):
             modo_horizontal=self._modo_horizontal,
             carpeta_de_proxies=self._carpeta_de_proxies,
             guia=self._guia_para_la_sesion(),
+            guias_por_unidad=self._guias_por_unidad_para_la_sesion(),
             entrega=self._entrega.to_dict() if self._entrega is not None else None,
             units=self.unit_selection.active_rooms(),
             rooms_por_unidad={
@@ -5631,70 +5636,137 @@ class MainWindow(QWidget):
             LIMITE_DE_TIRAS_VIVAS_ECONOMICO if limitado else LIMITE_DE_TIRAS_VIVAS_NORMAL
         )
 
+    # ------------------------------------------------------------------
+    # la guia de edicion, por unidad (spec 2026-09-21)
+    # ------------------------------------------------------------------
+
+    @property
+    def guia_actual(self):
+        """La guia de «sin unidad». Se conserva por compatibilidad: el
+        proyecto sin unidades tiene una sola entrada, la de la llave ""."""
+        return self._guias_por_unidad.get("")
+
+    @guia_actual.setter
+    def guia_actual(self, valor):
+        if valor is None:
+            self._guias_por_unidad.pop("", None)
+        else:
+            self._guias_por_unidad[""] = valor
+
+    @property
+    def _cuartos_de_la_guia(self):
+        return self._cuartos_de_la_guia_por_unidad.get("", [])
+
+    @_cuartos_de_la_guia.setter
+    def _cuartos_de_la_guia(self, valor):
+        self._cuartos_de_la_guia_por_unidad[""] = list(valor)
+
+    def _unidades_para_la_guia(self) -> list[str]:
+        """Las unidades que la guia ofrece, en orden.
+
+        La llave "" es «sin unidad» y solo entra si su catalogo tiene
+        cuartos -- el estado mixto de la spec de unidades §4: clips que
+        todavia no se migran. Un proyecto sin unidades da [""], el caso de
+        siempre.
+        """
+        nombres = []
+        if self.room_selections[""].active_rooms():
+            nombres.append("")
+        nombres.extend(self.unit_selection.active_rooms())
+        return nombres
+
+    def _unidad_de_la_guia(self) -> str:
+        """La unidad que la pantalla tiene elegida ahora mismo."""
+        if self._pantalla_guia is not None:
+            return self._pantalla_guia.unidad_actual()
+        return self._unidad_activa or ""
+
     def _abrir_pantalla_de_guia(self) -> None:
         """La pantalla de la guia, encima de la ventana.
 
         No es un QDialog modal, mismo criterio que la paleta de cuartos: un
         modal roba el teclado y hay que cerrarlo para seguir. Es hija de la
         ventana y se muestra encima.
+
+        Con unidades, la guia ordena UNA a la vez (spec 2026-09-21): la
+        pantalla trae su selector y aqui se le empuja el tablero de cada una.
         """
         if self._pantalla_guia is None:
             self._pantalla_guia = PantallaGuia(self)
             self._pantalla_guia.clasificacion_pedida.connect(self.pedir_clasificacion)
             self._pantalla_guia.orden_aceptado.connect(self.aceptar_orden_de_la_guia)
             self._pantalla_guia.cerrada.connect(self._pantalla_guia.hide)
-        # `poner_cuartos_reales` SIEMPRE va primero: vacía las siete
-        # columnas para dejar la franja al día. Si se llamara después de
-        # `mostrar_guia_aceptada`, borraría el tablero que se acaba de
-        # restaurar -- exactamente el bug que dejaba la pantalla vacía la
-        # primera vez que se abría en la sesión, aunque el proyecto ya
-        # trajera una guía aceptada.
-        self._pantalla_guia.poner_cuartos_reales(self.room_selection.active_rooms())
-        # La guia del proyecto ya esta en `guia_actual` desde que
-        # `restaurar_guia` corrio al abrir --pero la pantalla nace en
-        # blanco si nadie se la empuja. Sin esto, Bruno la veia vacia al
-        # reabrir un proyecto y volvia a apretar "Armar la guia",
-        # pagando una llamada por algo que ya tenia guardado.
-        if self.guia_actual is not None and self.guia_actual.ok:
-            self._pantalla_guia.mostrar_guia_aceptada(self.guia_actual.lista)
+        unidades = self._unidades_para_la_guia()
+        actual = self._unidad_activa if self._unidad_activa in unidades else (
+            unidades[0] if unidades else "")
+        self._pantalla_guia.configurar_unidades(unidades, actual)
+        for unidad in unidades:
+            self._pantalla_guia.seleccionar_unidad(unidad)
+            # `poner_cuartos_reales` SIEMPRE va primero: vacía las siete
+            # columnas para dejar la franja al día. Si se llamara después de
+            # `mostrar_guia_aceptada`, borraría el tablero que se acaba de
+            # restaurar -- exactamente el bug que dejaba la pantalla vacía la
+            # primera vez que se abría en la sesión, aunque el proyecto ya
+            # trajera una guía aceptada.
+            self._pantalla_guia.poner_cuartos_reales(
+                self.room_selections[unidad].active_rooms())
+            guia = self._guias_por_unidad.get(unidad)
+            if guia is not None and guia.ok:
+                self._pantalla_guia.mostrar_guia_aceptada(guia.lista)
+        self._pantalla_guia.seleccionar_unidad(actual)
         self._pantalla_guia.setGeometry(self.rect().adjusted(80, 60, -80, -60))
         self._pantalla_guia.show()
         self._pantalla_guia.raise_()
 
     def pedir_clasificacion(self) -> None:
-        """Le pide la guia al modelo y la ensena.
+        """Le pide a DeepSeek que pre-ordene los cuartos de la unidad elegida.
 
         **Nunca revienta hacia afuera**: un fallo de red se dice y ya. La
         app sigue exportando sin guia, que es un manifest perfectamente
         valido.
         """
-        cuartos = self.room_selection.active_rooms()
+        unidad = self._unidad_de_la_guia()
+        cuartos = self.room_selections[unidad].active_rooms()
+        clave = llave.leer()
+        if not clave:
+            # Sin llave no hay a quien preguntarle: se dice y se acomoda a
+            # mano. Mismo principio que un fallo de red -- no bloquea nada.
+            if self._pantalla_guia is not None:
+                self._pantalla_guia.mostrar_falta_llave()
+            return
+        self._unidad_clasificando = unidad
         cuerpo = logica_guia.cuerpo_de_clasificacion(cuartos)
         if self._pantalla_guia is not None:
             self._pantalla_guia.armando()
         # DEVUELVE DE INMEDIATO. La respuesta llega por `guia_lista`, que
         # esta conectada a `_mostrar_guia`.
         self._guia_pool.start(
-            _GuiaJob(llave.leer(), cuerpo, cuartos, self._señales_de_trabajos)
+            _GuiaJob(clave, cuerpo, cuartos, self._señales_de_trabajos)
         )
 
     def _mostrar_guia(self, clasificacion) -> None:
         if self._pantalla_guia is None:
             return
-        self._pantalla_guia.mostrar_clasificacion(clasificacion)
+        unidad = self._unidad_clasificando
+        self._pantalla_guia.mostrar_clasificacion(clasificacion, unidad=unidad)
         # DESDE QUE SE ENSEÑA, no desde que se acepta: si a Bruno le gusta
         # el tablero como quedó y no aprieta «Usar este orden» --o cierra
         # Clipify sin apretarlo-- la clasificación que acaba de costar una
         # llamada a la API no se puede perder. Ya paso una vez (arreglado
         # el 2026-09-19, y el rediseño del tablero lo volvió a romper el
         # mismo día).
+        if unidad != self._unidad_de_la_guia():
+            # Bruno cambió de unidad mientras esperaba: la clasificación es
+            # de la otra, y guardarla aqui seria pisar el tablero equivocado.
+            return
         orden = self._pantalla_guia.orden_final()
         if not orden:
             return
-        self.guia_actual = logica_guia.Respuesta(
+        self._guias_por_unidad[unidad] = logica_guia.Respuesta(
             ok=True, lista=[logica_guia.Renglon(cuarto=c) for c in orden]
         )
-        self._cuartos_de_la_guia = self.room_selection.active_rooms()
+        self._cuartos_de_la_guia_por_unidad[unidad] = (
+            self.room_selections[unidad].active_rooms())
         self._autosave()
 
     def aceptar_orden_de_la_guia(self, orden: list) -> None:
@@ -5703,18 +5775,28 @@ class MainWindow(QWidget):
         El guion trae PASOS y puede repetir un cuarto; el rail no puede.
         `reordenar` es quien filtra los repetidos -- se le pasa el guion
         tal cual, con todo y sus pasos repetidos.
+
+        Con unidades, el orden se aplica al catalogo de la unidad que la
+        pantalla tenia elegida (spec 2026-09-21), no al catalogo activo del
+        rail.
         """
-        self.room_selection.reordenar(orden)
-        self._cuartos_de_la_guia = self.room_selection.active_rooms()
-        self.guia_actual = self._guia_cuadrada_con_el_rail()
+        unidad = self._unidad_de_la_guia()
+        self.room_selections[unidad].reordenar(orden)
+        self._cuartos_de_la_guia_por_unidad[unidad] = (
+            self.room_selections[unidad].active_rooms())
+        # El orden que LLEGO manda, no una clasificacion vieja: si Bruno
+        # acomodo a mano sin pre-ordenar, igual queda guardado.
+        self._guias_por_unidad[unidad] = self._guia_cuadrada_con_el_rail(
+            unidad, [logica_guia.Renglon(cuarto=c) for c in orden])
         self._sync_rooms()
         # Ya hizo lo suyo: dejarla encima obliga a cerrarla a mano para ver
         # el rail que se acaba de reacomodar, que es lo que uno quiere ver.
         if self._pantalla_guia is not None:
             self._pantalla_guia.hide()
 
-    def _guia_cuadrada_con_el_rail(self):
-        """El guion contando sólo cuartos que existen, con sus repeticiones.
+    def _guia_cuadrada_con_el_rail(self, unidad: str, pasos_crudos):
+        """El guion de ESA unidad contando sólo cuartos que existen, con sus
+        repeticiones.
 
         Dos reglas, y son distintas:
 
@@ -5727,99 +5809,139 @@ class MainWindow(QWidget):
 
         Y un cuarto inventado se cae: no está en el rail, y en Premiere
         sería la carpeta de un cuarto que no existe.
-
-        Corre DESPUÉS de `reordenar` en `aceptar_orden_de_la_guia`, y cuenta
-        con que ya se llamó: lee `reales` de `active_rooms()`, y ese orden
-        es el que decide dónde caen los cuartos que el guion no mencionó
-        (al final, en SU orden). Hoy da lo mismo llamarla antes o después
-        porque `reordenar` es una partición estable -- no le cambia el
-        orden relativo a lo que ya trae el rail --, pero eso es un detalle
-        de esa función, no de ésta. Si `reordenar` cambiara de criterio (por
-        ejemplo a orden alfabético), este método seguiría leyendo el rail
-        ya reacomodado y se rompería en silencio, no aquí.
         """
-        if self.guia_actual is None or not self.guia_actual.ok:
-            return self.guia_actual
-        reales = self.room_selection.active_rooms()
-        pasos = [r for r in self.guia_actual.lista if r.cuarto in reales]
+        reales = self.room_selections[unidad].active_rooms()
+        pasos = [r for r in pasos_crudos if r.cuarto in reales]
         nombrados = {r.cuarto for r in pasos}
         pasos += [
             logica_guia.Renglon(cuarto=c) for c in reales if c not in nombrados
         ]
         return logica_guia.Respuesta(ok=True, lista=pasos)
 
-    def _guia_para_la_sesion(self):
-        """La guia como se guarda en el `.cvproj`, o `None`.
+    def _guia_de_unidad_para_la_sesion(self, unidad: str):
+        """Una guia, como se guarda en el `.cvproj`, o `None`.
 
         Lleva ADEMAS `cuartos_de_entonces`, que el manifest no manda: es lo
         unico con lo que se puede saber, al reabrir, que la guia quedo vieja
         porque Bruno agrego un cuarto despues. Sin ese dato habria que
         adivinarlo, y adivinar en silencio es justo lo que esta app no hace.
         """
-        guia = self._guia_para_el_manifest()
-        if guia is None:
+        guia = self._guias_por_unidad.get(unidad)
+        if guia is None or not guia.ok:
             return None
-        datos = guia.to_dict()
-        datos["cuartos_de_entonces"] = list(self._cuartos_de_la_guia)
-        return datos
+        return {
+            "orden": [r.cuarto for r in guia.lista],
+            "cuartos_de_entonces": list(
+                self._cuartos_de_la_guia_por_unidad.get(unidad, [])),
+        }
+
+    def _guia_para_la_sesion(self):
+        """La guia de «sin unidad», para la llave `guia` de siempre."""
+        return self._guia_de_unidad_para_la_sesion("")
+
+    def _guias_por_unidad_para_la_sesion(self):
+        """Todas las guias, para la llave `guias_por_unidad` del documento."""
+        datos = {
+            unidad: self._guia_de_unidad_para_la_sesion(unidad)
+            for unidad in self._guias_por_unidad
+        }
+        datos = {u: d for u, d in datos.items() if d is not None}
+        return datos or None
 
     def restaurar_guia(self, datos) -> None:
-        """La guia que traia el proyecto al abrirlo. `None` es lo normal.
+        """Compatibilidad: el formato viejo, una sola guia (la de «sin
+        unidad»). El formato nuevo entra por `restaurar_guias`."""
+        self.restaurar_guias({"": datos} if isinstance(datos, dict) else {})
+
+    def restaurar_guias(self, datos) -> None:
+        """Las guias que traia el proyecto al abrirlo, por unidad. `None` es
+        lo normal.
 
         Un documento roto se trata como si no hubiera guia, mismo criterio
         que el resto de la sesion: quedarse sin guia es una molestia y
         reventar al abrir es un proyecto que no se puede abrir.
         """
-        self.guia_actual = None
-        self._cuartos_de_la_guia = []
+        self._guias_por_unidad = {}
+        self._cuartos_de_la_guia_por_unidad = {}
         if not isinstance(datos, dict):
             return
-        orden = datos.get("orden")
-        if not isinstance(orden, list) or not all(isinstance(c, str) for c in orden):
-            return
-        self.guia_actual = logica_guia.Respuesta(
-            ok=True, lista=[logica_guia.Renglon(cuarto=c) for c in orden])
-        entonces = datos.get("cuartos_de_entonces")
-        self._cuartos_de_la_guia = (
-            [str(c) for c in entonces] if isinstance(entonces, list)
-            else [r.cuarto for r in self.guia_actual.lista]
-        )
+        for unidad, d in datos.items():
+            if not isinstance(d, dict):
+                continue
+            orden = d.get("orden")
+            if not isinstance(orden, list) or not all(isinstance(c, str) for c in orden):
+                continue
+            self._guias_por_unidad[str(unidad)] = logica_guia.Respuesta(
+                ok=True, lista=[logica_guia.Renglon(cuarto=c) for c in orden])
+            entonces = d.get("cuartos_de_entonces")
+            self._cuartos_de_la_guia_por_unidad[str(unidad)] = (
+                [str(c) for c in entonces] if isinstance(entonces, list)
+                else [r.cuarto for r in self._guias_por_unidad[str(unidad)].lista])
 
-    def guia_quedo_vieja(self) -> bool:
-        """¿La guia guardada habla de otros cuartos que los que hay?
+    def _cuartos_actuales_de_unidad(self, unidad: str) -> list[str]:
+        catalogo = self.room_selections.get(unidad)
+        return catalogo.active_rooms() if catalogo is not None else []
+
+    def guia_quedo_vieja(self, unidad: str | None = None) -> bool:
+        """¿La guia guardada de esa unidad habla de otros cuartos que los que
+        hay?
 
         Se comparan los NOMBRES, no el orden: mover un cuarto de lugar no
         cambia que cuartos hay, y avisar ahi seria una alarma que suena por
         nada -- y las alarmas que suenan por nada se aprenden a ignorar.
+
+        Sin `unidad`, revisa TODAS: es lo que usa el aviso al exportar.
         """
-        if self.guia_actual is None or not self._cuartos_de_la_guia:
+        if unidad is not None:
+            return self._unidad_quedo_vieja(unidad)
+        return any(self._unidad_quedo_vieja(u) for u in self._guias_por_unidad)
+
+    def _unidad_quedo_vieja(self, unidad: str) -> bool:
+        guia = self._guias_por_unidad.get(unidad)
+        entonces = self._cuartos_de_la_guia_por_unidad.get(unidad)
+        if guia is None or not guia.ok or not entonces:
             return False
-        return set(self._cuartos_de_la_guia) != set(self.room_selection.active_rooms())
+        return set(entonces) != set(self._cuartos_actuales_de_unidad(unidad))
 
     def aviso_de_guia_vieja(self) -> str:
-        """El aviso en palabras de Bruno, o "" si no hay nada que decir."""
-        if not self.guia_quedo_vieja():
+        """El aviso en palabras de Bruno, o "" si no hay nada que decir. Con
+        unidades, se dice de cuál."""
+        avisos = [self._aviso_de_unidad_vieja(u)
+                  for u in self._guias_por_unidad]
+        return " ".join(a for a in avisos if a)
+
+    def _aviso_de_unidad_vieja(self, unidad: str) -> str:
+        if not self._unidad_quedo_vieja(unidad):
             return ""
-        antes = set(self._cuartos_de_la_guia)
-        ahora = self.room_selection.active_rooms()
+        antes = set(self._cuartos_de_la_guia_por_unidad.get(unidad, []))
+        ahora = self._cuartos_actuales_de_unidad(unidad)
         nuevos = [c for c in ahora if c not in antes]
-        idos = [c for c in self._cuartos_de_la_guia if c not in set(ahora)]
+        idos = [c for c in self._cuartos_de_la_guia_por_unidad.get(unidad, [])
+                if c not in set(ahora)]
+        prefijo = f"En {unidad}: " if unidad else ""
         if nuevos:
-            return "Tu guía es de antes de agregar " + ", ".join(nuevos) + "."
+            return prefijo + "tu guía es de antes de agregar " + ", ".join(nuevos) + "."
         if idos:
-            return "Tu guía todavía habla de " + ", ".join(idos) + "."
-        return "Tu guía es de antes de cambiar los cuartos."
+            return prefijo + "tu guía todavía habla de " + ", ".join(idos) + "."
+        return prefijo + "tu guía es de antes de cambiar los cuartos."
 
     def _guia_para_el_manifest(self):
         """La guia en la forma que viaja, o `None`.
 
-        Los avisos de la revision NO viajan: Bruno ya los vio en la pantalla
-        y decidio exportar de todos modos. Lo que si viaja es
-        `fuera_del_patron`, que es informacion que solo tenia la IA.
+        Sin unidades, la lista plana de siempre en `orden`. Con unidades, el
+        orden de las unidades y el de sus cuartos en `unidades`, para que el
+        plugin numere la carpeta de la unidad y la del cuarto.
         """
-        if self.guia_actual is None or not self.guia_actual.ok:
+        sin_unidad = self._guia_de_unidad_para_la_sesion("")
+        orden = sin_unidad["orden"] if sin_unidad else []
+        unidades = []
+        for unidad in self.unit_selection.active_rooms():
+            d = self._guia_de_unidad_para_la_sesion(unidad)
+            if d is not None:
+                unidades.append({"nombre": unidad, "orden": d["orden"]})
+        if not orden and not unidades:
             return None
-        return Guia(orden=[r.cuarto for r in self.guia_actual.lista])
+        return Guia(orden=orden, unidades=unidades)
 
     def _pedir_renombrar_proyecto(self) -> None:
         nuevo, ok = QInputDialog.getText(
