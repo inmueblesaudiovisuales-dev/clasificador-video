@@ -60,7 +60,7 @@ class HistoryEntry:
     # clips sin cuarto -- pero SI necesita, ademas de reinsertar el nombre
     # en su catalogo de origen, saber si hay que retirarlo del catalogo
     # destino al deshacer.
-    cuarto_movido: "CuartoMovido | None" = None
+    cuarto_movido: CuartoMovido | None = None
 
     # --- lo que la accion le hizo a los BINS -------------------------------
     # Van aparte de `antes` porque el bin NO es un campo del clip: vive en
