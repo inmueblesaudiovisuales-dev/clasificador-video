@@ -2548,8 +2548,17 @@ class ClipSheet(QWidget):
         Vive aparte porque `set_clips` y `append_clips` tienen que crearlas
         IGUAL: cuando esto estaba duplicado, agregar una señal nueva en una de
         las dos dejaba mudas a las tarjetas del otro camino.
+
+        Nace con `self._content` de padre. Un `QWidget` sin padre es una
+        VENTANA de Qt, y crear cientos --una por clip-- para que `_regroup`
+        las reparente al bloque hacia que abrir un proyecto grande se
+        congelara: cada operacion sobre esas ventanas sueltas recorre todas
+        las demas, asi que el costo crece con el cuadrado de los clips.
+        Medido con 358 clips: 40 s; con padre, 0.4 s. El padre definitivo lo
+        pone igual `_acomodar_de_verdad`, esto solo evita que existan como
+        ventana mientras tanto.
         """
-        card = ClipCard(clip)
+        card = ClipCard(clip, self._content)
         card.indice = index
         card.tira_usada.connect(lambda c=card: self._anotar_tira_viva(c))
         card.clicked.connect(lambda mods, i=index: self._on_card_clicked(i, mods))

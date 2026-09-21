@@ -123,6 +123,24 @@ def test_el_orden_de_item_widgets_no_depende_del_agrupamiento(qtbot):
     assert sheet.item_widgets[1].clip.path.name == "C0001.MP4"
 
 
+def test_las_tarjetas_nacen_con_padre_y_no_como_ventanas(qtbot):
+    """Una tarjeta sin padre es una VENTANA de Qt. Crear cientos de ventanas
+    para despues reparentarlas al bloque es lo que congelaba abrir un
+    proyecto grande: medido con 358 clips, 40 s; con padre, 0.4 s. El costo
+    crecia con la CANTIDAD de ventanas sueltas, no con el trabajo de
+    acomodo.
+
+    Se mira la tarjeta RECIEN creada, antes de que `_regroup` la meta en su
+    bloque: ahi es donde estaba la ventana. Se fija la condicion de la causa
+    raiz --no puede ser top-level-- y no un tiempo, que seria fragil.
+    """
+    sheet = ClipSheet()
+    qtbot.addWidget(sheet)
+    card = sheet._nueva_tarjeta(_clip(0, "Cocina"), 0)
+    assert card.parent() is not None
+    assert not card.isWindow()
+
+
 # --- Regla 2: agrupar es re-colocar, no reconstruir ------------------------
 
 
