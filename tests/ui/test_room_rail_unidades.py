@@ -2,6 +2,7 @@
 """El rail agrupa por unidad. Sin ninguna unidad en el proyecto, se ve
 exactamente como siempre -- una sola banda implicita, sin encabezado."""
 import pytest
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QGraphicsOpacityEffect
 
 from clasificador_video.ui import theme
@@ -346,6 +347,41 @@ def test_cmd_clic_suma_a_la_seleccion(rail):
     rail._on_clic_en_fila(banio.nombre, True, "Casa B")
     assert cocina.property("seleccionada") is True
     assert banio.property("seleccionada") is True
+
+
+def test_cmd_clic_real_no_se_colapsa_al_soltar(qtbot, rail):
+    """Un Cmd-clic es press+release SIN movimiento, igual que un clic normal.
+
+    El release dispara la logica de «clic simple sobre algo ya seleccionado»
+    --pensada para que un clic sin arrastrar colapse el grupo a una fila-- y
+    sin este caso el segundo Cmd-clic marcaba y desmarcaba en el mismo gesto:
+    nunca se podian juntar dos cuartos. Los tests que llaman a
+    `_on_clic_en_fila` y a `_on_release_sin_arrastre` por separado no lo ven;
+    este simula el clic entero.
+    """
+    rail.resize(220, 700)
+    rail.set_rooms_agrupados(**_mismos_argumentos(), counts={})
+    cocina, banio = rail.rows_por_unidad["Casa B"]
+    cmd = Qt.KeyboardModifier.ControlModifier  # en macOS, Control = Command
+    qtbot.mouseClick(cocina, Qt.MouseButton.LeftButton, cmd, cocina.rect().center())
+    qtbot.mouseClick(banio, Qt.MouseButton.LeftButton, cmd, banio.rect().center())
+    assert cocina.property("seleccionada") is True
+    assert banio.property("seleccionada") is True
+
+
+def test_clic_simple_real_si_colapsa_el_grupo_al_soltar(qtbot, rail):
+    """El otro lado del caso anterior: un clic SIN modificador sobre una fila
+    ya seleccionada y sin arrastrar deja solo esa, como Finder."""
+    rail.resize(220, 700)
+    rail.set_rooms_agrupados(**_mismos_argumentos(), counts={})
+    cocina, banio = rail.rows_por_unidad["Casa B"]
+    cmd = Qt.KeyboardModifier.ControlModifier
+    qtbot.mouseClick(cocina, Qt.MouseButton.LeftButton, cmd, cocina.rect().center())
+    qtbot.mouseClick(banio, Qt.MouseButton.LeftButton, cmd, banio.rect().center())
+    qtbot.mouseClick(cocina, Qt.MouseButton.LeftButton,
+                     Qt.KeyboardModifier.NoModifier, cocina.rect().center())
+    assert cocina.property("seleccionada") is True
+    assert banio.property("seleccionada") is False
 
 
 def test_cmd_clic_en_otra_unidad_reemplaza_la_seleccion(rail):

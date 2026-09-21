@@ -221,6 +221,11 @@ class _FilaCuarto(QWidget):
         # sigue reproduciendo el video aunque el rail tenga el foco.
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self._inicio_del_arrastre: QPoint | None = None
+        # Si el ultimo press traia Cmd. Lo necesita el release: un Cmd-clic
+        # es press+release sin movimiento, igual que un clic simple, y el
+        # release no puede colapsar el grupo cuando el modificador ya decidio
+        # el toggle (si no, marcar dos cuartos con Cmd es imposible).
+        self._clic_con_modificador = False
         self.obtener_grupo = None   # lo pone RoomRail en el camino agrupado
         # Gemelo de `obtener_grupo`, tambien lo pone RoomRail: recibe
         # (nombres, arrastrando) y marca/desmarca las filas del grupo.
@@ -285,6 +290,7 @@ class _FilaCuarto(QWidget):
                 event.modifiers() & (Qt.KeyboardModifier.ControlModifier
                                       | Qt.KeyboardModifier.MetaModifier)
             )
+            self._clic_con_modificador = con_modificador
             self.clic_solicitado.emit(self.nombre, con_modificador)
         super().mousePressEvent(event)
 
@@ -328,9 +334,13 @@ class _FilaCuarto(QWidget):
 
     def mouseReleaseEvent(self, event) -> None:  # noqa: N802 -- override de Qt
         # `_inicio_del_arrastre` sigue puesto solo si mouseMoveEvent NUNCA
-        # arranco un arrastre con este click -- osea, fue un clic simple.
+        # arranco un arrastre con este click -- osea, fue un clic simple. Y
+        # solo colapsa el grupo si el clic fue SIN modificador: con Cmd el
+        # toggle de la seleccion ya hizo lo suyo, y colapsar aqui desharia el
+        # segundo cuarto que se acaba de marcar.
         if (self._inicio_del_arrastre is not None
-                and event.button() == Qt.MouseButton.LeftButton):
+                and event.button() == Qt.MouseButton.LeftButton
+                and not self._clic_con_modificador):
             self.clic_soltado_sin_arrastre.emit(self.nombre)
         self._inicio_del_arrastre = None
         super().mouseReleaseEvent(event)
