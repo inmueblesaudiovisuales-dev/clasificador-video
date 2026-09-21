@@ -115,14 +115,14 @@ module.exports = function (ctx) {
       // segmento, que sigue siendo valido.
       nombre: "caminoDelClip numera el cuarto segun la guia",
       fn: () => {
-        const r = ctx.caminoDelClip(["Cocina"], ["Fachada", "Cocina"]);
+        const r = ctx.caminoDelClip(["Cocina"], { orden: ["Fachada", "Cocina"] });
         return { ok: r.join(" > ") === "02. Clip > 02. Cocina", detalle: r.join(" > ") };
       },
     },
     {
       nombre: "sin guia, caminoDelClip deja el cuarto sin numero",
       fn: () => {
-        const r = ctx.caminoDelClip(["Cocina"], []);
+        const r = ctx.caminoDelClip(["Cocina"], { orden: [] });
         return { ok: r.join(" > ") === "02. Clip > Cocina", detalle: r.join(" > ") };
       },
     },
@@ -133,7 +133,7 @@ module.exports = function (ctx) {
       nombre: "un cuarto repetido se numera por su PRIMERA aparicion",
       fn: () => {
         const guion = ["Aerea", "Fachada", "Sala", "Aerea", "Aerea"];
-        const r = ctx.caminoDelClip(["Aerea"], guion);
+        const r = ctx.caminoDelClip(["Aerea"], { orden: guion });
         return { ok: r.join(" > ") === "02. Clip > 01. Aerea", detalle: r.join(" > ") };
       },
     },
@@ -141,7 +141,7 @@ module.exports = function (ctx) {
       nombre: "los demas cuartos no se corren por la repeticion",
       fn: () => {
         const guion = ["Aerea", "Fachada", "Sala", "Aerea"];
-        const r = ctx.caminoDelClip(["Sala"], guion);
+        const r = ctx.caminoDelClip(["Sala"], { orden: guion });
         return { ok: r.join(" > ") === "02. Clip > 03. Sala", detalle: r.join(" > ") };
       },
     },

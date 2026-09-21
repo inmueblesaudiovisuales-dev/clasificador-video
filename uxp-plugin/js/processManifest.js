@@ -43,10 +43,11 @@ async function processManifest(project, manifest) {
     );
   }
 
-  // Los cuartos en el orden que Bruno acepto en Clipify, o vacio si este
+  // La guia en el orden que Bruno acepto en Clipify, o vacia si este
   // proyecto no trae guia. Un manifest sin guia crea las carpetas sin
-  // numero, igual que siempre.
-  const ordenDeLaGuia = (manifest.guia && manifest.guia.orden) || [];
+  // numero, igual que siempre. Con unidades, `guia.unidades` trae el orden
+  // de cada una y el de sus cuartos (spec 2026-09-21).
+  const guia = manifest.guia || {};
 
   // El numero secuencial de cada clip DENTRO de su cuarto, en el orden del
   // manifiesto. Se calcula una sola vez para toda la corrida -- ver
@@ -72,12 +73,12 @@ async function processManifest(project, manifest) {
         categoryPath = clipData.categoria_path;
       }
 
-      // El CUARTO es el unico segmento que lleva numero, y su indice
-      // cambia si hay unidad o no -- `indicesDelCamino` lo dice. Pasa por
-      // `resolverCuarto` --que renumera la carpeta que ya existe en vez de
-      // crear una segunda--. Lo que cuelgue debajo sigue por el camino de
-      // siempre.
-      const camino = caminoDelClip(categoryPath, ordenDeLaGuia);
+      // El CAMINO numera la unidad y el cuarto con la guia (spec 2026-09-21);
+      // su indice cambia si hay unidad o no -- `indicesDelCamino` lo dice.
+      // Pasa por `resolverCuarto` --que renumera la carpeta que ya existe en
+      // vez de crear una segunda--. Lo que cuelgue debajo sigue por el camino
+      // de siempre.
+      const camino = caminoDelClip(categoryPath, guia);
       const { indiceUnidad, indiceCuarto } = indicesDelCamino(categoryPath);
       // camino[indiceCuarto] ya trae el numero (o no, sin guia). Aqui se le
       // suma la marca [DRONE]/[SONY]/etc si TODOS los clips de este cuarto,
@@ -88,16 +89,16 @@ async function processManifest(project, manifest) {
         camino[indiceCuarto], nombreCuartoSinNumero, manifest.clips, categoryPath
       );
 
-      // La UNIDAD, cuando hay una, NUNCA lleva numero (spec 2026-09-20
-      // §7-§8: no hay guia de unidades), asi que usa `resolveBinChain`
-      // simple -- crea o reusa por nombre exacto -- y no `resolverCuarto`,
-      // cuyo renumerado entre pasadas no le aplica.
+      // La UNIDAD, cuando hay una, lleva su numero (spec 2026-09-21) y su
+      // marca de camara. Va por `resolverCuarto` igual que el cuarto: si ya
+      // existia sin numero --de una importacion anterior-- la RENUMERA en vez
+      // de crear una segunda carpeta.
       let carpetaBase = carpetaDeClips;
       if (indiceUnidad !== null) {
         const nombreUnidad = nombreDelCuartoConMarca(
           camino[indiceUnidad], camino[indiceUnidad], manifest.clips, [categoryPath[0]]
         );
-        carpetaBase = await resolveBinChain(project, carpetaDeClips, [nombreUnidad]);
+        carpetaBase = await resolverCuarto(project, carpetaDeClips, nombreUnidad);
       }
       const carpetaDelCuartoObj = await resolverCuarto(
         project, carpetaBase, camino[indiceCuarto]);
@@ -135,7 +136,7 @@ async function processManifest(project, manifest) {
       // rechazar con un string u otro valor sin .message) -- con fallback a
       // String(e) el mensaje nunca queda vacio ni tumba este catch.
       const mensaje = (e && e.message) || String(e);
-      const donde = caminoDelClip(categoryPath, ordenDeLaGuia).join(" > ");
+      const donde = caminoDelClip(categoryPath, guia).join(" > ");
       resultado.errores.push({
         archivo: nombreArchivo, mensaje: mensaje, destino: donde,
       });

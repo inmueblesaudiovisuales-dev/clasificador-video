@@ -45,19 +45,29 @@ async function crearEsqueleto(project, rootFolder) {
 
 // El camino completo de un clip: su cuarto (y su unidad, si tiene) colgados
 // de «02. Clip». La app manda ["Cocina"] o ["Casa A", "Cocina"] y aqui se
-// vuelve ["02. Clip", "03. Cocina"] o ["02. Clip", "Casa A", "03. Cocina"].
+// vuelve ["02. Clip", "01. Cocina"] o ["02. Clip", "01. Casa A", "01. Cocina"].
 //
-// El CUARTO es el ultimo segmento (categoryPath.length - 1) y es el unico
-// que lleva numero, con el orden de la guia que ya existia. La UNIDAD --
-// cuando hay una, el primer segmento -- no lleva numero: no existe todavia
-// una guia de unidades (spec 2026-09-20 §7-§8, decidido fuera de alcance).
-function caminoDelClip(categoryPath, ordenDeLaGuia) {
+// `guia` es lo que viaja en el manifest: `{orden: [...], unidades: [{nombre,
+// orden}]}`. Sin unidades, `orden` numera el cuarto -- el comportamiento de
+// siempre. Con unidades, cada una lleva el numero de su lugar en `unidades` y
+// el cuarto el de su lugar dentro de la unidad (spec 2026-09-21). Lo que la
+// guia no menciona se queda sin numero, igual que antes.
+function caminoDelClip(categoryPath, guia) {
   const camino = (categoryPath || []).slice();
-  const orden = ordenDeLaGuia || [];
-  if (camino.length) {
-    const indiceDelCuarto = camino.length - 1;
-    const lugar = orden.indexOf(camino[indiceDelCuarto]);
-    if (lugar !== -1) camino[indiceDelCuarto] = conNumero(camino[indiceDelCuarto], lugar + 1);
+  const orden = (guia && guia.orden) || [];
+  const unidades = (guia && guia.unidades) || [];
+  if (!camino.length) return [CARPETA_DE_CLIPS].concat(camino);
+  if (camino.length > 1) {
+    const lugarUnidad = unidades.findIndex(
+      (u) => u && u.nombre === camino[0]);
+    if (lugarUnidad !== -1) camino[0] = conNumero(camino[0], lugarUnidad + 1);
+    const ordenDeLaUnidad =
+      (lugarUnidad !== -1 && unidades[lugarUnidad].orden) || [];
+    const lugarCuarto = ordenDeLaUnidad.indexOf(camino[1]);
+    if (lugarCuarto !== -1) camino[1] = conNumero(camino[1], lugarCuarto + 1);
+  } else {
+    const lugar = orden.indexOf(camino[0]);
+    if (lugar !== -1) camino[0] = conNumero(camino[0], lugar + 1);
   }
   return [CARPETA_DE_CLIPS].concat(camino);
 }
