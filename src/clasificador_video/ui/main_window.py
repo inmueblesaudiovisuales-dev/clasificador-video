@@ -40,7 +40,7 @@ from clasificador_video.bins import BinTree, raiz_comun_de
 from clasificador_video.camaras import SONY
 from clasificador_video.marca_camara import bin_dice_dron, bin_dice_pocket, bin_dice_sony
 from clasificador_video.filters import FilterState, cola, contar
-from clasificador_video.history import History, HistoryEntry
+from clasificador_video.history import CuartoMovido, History, HistoryEntry
 from clasificador_video.ingest import archivos_de_video
 from clasificador_video.keyboard import KeyboardRouter
 from clasificador_video.manifest import Clip, Guia, Manifest
@@ -1684,6 +1684,53 @@ class MainWindow(QWidget):
         self._refresh_sheet()
         self._autosave()
 
+    def _mover_cuarto_a_unidad(self, nombre: str, unidad_origen: str, unidad_destino: str,
+                                nombre_destino: str, fue_fusion: bool) -> None:
+        """Mueve un cuarto COMPLETO -- con sus clips ya clasificados -- de
+        una unidad a otra (spec 2026-09-21 S5). Sin choque de nombre esto
+        es todo el trabajo; con choque, quien llama (Task 10) ya resolvio
+        `nombre_destino`/`fue_fusion` antes de venir aqui.
+
+        `unidad_origen` puede ser "" (el bloque migratorio "Sin unidad"),
+        pero `unidad_destino` nunca -- soltar en ese bloque no es un
+        destino valido (`RoomRail._unidad_bajo` ya lo filtra).
+        """
+        catalogo_origen = self.room_selections.setdefault(unidad_origen, RoomSelection())
+        catalogo_destino = self.room_selections.setdefault(unidad_destino, RoomSelection())
+        afectados = [
+            i for i, c in enumerate(self.clips)
+            if c.categoria_path and self._cuarto_de(c.categoria_path) == nombre
+            and (self._unidad_de(c.categoria_path) or "") == unidad_origen
+        ]
+        posicion_origen = (
+            catalogo_origen.active_rooms().index(nombre)
+            if nombre in catalogo_origen.active_rooms() else 0
+        )
+        self._registrar(
+            etiqueta=nombre_destino,
+            detalle=self._detalle(afectados) if afectados else "0 clips",
+            color=self._color_de_unidad(unidad_destino),
+            clips=afectados,
+            campos=("categoria_path",),
+            cuarto_movido=CuartoMovido(
+                nombre_origen=nombre, posicion_origen=posicion_origen,
+                unidad_origen=unidad_origen, nombre_destino=nombre_destino,
+                unidad_destino=unidad_destino, fue_fusion=fue_fusion,
+            ),
+        )
+        for indice in afectados:
+            self.clips[indice].categoria_path = [unidad_destino, nombre_destino]
+        catalogo_origen.remove(nombre)
+        catalogo_destino.add(nombre_destino)
+        if self._ultimo_cuarto_usado == nombre:
+            self._ultimo_cuarto_usado = nombre_destino
+        activa = self._unidad_activa or ""
+        if unidad_origen == activa or unidad_destino == activa:
+            self._sync_rooms()
+        else:
+            self._refresh_rail()
+            self._autosave()
+
     def _color_de_unidad(self, unidad: str) -> str:
         unidades = self.unit_selection.active_rooms()
         return theme.unit_color(unidades.index(unidad)) if unidad in unidades else theme.TEXT_3
@@ -1796,7 +1843,8 @@ class MainWindow(QWidget):
 
     def _registrar(self, etiqueta: str, detalle: str, color: str,
                    clips: list[int], campos: tuple[str, ...],
-                   cuarto_borrado: tuple[str, int] | None = None) -> None:
+                   cuarto_borrado: tuple[str, int] | None = None,
+                   cuarto_movido: CuartoMovido | None = None) -> None:
         """Guarda el estado ANTERIOR de `campos` en `clips`.
 
         Se llama SIEMPRE antes de mutar, nunca despues -- si no, guarda el
@@ -1809,7 +1857,8 @@ class MainWindow(QWidget):
             for indice in clips
             if 0 <= indice < len(self.clips)
         }
-        self.history.push(HistoryEntry(etiqueta, detalle, color, antes, cuarto_borrado))
+        self.history.push(HistoryEntry(etiqueta, detalle, color, antes, cuarto_borrado,
+                                        cuarto_movido=cuarto_movido))
         self._refresh_history()
 
     def _motivo_bloqueado(self, entrada: HistoryEntry) -> str | None:
@@ -1907,6 +1956,19 @@ class MainWindow(QWidget):
             # todo lo creado despues del borrado.
             nombre, posicion = entrada.cuarto_borrado
             self.room_selection.insert_at(posicion, nombre)
+            self._router.active_rooms = self.room_selection.active_rooms()
+        if entrada.cuarto_movido is not None:
+            cm = entrada.cuarto_movido
+            catalogo_origen = self.room_selections.setdefault(cm.unidad_origen, RoomSelection())
+            # se REINSERTA en su posicion, mismo criterio que `cuarto_borrado`
+            catalogo_origen.insert_at(cm.posicion_origen, cm.nombre_origen)
+            if not cm.fue_fusion:
+                # si fue fusion, el nombre YA existia en destino antes del
+                # move y sigue teniendo clips propios despues de deshacer --
+                # quitarlo de ahi seria borrar un cuarto que no se creo aqui
+                catalogo_destino = self.room_selections.get(cm.unidad_destino)
+                if catalogo_destino is not None:
+                    catalogo_destino.remove(cm.nombre_destino)
             self._router.active_rooms = self.room_selection.active_rooms()
         self._refresh_sheet()
         self._refresh_history()

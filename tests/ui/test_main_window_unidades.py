@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 
+from clasificador_video.history import CuartoMovido
 from clasificador_video.manifest import Clip
 from clasificador_video.rooms import RoomSelection
 from clasificador_video.ui.main_window import MainWindow
@@ -382,3 +383,96 @@ def test_asignar_cuarto_con_unidad_activa_la_expande_si_estaba_colapsada(main_wi
     main_window._asignar_cuarto(["Cocina"])
 
     assert "Casa A" not in main_window.room_rail.unidades_colapsadas()
+
+
+# --- mover un cuarto completo a otra unidad (spec 2026-09-21, tarea 9) -----
+
+
+def _con_dos_unidades(main_window):
+    main_window.unit_selection.add("Casa A")
+    main_window.unit_selection.add("Casa B")
+    main_window.room_selections["Casa A"] = RoomSelection()
+    main_window.room_selections["Casa A"].add("Cocina")
+    main_window.room_selections["Casa B"] = RoomSelection()
+
+
+def test_mover_cuarto_a_unidad_mueve_los_clips(main_window):
+    _con_dos_unidades(main_window)
+    main_window.load_clips([
+        Clip(orden=1, ruta=Path("/a.MP4"), categoria_path=["Casa A", "Cocina"], fps=30.0),
+        Clip(orden=2, ruta=Path("/b.MP4"), categoria_path=["Casa A", "Cocina"], fps=30.0),
+        Clip(orden=3, ruta=Path("/c.MP4"), categoria_path=["Casa A", "Comedor"], fps=30.0),
+    ])
+    main_window._mover_cuarto_a_unidad(
+        "Cocina", "Casa A", "Casa B", nombre_destino="Cocina", fue_fusion=False,
+    )
+    assert main_window.clips[0].categoria_path == ["Casa B", "Cocina"]
+    assert main_window.clips[1].categoria_path == ["Casa B", "Cocina"]
+    assert main_window.clips[2].categoria_path == ["Casa A", "Comedor"]  # no se toca
+
+
+def test_mover_cuarto_a_unidad_actualiza_los_catalogos(main_window):
+    _con_dos_unidades(main_window)
+    main_window.load_clips([])
+    main_window._mover_cuarto_a_unidad(
+        "Cocina", "Casa A", "Casa B", nombre_destino="Cocina", fue_fusion=False,
+    )
+    assert "Cocina" not in main_window.room_selections["Casa A"].active_rooms()
+    assert "Cocina" in main_window.room_selections["Casa B"].active_rooms()
+
+
+def test_mover_cuarto_a_unidad_con_nombre_distinto_renombra_al_llegar(main_window):
+    _con_dos_unidades(main_window)
+    main_window.load_clips([
+        Clip(orden=1, ruta=Path("/a.MP4"), categoria_path=["Casa A", "Cocina"], fps=30.0),
+    ])
+    main_window._mover_cuarto_a_unidad(
+        "Cocina", "Casa A", "Casa B", nombre_destino="Cocina 2", fue_fusion=False,
+    )
+    assert main_window.clips[0].categoria_path == ["Casa B", "Cocina 2"]
+    assert "Cocina 2" in main_window.room_selections["Casa B"].active_rooms()
+
+
+def test_mover_cuarto_registra_en_el_historial(main_window):
+    _con_dos_unidades(main_window)
+    main_window.load_clips([
+        Clip(orden=1, ruta=Path("/a.MP4"), categoria_path=["Casa A", "Cocina"], fps=30.0),
+    ])
+    main_window._mover_cuarto_a_unidad(
+        "Cocina", "Casa A", "Casa B", nombre_destino="Cocina", fue_fusion=False,
+    )
+    entrada = main_window.history.entries()[0]
+    assert entrada.cuarto_movido == CuartoMovido(
+        nombre_origen="Cocina", posicion_origen=0, unidad_origen="Casa A",
+        nombre_destino="Cocina", unidad_destino="Casa B", fue_fusion=False,
+    )
+
+
+def test_deshacer_mover_cuarto_regresa_clips_y_catalogos(main_window):
+    _con_dos_unidades(main_window)
+    main_window.load_clips([
+        Clip(orden=1, ruta=Path("/a.MP4"), categoria_path=["Casa A", "Cocina"], fps=30.0),
+    ])
+    main_window._mover_cuarto_a_unidad(
+        "Cocina", "Casa A", "Casa B", nombre_destino="Cocina", fue_fusion=False,
+    )
+    main_window.undo()
+    assert main_window.clips[0].categoria_path == ["Casa A", "Cocina"]
+    assert "Cocina" in main_window.room_selections["Casa A"].active_rooms()
+    assert "Cocina" not in main_window.room_selections["Casa B"].active_rooms()
+
+
+def test_mover_desde_sin_unidad_a_una_unidad(main_window):
+    """El camino real de migracion de Bruno: Cocina-A vive hoy sin unidad,
+    y se arrastra directo a Casa A."""
+    main_window.unit_selection.add("Casa A")
+    main_window.room_selections["Casa A"] = RoomSelection()
+    main_window.room_selections[""].add("Cocina-A")
+    main_window.load_clips([
+        Clip(orden=1, ruta=Path("/a.MP4"), categoria_path=["Cocina-A"], fps=30.0),
+    ])
+    main_window._mover_cuarto_a_unidad(
+        "Cocina-A", "", "Casa A", nombre_destino="Cocina-A", fue_fusion=False,
+    )
+    assert main_window.clips[0].categoria_path == ["Casa A", "Cocina-A"]
+    assert "Cocina-A" not in main_window.room_selections[""].active_rooms()
