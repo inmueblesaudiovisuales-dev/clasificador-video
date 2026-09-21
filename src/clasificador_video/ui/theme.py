@@ -167,6 +167,14 @@ BRUSH_TINT_ALPHA = 51
 # La barra de seleccion multiple (`.batch` del mockup).
 BATCH_BG = "#1a2130"
 BATCH_BORDER = "#2e3b57"
+# Las filas de ORIGEN mientras arrastras uno o varios cuartos: se atenuan
+# para decir "esto es lo que llevo", separado del borde ambar de
+# `roomRow[seleccionada]` que dice "esto esta seleccionado" (spec 2026-09-21
+# S5, ~0.35 del mockup aprobado). NO hay regla QSS para esto: `opacity` no
+# es una propiedad que entiendan las hojas de estilo de Qt -- comprobado
+# pixel a pixel el 2026-09-21, la regla se ignoraba. Lo aplica
+# `_FilaCuarto.set_arrastrandose` con un `QGraphicsOpacityEffect`.
+ROOM_DRAG_OPACITY = 0.35
 # La paleta `⏎` tapa video a proposito: se esta leyendo una lista.
 PALETTE_BG = "rgba(20, 23, 28, 247)"     # rgba(20,23,28,.97) del mockup
 PALETTE_BORDER = "#333c4a"
@@ -781,6 +789,10 @@ def build_stylesheet() -> str:
         background-color: {BG_SURFACE_2};
         border: 1px solid {CURRENT_COLOR};
     }}
+    /* Las filas de ORIGEN mientras arrastras NO llevan regla aqui: se
+       atenuan con `QGraphicsOpacityEffect` desde
+       `_FilaCuarto.set_arrastrandose`, porque QSS no entiende `opacity` --
+       ver `ROOM_DRAG_OPACITY`. */
     /* `⌘R` trae el foco aca: sin marca visible no se sabe sobre que fila
        actuan ⏎, ⌫ y ⌥↑/⌥↓ */
     QWidget#roomRow:focus {{

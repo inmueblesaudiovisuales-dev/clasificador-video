@@ -5,6 +5,7 @@ from PySide6.QtCore import QMimeData, QPoint, Qt, Signal
 from PySide6.QtGui import QColor, QDrag, QFontMetrics, QPainter, QPixmap
 from PySide6.QtWidgets import (
     QApplication,
+    QGraphicsOpacityEffect,
     QHBoxLayout,
     QInputDialog,
     QLabel,
@@ -221,6 +222,9 @@ class _FilaCuarto(QWidget):
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self._inicio_del_arrastre: QPoint | None = None
         self.obtener_grupo = None   # lo pone RoomRail en el camino agrupado
+        # Gemelo de `obtener_grupo`, tambien lo pone RoomRail: recibe
+        # (nombres, arrastrando) y marca/desmarca las filas del grupo.
+        self.marcar_arrastrando = None
 
         layout = QHBoxLayout(self)
         layout.setContentsMargins(6, 0, 6, 0)
@@ -308,7 +312,19 @@ class _FilaCuarto(QWidget):
             arrastre.setPixmap(_pixmap_de_grupo(nombres, self.font()))
         else:
             arrastre.setPixmap(self.grab())
-        arrastre.exec(Qt.DropAction.MoveAction)
+        # Las filas de ORIGEN se atenuan mientras dura el gesto, para marcar
+        # "esto es lo que llevo" -- separado del borde ambar que dice "esto
+        # esta seleccionado" (spec 2026-09-21 S5). El pixmap del arrastre ya
+        # se armo arriba, asi que la atenuacion no lo ensucia. `exec()` es
+        # BLOQUEANTE: cuando retorna, el gesto termino y hay que devolver las
+        # filas a la normalidad.
+        if self.marcar_arrastrando:
+            self.marcar_arrastrando(nombres, True)
+        try:
+            arrastre.exec(Qt.DropAction.MoveAction)
+        finally:
+            if self.marcar_arrastrando:
+                self.marcar_arrastrando(nombres, False)
 
     def mouseReleaseEvent(self, event) -> None:  # noqa: N802 -- override de Qt
         # `_inicio_del_arrastre` sigue puesto solo si mouseMoveEvent NUNCA
@@ -389,6 +405,26 @@ class _FilaCuarto(QWidget):
         self.setProperty("seleccionada", seleccionada)
         self.style().unpolish(self)
         self.style().polish(self)
+
+    def set_arrastrandose(self, arrastrandose: bool) -> None:
+        """Atenua la fila mientras viaja en un arrastre.
+
+        Se pinta con un `QGraphicsOpacityEffect` y NO con una regla QSS: la
+        hoja de estilos de Qt no entiende `opacity` (comprobado el
+        2026-09-21 -- una regla `QWidget#roomRow[arrastrandose="true"]` con
+        `opacity: 0.35` no cambia ni un pixel). La propiedad dinamica se
+        deja igual para que el estado sea consultable y siga el mismo patron
+        que `set_seleccionada`.
+        """
+        if self.property("arrastrandose") == arrastrandose:
+            return
+        self.setProperty("arrastrandose", arrastrandose)
+        if arrastrandose:
+            efecto = QGraphicsOpacityEffect(self)
+            efecto.setOpacity(theme.ROOM_DRAG_OPACITY)
+            self.setGraphicsEffect(efecto)
+        else:
+            self.setGraphicsEffect(None)
 
 
 class _FilaHistorial(QWidget):
@@ -870,6 +906,10 @@ class RoomRail(QWidget):
                 fila.obtener_grupo = (
                     lambda n=cuarto, u=llave: self._grupo_para_arrastrar(n, u)
                 )
+                fila.marcar_arrastrando = (
+                    lambda nombres, valor, u=llave:
+                        self._marcar_arrastrando(nombres, valor, u)
+                )
                 self._rooms_layout.addWidget(fila)
                 filas.append(fila)
             self.rows_por_unidad[llave] = filas
@@ -954,6 +994,21 @@ class RoomRail(QWidget):
             return [f.nombre for f in self.rows_por_unidad[unidad]
                     if f.nombre in self._seleccion]
         return [nombre]
+
+    def _marcar_arrastrando(self, nombres: list[str], arrastrando: bool,
+                             unidad: str) -> None:
+        """Atenua/restaura las filas que viajan en el arrastre.
+
+        Recibe la lista de NOMBRES (lo que carga el MIME) y la traduce a las
+        `_FilaCuarto` reales dentro de `rows_por_unidad[unidad]` -- mismo
+        mecanismo que `_grupo_para_arrastrar`, para poder probar la decision
+        sin fabricar un `QDrag` real. Solo toca la unidad de origen: un
+        cuarto con el mismo nombre en otra unidad no viaja en este gesto.
+        """
+        viajando = set(nombres)
+        for fila in self.rows_por_unidad.get(unidad, []):
+            if fila.nombre in viajando:
+                fila.set_arrastrandose(arrastrando)
 
     def unidades_colapsadas(self) -> set[str]:
         return set(self._colapsadas)

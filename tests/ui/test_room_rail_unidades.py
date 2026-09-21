@@ -2,7 +2,9 @@
 """El rail agrupa por unidad. Sin ninguna unidad en el proyecto, se ve
 exactamente como siempre -- una sola banda implicita, sin encabezado."""
 import pytest
+from PySide6.QtWidgets import QGraphicsOpacityEffect
 
+from clasificador_video.ui import theme
 from clasificador_video.ui.room_rail import RoomRail
 
 
@@ -437,3 +439,67 @@ def test_mover_grupo_a_unidad_emite_la_senal(rail):
     )
     rail.mover_grupo_a_unidad(["Cocina", "Comedor"], "Casa A", "Casa B")
     assert avisos == [(["Cocina", "Comedor"], "Casa A", "Casa B")]
+
+
+# --- atenuar las filas de origen mientras arrastras (spec 2026-09-21 S5) -----
+
+
+def test_marcar_arrastrando_atenua_las_filas_del_grupo(rail):
+    rail.set_rooms_agrupados(**_mismos_argumentos(), counts={})
+    cocina, banio = rail.rows_por_unidad["Casa B"]
+
+    rail._marcar_arrastrando(["Cocina", "Baño"], True, "Casa B")
+
+    assert cocina.property("arrastrandose") is True
+    assert banio.property("arrastrandose") is True
+
+
+def test_marcar_arrastrando_aplica_la_opacidad_del_tema(rail):
+    rail.set_rooms_agrupados(**_mismos_argumentos(), counts={})
+    cocina = rail.rows_por_unidad["Casa B"][0]
+
+    rail._marcar_arrastrando(["Cocina"], True, "Casa B")
+
+    efecto = cocina.graphicsEffect()
+    assert isinstance(efecto, QGraphicsOpacityEffect)
+    assert efecto.opacity() == theme.ROOM_DRAG_OPACITY
+
+
+def test_desmarcar_arrastrando_quita_la_atenuacion(rail):
+    rail.set_rooms_agrupados(**_mismos_argumentos(), counts={})
+    cocina, banio = rail.rows_por_unidad["Casa B"]
+    rail._marcar_arrastrando(["Cocina", "Baño"], True, "Casa B")
+
+    rail._marcar_arrastrando(["Cocina", "Baño"], False, "Casa B")
+
+    assert cocina.property("arrastrandose") is False
+    assert banio.property("arrastrandose") is False
+    assert cocina.graphicsEffect() is None
+    assert banio.graphicsEffect() is None
+
+
+def test_marcar_arrastrando_no_toca_las_filas_de_otra_unidad(rail):
+    rail.set_rooms_agrupados(**_mismos_argumentos(), counts={})
+    cocina_a = rail.rows_por_unidad["Casa A"][0]
+    sin_migrar = rail.rows_por_unidad[""][0]
+
+    rail._marcar_arrastrando(["Cocina", "Baño"], True, "Casa B")
+
+    assert cocina_a.property("arrastrandose") is not True
+    assert sin_migrar.property("arrastrandose") is not True
+
+
+def test_la_fila_avisa_a_su_rail_al_arrancar_el_arrastre(rail):
+    """El callback que recibe `_FilaCuarto` desde el rail es el que marca el
+    grupo -- mismo mecanismo que `obtener_grupo`. Se prueba sin un QDrag
+    real, como el resto del archivo."""
+    rail.set_rooms_agrupados(**_mismos_argumentos(), counts={})
+    cocina, banio = rail.rows_por_unidad["Casa B"]
+
+    cocina.marcar_arrastrando(["Cocina", "Baño"], True)
+    assert cocina.property("arrastrandose") is True
+    assert banio.property("arrastrandose") is True
+
+    cocina.marcar_arrastrando(["Cocina", "Baño"], False)
+    assert cocina.property("arrastrandose") is False
+    assert banio.property("arrastrandose") is False
