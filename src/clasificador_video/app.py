@@ -153,6 +153,23 @@ def _mapa_por_clip(crudo, convertir) -> dict:
     return limpio
 
 
+def _guias_por_unidad_de(data: dict) -> dict:
+    """Las guias de edicion del documento, por unidad.
+
+    Formato nuevo: `guias_por_unidad` (una entrada por unidad, `""` = «sin
+    unidad»). Formato viejo: `guia` a secas, que es la de «sin unidad» de un
+    proyecto sin unidades. Un documento sin ninguna de las dos, o con basura,
+    da `{}` -- quedarse sin guia es una molestia, no un proyecto que no abre.
+    """
+    guias = data.get("guias_por_unidad")
+    if isinstance(guias, dict) and guias:
+        return {str(u): g for u, g in guias.items() if isinstance(g, dict)}
+    guia = data.get("guia")
+    if isinstance(guia, dict):
+        return {"": guia}
+    return {}
+
+
 def _poblar_ventana(window: MainWindow, data: dict, clips: list[Clip]) -> None:
     """Arma la ventana desde el dict de un proyecto.
 
@@ -218,10 +235,11 @@ def _poblar_ventana(window: MainWindow, data: dict, clips: list[Clip]) -> None:
     # donde se escribia y se sigue buscando en los tres lugares.
     guardada = data.get("carpeta_de_proxies")
     window.set_carpeta_de_proxies(Path(guardada) if guardada else None)
-    # Y la guia de edicion, si este proyecto la armo. Falta en todo proyecto
-    # anterior al 2026-09-14, y ahi `None` es lo normal: se abre igual y el
-    # boton sigue ahi para armarla.
-    window.restaurar_guia(data.get("guia"))
+    # Y las guias de edicion, si este proyecto las armo, por unidad. Falta en
+    # todo proyecto anterior al 2026-09-14, y ahi `{}` es lo normal: se abre
+    # igual y el boton sigue ahi para armarla. La llave vieja `guia` (una
+    # sola, sin unidades) se lee como la de «sin unidad».
+    window.restaurar_guias(_guias_por_unidad_de(data))
     window._refresh_sheet(force_rebuild=True)
     # Que unidades quedaron colapsadas en el rail (spec 2026-09-21 S3).
     # Falta en todo proyecto de antes de hoy, y ahi el default es "ninguna"

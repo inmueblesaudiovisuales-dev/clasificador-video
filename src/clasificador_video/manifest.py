@@ -50,12 +50,25 @@ class Clip:
 
 @dataclass
 class Guia:
-    """La guía de edición, congelada. El plugin la LEE y nunca la pide."""
+    """La guía de edición, congelada. El plugin la LEE y nunca la pide.
+
+    `orden` es el guion de un proyecto sin unidades (lista plana de nombres,
+    con repetidos). `unidades` es el de un proyecto con unidades: el orden de
+    las unidades y, por unidad, el orden de sus cuartos. Un proyecto usa una
+    u otra, nunca las dos.
+    """
 
     orden: list[str] = field(default_factory=list)
+    unidades: list[dict] = field(default_factory=list)
 
     def to_dict(self) -> dict:
-        return {"orden": list(self.orden)}
+        datos = {"orden": list(self.orden)}
+        if self.unidades:
+            datos["unidades"] = [
+                {"nombre": str(u.get("nombre", "")), "orden": list(u.get("orden", []))}
+                for u in self.unidades
+            ]
+        return datos
 
 
 @dataclass

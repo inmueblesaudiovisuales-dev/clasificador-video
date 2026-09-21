@@ -474,6 +474,28 @@ def test_a_dict_guarda_units_y_rooms_por_unidad_con_datos():
     }
 
 
+def test_a_dict_guarda_guias_por_unidad_vacio_por_default():
+    data = a_dict(
+        proyecto="Prueba", rooms=["Cocina"], clips=[], bins=_bins_vacio(),
+        tamanos={}, duraciones={}, rotaciones={},
+    )
+
+    assert data["guias_por_unidad"] == {}
+
+
+def test_a_dict_guarda_guias_por_unidad_con_datos():
+    data = a_dict(
+        proyecto="Prueba", rooms=[], clips=[], bins=_bins_vacio(),
+        tamanos={}, duraciones={}, rotaciones={},
+        units=["Casa A"],
+        guias_por_unidad={"Casa A": {"orden": ["Cocina"], "cuartos_de_entonces": ["Cocina"]}},
+    )
+
+    assert data["guias_por_unidad"] == {
+        "Casa A": {"orden": ["Cocina"], "cuartos_de_entonces": ["Cocina"]},
+    }
+
+
 def test_raiz_de_assets_de_lee_los_bins_del_documento():
     from clasificador_video.proyecto import raiz_de_assets_de
 

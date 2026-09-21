@@ -136,7 +136,8 @@ def a_dict(proyecto: str, rooms: list[str], clips: list, bins,
            entrega: dict | None = None,
            units: list[str] | None = None,
            rooms_por_unidad: dict[str, list[str]] | None = None,
-           unidades_colapsadas: list[str] | None = None) -> dict:
+           unidades_colapsadas: list[str] | None = None,
+           guias_por_unidad: dict[str, dict] | None = None) -> dict:
     """La forma del documento. **Puro: no toca disco.**
 
     Los pesos que salen de aqui son los que ya se sabian (`bytes_conocidos`,
@@ -206,6 +207,14 @@ def a_dict(proyecto: str, rooms: list[str], clips: list, bins,
         # spec). Sin ese dato habría que adivinarlo, y adivinar en silencio
         # es justo lo que esta app no hace.
         "guia": guia,
+        # La guía POR UNIDAD (spec 2026-09-21). `{}` es un proyecto que nunca
+        # armó ninguna. La llave "" es la de «sin unidad» -- así un proyecto
+        # sin unidades guarda aquí lo mismo que en `guia`, y un proyecto con
+        # unidades guarda una entrada por unidad.
+        "guias_por_unidad": (
+            {u: dict(g) for u, g in guias_por_unidad.items()}
+            if guias_por_unidad else {}
+        ),
         # El estado de la entrega a un editor externo (subir/traer por
         # Drive). `None` es un proyecto que nunca la usó -- mismo criterio
         # que `guia` y `carpeta_de_proxies`: los proyectos de antes de hoy

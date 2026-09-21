@@ -180,6 +180,24 @@ def test_guia_to_dict_es_solo_una_lista_de_nombres():
     assert guia.to_dict() == {"orden": ["Fachada", "Sala", "Fachada"]}
 
 
+def test_guia_sin_unidades_no_escribe_la_llave_unidades():
+    """Retro-compatible: un proyecto sin unidades manda exactamente lo de
+    siempre. La llave `unidades` solo aparece cuando hay guías por unidad."""
+    guia = Guia(orden=["Cocina"])
+    assert "unidades" not in guia.to_dict()
+
+
+def test_guia_con_unidades_las_lleva_en_orden():
+    guia = Guia(unidades=[
+        {"nombre": "CASA A", "orden": ["Cocina", "Baño"]},
+        {"nombre": "CASA B", "orden": ["Fachada"]},
+    ])
+    assert guia.to_dict()["unidades"] == [
+        {"nombre": "CASA A", "orden": ["Cocina", "Baño"]},
+        {"nombre": "CASA B", "orden": ["Fachada"]},
+    ]
+
+
 def test_categoria_path_sigue_sin_numero():
     # El numero es presentacion y lo pone el plugin. Meterlo aqui lo
     # volveria parte del NOMBRE del cuarto.
