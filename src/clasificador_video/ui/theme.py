@@ -749,6 +749,27 @@ def build_stylesheet() -> str:
         color: {TEXT_2};
         font-size: {FONT_BODY}px;
     }}
+    /* El selector de unidad (spec 2026-09-21): chips como los filtros de la
+       hoja. La elegida se lee distinta, sin el ámbar de estado. */
+    QWidget#guiaUnidades {{
+        background-color: transparent;
+    }}
+    QPushButton#guiaUnidad {{
+        background-color: {BG_SURFACE_1};
+        border: 1px solid {LINE};
+        border-radius: 6px;
+        color: {TEXT_2};
+        padding: 3px 10px;
+        font-size: {FONT_SMALL}px;
+    }}
+    QPushButton#guiaUnidad:hover {{
+        color: {TEXT};
+    }}
+    QPushButton#guiaUnidad:checked {{
+        background-color: {BG_SURFACE_2};
+        border-color: {TEXT_3};
+        color: {TEXT};
+    }}
     QPushButton#guiaBoton, QPushButton#guiaBotonFantasma {{
         background-color: {BG_SURFACE_1};
         border: 1px solid {LINE};

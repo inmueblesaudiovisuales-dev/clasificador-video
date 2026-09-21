@@ -251,6 +251,49 @@ class _CajaDePasos(QWidget):
         e.accept()
 
 
+class _SelectorDeUnidades(QWidget):
+    """Los chips para elegir qué unidad se está ordenando (spec 2026-09-21).
+
+    Solo se muestra si el proyecto tiene unidades. La llave `""` es «sin
+    unidad» y se enseña como tal; su chip solo aparece si ese catálogo tiene
+    cuartos.
+    """
+
+    unidad_elegida = Signal(str)
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setObjectName("guiaUnidades")
+        _fondo_estilizado(self)
+        self._fila = QHBoxLayout(self)
+        self._fila.setContentsMargins(20, 8, 20, 0)
+        self._fila.setSpacing(6)
+        self._botones = {}
+
+    def poner(self, unidades):
+        while self._fila.count():
+            item = self._fila.takeAt(0)
+            w = item.widget()
+            if w is not None:
+                w.hide()
+                w.deleteLater()
+        self._botones = {}
+        for unidad in unidades:
+            boton = QPushButton(unidad or "Sin unidad")
+            boton.setObjectName("guiaUnidad")
+            boton.setCheckable(True)
+            boton.setAutoExclusive(True)
+            boton.clicked.connect(
+                lambda _=False, u=unidad: self.unidad_elegida.emit(u))
+            self._fila.addWidget(boton)
+            self._botones[unidad] = boton
+        self._fila.addStretch(1)
+
+    def marcar(self, unidad):
+        for llave, boton in self._botones.items():
+            boton.setChecked(llave == unidad)
+
+
 class PantallaGuia(QWidget):
     clasificacion_pedida = Signal()
     orden_aceptado = Signal(list)
@@ -262,6 +305,12 @@ class PantallaGuia(QWidget):
         _fondo_estilizado(self)
         self._cuartos_reales = []
         self._armando = False
+        # Un tablero por unidad (spec 2026-09-21): la llave "" es «sin
+        # unidad». Al cambiar de unidad se guarda el vivo y se carga el otro,
+        # así no se pierde el acomodo a mano de la que se dejó.
+        self._unidades = []
+        self._unidad = ""
+        self._tableros = {}
         # `VideoWidget` es un QOpenGLWidget: Qt lo compone en una capa aparte
         # y `raise_()` NO alcanza para taparlo -- sin este atributo, la
         # pantalla se abre pero el video (o su fondo negro) se sigue viendo
@@ -276,6 +325,10 @@ class PantallaGuia(QWidget):
         raiz.setSpacing(0)
 
         raiz.addWidget(self._construir_barra())
+        self.selector = _SelectorDeUnidades()
+        self.selector.unidad_elegida.connect(self._al_elegir_unidad)
+        self.selector.setVisible(False)
+        raiz.addWidget(self.selector)
         self.aviso_label = QLabel("")
         self.aviso_label.setObjectName("guiaAviso")
         self.aviso_label.setWordWrap(True)
@@ -318,12 +371,13 @@ class PantallaGuia(QWidget):
         fila.addLayout(titulos)
         fila.addStretch(1)
 
-        # «Clasificar de nuevo» no está en el mockup, pero el spec (§5) lo
-        # pide: se conserva, como acción secundaria.
-        self.clasificar_de_nuevo_button = QPushButton("Clasificar de nuevo")
-        self.clasificar_de_nuevo_button.setObjectName("guiaBoton")
-        self.clasificar_de_nuevo_button.clicked.connect(self._pedir)
-        fila.addWidget(self.clasificar_de_nuevo_button)
+        # «Pre-ordenar»: le pide a DeepSeek que acomode los cuartos de la
+        # unidad elegida como punto de partida; después Bruno reacomoda a
+        # mano. El texto cambia a «de nuevo» cuando ya hay algo acomodado.
+        self.pre_ordenar_button = QPushButton("Pre-ordenar")
+        self.pre_ordenar_button.setObjectName("guiaBoton")
+        self.pre_ordenar_button.clicked.connect(self._pedir)
+        fila.addWidget(self.pre_ordenar_button)
 
         cerrar = QPushButton("Cerrar")
         cerrar.setObjectName("guiaBotonFantasma")
@@ -403,6 +457,60 @@ class PantallaGuia(QWidget):
         return wrap
 
     # ------------------------------------------------------------------
+    # las unidades
+    # ------------------------------------------------------------------
+
+    def configurar_unidades(self, unidades, actual):
+        """Arma el selector y deja elegida `actual`.
+
+        `unidades` es la lista de llaves ("" = sin unidad). El selector solo
+        se enseña si hay al menos una unidad de verdad: un proyecto sin
+        unidades se comporta exactamente como antes.
+        """
+        self._unidades = list(unidades)
+        self.selector.poner(unidades)
+        self.selector.setVisible(any(u for u in unidades))
+        for unidad in unidades:
+            self._tableros.setdefault(unidad, {"reales": [], "columnas": {}})
+        self._unidad = actual if actual in unidades else (
+            unidades[0] if unidades else "")
+        self.selector.marcar(self._unidad)
+
+    def unidad_actual(self) -> str:
+        return self._unidad
+
+    def seleccionar_unidad(self, unidad) -> None:
+        """Muestra el tablero de esa unidad, guardando el de la anterior."""
+        if unidad == self._unidad:
+            self.selector.marcar(unidad)
+            return
+        self._al_elegir_unidad(unidad)
+
+    def _al_elegir_unidad(self, unidad) -> None:
+        if unidad == self._unidad:
+            return
+        self._guardar_tablero()
+        self._unidad = unidad
+        self.selector.marcar(unidad)
+        self._cargar_tablero(unidad)
+
+    def _guardar_tablero(self) -> None:
+        self._tableros[self._unidad] = {
+            "reales": list(self._cuartos_reales),
+            "columnas": {i: caja.cuartos()
+                         for i, caja in self.columnas.items()},
+        }
+
+    def _cargar_tablero(self, unidad) -> None:
+        tablero = self._tableros.get(unidad) or {"reales": [], "columnas": {}}
+        self._cuartos_reales = list(tablero["reales"])
+        self.franja.poner(self._cuartos_reales)
+        for i, caja in self.columnas.items():
+            caja.poner(tablero["columnas"].get(i, []))
+        self._repintar_todo()
+        self._refrescar_aviso()
+
+    # ------------------------------------------------------------------
     # estado
     # ------------------------------------------------------------------
 
@@ -414,7 +522,15 @@ class PantallaGuia(QWidget):
         self._repintar_todo()
         self._refrescar_aviso()
 
-    def mostrar_clasificacion(self, clasificacion):
+    def mostrar_clasificacion(self, clasificacion, unidad=None):
+        """Aplica la clasificación al tablero vivo.
+
+        `unidad` es la unidad a la que pertenece; `main_window` solo llama
+        cuando coincide con la elegida, pero se recibe para no aplicar una
+        respuesta vieja al tablero equivocado.
+        """
+        if unidad is not None and unidad != self._unidad:
+            return
         self._armando = False
         for caja in self.columnas.values():
             caja.poner([])
@@ -445,7 +561,15 @@ class PantallaGuia(QWidget):
 
     def armando(self):
         self._armando = True
-        self._poner_aviso("Clasificando…")
+        self._poner_aviso("Pre-ordenando…")
+
+    def mostrar_falta_llave(self):
+        """Sin llave de DeepSeek no hay pre-ordenada posible: se dice y se
+        puede acomodar a mano. Mismo trato que un fallo de red."""
+        self._armando = False
+        self._poner_aviso(
+            "Falta la llave de DeepSeek. Ponla en Configuración para "
+            "pre-ordenar; mientras, acomoda los cuartos a mano.")
 
     def agregar_a_columna(self, columna, cuarto):
         self.columnas[columna].agregar(cuarto)
@@ -483,6 +607,8 @@ class PantallaGuia(QWidget):
             n = len(caja.cuartos())
             self._conteos[dato.id].setText(f"· {n}" if n else "")
         self.franja._repintar()
+        self.pre_ordenar_button.setText(
+            "Pre-ordenar de nuevo" if self.orden_final() else "Pre-ordenar")
 
     def _al_cambiar_columna(self):
         self._repintar_todo()
@@ -499,9 +625,9 @@ class PantallaGuia(QWidget):
 
     def _pedir(self):
         if self.orden_final() and QMessageBox.question(
-                self, "Clasificar de nuevo",
+                self, "Pre-ordenar de nuevo",
                 "Vas a perder cómo acomodaste los cuartos. "
-                "¿Clasificar de nuevo?") != QMessageBox.StandardButton.Yes:
+                "¿Pre-ordenar de nuevo?") != QMessageBox.StandardButton.Yes:
             return
         self.clasificacion_pedida.emit()
 

@@ -60,8 +60,44 @@ def test_reclasificar_confirma_si_hay_trabajo(pantalla, monkeypatch):
     pantalla.agregar_a_columna("sociales", "Sala")
     monkeypatch.setattr(QMessageBox, "question", lambda *a, **k: QMessageBox.StandardButton.No)
     pedidos = []; pantalla.clasificacion_pedida.connect(lambda: pedidos.append(1))
-    pantalla.clasificar_de_nuevo_button.click()
+    pantalla.pre_ordenar_button.click()
     assert pedidos == []
+
+
+# --- la guía por unidad (spec 2026-09-21) --------------------------------
+
+
+def test_sin_unidades_no_se_ve_el_selector(pantalla):
+    pantalla.configurar_unidades([""], "")
+    assert pantalla.selector.isHidden()
+
+
+def test_con_unidades_se_ve_el_selector_y_arranca_en_la_elegida(pantalla):
+    pantalla.configurar_unidades(["Casa A", "Casa B"], "Casa B")
+    assert pantalla.unidad_actual() == "Casa B"
+
+
+def test_cambiar_de_unidad_conserva_el_tablero(pantalla):
+    pantalla.configurar_unidades(["Casa A", "Casa B"], "Casa A")
+    pantalla.poner_cuartos_reales(["Cocina"])
+    pantalla.agregar_a_columna("sociales", "Cocina")
+    pantalla.seleccionar_unidad("Casa B")
+    assert pantalla.franja.cuartos() == []
+    assert pantalla.orden_final() == []
+    pantalla.seleccionar_unidad("Casa A")
+    assert pantalla.franja.cuartos() == ["Cocina"]
+    assert pantalla.orden_final() == ["Cocina"]
+
+
+def test_pre_ordenar_se_deshabilita_sin_llave(pantalla):
+    pantalla.mostrar_falta_llave()
+    assert "llave" in pantalla.aviso_label.text().lower()
+
+
+def test_el_boton_dice_pre_ordenar_y_luego_de_nuevo(pantalla):
+    assert pantalla.pre_ordenar_button.text() == "Pre-ordenar"
+    pantalla.agregar_a_columna("sociales", "Sala")
+    assert pantalla.pre_ordenar_button.text() == "Pre-ordenar de nuevo"
 
 
 # --- el arreglo del arrastre que duplicaba en vez de mover --------------
