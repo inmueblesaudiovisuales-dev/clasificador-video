@@ -404,3 +404,36 @@ def test_grupo_para_arrastrar_el_grupo_completo_en_orden_del_rail(rail):
     rail._on_clic_en_fila(cocina.nombre, True, "Casa B")
     # aunque "Baño" se marco primero, el orden que devuelve es el del rail
     assert rail._grupo_para_arrastrar(cocina.nombre, "Casa B") == ["Cocina", "Baño"]
+
+
+# --- soltar el grupo sobre la banda de OTRA unidad (spec 2026-09-21, tarea 8) --
+
+
+def test_unidad_bajo_identifica_la_banda_en_esa_altura(qtbot, rail):
+    rail.resize(200, 700)
+    rail.set_rooms_agrupados(**_mismos_argumentos(), counts={})
+    rail.show()
+    qtbot.waitExposed(rail)
+
+    banda_casa_b = next(b for b in rail.unit_bands if b.nombre == "Casa B")
+    y_dentro_de_casa_b = banda_casa_b.mapTo(rail, banda_casa_b.rect().topLeft()).y() + 5
+
+    assert rail._unidad_bajo(y_dentro_de_casa_b) == "Casa B"
+
+
+def test_unidad_bajo_fuera_de_toda_banda_es_none(qtbot, rail):
+    rail.resize(200, 700)
+    rail.set_rooms_agrupados(**_mismos_argumentos(), counts={})
+    rail.show()
+    qtbot.waitExposed(rail)
+
+    assert rail._unidad_bajo(-50) is None
+
+
+def test_mover_grupo_a_unidad_emite_la_senal(rail):
+    avisos = []
+    rail.rooms_movidos_a_unidad.connect(
+        lambda nombres, origen, destino: avisos.append((nombres, origen, destino))
+    )
+    rail.mover_grupo_a_unidad(["Cocina", "Comedor"], "Casa A", "Casa B")
+    assert avisos == [(["Cocina", "Comedor"], "Casa A", "Casa B")]

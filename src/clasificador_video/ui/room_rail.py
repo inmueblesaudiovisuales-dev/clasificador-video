@@ -565,6 +565,7 @@ class RoomRail(QWidget):
     room_renamed_en_unidad = Signal(str, str, str)      # viejo, nuevo, unidad
     room_removed_en_unidad = Signal(str, str)           # nombre, unidad
     unidad_colapso_cambiado = Signal(str, bool)   # llave, colapsada
+    rooms_movidos_a_unidad = Signal(list, str, str)   # nombres, unidad_origen, unidad_destino
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -993,31 +994,52 @@ class RoomRail(QWidget):
     def dragMoveEvent(self, event) -> None:  # noqa: N802 -- override de Qt
         if not event.mimeData().hasFormat(MIME_CUARTO):
             return
-        self.mostrar_linea_de_destino(
-            self.posicion_para_soltar(event.position().toPoint().y()))
+        y = event.position().toPoint().y()
+        origen_unidad = getattr(event.source(), "unidad", None)
+        unidad_bajo = self._unidad_bajo(y)
+        # "" (Sin unidad) no es un destino valido -- es el bloque
+        # migratorio, no una unidad de verdad (este spec no diseño que
+        # significa "quitarle la unidad a un cuarto").
+        if unidad_bajo and unidad_bajo != (origen_unidad or ""):
+            self.esconder_linea_de_destino()
+            self._resaltar_banda(unidad_bajo)
+            event.acceptProposedAction()
+            return
+        self._resaltar_banda(None)
+        self.mostrar_linea_de_destino(self.posicion_para_soltar(y))
         event.acceptProposedAction()
 
     def dragLeaveEvent(self, event) -> None:  # noqa: N802 -- override de Qt
         self.esconder_linea_de_destino()
+        self._resaltar_banda(None)
 
     def dropEvent(self, event) -> None:  # noqa: N802 -- override de Qt
         mime = event.mimeData()
         self.esconder_linea_de_destino()
+        self._resaltar_banda(None)
         if not mime.hasFormat(MIME_CUARTO):
             return
         # el payload puede traer varios nombres separados por "\n" cuando el
-        # arrastre arranco desde una seleccion multiple (Cmd-clic, tarea 7);
-        # aca solo hace falta el primero para encontrar el punto de destino,
-        # ya que `soltar_cuarto` reordena una fila a la vez
+        # arrastre arranco desde una seleccion multiple (Cmd-clic, tarea 7)
         nombres = bytes(mime.data(MIME_CUARTO)).decode(errors="ignore").split("\n")
-        nombre = nombres[0]
+        y = event.position().toPoint().y()
+        origen = event.source()
+        origen_unidad = getattr(origen, "unidad", None)
+        unidad_bajo = self._unidad_bajo(y)
+        if unidad_bajo and origen_unidad is not None and unidad_bajo != origen_unidad:
+            self.mover_grupo_a_unidad(nombres, origen_unidad, unidad_bajo)
+            event.acceptProposedAction()
+            return
         # `event.source()` es la `_FilaCuarto` que arranco el arrastre (la
         # crea con `QDrag(self)`): de ahi sale la unidad de origen SIN
         # ambiguedad, incluso si otra unidad tiene un cuarto con el mismo
         # nombre. El nombre solo no alcanza para eso.
-        self.soltar_cuarto(nombre, self.posicion_para_soltar(
-            event.position().toPoint().y()), origen=event.source())
+        self.soltar_cuarto(nombres[0], self.posicion_para_soltar(y), origen=origen)
         event.acceptProposedAction()
+
+    def _resaltar_banda(self, llave: str | None) -> None:
+        for esa_llave, banda in self._banda_por_unidad.items():
+            banda.set_destino_de_arrastre(esa_llave == llave)
 
     def mostrar_linea_de_destino(self, insercion: int) -> None:
         """La pone donde caeria el cuarto y la levanta sobre las filas.
@@ -1063,6 +1085,31 @@ class RoomRail(QWidget):
             if y < centro:
                 return indice
         return len(self.rows)
+
+    def _unidad_bajo(self, y: int) -> str | None:
+        """La llave de la banda que ocupa esa altura, o `None` si no hay
+        bandas o el punto cae fuera de todas.
+
+        Calculado con la geometria REAL de las bandas -- no con el indice
+        de insercion entre filas que usa `posicion_para_soltar` -- porque
+        aqui no hace falta saber DONDE dentro de la banda, solo CUAL
+        banda: soltar en cualquier parte de ella alcanza (spec S5).
+        """
+        if not self.unit_bands:
+            return None
+        llaves = list(self.rows_por_unidad.keys())
+        techos = [b.mapTo(self, b.rect().topLeft()).y() for b in self.unit_bands]
+        for indice, (llave, techo) in enumerate(zip(llaves, techos)):
+            piso = techos[indice + 1] if indice + 1 < len(techos) else self.height()
+            if techo <= y < piso:
+                return llave
+        return None
+
+    def mover_grupo_a_unidad(self, nombres: list[str], unidad_origen: str,
+                              unidad_destino: str) -> None:
+        """Aparte de `dropEvent` para poder probarlo sin fabricar un
+        QDropEvent de verdad (mismo criterio que `soltar_cuarto`)."""
+        self.rooms_movidos_a_unidad.emit(list(nombres), unidad_origen, unidad_destino)
 
     def soltar_cuarto(self, nombre: str, insercion: int, origen=None) -> None:
         """Termina el arrastre. `insercion` es donde estaba la LINEA.
