@@ -4,6 +4,12 @@
 estén en una carpeta separada o algo indique que son de drone como
 [DRONE]».)*
 
+**Nota del 2026-09-21:** la marca de cámara pasó del inicio al final del
+nombre del cuarto (`03. Cocina [DRONE]`, no `03. [DRONE] Cocina`), y ahora
+también va en el nombre de cada clip. El conjunto de cámaras y la regla de
+combinación NO cambian. Ver
+[`2026-09-21-nombre-de-clip-en-premiere-design.md`](2026-09-21-nombre-de-clip-en-premiere-design.md).
+
 ## 1. El problema
 
 Hoy, en Premiere, la carpeta de un cuarto se llama nada más con su número y

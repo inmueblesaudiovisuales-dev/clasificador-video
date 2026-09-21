@@ -5,6 +5,12 @@ edite un proyecto suyo — sin que esa persona tenga Clipify — y de una
 sesión larga de plática, sin construir nada, para encontrar la
 metodología correcta antes de tocar código.)*
 
+**Nota del 2026-09-21:** el §4 cambia de posición — la marca de cámara pasa
+al final del nombre del cuarto (`03. Cocina [SONY+DRONE]`) y ahora también
+va en el nombre de cada clip. Las tres cámaras y la regla de combinación
+siguen igual. Ver
+[`2026-09-21-nombre-de-clip-en-premiere-design.md`](2026-09-21-nombre-de-clip-en-premiere-design.md).
+
 ## 1. El problema
 
 Bruno clasifica en Clipify, arma su proyecto de Premiere con el plugin
