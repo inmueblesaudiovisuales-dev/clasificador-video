@@ -202,3 +202,23 @@ def test_renombrar_un_cuarto_no_toca_un_bin_que_se_llame_igual():
 
     assert h.entries()[0].etiqueta == "Cocina"
     assert h.entries()[0].bins_antes == {0: "Cocina"}
+
+
+def test_cuarto_movido_por_default_es_none():
+    from clasificador_video.history import HistoryEntry
+
+    entrada = HistoryEntry("Cocina", "→ 6 clips", "#fff", {})
+    assert entrada.cuarto_movido is None
+
+
+def test_cuarto_movido_se_guarda_completo():
+    from clasificador_video.history import CuartoMovido, HistoryEntry
+
+    movimiento = CuartoMovido(
+        nombre_origen="Cocina", posicion_origen=0, unidad_origen="Casa A",
+        nombre_destino="Cocina 2", unidad_destino="Casa B", fue_fusion=False,
+    )
+    entrada = HistoryEntry("Cocina 2", "→ 6 clips", "#fff", {},
+                            cuarto_movido=movimiento)
+    assert entrada.cuarto_movido == movimiento
+    assert entrada.cuarto_movido.fue_fusion is False

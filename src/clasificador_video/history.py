@@ -11,6 +11,28 @@ LIMITE_POR_DEFECTO = 50
 _ids = itertools.count(1)
 
 
+@dataclass(frozen=True)
+class CuartoMovido:
+    """Lo que hace falta para deshacer mover un cuarto a otra unidad.
+
+    `nombre_destino` puede diferir de `nombre_origen`: si el choque de
+    nombre se resolvio "renombrando", el cuarto viajo como "Cocina 2" (spec
+    2026-09-21 S6). `fue_fusion` distingue el otro caso de choque: si el
+    destino YA tenia un cuarto con ese nombre y la resolucion fue
+    "fusionar", deshacer NO debe borrar ese nombre del catalogo destino --
+    ya estaba ahi antes del move y sigue teniendo clips propios despues de
+    deshacer. Sin fusion, el nombre en destino lo creo este move y deshacer
+    si lo quita.
+    """
+
+    nombre_origen: str
+    posicion_origen: int
+    unidad_origen: str
+    nombre_destino: str
+    unidad_destino: str
+    fue_fusion: bool
+
+
 @dataclass
 class HistoryEntry:
     """Una accion del usuario, con lo justo para deshacerla.
@@ -33,6 +55,12 @@ class HistoryEntry:
     color: str             # cuadrito de la fila: color de cuarto o de estado
     antes: dict[int, dict]
     cuarto_borrado: tuple[str, int] | None = None
+    # Mover un cuarto a otra unidad (spec 2026-09-21). Va aparte de
+    # `cuarto_borrado`: mover no destruye nada -- solo un borrado deja
+    # clips sin cuarto -- pero SI necesita, ademas de reinsertar el nombre
+    # en su catalogo de origen, saber si hay que retirarlo del catalogo
+    # destino al deshacer.
+    cuarto_movido: "CuartoMovido | None" = None
 
     # --- lo que la accion le hizo a los BINS -------------------------------
     # Van aparte de `antes` porque el bin NO es un campo del clip: vive en
