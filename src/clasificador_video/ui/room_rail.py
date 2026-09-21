@@ -458,6 +458,7 @@ class RoomRail(QWidget):
     room_assign_requested = Signal(str)
     room_reordered = Signal(str, int)     # nombre, posicion destino
     room_created = Signal(str)
+    unit_created = Signal(str)
     room_renamed = Signal(str, str)
     room_moved = Signal(str, int)
     room_removed = Signal(str)
@@ -557,6 +558,13 @@ class RoomRail(QWidget):
         el.addStretch(1)
         el.addWidget(self.find_key)
         el.addWidget(self.find_hint)
+        self.new_unit_button = QPushButton("+")
+        self.new_unit_button.setObjectName("newUnitButton")
+        self.new_unit_button.setFixedSize(18, 18)
+        self.new_unit_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self.new_unit_button.setToolTip("Nueva unidad")
+        self.new_unit_button.clicked.connect(self._pedir_unidad_nueva)
+        el.addWidget(self.new_unit_button)
         encabezado.setFixedHeight(30)
         raiz.addWidget(encabezado)
 
@@ -956,6 +964,17 @@ class RoomRail(QWidget):
         modal, que en un test cuelga."""
         if nombre.strip():
             self.room_created.emit(nombre.strip())
+
+    def _pedir_unidad_nueva(self) -> None:
+        nombre, ok = QInputDialog.getText(self, "Nueva unidad", "Nombre de la unidad:")
+        if ok:
+            self._crear_unidad(nombre)
+
+    def _crear_unidad(self, nombre: str) -> None:
+        """Aparte del dialogo, mismo criterio que `_crear_cuarto`: se puede
+        probar sin abrir una ventana modal."""
+        if nombre.strip():
+            self.unit_created.emit(nombre.strip())
 
     def set_history(self, entries: list,
                     bloqueadas: dict[int, str] | None = None) -> None:

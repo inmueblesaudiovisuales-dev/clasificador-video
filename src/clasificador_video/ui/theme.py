@@ -499,6 +499,20 @@ def build_stylesheet() -> str:
         color: {TEXT_2};
     }}
 
+    QPushButton#newUnitButton {{
+        background-color: transparent;
+        border: 1px solid {LINE};
+        border-radius: {RADIUS_SM}px;
+        color: {TEXT_3};
+        font-size: {FONT_SMALL}px;
+        font-weight: 600;
+        padding: 0px;
+    }}
+    QPushButton#newUnitButton:hover {{
+        background-color: {BG_SURFACE_1};
+        color: {TEXT_2};
+    }}
+
     /* Los dos nombres comparten la caja: el de velocidad solo se separa en
        el color del segmento activo (ver mas abajo). Si esta regla nombrara
        solo a `segmentedControl`, el de velocidad se quedaria sin su fondo

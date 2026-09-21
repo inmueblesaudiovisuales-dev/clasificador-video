@@ -189,3 +189,17 @@ def test_sin_bandas_soltar_cuarto_se_comporta_exactamente_como_antes(qtbot, rail
     rail.soltar_cuarto("Alberca", 0)
 
     assert avisos == [("Alberca", 0)]
+
+
+def test_boton_nueva_unidad_emite_unit_created(rail):
+    emitidos = []
+    rail.unit_created.connect(emitidos.append)
+    rail._crear_unidad("Casa C")
+    assert emitidos == ["Casa C"]
+
+
+def test_boton_nueva_unidad_ignora_nombre_vacio(rail):
+    emitidos = []
+    rail.unit_created.connect(emitidos.append)
+    rail._crear_unidad("   ")
+    assert emitidos == []
