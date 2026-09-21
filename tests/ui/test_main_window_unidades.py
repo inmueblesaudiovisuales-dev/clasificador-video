@@ -355,3 +355,30 @@ def test_crear_unidad_desde_el_boton_del_rail_no_la_activa(main_window):
     main_window._on_unit_created_en_rail("Casa C")
     assert "Casa C" in main_window.unit_selection.active_rooms()
     assert main_window._unidad_activa is None
+
+
+# --- que unidades quedaron colapsadas en el rail: se guarda y se restaura -
+
+
+def test_autosave_incluye_unidades_colapsadas(main_window):
+    main_window.room_rail.set_rooms_agrupados(
+        unidades=["Casa A", "Casa B"],
+        rooms_por_unidad={"Casa A": [], "Casa B": []}, counts={},
+    )
+    main_window.room_rail._on_toggle_de_banda("Casa B")
+    data = main_window._datos_del_proyecto()
+    assert data["unidades_colapsadas"] == ["Casa B"]
+
+
+def test_asignar_cuarto_con_unidad_activa_la_expande_si_estaba_colapsada(main_window):
+    main_window.load_clips([Clip(orden=1, ruta=Path("/a.MP4"), categoria_path=[], fps=30.0)])
+    main_window.unit_selection.add("Casa A")
+    main_window._activar_unidad("Casa A")
+    main_window.room_rail.set_rooms_agrupados(
+        unidades=["Casa A"], rooms_por_unidad={"Casa A": []}, counts={},
+    )
+    main_window.room_rail._on_toggle_de_banda("Casa A")
+
+    main_window._asignar_cuarto(["Cocina"])
+
+    assert "Casa A" not in main_window.room_rail.unidades_colapsadas()

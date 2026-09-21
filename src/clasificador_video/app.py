@@ -223,6 +223,15 @@ def _poblar_ventana(window: MainWindow, data: dict, clips: list[Clip]) -> None:
     # boton sigue ahi para armarla.
     window.restaurar_guia(data.get("guia"))
     window._refresh_sheet(force_rebuild=True)
+    # Que unidades quedaron colapsadas en el rail (spec 2026-09-21 S3).
+    # Falta en todo proyecto de antes de hoy, y ahi el default es "ninguna"
+    # -- se abre exactamente como se veia antes de que esto existiera.
+    # DESPUES de `_refresh_sheet`, que es lo que arma las bandas del rail:
+    # colapsar una banda que todavia no existe no haria nada.
+    colapsadas = data.get("unidades_colapsadas")
+    window.room_rail.set_unidades_colapsadas(
+        [str(u) for u in colapsadas] if isinstance(colapsadas, list) else []
+    )
     window._resize_video_stage()
     # Revisar PRIMERO y pedir las portadas cuando se sepa qué hay (spec §5).
     # Al revés --que era como estaba-- pasaban las dos cosas malas juntas: la

@@ -339,3 +339,41 @@ def test_un_proyecto_de_antes_abre_con_el_visor_normal(qtbot, tmp_path):
     qtbot.addWidget(ventana)
 
     assert ventana.modo_horizontal() is False
+
+
+def test_las_unidades_colapsadas_se_guardan_y_se_restauran(qtbot, tmp_path):
+    from clasificador_video.app import abrir_proyecto
+    from clasificador_video.proyecto import guardar
+
+    ruta = tmp_path / "p.cvproj"
+    guardar(ruta, {
+        "version": 1, "proyecto": "Con unidades", "rooms": [], "clips": [],
+        "units": ["Casa A", "Casa B"],
+        "rooms_por_unidad": {"Casa A": [], "Casa B": []},
+        "unidades_colapsadas": ["Casa B"],
+    })
+
+    ventana = abrir_proyecto(ruta, video_factory=FakeMpv,
+                             recientes_path=tmp_path / "r.json")
+    qtbot.addWidget(ventana)
+
+    assert ventana.room_rail.unidades_colapsadas() == {"Casa B"}
+
+
+def test_un_proyecto_de_antes_de_esto_abre_sin_nada_colapsado(qtbot, tmp_path):
+    """Sin la llave, el default es «ninguna» -- como se veia antes de que
+    esto existiera."""
+    from clasificador_video.app import abrir_proyecto
+    from clasificador_video.proyecto import guardar
+
+    ruta = tmp_path / "viejo.cvproj"
+    guardar(ruta, {
+        "version": 1, "proyecto": "Viejo", "rooms": [], "clips": [],
+        "units": ["Casa A"], "rooms_por_unidad": {"Casa A": []},
+    })
+
+    ventana = abrir_proyecto(ruta, video_factory=FakeMpv,
+                             recientes_path=tmp_path / "r.json")
+    qtbot.addWidget(ventana)
+
+    assert ventana.room_rail.unidades_colapsadas() == set()

@@ -1644,6 +1644,8 @@ class MainWindow(QWidget):
             [self._unidad_activa] + room_path if self._unidad_activa else room_path
         )
         self._apply_categoria_to_targets(completo)
+        if self._unidad_activa:
+            self.room_rail.expandir_unidad(self._unidad_activa)
         self._refresh_sheet()
         self._autosave()
         # «asignar cuarto y avanzar»: el clip recien resuelto suele salir de
@@ -2609,6 +2611,7 @@ class MainWindow(QWidget):
                 for nombre in self.unit_selection.active_rooms()
                 if nombre in self.room_selections
             },
+            unidades_colapsadas=sorted(self.room_rail.unidades_colapsadas()),
         )
         return data
 
