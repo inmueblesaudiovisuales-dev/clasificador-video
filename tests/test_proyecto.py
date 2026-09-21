@@ -21,6 +21,27 @@ def _bins_vacio():
     return BinTree()
 
 
+def test_a_dict_guarda_unidades_colapsadas():
+    from clasificador_video import proyecto
+
+    data = proyecto.a_dict(
+        proyecto="Casa Jardín", rooms=[], clips=[], bins=_bins_vacio(),
+        tamanos={}, duraciones={}, rotaciones={},
+        unidades_colapsadas=["Casa B"],
+    )
+    assert data["unidades_colapsadas"] == ["Casa B"]
+
+
+def test_a_dict_unidades_colapsadas_por_default_vacio():
+    from clasificador_video import proyecto
+
+    data = proyecto.a_dict(
+        proyecto="Casa Jardín", rooms=[], clips=[], bins=_bins_vacio(),
+        tamanos={}, duraciones={}, rotaciones={},
+    )
+    assert data["unidades_colapsadas"] == []
+
+
 def test_a_dict_incluye_entrega_none_por_defecto():
     data = a_dict(
         proyecto="Casa Reforma", rooms=[], clips=[], bins=_bins_vacio(),
