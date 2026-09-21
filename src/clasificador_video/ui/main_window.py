@@ -84,7 +84,7 @@ from clasificador_video.ui.pantalla_config import PantallaConfig, _formatear_byt
 from clasificador_video.ui.pantalla_guia import PantallaGuia
 from clasificador_video.ui.room_palette import RoomPalette
 from clasificador_video.ui.unit_palette import UnitPalette
-from clasificador_video.ui.room_rail import RoomRail
+from clasificador_video.ui.room_rail import RoomRail, SIN_UNIDAD_ETIQUETA
 from clasificador_video.ui.status_bar import StatusBar
 from clasificador_video.ui.title_bar import TitleBar
 from clasificador_video.ui.transicion import TransicionDeTarjeta
@@ -1730,6 +1730,90 @@ class MainWindow(QWidget):
         else:
             self._refresh_rail()
             self._autosave()
+
+    def _nombre_libre_en(self, catalogo: RoomSelection, base: str) -> str:
+        existentes = set(catalogo.active_rooms())
+        numero = 2
+        candidato = f"{base} {numero}"
+        while candidato in existentes:
+            numero += 1
+            candidato = f"{base} {numero}"
+        return candidato
+
+    def _conteo_de_cuarto(self, unidad: str, nombre: str) -> int:
+        return sum(
+            1 for c in self.clips
+            if c.categoria_path and self._cuarto_de(c.categoria_path) == nombre
+            and (self._unidad_de(c.categoria_path) or "") == unidad
+        )
+
+    def _preguntar_por_el_choque(self, nombre: str, unidad_origen: str,
+                                  unidad_destino: str) -> str:
+        """"fusionar" / "renombrar" / "cancelar" (spec 2026-09-21 S6).
+
+        Aparte del `QMessageBox` para poder probar la decision sin abrir
+        una ventana modal -- mismo criterio que `room_rail._crear_cuarto`.
+        """
+        conteo_origen = self._conteo_de_cuarto(unidad_origen, nombre)
+        conteo_destino = self._conteo_de_cuarto(unidad_destino, nombre)
+        etiqueta_origen = unidad_origen or SIN_UNIDAD_ETIQUETA
+        renombrado = self._nombre_libre_en(self.room_selections[unidad_destino], nombre)
+        cuadro = QMessageBox(self)
+        cuadro.setWindowTitle(f'"{nombre}" ya existe en {unidad_destino}')
+        cuadro.setText(f'"{nombre}" ya existe en {unidad_destino}')
+        cuadro.setInformativeText(
+            f'{etiqueta_origen} tiene {conteo_origen} clips en "{nombre}". '
+            f'{unidad_destino} ya tiene su propia "{nombre}" con {conteo_destino} '
+            "clips. ¿Qué quieres hacer?"
+        )
+        fusionar = cuadro.addButton("Fusionar", QMessageBox.ButtonRole.AcceptRole)
+        renombrar = cuadro.addButton(f'Renombrar a "{renombrado}"',
+                                      QMessageBox.ButtonRole.AcceptRole)
+        cuadro.addButton("Cancelar", QMessageBox.ButtonRole.RejectRole)
+        cuadro.setDefaultButton(renombrar)
+        cuadro.exec()
+        elegido = cuadro.clickedButton()
+        if elegido is fusionar:
+            return "fusionar"
+        if elegido is renombrar:
+            return "renombrar"
+        return "cancelar"
+
+    def _on_rooms_movidos_a_unidad(self, nombres: list[str], unidad_origen: str,
+                                    unidad_destino: str) -> None:
+        """El rail solto un grupo de cuartos sobre la banda de OTRA unidad.
+
+        Mueve los que no chocan de una; por cada uno que si choca, abre SU
+        PROPIO dialogo -- uno a la vez, no una lista (spec S6). Un nombre
+        que ya no esta en el catalogo de origen (se movio o se borro entre
+        el arrastre y ahora) se salta en silencio: ya no hay nada que
+        mover.
+        """
+        catalogo_origen = self.room_selections.get(unidad_origen)
+        if catalogo_origen is None:
+            return
+        catalogo_destino = self.room_selections.setdefault(unidad_destino, RoomSelection())
+        for nombre in nombres:
+            if nombre not in catalogo_origen.active_rooms():
+                continue
+            if nombre in catalogo_destino.active_rooms():
+                resolucion = self._preguntar_por_el_choque(nombre, unidad_origen, unidad_destino)
+                if resolucion == "cancelar":
+                    continue
+                nombre_destino = (
+                    nombre if resolucion == "fusionar"
+                    else self._nombre_libre_en(catalogo_destino, nombre)
+                )
+                self._mover_cuarto_a_unidad(
+                    nombre, unidad_origen, unidad_destino,
+                    nombre_destino=nombre_destino, fue_fusion=(resolucion == "fusionar"),
+                )
+            else:
+                self._mover_cuarto_a_unidad(
+                    nombre, unidad_origen, unidad_destino,
+                    nombre_destino=nombre, fue_fusion=False,
+                )
+        self.room_rail.expandir_unidad(unidad_destino)
 
     def _color_de_unidad(self, unidad: str) -> str:
         unidades = self.unit_selection.active_rooms()

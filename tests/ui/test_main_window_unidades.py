@@ -476,3 +476,119 @@ def test_mover_desde_sin_unidad_a_una_unidad(main_window):
     )
     assert main_window.clips[0].categoria_path == ["Casa A", "Cocina-A"]
     assert "Cocina-A" not in main_window.room_selections[""].active_rooms()
+
+
+# --- choque de nombre al mover entre unidades (spec 2026-09-21, tarea 10) ---
+
+
+def test_nombre_libre_en_prueba_sufijos_hasta_encontrar_uno(main_window):
+    catalogo = RoomSelection()
+    catalogo.add("Cocina")
+    catalogo.add("Cocina 2")
+    assert main_window._nombre_libre_en(catalogo, "Cocina") == "Cocina 3"
+
+
+def test_nombre_libre_en_sin_choque_da_el_primer_sufijo(main_window):
+    catalogo = RoomSelection()
+    catalogo.add("Cocina")
+    assert main_window._nombre_libre_en(catalogo, "Cocina") == "Cocina 2"
+
+
+def test_on_rooms_movidos_sin_choque_mueve_directo(main_window, monkeypatch):
+    _con_dos_unidades(main_window)
+    main_window.load_clips([
+        Clip(orden=1, ruta=Path("/a.MP4"), categoria_path=["Casa A", "Cocina"], fps=30.0),
+    ])
+    llamado = []
+    monkeypatch.setattr(main_window, "_preguntar_por_el_choque",
+                         lambda *a: llamado.append(a) or "cancelar")
+
+    main_window._on_rooms_movidos_a_unidad(["Cocina"], "Casa A", "Casa B")
+
+    assert llamado == []   # no habia choque, no se pregunto nada
+    assert main_window.clips[0].categoria_path == ["Casa B", "Cocina"]
+
+
+def test_on_rooms_movidos_con_choque_pregunta_y_fusiona(main_window, monkeypatch):
+    _con_dos_unidades(main_window)
+    main_window.room_selections["Casa B"].add("Cocina")
+    main_window.load_clips([
+        Clip(orden=1, ruta=Path("/a.MP4"), categoria_path=["Casa A", "Cocina"], fps=30.0),
+        Clip(orden=2, ruta=Path("/b.MP4"), categoria_path=["Casa B", "Cocina"], fps=30.0),
+    ])
+    monkeypatch.setattr(main_window, "_preguntar_por_el_choque", lambda *a: "fusionar")
+
+    main_window._on_rooms_movidos_a_unidad(["Cocina"], "Casa A", "Casa B")
+
+    assert main_window.clips[0].categoria_path == ["Casa B", "Cocina"]
+    assert main_window.clips[1].categoria_path == ["Casa B", "Cocina"]  # no se toco
+    assert main_window.room_selections["Casa B"].active_rooms().count("Cocina") == 1
+
+
+def test_on_rooms_movidos_con_choque_renombra(main_window, monkeypatch):
+    _con_dos_unidades(main_window)
+    main_window.room_selections["Casa B"].add("Cocina")
+    main_window.load_clips([
+        Clip(orden=1, ruta=Path("/a.MP4"), categoria_path=["Casa A", "Cocina"], fps=30.0),
+    ])
+    monkeypatch.setattr(main_window, "_preguntar_por_el_choque", lambda *a: "renombrar")
+
+    main_window._on_rooms_movidos_a_unidad(["Cocina"], "Casa A", "Casa B")
+
+    assert main_window.clips[0].categoria_path == ["Casa B", "Cocina 2"]
+    assert "Cocina" in main_window.room_selections["Casa B"].active_rooms()
+    assert "Cocina 2" in main_window.room_selections["Casa B"].active_rooms()
+
+
+def test_on_rooms_movidos_con_choque_cancelar_no_mueve_nada(main_window, monkeypatch):
+    _con_dos_unidades(main_window)
+    main_window.room_selections["Casa B"].add("Cocina")
+    main_window.load_clips([
+        Clip(orden=1, ruta=Path("/a.MP4"), categoria_path=["Casa A", "Cocina"], fps=30.0),
+    ])
+    monkeypatch.setattr(main_window, "_preguntar_por_el_choque", lambda *a: "cancelar")
+
+    main_window._on_rooms_movidos_a_unidad(["Cocina"], "Casa A", "Casa B")
+
+    assert main_window.clips[0].categoria_path == ["Casa A", "Cocina"]
+
+
+def test_on_rooms_movidos_grupo_mixto_mueve_los_que_no_chocan_y_pregunta_por_el_resto(
+    main_window, monkeypatch,
+):
+    _con_dos_unidades(main_window)
+    main_window.room_selections["Casa A"].add("Comedor")
+    main_window.room_selections["Casa B"].add("Cocina")   # choca
+    main_window.load_clips([
+        Clip(orden=1, ruta=Path("/a.MP4"), categoria_path=["Casa A", "Cocina"], fps=30.0),
+        Clip(orden=2, ruta=Path("/b.MP4"), categoria_path=["Casa A", "Comedor"], fps=30.0),
+    ])
+    preguntas = []
+
+    def espia(nombre, unidad_origen, unidad_destino):
+        preguntas.append(nombre)
+        return "renombrar"
+
+    monkeypatch.setattr(main_window, "_preguntar_por_el_choque", espia)
+
+    main_window._on_rooms_movidos_a_unidad(["Cocina", "Comedor"], "Casa A", "Casa B")
+
+    assert preguntas == ["Cocina"]   # Comedor no chocaba, no se pregunto por el
+    assert main_window.clips[0].categoria_path == ["Casa B", "Cocina 2"]
+    assert main_window.clips[1].categoria_path == ["Casa B", "Comedor"]
+
+
+def test_on_rooms_movidos_expande_la_unidad_destino(main_window, monkeypatch):
+    _con_dos_unidades(main_window)
+    main_window.load_clips([
+        Clip(orden=1, ruta=Path("/a.MP4"), categoria_path=["Casa A", "Cocina"], fps=30.0),
+    ])
+    main_window.room_rail.set_rooms_agrupados(
+        unidades=["Casa A", "Casa B"],
+        rooms_por_unidad={"Casa A": ["Cocina"], "Casa B": []}, counts={},
+    )
+    main_window.room_rail._on_toggle_de_banda("Casa B")
+
+    main_window._on_rooms_movidos_a_unidad(["Cocina"], "Casa A", "Casa B")
+
+    assert "Casa B" not in main_window.room_rail.unidades_colapsadas()
