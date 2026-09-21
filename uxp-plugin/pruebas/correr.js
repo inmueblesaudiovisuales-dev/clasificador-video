@@ -47,6 +47,12 @@ const ARCHIVOS = [
   "js/marcaCamara.js",
   "js/estructura.js",
   "js/numeroDeCuarto.js",
+  // `nombre.js` es logica pura en su mayoria: armar el nombre del clip
+  // (simbolo + cuarto + numero + camara) y numerar por cuarto. Lo unico que
+  // toca Premiere --renombrar el item-- vive dentro de una funcion que aqui
+  // nunca se invoca, asi que cargarlo es seguro (mismo criterio que
+  // `processManifest.js`).
+  "js/nombre.js",
   "js/avance.js",
   "js/secuencia.js",
   "js/processManifest.js",
@@ -68,6 +74,7 @@ const casos = [].concat(
   require("./marcaCamara.pruebas.js")(contexto),
   pruebas(contexto),
   pruebas.carpetas(contexto),
+  require("./nombre.pruebas.js")(contexto),
   require("./avance.pruebas.js")(contexto)
   , require("./secuencia.pruebas.js")(contexto)
   , require("./estructura.pruebas.js")(contexto)

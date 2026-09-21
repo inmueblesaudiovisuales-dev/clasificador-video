@@ -1,32 +1,61 @@
-// Las marcas de estado sobre el nombre del item en el panel de proyecto de
-// Premiere. NO tocan el archivo en disco.
+// El nombre de cada clip en el panel de proyecto de Premiere. NO toca el
+// archivo en disco.
 //
-// Estas marcas son AHORA LA UNICA forma en que el estado cruza a Premiere.
-// Se llego aqui en tres pasos el mismo dia, y conviene leerlos juntos porque
-// cada uno hizo sobrar al siguiente:
+// FORMATO (spec 2026-09-21):
 //
-//   1. La etiqueta de color paso a decir la CAMARA (`label.js`), asi que el
-//      destacado --que solo se distinguia por el dorado-- estreno su «★».
-//   2. Bruno pidio lo mismo para el reject, y que esa marca REEMPLAZARA la
-//      carpeta «Rejects».
-//   3. Y luego que se fueran tambien «Picks» y «Sin marcar»: cada cuarto
-//      queda plano, con todos sus clips adentro.
+//     [simbolo ]Cuarto NN [CAMARA]
 //
-// El paso 3 dejaba al pick indistinguible de un clip sin ver --era la
-// carpeta la que lo decia-- asi que el pick estreno su «✓». Un clip SIN
-// marca ya no significa «pick»: significa que no lo has visto.
+// - simbolo: «★ » destacado, «✓ » pick, «✕ » reject. Un clip sin marcar no
+//   lleva simbolo.
+// - Cuarto: el nombre del cuarto, sin numero.
+// - NN: numero secuencial DENTRO del cuarto, a dos digitos.
+// - [CAMARA]: siempre, combinada en orden fijo Sony/Pocket/Drone, con la
+//   misma fuente que la marca de la carpeta (`marcaCamara.js`). Si el cuarto
+//   no tiene ninguna camara reconocible, no hay marca.
 //
-// El fondo de los tres pasos es el mismo: una carpeta esconde el clip y una
-// marca lo enseña. Y perder un dato al cruzar a Premiere es justo lo que
-// este plugin existe para evitar.
+// El nombre del ARCHIVO original ya no aparece: el item en Premiere se
+// explica solo. El archivo en disco es el mismo.
+//
+// El nombre se RECALCULA ENTERO desde el manifiesto cada vez, asi que volver
+// a correr la importacion no acumula. A cambio, un renombre manual del clip
+// se pierde al reimportar -- es un dato generado, no algo que se edite a
+// mano. Ver §7 de la spec.
 const PREFIJO_POR_FLAG = {
   destacado: "★ ",
   pick: "✓ ",
   reject: "✕ ",
 };
 
-// Todas las marcas que este plugin pone, para poder reconocer las suyas.
-const PREFIJOS_PROPIOS = Object.keys(PREFIJO_POR_FLAG).map((f) => PREFIJO_POR_FLAG[f]);
+// El numero del clip dentro de su cuarto, a dos digitos ("01"). Si pasa de
+// 99 crece a tres sin romper nada.
+function numeroDeClip(posicion) {
+  const n = String(posicion);
+  return n.length < 2 ? "0" + n : n;
+}
+
+// El nombre completo del clip. `marcaDeCamara` es "SONY", "SONY+DRONE", etc.,
+// o "" si no hay ninguna.
+function nombreDeClip(cuarto, numero, marcaDeCamara, flag) {
+  const simbolo = PREFIJO_POR_FLAG[flag] || "";
+  const camara = marcaDeCamara ? " [" + marcaDeCamara + "]" : "";
+  return simbolo + String(cuarto || "") + " " + numeroDeClip(numero) + camara;
+}
+
+// Numera los clips POR CUARTO, en el orden del manifiesto (el mismo en que
+// Bruno los acomodo en la hoja). Devuelve un arreglo paralelo a `clips`.
+//
+// La llave del contador es el `categoria_path` completo: el mismo nombre de
+// cuarto en dos unidades distintas son dos contadores (y, aceptado por
+// ahora, dos nombres de clip que pueden coincidir). Los clips sin clasificar
+// (sin categoria_path) comparten un contador aparte.
+function numerosDeClip(clips) {
+  const contador = {};
+  return (clips || []).map((c) => {
+    const llave = JSON.stringify((c && c.categoria_path) || []);
+    contador[llave] = (contador[llave] || 0) + 1;
+    return contador[llave];
+  });
+}
 
 // Los nombres que PODRIA tener la accion de renombrar, en orden de
 // probabilidad. Se buscan en el objeto en vez de llamar al primero a ciegas.
@@ -44,80 +73,40 @@ const ACCIONES_DE_RENOMBRAR = [
   "createSetNodeNameAction",
 ];
 
-// Se avisa UNA vez por importacion, no una por clip: con 40 destacados
-// serian 40 renglones identicos tapando los errores que si son distintos.
+// Se avisa UNA vez por importacion, no una por clip: con 40 clips serian 40
+// renglones identicos tapando los errores que si son distintos.
 let yaSeAvisoDeRenombrar = false;
 
 function reiniciarAvisoDeRenombrar() {
   yaSeAvisoDeRenombrar = false;
 }
 
-// El nombre sin ninguna marca de este plugin al inicio.
-//
-// En bucle a proposito: un nombre que ya venga con «★ ✕ » --de una version
-// anterior que solo agregaba, o de dos pasadas de aquella-- se limpia
-// entero. Solo se quitan las marcas de `PREFIJO_POR_FLAG` y solo al inicio:
-// un «✕» que Bruno haya escrito el mismo a media frase no es nuestro y no se
-// toca.
-function nombreLimpio(nombre) {
-  let limpio = nombre;
-  let seguir = true;
-  while (seguir) {
-    seguir = false;
-    for (const prefijo of PREFIJOS_PROPIOS) {
-      if (limpio.indexOf(prefijo) === 0) {
-        limpio = limpio.slice(prefijo.length);
-        seguir = true;
-      }
-    }
-  }
-  return limpio;
-}
-
-// flag: "pick" | "reject" | "destacado" | "none".
-//
-// LAS REGLAS, y todas son sobre no hacer daño:
-//
-// 1. Es IDEMPOTENTE. Volver a correr la misma clasificacion es un caso
-//    normal --es como se corrige un error-- y sin esto quedaria
-//    «★ ★ ★ C0001.MP4».
-//    Y un clip sin marcar se queda sin marca: no hay prefijo para «none»
-//    a proposito, porque «no lo he visto» no es algo que se anuncie.
-// 2. **Cambia la marca cuando cambia el estado.** Un clip que era reject y
-//    ahora es destacado pierde su «✕» y gana su «★»; uno que dejo de ser
-//    los dos se queda sin marca. Hasta que existio la segunda marca esto
-//    era «solo agrega, nunca quita» --por miedo a renombrar lo que Bruno
-//    renombro a mano-- y con dos marcas ese miedo se volvio el bug: el clip
-//    terminaba con las dos, diciendo dos cosas contrarias a la vez.
-//    Se resuelve quitando SOLO nuestras marcas y SOLO al inicio, que son
-//    las unicas que sabemos que pusimos nosotros. Ver `nombreLimpio`.
-// 3. Si el nombre no cambia, no se abre transaccion: un `⌘Z` de Bruno no
-//    tiene por que gastarse en deshacer un renombre que no renombro nada.
-function applyFlagPrefix(project, clipItem, flag) {
+// Le pone al clip su nombre completo. Idempotente por construccion: si el
+// nombre ya es el deseado, no se abre transaccion (un `⌘Z` de Bruno no tiene
+// por que gastarse en deshacer un renombre que no renombro nada).
+function aplicarNombreDeClip(project, clipItem, cuarto, numero, marcaDeCamara, flag) {
   const nombre = clipItem.name;
   if (typeof nombre !== "string" || !nombre) return;
 
-  const deseado = (PREFIJO_POR_FLAG[flag] || "") + nombreLimpio(nombre);
+  const deseado = nombreDeClip(cuarto, numero, marcaDeCamara, flag);
   if (deseado === nombre) return;
 
   const metodo = ACCIONES_DE_RENOMBRAR.find(
     (n) => typeof clipItem[n] === "function"
   );
   if (!metodo) {
-    // No se puede renombrar en esta version. El clip NO se toca y los
-    // destacados y rejects llegan sin marca propia -- que es una perdida
-    // real, asi que se dice, con lo que el objeto si tiene para que la
-    // proxima version de esta lista salga de un dato y no de otra
+    // No se puede renombrar en esta version. El clip NO se toca y llega con
+    // su nombre de archivo, sin cuarto, numero ni marca -- que es una
+    // perdida real, asi que se dice, con lo que el objeto si tiene para que
+    // la proxima version de esta lista salga de un dato y no de otra
     // suposicion.
     if (!yaSeAvisoDeRenombrar) {
       yaSeAvisoDeRenombrar = true;
       logToPanel(
-        "No pude marcar los clips con ★ / ✓ / ✕: esta versión de Premiere " +
-        "no tiene ninguna de estas acciones (" +
+        "No pude nombrar los clips (cuarto, número, cámara y ★ / ✓ / ✕): " +
+        "esta versión de Premiere no tiene ninguna de estas acciones (" +
         ACCIONES_DE_RENOMBRAR.join(", ") + "). Los clips llegan bien y en su " +
-        "cuarto, pero SIN NINGUNA marca de estado -- avísale a Bruno, porque " +
-        "es lo único que distingue un pick de un reject. Lo que sí tiene el " +
-        "clip: " +
+        "cuarto, pero con su nombre de archivo. Lo que sí tiene el clip: " +
         Object.getOwnPropertyNames(Object.getPrototypeOf(clipItem)).join(", "),
         true
       );
@@ -128,6 +117,6 @@ function applyFlagPrefix(project, clipItem, flag) {
   runTransaction(
     project,
     () => clipItem[metodo](deseado),
-    "Marcar " + flag
+    "Nombrar clip " + deseado
   );
 }
