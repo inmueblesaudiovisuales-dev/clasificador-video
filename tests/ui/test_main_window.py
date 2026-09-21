@@ -5916,6 +5916,42 @@ def test_exportar_sin_nombre_de_proyecto_cae_en_manifest(qtbot, monkeypatch):
     assert sugeridos == ["manifest.json"]
 
 
+def test_exportar_propone_el_json_junto_al_cvproj(qtbot, monkeypatch, tmp_path):
+    """El manifest viaja con el material: proponerlo en la carpeta del
+    proyecto es lo que uno espera, y no en la ultima carpeta usada."""
+    from PySide6.QtWidgets import QFileDialog
+
+    window = _window(qtbot)
+    window.project_name = "IAV-2609.14"
+    window.session_path = tmp_path / "08. CLIPIFY" / "IAV-2609.14.cvproj"
+    window.load_clips([Clip(orden=1, ruta=Path("/tmp/a.mp4"),
+                            categoria_path=["Cocina"], fps=30.0)])
+    sugeridos = []
+    monkeypatch.setattr(QFileDialog, "getSaveFileName",
+                        lambda *a, **k: sugeridos.append(a[2]) or ("", ""))
+
+    window._on_export_manifest()
+
+    assert sugeridos == [str(tmp_path / "08. CLIPIFY" / "IAV-2609.14.json")]
+
+
+def test_exportar_sin_proyecto_guardado_solo_propone_el_nombre(qtbot, monkeypatch):
+    from PySide6.QtWidgets import QFileDialog
+
+    window = _window(qtbot)
+    window.project_name = "IAV-2609.14"
+    window.session_path = None
+    window.load_clips([Clip(orden=1, ruta=Path("/tmp/a.mp4"),
+                            categoria_path=["Cocina"], fps=30.0)])
+    sugeridos = []
+    monkeypatch.setattr(QFileDialog, "getSaveFileName",
+                        lambda *a, **k: sugeridos.append(a[2]) or ("", ""))
+
+    window._on_export_manifest()
+
+    assert sugeridos == ["IAV-2609.14.json"]
+
+
 def test_el_primer_clip_de_la_sesion_se_carga_a_ciegas(qtbot, tmp_path):
     """El guardia de alcance del arreglo del primer video negro.
 

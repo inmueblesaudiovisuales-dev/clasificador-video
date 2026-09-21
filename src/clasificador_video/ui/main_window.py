@@ -5988,7 +5988,7 @@ class MainWindow(QWidget):
                 "Puedes seguir y corregir después.",
             )
         path, _ = QFileDialog.getSaveFileName(
-            self, "Guardar manifest", self._nombre_sugerido_del_manifest(),
+            self, "Guardar manifest", self._ruta_sugerida_del_manifest(),
             "JSON (*.json)")
         if not path:
             return
@@ -6070,6 +6070,20 @@ class MainWindow(QWidget):
         """
         limpio = self.project_name.replace("/", "-").replace("\\", "-").strip()
         return f"{limpio}.json" if limpio else "manifest.json"
+
+    def _ruta_sugerida_del_manifest(self) -> str:
+        """La ruta completa donde proponer el JSON: junto al `.cvproj`.
+
+        El manifest viaja con el material, asi que proponerlo en la carpeta
+        del proyecto es lo que uno espera. Sin esto el dialogo abria en la
+        ultima carpeta usada, que con varios shootings puede ser la de otro.
+        Si el proyecto nunca se guardo no hay carpeta del proyecto, y se
+        queda como antes: solo el nombre.
+        """
+        nombre = self._nombre_sugerido_del_manifest()
+        if self.session_path is None:
+            return nombre
+        return str(self.session_path.with_name(nombre))
 
     def _on_import_folders(self) -> None:
         folder = QFileDialog.getExistingDirectory(self, "Elegir carpeta de material")
