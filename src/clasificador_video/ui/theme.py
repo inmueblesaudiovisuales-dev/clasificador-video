@@ -721,25 +721,171 @@ def build_stylesheet() -> str:
     }}
 
     /* ---------------- la pantalla de la guia de edicion ------------- */
+    /* Todo el bloque sale del mockup aprobado del 2026-09-19
+       (`docs/superpowers/mockups/guia-de-edicion-2026-09-19/mockup.html`).
+       Las envolturas llevan `WA_StyledBackground` desde
+       `pantalla_guia.py`: sin esa bandera un QWidget pelon ignora estas
+       reglas y la pantalla sale transparente. */
 
     QWidget#pantallaGuia {{
         background-color: {BG_SURFACE_0};
         border: 1px solid {LINE};
         border-radius: 10px;
     }}
+    /* La barra de arriba: titulo y subtitulo a la izquierda, acciones a la
+       derecha. El borde de abajo la separa del tablero. */
+    QWidget#guiaBarra {{
+        background-color: {BG_SURFACE_0};
+        border-bottom: 1px solid {LINE};
+    }}
+    QLabel#guiaTitulo {{
+        background-color: transparent;
+        color: {TEXT};
+        font-size: 15px;
+        font-weight: 600;
+    }}
+    QLabel#guiaSubtitulo {{
+        background-color: transparent;
+        color: {TEXT_2};
+        font-size: {FONT_BODY}px;
+    }}
+    QPushButton#guiaBoton, QPushButton#guiaBotonFantasma {{
+        background-color: {BG_SURFACE_1};
+        border: 1px solid {LINE};
+        border-radius: 7px;
+        color: {TEXT};
+        padding: 7px 14px;
+        font-size: {FONT_BODY}px;
+    }}
+    QPushButton#guiaBoton:hover {{
+        background-color: {BG_SURFACE_2};
+    }}
+    /* «Cerrar»: sin caja, para que la accion principal --«Usar este
+       orden»-- sea la unica que jala la mirada. */
+    QPushButton#guiaBotonFantasma {{
+        background-color: transparent;
+        border-color: transparent;
+        color: {TEXT_2};
+    }}
+    QPushButton#guiaBotonFantasma:hover {{
+        background-color: {BG_SURFACE_1};
+        color: {TEXT};
+    }}
+    QPushButton#guiaBotonPrimario {{
+        background-color: {CURRENT_COLOR};
+        border: 1px solid {CURRENT_COLOR};
+        border-radius: 7px;
+        color: {BG_APP};
+        padding: 7px 14px;
+        font-size: {FONT_BODY}px;
+        font-weight: 600;
+    }}
+    QPushButton#guiaBotonPrimario:hover {{
+        background-color: {PLAYHEAD_HIGHLIGHT};
+        border-color: {PLAYHEAD_HIGHLIGHT};
+    }}
+    /* El aviso de «sin usar»: fondo y borde rojizos sobre REJECT_COLOR, con
+       los alfas del mockup (0.12 y 0.35). */
+    QLabel#guiaAviso {{
+        background-color: {con_alfa_qss(REJECT_COLOR, 31)};
+        border: 1px solid {con_alfa_qss(REJECT_COLOR, 89)};
+        border-radius: 8px;
+        color: {REJECT_COLOR};
+        font-size: {FONT_BODY}px;
+        padding: 9px 14px;
+    }}
+    QScrollArea#guiaScroll {{
+        background-color: transparent;
+        border: none;
+    }}
+    QScrollArea#guiaScroll QWidget#qt_scrollarea_viewport {{
+        background-color: transparent;
+    }}
+    QWidget#guiaTablero {{
+        background-color: transparent;
+    }}
+    /* Cada columna es una tarjeta: fondo, borde y radio 10, con el
+       encabezado separado del cuerpo por una linea. */
+    QWidget#guiaColumna {{
+        background-color: {BG_SURFACE_0};
+        border: 1px solid {LINE};
+        border-radius: 10px;
+    }}
+    QWidget#guiaColumnaEncabezado {{
+        background-color: {BG_SURFACE_0};
+        border-bottom: 1px solid {LINE_SOFT};
+    }}
+    QLabel#guiaColumnaTitulo {{
+        background-color: transparent;
+        color: {TEXT};
+        font-size: {FONT_BODY}px;
+        font-weight: 600;
+    }}
+    QLabel#guiaColumnaConteo {{
+        background-color: transparent;
+        color: {TEXT_3};
+        font-size: {FONT_BODY}px;
+    }}
+    QWidget#guiaColumnaCuerpo {{
+        background-color: transparent;
+        min-height: 120px;
+    }}
+    /* El cuerpo se enciende cuando arrastras algo encima. */
+    QWidget#guiaColumnaCuerpo[sobreArrastre="true"] {{
+        background-color: {con_alfa_qss(CURRENT_COLOR, 20)};
+    }}
     QWidget#guiaChip {{
         background-color: {BG_SURFACE_2};
         border: 1px solid {LINE};
-        border-radius: 6px;
+        border-radius: 7px;
+    }}
+    QLabel#guiaChipNombre {{
+        background-color: transparent;
+        color: {TEXT};
+        font-size: {FONT_BODY}px;
+    }}
+    QLabel#guiaChipOtraVez {{
+        background-color: transparent;
+        color: {TEXT_3};
+        font-size: {FONT_SMALL}px;
+        font-style: italic;
     }}
     QWidget#guiaChip QPushButton {{
-        background: transparent;
+        background-color: transparent;
         border: none;
         color: {TEXT_3};
-        padding: 0px;
+        padding: 0px 2px;
+        font-size: {FONT_TITLE}px;
     }}
     QWidget#guiaChip QPushButton:hover {{
-        color: {TEXT};
+        color: {REJECT_COLOR};
+    }}
+    /* La franja de abajo: los cuartos reales, siempre disponibles. */
+    QWidget#guiaFranjaWrap {{
+        background-color: {BG_SURFACE_0};
+        border-top: 1px solid {LINE};
+    }}
+    QLabel#guiaFranjaTitulo {{
+        background-color: transparent;
+        color: {TEXT_2};
+        font-size: {FONT_SMALL}px;
+    }}
+    QWidget#guiaFranja QWidget#guiaChip {{
+        background-color: {BG_SURFACE_1};
+    }}
+    /* Ya puesto en alguna columna: borde punteado y nombre mas apagado,
+       con el «×N» de usos en el color del rango. */
+    QWidget#guiaFranja QWidget#guiaChip[usado="true"] {{
+        background-color: {BG_SURFACE_1};
+        border: 1px dashed {LINE};
+    }}
+    QWidget#guiaFranja QWidget#guiaChip[usado="true"] QLabel#guiaChipNombre {{
+        color: {TEXT_2};
+    }}
+    QLabel#guiaFranjaConteo {{
+        background-color: transparent;
+        color: {TRIM_COLOR};
+        font-size: {FONT_SMALL}px;
     }}
 
     QWidget#statusBar {{
