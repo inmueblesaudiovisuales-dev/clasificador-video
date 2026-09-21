@@ -773,6 +773,14 @@ def build_stylesheet() -> str:
     QWidget#roomRow[actual="true"] {{
         background-color: {BG_SURFACE_2};
     }}
+    /* Seleccion multiple (Cmd-clic), distinta del foco de teclado: el
+       foco dice "aqui actuan Enter/Backspace/Alt-flechas", la seleccion
+       dice "esto es lo que arrastro". Pueden coincidir en la misma fila y
+       tienen que leerse distinto. */
+    QWidget#roomRow[seleccionada="true"] {{
+        background-color: {BG_SURFACE_2};
+        border: 1px solid {CURRENT_COLOR};
+    }}
     /* `⌘R` trae el foco aca: sin marca visible no se sabe sobre que fila
        actuan ⏎, ⌫ y ⌥↑/⌥↓ */
     QWidget#roomRow:focus {{

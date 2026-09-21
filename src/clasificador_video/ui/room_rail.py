@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from PySide6.QtCore import QMimeData, QPoint, Qt, Signal
-from PySide6.QtGui import QColor, QDrag, QPainter
+from PySide6.QtGui import QColor, QDrag, QFontMetrics, QPainter, QPixmap
 from PySide6.QtWidgets import (
     QApplication,
     QHBoxLayout,
@@ -21,6 +21,27 @@ from clasificador_video.ui.text import ElidedLabel
 
 def _texto_de_estado(cuantos: int, palabra: str) -> str:
     return f"{cuantos} {palabra}" if palabra else str(cuantos)
+
+
+def _pixmap_de_grupo(nombres: list[str], fuente) -> "QPixmap":
+    """El globo que sigue al mouse mientras arrastras varios cuartos --
+    dice que llevas, en vez de mostrar solo la fila de la que agarraste
+    (spec 2026-09-21 S5)."""
+    texto = ", ".join(nombres) if len(nombres) <= 2 else f"{nombres[0]} +{len(nombres) - 1}"
+    metrica = QFontMetrics(fuente)
+    ancho = metrica.horizontalAdvance(texto) + 20
+    pixmap = QPixmap(ancho, 22)
+    pixmap.fill(Qt.GlobalColor.transparent)
+    pintor = QPainter(pixmap)
+    pintor.setRenderHint(QPainter.RenderHint.Antialiasing)
+    pintor.setPen(QColor(theme.CURRENT_COLOR))
+    pintor.setBrush(QColor(theme.BG_SURFACE_2))
+    pintor.drawRoundedRect(0, 0, ancho - 1, 21, 6, 6)
+    pintor.setPen(QColor(theme.TEXT))
+    pintor.setFont(fuente)
+    pintor.drawText(pixmap.rect(), Qt.AlignmentFlag.AlignCenter, texto)
+    pintor.end()
+    return pixmap
 
 MAX_TECLAS = 9      # los atajos numericos llegan hasta el noveno cuarto
 
@@ -179,6 +200,8 @@ class _FilaCuarto(QWidget):
     move_requested = Signal(str, int)     # nombre, -1 arriba / +1 abajo
     remove_requested = Signal(str)
     mover_foco_requested = Signal(object, int)   # fila, direccion
+    clic_solicitado = Signal(str, bool)          # nombre, con_modificador
+    clic_soltado_sin_arrastre = Signal(str)       # nombre
 
     # La unidad DUEÑA de esta fila (`""` cuando el proyecto no usa unidades,
     # o para el bloque migratorio "Sin unidad"). La pone `RoomRail` al
@@ -197,6 +220,7 @@ class _FilaCuarto(QWidget):
         # sigue reproduciendo el video aunque el rail tenga el foco.
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self._inicio_del_arrastre: QPoint | None = None
+        self.obtener_grupo = None   # lo pone RoomRail en el camino agrupado
 
         layout = QHBoxLayout(self)
         layout.setContentsMargins(6, 0, 6, 0)
@@ -253,6 +277,11 @@ class _FilaCuarto(QWidget):
         # normal --enfocar la fila-- lo sigue haciendo Qt
         if event.button() == Qt.MouseButton.LeftButton:
             self._inicio_del_arrastre = event.position().toPoint()
+            con_modificador = bool(
+                event.modifiers() & (Qt.KeyboardModifier.ControlModifier
+                                      | Qt.KeyboardModifier.MetaModifier)
+            )
+            self.clic_solicitado.emit(self.nombre, con_modificador)
         super().mousePressEvent(event)
 
     def mouseMoveEvent(self, event) -> None:  # noqa: N802 -- override de Qt
@@ -270,14 +299,23 @@ class _FilaCuarto(QWidget):
         if recorrido.manhattanLength() < QApplication.startDragDistance():
             return
         self._inicio_del_arrastre = None
+        nombres = self.obtener_grupo() if self.obtener_grupo else [self.nombre]
         mime = QMimeData()
-        mime.setData(MIME_CUARTO, self.nombre.encode())
+        mime.setData(MIME_CUARTO, "\n".join(nombres).encode())
         arrastre = QDrag(self)
         arrastre.setMimeData(mime)
-        arrastre.setPixmap(self.grab())
+        if len(nombres) > 1:
+            arrastre.setPixmap(_pixmap_de_grupo(nombres, self.font()))
+        else:
+            arrastre.setPixmap(self.grab())
         arrastre.exec(Qt.DropAction.MoveAction)
 
     def mouseReleaseEvent(self, event) -> None:  # noqa: N802 -- override de Qt
+        # `_inicio_del_arrastre` sigue puesto solo si mouseMoveEvent NUNCA
+        # arranco un arrastre con este click -- osea, fue un clic simple.
+        if (self._inicio_del_arrastre is not None
+                and event.button() == Qt.MouseButton.LeftButton):
+            self.clic_soltado_sin_arrastre.emit(self.nombre)
         self._inicio_del_arrastre = None
         super().mouseReleaseEvent(event)
 
@@ -344,6 +382,13 @@ class _FilaCuarto(QWidget):
 
     def pedir_eliminar(self) -> None:
         self.remove_requested.emit(self.nombre)
+
+    def set_seleccionada(self, seleccionada: bool) -> None:
+        if self.property("seleccionada") == seleccionada:
+            return
+        self.setProperty("seleccionada", seleccionada)
+        self.style().unpolish(self)
+        self.style().polish(self)
 
 
 class _FilaHistorial(QWidget):
@@ -628,6 +673,8 @@ class RoomRail(QWidget):
         # vista del widget. MainWindow solo lo lee al autoguardar y lo
         # escribe al restaurar (spec 2026-09-21 S3, tarea futura).
         self._colapsadas: set[str] = set()
+        self._seleccion: set[str] = set()
+        self._unidad_de_seleccion: str | None = None
 
         # --- la fila fija de `S`: repetir el cuarto del clip anterior ---
         # Va arriba de los cuartos y FUERA de `self.rows`: `set_rooms`
@@ -813,6 +860,15 @@ class RoomRail(QWidget):
                     lambda nombre, u=llave: self.room_removed_en_unidad.emit(nombre, u)
                 )
                 fila.mover_foco_requested.connect(self._mover_foco)
+                fila.clic_solicitado.connect(
+                    lambda nombre, mod, u=llave: self._on_clic_en_fila(nombre, mod, u)
+                )
+                fila.clic_soltado_sin_arrastre.connect(
+                    lambda nombre, u=llave: self._on_release_sin_arrastre(nombre, u)
+                )
+                fila.obtener_grupo = (
+                    lambda n=cuarto, u=llave: self._grupo_para_arrastrar(n, u)
+                )
                 self._rooms_layout.addWidget(fila)
                 filas.append(fila)
             self.rows_por_unidad[llave] = filas
@@ -851,6 +907,52 @@ class RoomRail(QWidget):
         for fila in self.rows_por_unidad.get(llave, []):
             fila.setVisible(not colapsada)
         self.unidad_colapso_cambiado.emit(llave, colapsada)
+
+    def _on_clic_en_fila(self, nombre: str, con_modificador: bool, unidad: str) -> None:
+        if con_modificador:
+            if unidad != self._unidad_de_seleccion:
+                # la seleccion no cruza unidades (spec S4): dos unidades
+                # pueden repetir un nombre de cuarto, y mezclarlas no tiene
+                # un destino que tenga sentido
+                self._seleccion = {nombre}
+                self._unidad_de_seleccion = unidad
+            elif nombre in self._seleccion:
+                self._seleccion.discard(nombre)
+            else:
+                self._seleccion.add(nombre)
+        elif not (nombre in self._seleccion and unidad == self._unidad_de_seleccion):
+            self._seleccion = {nombre}
+            self._unidad_de_seleccion = unidad
+            # si YA estaba en una seleccion de 2+, un clic simple no la
+            # limpia aqui todavia -- se decide en el release, para poder
+            # agarrar cualquiera de las filas seleccionadas y arrastrar el
+            # grupo completo (igual que en Finder)
+        self._repintar_seleccion()
+
+    def _on_release_sin_arrastre(self, nombre: str, unidad: str) -> None:
+        if (unidad == self._unidad_de_seleccion and nombre in self._seleccion
+                and len(self._seleccion) > 1):
+            self._seleccion = {nombre}
+            self._repintar_seleccion()
+
+    def _repintar_seleccion(self) -> None:
+        for llave, filas in self.rows_por_unidad.items():
+            for fila in filas:
+                fila.set_seleccionada(
+                    llave == self._unidad_de_seleccion and fila.nombre in self._seleccion
+                )
+
+    def _grupo_para_arrastrar(self, nombre: str, unidad: str) -> list[str]:
+        """Los nombres que viajan juntos si arrancas el arrastre desde
+        `nombre`: el grupo completo si es parte de una seleccion de 2+, o
+        solo el mismo si no."""
+        if (unidad == self._unidad_de_seleccion and nombre in self._seleccion
+                and len(self._seleccion) > 1):
+            # en el orden del rail, no en el orden en que se fueron marcando
+            # -- para que el globo que sigue al mouse lea igual que la lista
+            return [f.nombre for f in self.rows_por_unidad[unidad]
+                    if f.nombre in self._seleccion]
+        return [nombre]
 
     def unidades_colapsadas(self) -> set[str]:
         return set(self._colapsadas)
@@ -903,7 +1005,12 @@ class RoomRail(QWidget):
         self.esconder_linea_de_destino()
         if not mime.hasFormat(MIME_CUARTO):
             return
-        nombre = bytes(mime.data(MIME_CUARTO)).decode(errors="ignore")
+        # el payload puede traer varios nombres separados por "\n" cuando el
+        # arrastre arranco desde una seleccion multiple (Cmd-clic, tarea 7);
+        # aca solo hace falta el primero para encontrar el punto de destino,
+        # ya que `soltar_cuarto` reordena una fila a la vez
+        nombres = bytes(mime.data(MIME_CUARTO)).decode(errors="ignore").split("\n")
+        nombre = nombres[0]
         # `event.source()` es la `_FilaCuarto` que arranco el arrastre (la
         # crea con `QDrag(self)`): de ahi sale la unidad de origen SIN
         # ambiguedad, incluso si otra unidad tiene un cuarto con el mismo

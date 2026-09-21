@@ -325,3 +325,82 @@ def test_conteo_de_la_banda_se_actualiza_sin_reconstruir(rail):
     banda_despues = next(b for b in rail.unit_bands if b.nombre == "Casa B")
     assert banda_despues is banda_antes
     assert banda_despues.contador.text() == "6"
+
+
+# --- seleccion multiple con Cmd-clic (spec 2026-09-21, tarea 7) -------------
+
+
+def test_clic_simple_selecciona_solo_esa_fila(rail):
+    rail.set_rooms_agrupados(**_mismos_argumentos(), counts={})
+    fila_cocina = rail.rows_por_unidad["Casa B"][0]
+    rail._on_clic_en_fila(fila_cocina.nombre, False, "Casa B")
+    assert fila_cocina.property("seleccionada") is True
+
+
+def test_cmd_clic_suma_a_la_seleccion(rail):
+    rail.set_rooms_agrupados(**_mismos_argumentos(), counts={})
+    cocina, banio = rail.rows_por_unidad["Casa B"]
+    rail._on_clic_en_fila(cocina.nombre, True, "Casa B")
+    rail._on_clic_en_fila(banio.nombre, True, "Casa B")
+    assert cocina.property("seleccionada") is True
+    assert banio.property("seleccionada") is True
+
+
+def test_cmd_clic_en_otra_unidad_reemplaza_la_seleccion(rail):
+    rail.set_rooms_agrupados(**_mismos_argumentos(), counts={})
+    cocina_a = rail.rows_por_unidad["Casa A"][0]
+    cocina_b = rail.rows_por_unidad["Casa B"][0]
+    rail._on_clic_en_fila(cocina_a.nombre, True, "Casa A")
+    rail._on_clic_en_fila(cocina_b.nombre, True, "Casa B")
+    assert cocina_a.property("seleccionada") is False
+    assert cocina_b.property("seleccionada") is True
+
+
+def test_cmd_clic_de_nuevo_la_quita_de_la_seleccion(rail):
+    rail.set_rooms_agrupados(**_mismos_argumentos(), counts={})
+    cocina, banio = rail.rows_por_unidad["Casa B"]
+    rail._on_clic_en_fila(cocina.nombre, True, "Casa B")
+    rail._on_clic_en_fila(banio.nombre, True, "Casa B")
+    rail._on_clic_en_fila(cocina.nombre, True, "Casa B")
+    assert cocina.property("seleccionada") is False
+    assert banio.property("seleccionada") is True
+
+
+def test_clic_simple_sobre_fila_ya_en_grupo_no_limpia_la_seleccion(rail):
+    """Para poder agarrar cualquiera de las filas seleccionadas y
+    arrastrar el grupo entero -- si el clic limpiara de una, arrancar el
+    arrastre desde ahi solo llevaria esa fila."""
+    rail.set_rooms_agrupados(**_mismos_argumentos(), counts={})
+    cocina, banio = rail.rows_por_unidad["Casa B"]
+    rail._on_clic_en_fila(cocina.nombre, True, "Casa B")
+    rail._on_clic_en_fila(banio.nombre, True, "Casa B")
+    rail._on_clic_en_fila(cocina.nombre, False, "Casa B")
+    assert cocina.property("seleccionada") is True
+    assert banio.property("seleccionada") is True
+
+
+def test_soltar_sin_arrastre_sobre_fila_del_grupo_si_limpia_la_seleccion(rail):
+    rail.set_rooms_agrupados(**_mismos_argumentos(), counts={})
+    cocina, banio = rail.rows_por_unidad["Casa B"]
+    rail._on_clic_en_fila(cocina.nombre, True, "Casa B")
+    rail._on_clic_en_fila(banio.nombre, True, "Casa B")
+
+    rail._on_release_sin_arrastre(cocina.nombre, "Casa B")
+
+    assert cocina.property("seleccionada") is True
+    assert banio.property("seleccionada") is False
+
+
+def test_grupo_para_arrastrar_una_sola_fila_sin_seleccion(rail):
+    rail.set_rooms_agrupados(**_mismos_argumentos(), counts={})
+    cocina = rail.rows_por_unidad["Casa B"][0]
+    assert rail._grupo_para_arrastrar(cocina.nombre, "Casa B") == ["Cocina"]
+
+
+def test_grupo_para_arrastrar_el_grupo_completo_en_orden_del_rail(rail):
+    rail.set_rooms_agrupados(**_mismos_argumentos(), counts={})
+    cocina, banio = rail.rows_por_unidad["Casa B"]
+    rail._on_clic_en_fila(banio.nombre, True, "Casa B")
+    rail._on_clic_en_fila(cocina.nombre, True, "Casa B")
+    # aunque "Baño" se marco primero, el orden que devuelve es el del rail
+    assert rail._grupo_para_arrastrar(cocina.nombre, "Casa B") == ["Cocina", "Baño"]
