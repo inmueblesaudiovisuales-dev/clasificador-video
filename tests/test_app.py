@@ -80,6 +80,30 @@ def _proyecto_en(tmp_path, extra=None, nombre="P.cvproj"):
     return ruta
 
 
+def test_abrir_proyecto_recupera_la_carpeta_de_icloud(qtbot, tmp_path):
+    ruta = _proyecto_en(tmp_path, extra={
+        "carpeta_de_icloud": str(tmp_path / "IAV-2609.10-A"),
+    })
+
+    ventana = abrir_proyecto(ruta, video_factory=_FakeMpv,
+                             recientes_path=tmp_path / "r.json")
+    qtbot.addWidget(ventana)
+
+    assert ventana.carpeta_de_icloud == tmp_path / "IAV-2609.10-A"
+    ventana.close()
+
+
+def test_abrir_proyecto_sin_carpeta_de_icloud_queda_en_none(qtbot, tmp_path):
+    ruta = _proyecto_en(tmp_path)
+
+    ventana = abrir_proyecto(ruta, video_factory=_FakeMpv,
+                             recientes_path=tmp_path / "r.json")
+    qtbot.addWidget(ventana)
+
+    assert ventana.carpeta_de_icloud is None
+    ventana.close()
+
+
 def _sesion_vieja(tmp_path, extra=None):
     """La sesión escondida de antes de que los proyectos tuvieran nombre."""
     sesion = tmp_path / "sesion.json"

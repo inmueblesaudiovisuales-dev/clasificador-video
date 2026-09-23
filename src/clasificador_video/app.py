@@ -235,6 +235,8 @@ def _poblar_ventana(window: MainWindow, data: dict, clips: list[Clip]) -> None:
     # donde se escribia y se sigue buscando en los tres lugares.
     guardada = data.get("carpeta_de_proxies")
     window.set_carpeta_de_proxies(Path(guardada) if guardada else None)
+    guardada_icloud = data.get("carpeta_de_icloud")
+    window.set_carpeta_de_icloud(Path(guardada_icloud) if guardada_icloud else None)
     # Y las guias de edicion, si este proyecto las armo, por unidad. Falta en
     # todo proyecto anterior al 2026-09-14, y ahi `{}` es lo normal: se abre
     # igual y el boton sigue ahi para armarla. La llave vieja `guia` (una
