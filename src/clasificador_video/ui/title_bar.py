@@ -139,6 +139,11 @@ class TitleBar(QWidget):
         # A la izquierda de exportar: la guia se arma ANTES de exportar.
         self.guia_button = _boton("Guía de edición", "", "railButton")
         self.export_button = _boton("Exportar a Premiere", "⌘E", "exportButton")
+        # Al aparecer «Abrir en Finder», el layout puede repartir el ancho
+        # faltante sobre este botón primario y cortar su texto. Su acción
+        # debe conservar el ancho mínimo que Qt calcula para el rótulo.
+        self.export_button.setMinimumWidth(
+            self.export_button.minimumSizeHint().width())
 
         # La cápsula de entrega cambia sin mover el resto de la barra.
         self.entrega_host = QWidget()

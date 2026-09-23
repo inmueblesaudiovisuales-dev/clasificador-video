@@ -112,6 +112,37 @@ def test_el_boton_de_abrir_en_finder_emite_su_senal(qtbot):
         bar.icloud_button.click()
 
 
+def test_con_icloud_a_1280_la_exportacion_sigue_siendo_legible(qtbot):
+    from PySide6.QtWidgets import QApplication, QVBoxLayout, QWidget
+
+    QApplication.instance().setStyleSheet(theme.build_stylesheet())
+    ventana = QWidget()
+    ventana.setMinimumWidth(856)
+    layout = QVBoxLayout(ventana)
+    layout.setContentsMargins(0, 0, 0, 0)
+    bar = _bar(qtbot)
+    bar.set_project("Casa Lomas", 128, bins=2)
+    bar.set_saved_seconds(12)
+    layout.addWidget(bar)
+    ventana.resize(1280, theme.TITLEBAR_HEIGHT)
+    ventana.show()
+    qtbot.waitExposed(ventana)
+    bar.set_carpeta_de_icloud_disponible(True)
+    qtbot.wait(0)
+
+    botones = (
+        bar.config_button,
+        bar.proxies_button,
+        bar.icloud_button,
+        bar.guia_button,
+        bar.export_button,
+        bar.subir_button,
+    )
+    anchos = [(boton.text(), boton.width(), boton.minimumSizeHint().width())
+              for boton in botones]
+    assert all(actual >= minimo for _texto, actual, minimo in anchos), anchos
+
+
 def test_los_botones_no_roban_el_foco(qtbot):
     """Con un boton enfocable en el camino, Espacio lo activaria en vez de
     reproducir el clip."""
