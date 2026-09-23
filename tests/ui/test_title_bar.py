@@ -77,6 +77,41 @@ def test_el_boton_de_proxies_emite_su_senal(qtbot):
         bar.proxies_button.click()
 
 
+def test_el_boton_de_abrir_en_finder_esta_escondido_por_defecto(qtbot):
+    bar = _bar(qtbot)
+    bar.show()
+    qtbot.waitExposed(bar)
+
+    assert not bar.icloud_button.isVisible()
+
+
+def test_set_carpeta_de_icloud_disponible_muestra_el_boton(qtbot):
+    bar = _bar(qtbot)
+    bar.show()
+    qtbot.waitExposed(bar)
+
+    bar.set_carpeta_de_icloud_disponible(True)
+
+    assert bar.icloud_button.isVisible()
+
+
+def test_set_carpeta_de_icloud_disponible_false_lo_esconde(qtbot):
+    bar = _bar(qtbot)
+    bar.show()
+    qtbot.waitExposed(bar)
+    bar.set_carpeta_de_icloud_disponible(True)
+
+    bar.set_carpeta_de_icloud_disponible(False)
+
+    assert not bar.icloud_button.isVisible()
+
+
+def test_el_boton_de_abrir_en_finder_emite_su_senal(qtbot):
+    bar = _bar(qtbot)
+    with qtbot.waitSignal(bar.abrir_en_finder_requested):
+        bar.icloud_button.click()
+
+
 def test_los_botones_no_roban_el_foco(qtbot):
     """Con un boton enfocable en el camino, Espacio lo activaria en vez de
     reproducir el clip."""

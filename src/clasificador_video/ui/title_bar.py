@@ -55,6 +55,7 @@ class TitleBar(QWidget):
     proxies_requested = Signal()
     subir_a_drive_requested = Signal()
     traer_de_vuelta_requested = Signal()
+    abrir_en_finder_requested = Signal()
     mode_toggled = Signal()
     # el visor ancho: la hoja se esconde en modo clip y el video se lleva su
     # ancho. La barra solo avisa; quien lo aplica y lo guarda es la ventana.
@@ -130,6 +131,11 @@ class TitleBar(QWidget):
         # unico dibujo en una barra que es toda palabras.
         self.config_button = _boton("Configuración", "", "railButton")
         self.proxies_button = _boton("Proxies", "", "railButton")
+        # Solo se ve si el proyecto tiene una carpeta de iCloud vinculada
+        # (spec 2026-09-23-abrir-carpeta-icloud-en-finder-design.md) --
+        # empieza escondido, igual que `traer_button`.
+        self.icloud_button = _boton("Abrir en Finder", "", "railButton")
+        self.icloud_button.hide()
         # A la izquierda de exportar: la guia se arma ANTES de exportar.
         self.guia_button = _boton("Guía de edición", "", "railButton")
         self.export_button = _boton("Exportar a Premiere", "⌘E", "exportButton")
@@ -151,6 +157,7 @@ class TitleBar(QWidget):
         entrega_layout.addWidget(self.subir_button)
         entrega_layout.addWidget(self.traer_button)
         self.proxies_button.clicked.connect(self.proxies_requested.emit)
+        self.icloud_button.clicked.connect(self.abrir_en_finder_requested.emit)
         self.export_button.clicked.connect(self.export_requested.emit)
         self.guia_button.clicked.connect(self.guia_requested.emit)
         self.config_button.clicked.connect(self.config_requested.emit)
@@ -165,9 +172,16 @@ class TitleBar(QWidget):
         layout.addWidget(self.saved_label)
         layout.addWidget(self.config_button)
         layout.addWidget(self.proxies_button)
+        layout.addWidget(self.icloud_button)
         layout.addWidget(self.guia_button)
         layout.addWidget(self.export_button)
         layout.addWidget(self.entrega_host)
+
+    def set_carpeta_de_icloud_disponible(self, disponible: bool) -> None:
+        """Muestra u oculta "Abrir en Finder" -- solo existe una carpeta de
+        iCloud que abrir en los proyectos creados con "Con folio…" (spec
+        2026-09-23-abrir-carpeta-icloud-en-finder-design.md)."""
+        self.icloud_button.setVisible(disponible)
 
     def set_estado_de_entrega(self, estado: str | None, cuando_texto: str = "") -> None:
         """Dibuja el estado de la entrega de este proyecto."""
