@@ -416,6 +416,24 @@ def test_la_carpeta_de_proxies_elegida_se_guarda_en_el_proyecto():
     assert data["carpeta_de_proxies"] == "/proyecto/01. ASSETS VIDEO/07. PROXIES"
 
 
+def test_la_carpeta_de_icloud_se_guarda_en_el_proyecto():
+    data = a_dict(proyecto="P", rooms=[], clips=[], bins=BinTree(),
+                  tamanos={}, duraciones={}, rotaciones={},
+                  carpeta_de_icloud=Path(
+                      "/Users/bruno/.../01. IAV/2026/09. Septiembre/IAV-2609.10-A"))
+
+    assert data["carpeta_de_icloud"] == (
+        "/Users/bruno/.../01. IAV/2026/09. Septiembre/IAV-2609.10-A"
+    )
+
+
+def test_un_proyecto_que_nunca_fue_colaborativo_no_guarda_carpeta_de_icloud():
+    data = a_dict(proyecto="P", rooms=[], clips=[], bins=BinTree(),
+                  tamanos={}, duraciones={}, rotaciones={})
+
+    assert data["carpeta_de_icloud"] is None
+
+
 def test_un_proyecto_que_nunca_contesto_no_guarda_carpeta():
     """Ausente = comportamiento de siempre. Es lo que hace que los proyectos
     de antes del 2026-08-25 no cambien de sitio por sí solos."""

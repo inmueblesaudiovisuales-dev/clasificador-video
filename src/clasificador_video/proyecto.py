@@ -132,6 +132,7 @@ def a_dict(proyecto: str, rooms: list[str], clips: list, bins,
            agrupar_por_cuarto: bool = True,
            modo_horizontal: bool = False,
            carpeta_de_proxies: Path | None = None,
+           carpeta_de_icloud: Path | None = None,
            guia: dict | None = None,
            entrega: dict | None = None,
            units: list[str] | None = None,
@@ -197,6 +198,12 @@ def a_dict(proyecto: str, rooms: list[str], clips: list, bins,
         # antes.
         "carpeta_de_proxies": (str(carpeta_de_proxies)
                                if carpeta_de_proxies is not None else None),
+        # La carpeta del proyecto en iCloud (spec
+        # 2026-09-23-proyecto-colaborativo-icloud-design.md). `None` es un
+        # proyecto creado "a mano" o de antes de esta fase -- mismo
+        # criterio que `carpeta_de_proxies`.
+        "carpeta_de_icloud": (str(carpeta_de_icloud)
+                              if carpeta_de_icloud is not None else None),
         # La guía de edición, tal como se armó. `None` es un proyecto que
         # nunca la pidió, y es lo que hace que los de antes de hoy abran
         # igual que siempre.
