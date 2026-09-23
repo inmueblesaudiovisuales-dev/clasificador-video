@@ -71,3 +71,17 @@ def test_modo_rapido_no_pisa_modo_economico_en_el_mismo_archivo(tmp_path: Path):
     mod.guardar_modo_rapido(True, destino)
     assert mod.modo_economico(destino) is True
     assert mod.modo_rapido(destino) is True
+
+
+def test_carpeta_raiz_icloud_vacia_por_defecto(tmp_path):
+    ruta = tmp_path / "preferencias.json"
+    assert mod.carpeta_raiz_icloud(ruta) is None
+
+
+def test_guardar_y_leer_carpeta_raiz_icloud(tmp_path):
+    ruta = tmp_path / "preferencias.json"
+    carpeta = tmp_path / "01. Proyectos 2026 IAV y PI"
+
+    mod.guardar_carpeta_raiz_icloud(carpeta, ruta)
+
+    assert mod.carpeta_raiz_icloud(ruta) == carpeta

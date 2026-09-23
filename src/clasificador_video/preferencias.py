@@ -82,3 +82,21 @@ def guardar_carpeta_de_proyectos_premiere(carpeta: Path, ruta: Path | None = Non
     datos = _leer_todo(ruta)
     datos["carpeta_de_proyectos_premiere"] = str(carpeta)
     destino.write_text(json.dumps(datos), encoding="utf-8")
+
+
+def carpeta_raiz_icloud(ruta: Path | None = None) -> Path | None:
+    """La carpeta raíz de iCloud donde Bruno ya tiene armado
+    `01. IAV/`, `02. PI/` y `03. Templates/` (spec
+    2026-09-23-proyecto-colaborativo-icloud-design.md). `None` hasta que
+    la configure -- sin ella, "Proyecto nuevo" con folio no puede armar
+    la ruta y avisa que hace falta ponerla en Configuración."""
+    valor = _leer_todo(ruta).get("carpeta_raiz_icloud")
+    return Path(valor) if valor else None
+
+
+def guardar_carpeta_raiz_icloud(carpeta: Path, ruta: Path | None = None) -> None:
+    destino = _destino(ruta)
+    destino.parent.mkdir(parents=True, exist_ok=True)
+    datos = _leer_todo(ruta)
+    datos["carpeta_raiz_icloud"] = str(carpeta)
+    destino.write_text(json.dumps(datos), encoding="utf-8")
