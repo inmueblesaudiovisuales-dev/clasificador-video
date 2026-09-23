@@ -144,6 +144,17 @@ por este flujo -- Bruno ya guarda todos sus `.prproj` en esta carpeta de
 iCloud hoy, con o sin editor externo de por medio. Ver la sección de
 Proxies para dónde sí importa la diferencia.
 
+### Salida para pruebas: "Usar una carpeta a mano"
+
+No todo lo que Bruno crea en Clipify es un trabajo real con folio --
+existen proyectos de prueba (`TEST.cvproj`, por ejemplo). El cuadro que
+pide el folio trae un botón secundario, "Usar una carpeta a mano", que
+cae exactamente en el comportamiento de HOY: el selector de "guardar
+como" de siempre, sin folio, sin iCloud, sin las 8 subcarpetas ni
+templates. Un proyecto creado así no tiene `carpeta_de_icloud` -- igual
+que un proyecto de antes de esta fase -- y `proponer_carpeta` de proxies
+se comporta exactamente como hoy para él.
+
 ## Proxies: la única diferencia real entre "para mí" y "para un editor"
 
 `proxy_gen.proponer_carpeta(carpeta_del_bin)` decide qué carpeta proponerle
