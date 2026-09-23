@@ -31,6 +31,12 @@ def test_partir_folio_mes_invalido_no_parsea():
     assert colab.partir_folio("IAV-2613.10-A") is None
 
 
+def test_partir_folio_fecha_o_letra_invalidas_no_parsea():
+    assert colab.partir_folio("IAV-2602.31-A") is None
+    assert colab.partir_folio("IAV-2609.00-A") is None
+    assert colab.partir_folio("IAV-2609.10-foo") is None
+
+
 def test_partir_folio_formato_raro_no_parsea():
     assert colab.partir_folio("no es un folio") is None
     assert colab.partir_folio("") is None
@@ -148,6 +154,23 @@ def test_crear_carpeta_de_proyecto_sin_template_ae_no_crea_nada(tmp_path):
     (templates / colab.TEMPLATE_PREMIERE_NOMBRE).write_text("premiere vacio")
 
     with pytest.raises(FileNotFoundError):
+        colab.crear_carpeta_de_proyecto(carpeta_proyecto, templates, "IAV-2609.10-A")
+
+    assert not carpeta_proyecto.exists()
+
+
+def test_crear_carpeta_de_proyecto_si_falla_la_copia_no_deja_nada(tmp_path, monkeypatch):
+    padre = tmp_path / "09. Septiembre"
+    padre.mkdir()
+    carpeta_proyecto = padre / "IAV-2609.10-A"
+    templates = _con_templates(tmp_path)
+
+    def sin_permitir_copiar(*args, **kwargs):
+        raise PermissionError("disco sin permiso")
+
+    monkeypatch.setattr(colab.shutil, "copyfile", sin_permitir_copiar)
+
+    with pytest.raises(PermissionError):
         colab.crear_carpeta_de_proyecto(carpeta_proyecto, templates, "IAV-2609.10-A")
 
     assert not carpeta_proyecto.exists()

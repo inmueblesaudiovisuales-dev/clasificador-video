@@ -1018,6 +1018,23 @@ def test_con_folio_sin_template_avisa_y_no_crea_nada(qtbot, tmp_path, monkeypatc
     assert avisos and "TemplateAE.aep" in avisos[0]
 
 
+def test_con_folio_error_de_escritura_avisa_y_no_deja_ventana(qtbot, tmp_path, monkeypatch):
+    from clasificador_video import proyecto_colaborativo
+    _con_raiz_icloud(monkeypatch, tmp_path)
+    monkeypatch.setattr(QMessageBox, "exec", lambda self: None)
+    monkeypatch.setattr(QMessageBox, "clickedButton", _elige_botones("Con folio…", "Crear aquí"))
+    monkeypatch.setattr(QInputDialog, "getText", lambda *a, **k: ("IAV-2609.10-A", True))
+    monkeypatch.setattr(proyecto_colaborativo, "crear_carpeta_de_proyecto",
+                        lambda *a: (_ for _ in ()).throw(PermissionError("sin permiso")))
+    coord = _coordinador(tmp_path); qtbot.addWidget(coord.inicio); coord.mostrar_inicio()
+    avisos = []; monkeypatch.setattr(coord.inicio, "avisar", avisos.append)
+
+    coord.inicio.nuevo_pedido.emit()
+
+    assert coord.ventanas == []
+    assert avisos and "No se pudo crear" in avisos[0]
+
+
 def test_al_proyecto_nuevo_se_le_pone_la_extension_si_falta(qtbot, tmp_path, monkeypatch):
     """El selector de macOS deja borrar la extension. Sin ella el archivo no
     se reconoce como proyecto la proxima vez."""

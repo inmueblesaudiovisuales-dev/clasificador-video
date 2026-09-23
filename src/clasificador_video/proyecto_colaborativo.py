@@ -12,6 +12,7 @@ from __future__ import annotations
 import re
 import shutil
 from dataclasses import dataclass
+from datetime import date
 from pathlib import Path
 
 from clasificador_video import proyecto
@@ -22,7 +23,7 @@ from clasificador_video import proyecto
 # proyecto del día. El día y la letra no hacen falta para armar la ruta
 # -- solo negocio, año y mes -- así que el patrón no los valida más allá
 # de que existan con el formato correcto.
-_PATRON_FOLIO = re.compile(r"^(IAV|PI)-(\d{2})(\d{2})\.(\d{2})-.+$")
+_PATRON_FOLIO = re.compile(r"^(IAV|PI)-(\d{2})(\d{2})\.(\d{2})-([A-Z])$")
 
 # Nombre exacto de la carpeta de negocio dentro de la raíz de iCloud, tal
 # como ya existen en el disco de Bruno.
@@ -78,11 +79,16 @@ def partir_folio(folio: str) -> FolioPartido | None:
     m = _PATRON_FOLIO.match(folio.strip())
     if m is None:
         return None
-    negocio, aa, mm = m.group(1), m.group(2), m.group(3)
+    negocio, aa, mm, dd = m.group(1), m.group(2), m.group(3), m.group(4)
     mes = int(mm)
     if not 1 <= mes <= 12:
         return None
-    return FolioPartido(negocio=negocio, anio=2000 + int(aa), mes=mes)
+    anio = 2000 + int(aa)
+    try:
+        date(anio, mes, int(dd))
+    except ValueError:
+        return None
+    return FolioPartido(negocio=negocio, anio=anio, mes=mes)
 
 
 def ruta_del_proyecto(raiz: Path, folio: str) -> Path | None:
@@ -137,14 +143,18 @@ def crear_carpeta_de_proyecto(carpeta_proyecto: Path, carpeta_templates: Path,
     if not template_ae.is_file():
         raise FileNotFoundError(str(template_ae))
 
-    carpeta_proyecto.mkdir()
-    for nombre in SUBCARPETAS:
-        (carpeta_proyecto / nombre).mkdir()
+    try:
+        carpeta_proyecto.mkdir()
+        for nombre in SUBCARPETAS:
+            (carpeta_proyecto / nombre).mkdir()
 
-    ruta_prproj = carpeta_proyecto / CARPETA_PREMIERE / f"{folio}.prproj"
-    ruta_aep = carpeta_proyecto / CARPETA_AE / f"{folio}.aep"
-    shutil.copyfile(template_premiere, ruta_prproj)
-    shutil.copyfile(template_ae, ruta_aep)
+        ruta_prproj = carpeta_proyecto / CARPETA_PREMIERE / f"{folio}.prproj"
+        ruta_aep = carpeta_proyecto / CARPETA_AE / f"{folio}.aep"
+        shutil.copyfile(template_premiere, ruta_prproj)
+        shutil.copyfile(template_ae, ruta_aep)
+    except OSError:
+        shutil.rmtree(carpeta_proyecto, ignore_errors=True)
+        raise
     ruta_cvproj = carpeta_proyecto / CARPETA_CLIPIFY / f"{folio}{proyecto.EXTENSION}"
 
     return ResultadoDeCreacion(

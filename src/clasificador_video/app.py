@@ -754,6 +754,11 @@ class Coordinador(QObject):
         except FileNotFoundError as exc:
             self.inicio.avisar(f"No se encontró «{exc}». No se creó nada.")
             return
+        except OSError:
+            self.inicio.avisar(
+                f"No se pudo crear «{folio}» en {carpeta_proyecto}. No se creó nada."
+            )
+            return
         ventana = crear_proyecto(
             resultado.ruta_cvproj, folio, video_factory=self._video_factory,
             recientes_path=self._recientes_path,
