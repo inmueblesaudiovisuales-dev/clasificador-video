@@ -817,6 +817,10 @@ def test_proyecto_nuevo_pide_donde_guardarlo(qtbot, tmp_path, monkeypatch):
     destino = tmp_path / "Casa Nueva.cvproj"
     monkeypatch.setattr(QFileDialog, "getSaveFileName",
                         lambda *a, **k: (str(destino), ""))
+    monkeypatch.setattr(QMessageBox, "exec", lambda self: None)
+    monkeypatch.setattr(
+        QMessageBox, "clickedButton",
+        lambda self: next(b for b in self.buttons() if b.text() == "Usar una carpeta a mano"))
     coord = _coordinador(tmp_path)
     qtbot.addWidget(coord.inicio)
     coord.mostrar_inicio()
@@ -837,6 +841,10 @@ def test_renombrar_actualiza_recientes(qtbot, tmp_path, monkeypatch):
     destino = tmp_path / "Casa Nueva.cvproj"
     monkeypatch.setattr(QFileDialog, "getSaveFileName",
                         lambda *a, **k: (str(destino), ""))
+    monkeypatch.setattr(QMessageBox, "exec", lambda self: None)
+    monkeypatch.setattr(
+        QMessageBox, "clickedButton",
+        lambda self: next(b for b in self.buttons() if b.text() == "Usar una carpeta a mano"))
     coord = _coordinador(tmp_path)
     qtbot.addWidget(coord.inicio)
     coord.mostrar_inicio()
@@ -851,6 +859,10 @@ def test_renombrar_actualiza_recientes(qtbot, tmp_path, monkeypatch):
 
 def test_cancelar_el_selector_no_crea_nada(qtbot, tmp_path, monkeypatch):
     monkeypatch.setattr(QFileDialog, "getSaveFileName", lambda *a, **k: ("", ""))
+    monkeypatch.setattr(QMessageBox, "exec", lambda self: None)
+    monkeypatch.setattr(
+        QMessageBox, "clickedButton",
+        lambda self: next(b for b in self.buttons() if b.text() == "Usar una carpeta a mano"))
     coord = _coordinador(tmp_path)
     qtbot.addWidget(coord.inicio)
     coord.mostrar_inicio()
@@ -861,11 +873,34 @@ def test_cancelar_el_selector_no_crea_nada(qtbot, tmp_path, monkeypatch):
     assert coord.inicio.isVisible()
 
 
+def test_cancelar_el_cuadro_de_elegir_camino_no_crea_nada(qtbot, tmp_path, monkeypatch):
+    llamadas = []
+    monkeypatch.setattr(
+        QFileDialog, "getSaveFileName",
+        lambda *a, **k: (llamadas.append(1), (str(tmp_path / "X.cvproj"), ""))[1])
+    monkeypatch.setattr(QMessageBox, "exec", lambda self: None)
+    monkeypatch.setattr(
+        QMessageBox, "clickedButton",
+        lambda self: next(b for b in self.buttons() if b.text() == "Cancelar"))
+    coord = _coordinador(tmp_path)
+    qtbot.addWidget(coord.inicio)
+    coord.mostrar_inicio()
+
+    coord.inicio.nuevo_pedido.emit()
+
+    assert coord.ventanas == []
+    assert llamadas == []
+
+
 def test_al_proyecto_nuevo_se_le_pone_la_extension_si_falta(qtbot, tmp_path, monkeypatch):
     """El selector de macOS deja borrar la extension. Sin ella el archivo no
     se reconoce como proyecto la proxima vez."""
     monkeypatch.setattr(QFileDialog, "getSaveFileName",
                         lambda *a, **k: (str(tmp_path / "Sin extension"), ""))
+    monkeypatch.setattr(QMessageBox, "exec", lambda self: None)
+    monkeypatch.setattr(
+        QMessageBox, "clickedButton",
+        lambda self: next(b for b in self.buttons() if b.text() == "Usar una carpeta a mano"))
     coord = _coordinador(tmp_path)
     qtbot.addWidget(coord.inicio)
     coord.mostrar_inicio()
@@ -1128,6 +1163,10 @@ def test_si_el_proyecto_nuevo_no_se_puede_crear_se_dice(qtbot, tmp_path, monkeyp
     estorbo.write_text("no soy una carpeta")
     monkeypatch.setattr(QFileDialog, "getSaveFileName",
                         lambda *a, **k: (str(estorbo / "P.cvproj"), ""))
+    monkeypatch.setattr(QMessageBox, "exec", lambda self: None)
+    monkeypatch.setattr(
+        QMessageBox, "clickedButton",
+        lambda self: next(b for b in self.buttons() if b.text() == "Usar una carpeta a mano"))
     coord = _coordinador(tmp_path)
     qtbot.addWidget(coord.inicio)
     coord.mostrar_inicio()

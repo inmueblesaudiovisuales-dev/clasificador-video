@@ -665,6 +665,29 @@ class Coordinador(QObject):
 
     def _nuevo(self) -> None:
         self.inicio.callar()
+        eleccion = QMessageBox(self.inicio)
+        eleccion.setWindowTitle("Proyecto nuevo")
+        eleccion.setText("¿Cómo quieres crear el proyecto?")
+        eleccion.setInformativeText(
+            "\"Con folio\" arma la carpeta del proyecto sola en iCloud, con "
+            "los archivos de Premiere y AE ya listos. \"Usar una carpeta a "
+            "mano\" es para pruebas: el cuadro de \"guardar como\" de "
+            "siempre."
+        )
+        con_folio = eleccion.addButton("Con folio…", QMessageBox.ButtonRole.AcceptRole)
+        a_mano = eleccion.addButton(
+            "Usar una carpeta a mano", QMessageBox.ButtonRole.ActionRole)
+        eleccion.addButton("Cancelar", QMessageBox.ButtonRole.RejectRole)
+        eleccion.setDefaultButton(con_folio)
+        eleccion.exec()
+        elegido = eleccion.clickedButton()
+        if elegido is a_mano:
+            self._nuevo_a_mano()
+        elif elegido is con_folio:
+            self._nuevo_con_folio()
+        # cerrar el cuadro o "Cancelar": no crea nada
+
+    def _nuevo_a_mano(self) -> None:
         elegido, _ = QFileDialog.getSaveFileName(
             self.inicio, "Proyecto nuevo", str(Path.home() / "Sin título"),
             f"Proyecto del clasificador (*{proyecto.EXTENSION})",
