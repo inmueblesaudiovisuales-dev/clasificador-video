@@ -943,6 +943,10 @@ class MainWindow(QWidget):
         # pregunto, y entonces todo se comporta como antes del 2026-08-25
         # (spec `carpeta-de-proxies-elegible`).
         self._carpeta_de_proxies: Path | None = None
+        # La carpeta del proyecto en iCloud, si se creó con el flujo de
+        # "Con folio…" (spec 2026-09-23-proyecto-colaborativo-icloud-design.md).
+        # `None` en cualquier proyecto creado "a mano" o de antes de esta fase.
+        self._carpeta_de_icloud: Path | None = None
         # Estado de la entrega de ESTE proyecto. El cliente se inyecta desde
         # afuera: abrir esta ventana jamás debe lanzar OAuth por sorpresa.
         self._entrega = None
@@ -2755,6 +2759,7 @@ class MainWindow(QWidget):
             agrupar_por_cuarto=self._agrupar_por_cuarto,
             modo_horizontal=self._modo_horizontal,
             carpeta_de_proxies=self._carpeta_de_proxies,
+            carpeta_de_icloud=self._carpeta_de_icloud,
             guia=self._guia_para_la_sesion(),
             guias_por_unidad=self._guias_por_unidad_para_la_sesion(),
             entrega=self._entrega.to_dict() if self._entrega is not None else None,
@@ -3520,6 +3525,16 @@ class MainWindow(QWidget):
         tres lugares-- y esto solo decide donde se escriben los proximos.
         """
         self._carpeta_de_proxies = Path(carpeta) if carpeta is not None else None
+        self._autosave()
+
+    @property
+    def carpeta_de_icloud(self) -> Path | None:
+        """La carpeta del proyecto en iCloud, o `None` si este proyecto no
+        se creó con el flujo de "Con folio…"."""
+        return self._carpeta_de_icloud
+
+    def set_carpeta_de_icloud(self, carpeta: Path | None) -> None:
+        self._carpeta_de_icloud = Path(carpeta) if carpeta is not None else None
         self._autosave()
 
     def _carpeta_de_material_del_bin(self, nombre_de_bin: str) -> Path | None:

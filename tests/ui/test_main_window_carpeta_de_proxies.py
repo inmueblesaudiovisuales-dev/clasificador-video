@@ -52,6 +52,27 @@ def test_la_ventana_arranca_sin_carpeta_elegida(ventana):
     assert ventana.carpeta_de_proxies is None
 
 
+def test_la_ventana_arranca_sin_carpeta_de_icloud(ventana):
+    assert ventana.carpeta_de_icloud is None
+
+
+def test_set_carpeta_de_icloud_la_guarda(ventana, tmp_path):
+    carpeta = tmp_path / "IAV-2609.10-A"
+
+    ventana.set_carpeta_de_icloud(carpeta)
+
+    assert ventana.carpeta_de_icloud == carpeta
+
+
+def test_la_carpeta_de_icloud_viaja_con_el_proyecto(ventana, tmp_path):
+    carpeta = tmp_path / "IAV-2609.10-A"
+    ventana.set_carpeta_de_icloud(carpeta)
+
+    data = ventana._datos_del_proyecto()
+
+    assert data["carpeta_de_icloud"] == str(carpeta)
+
+
 def test_los_proxies_nuevos_van_a_la_subcarpeta_de_la_elegida(ventana, tmp_path):
     material = _con_un_bin(ventana, tmp_path)
     elegida = tmp_path / "07. PROXIES"
