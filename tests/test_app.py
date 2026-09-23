@@ -1314,3 +1314,17 @@ def test_configuracion_guarda_modo_economico_y_rapido_como_preferencia(
 
     assert guardado_economico == [True]
     assert guardado_rapido == [True]
+
+
+def test_configuracion_guarda_la_carpeta_de_icloud(qtbot, tmp_path, monkeypatch):
+    from clasificador_video import preferencias
+
+    monkeypatch.setattr(preferencias, "RUTA", tmp_path / "preferencias.json")
+    coord = _coordinador(tmp_path)
+    qtbot.addWidget(coord.inicio)
+    coord.inicio.configuracion_pedida.emit()
+    carpeta = tmp_path / "01. Proyectos 2026 IAV y PI"
+
+    coord._pantalla_config.carpeta_icloud_guardada.emit(carpeta)
+
+    assert preferencias.carpeta_raiz_icloud() == carpeta

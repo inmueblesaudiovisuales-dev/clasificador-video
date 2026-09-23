@@ -565,6 +565,9 @@ class Coordinador(QObject):
             self._pantalla_config.carpeta_premiere_guardada.connect(
                 preferencias.guardar_carpeta_de_proyectos_premiere
             )
+            self._pantalla_config.carpeta_icloud_guardada.connect(
+                preferencias.guardar_carpeta_raiz_icloud
+            )
             self._pantalla_config.drive_conectado.connect(
                 lambda: setattr(
                     self, "_drive_cliente_config", self._pantalla_config.cliente_drive
