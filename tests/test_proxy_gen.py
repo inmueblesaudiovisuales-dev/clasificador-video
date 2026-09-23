@@ -438,6 +438,24 @@ def test_sin_ninguna_carpeta_de_proxies_propone_la_de_siempre(tmp_path):
     assert proxy_gen.proponer_carpeta(material) == tmp_path / proxy_gen.CARPETA
 
 
+def test_con_carpeta_de_icloud_se_propone_esa_directo(tmp_path):
+    material = tmp_path / "material"
+    material.mkdir()
+    (tmp_path / "07. PROXIES").mkdir()
+    carpeta_de_icloud = tmp_path / "IAV-2609.10-A" / "03. Proxies"
+
+    assert proxy_gen.proponer_carpeta(
+        material, carpeta_de_icloud) == carpeta_de_icloud
+
+
+def test_sin_carpeta_de_icloud_se_comporta_como_antes(tmp_path):
+    material = tmp_path / "material"
+    material.mkdir()
+    (tmp_path / "07. PROXIES").mkdir()
+
+    assert proxy_gen.proponer_carpeta(material, None) == tmp_path / "07. PROXIES"
+
+
 def test_con_varias_candidatas_no_adivina(tmp_path):
     """Dos carpetas con «prox» en el nombre y no hay forma de saber cual.
     Se propone la de siempre y que Bruno decida: la ruta se le enseña

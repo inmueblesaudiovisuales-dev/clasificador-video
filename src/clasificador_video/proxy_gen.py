@@ -112,8 +112,14 @@ def carpeta_por_defecto(carpeta_del_bin: Path) -> Path:
     return carpeta_del_bin.parent / CARPETA
 
 
-def proponer_carpeta(carpeta_del_bin: Path) -> Path:
+def proponer_carpeta(carpeta_del_bin: Path,
+                     carpeta_de_icloud: Path | None = None) -> Path:
     """Que carpeta ofrecerle a Bruno, para que la pregunta llegue contestada.
+
+    Si el proyecto tiene una carpeta de iCloud vinculada
+    (`carpeta_de_icloud`, spec 2026-09-23), esa se propone DIRECTO, antes
+    de mirar nada más junto al material: es la respuesta que Bruno ya dio
+    al crear el proyecto con folio, no algo que haya que volver a adivinar.
 
     Un explorador de archivos en blanco no es una opcion opcional: es tarea.
     Asi que se mira si al lado del material ya hay una carpeta de proxies
@@ -128,6 +134,8 @@ def proponer_carpeta(carpeta_del_bin: Path) -> Path:
     Con varias candidatas NO se adivina: se propone la de siempre. Esto
     nunca escribe nada -- solo elige que enseñar.
     """
+    if carpeta_de_icloud is not None:
+        return carpeta_de_icloud
     padre = carpeta_del_bin.parent
     defecto = carpeta_por_defecto(carpeta_del_bin)
     try:
