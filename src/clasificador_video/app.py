@@ -14,9 +14,9 @@ from typing import Callable
 
 from PySide6.QtCore import QObject, QRunnable, QThreadPool, Signal
 from PySide6.QtGui import QSurfaceFormat
-from PySide6.QtWidgets import QApplication, QFileDialog, QMessageBox
+from PySide6.QtWidgets import QApplication, QFileDialog, QInputDialog, QMessageBox
 
-from clasificador_video import llave, preferencias, proyecto
+from clasificador_video import llave, preferencias, proyecto, proyecto_colaborativo
 from clasificador_video.autosave import load_session
 from clasificador_video.bins import BinTree
 from clasificador_video.keyboard import KeyboardRouter
@@ -706,6 +706,62 @@ class Coordinador(QObject):
             self.inicio.avisar(
                 f"No se pudo crear «{ruta.name}» en {ruta.parent}. Elige otra "
                 "carpeta, o comprueba que el disco esté conectado."
+            )
+            return
+        self._tomar(ventana)
+
+    def _nuevo_con_folio(self) -> None:
+        raiz = preferencias.carpeta_raiz_icloud()
+        if raiz is None:
+            self.inicio.avisar(
+                "Configura primero la carpeta de iCloud, en Configuración."
+            )
+            return
+        folio, ok = QInputDialog.getText(
+            self.inicio, "Proyecto nuevo",
+            "Folio del proyecto (ej. IAV-2609.10-A):",
+        )
+        folio = folio.strip()
+        if not ok or not folio:
+            return
+        carpeta_proyecto = proyecto_colaborativo.ruta_del_proyecto(raiz, folio)
+        if carpeta_proyecto is None:
+            self.inicio.avisar(
+                f"«{folio}» no se pudo leer como folio. Revisa el formato "
+                "(ej. IAV-2609.10-A) e inténtalo de nuevo."
+            )
+            return
+        confirmar = QMessageBox(self.inicio)
+        confirmar.setWindowTitle("Proyecto nuevo")
+        confirmar.setText("¿Crear el proyecto aquí?")
+        confirmar.setInformativeText(str(carpeta_proyecto))
+        crear = confirmar.addButton("Crear aquí", QMessageBox.ButtonRole.AcceptRole)
+        confirmar.addButton("Cancelar", QMessageBox.ButtonRole.RejectRole)
+        confirmar.setDefaultButton(crear)
+        confirmar.exec()
+        if confirmar.clickedButton() is not crear:
+            return
+        carpeta_templates = raiz / proyecto_colaborativo.CARPETA_TEMPLATES
+        try:
+            resultado = proyecto_colaborativo.crear_carpeta_de_proyecto(
+                carpeta_proyecto, carpeta_templates, folio)
+        except FileExistsError:
+            self.inicio.avisar(
+                f"Ya existe una carpeta para «{folio}» en iCloud. Revísala "
+                "tú y decide qué hacer -- Clipify no la tocó."
+            )
+            return
+        except FileNotFoundError as exc:
+            self.inicio.avisar(f"No se encontró «{exc}». No se creó nada.")
+            return
+        ventana = crear_proyecto(
+            resultado.ruta_cvproj, folio, video_factory=self._video_factory,
+            recientes_path=self._recientes_path,
+            carpeta_de_icloud=resultado.carpeta_proyecto,
+        )
+        if ventana is None:
+            self.inicio.avisar(
+                f"No se pudo crear «{folio}» en {resultado.carpeta_proyecto}."
             )
             return
         self._tomar(ventana)

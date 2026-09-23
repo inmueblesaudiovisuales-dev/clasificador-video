@@ -13,7 +13,7 @@
 import json
 from pathlib import Path
 
-from PySide6.QtWidgets import QFileDialog, QMessageBox
+from PySide6.QtWidgets import QFileDialog, QInputDialog, QMessageBox
 
 from clasificador_video import app as app_module
 from clasificador_video.app import (
@@ -890,6 +890,132 @@ def test_cancelar_el_cuadro_de_elegir_camino_no_crea_nada(qtbot, tmp_path, monke
 
     assert coord.ventanas == []
     assert llamadas == []
+
+
+# --- proyecto nuevo con folio (spec 2026-09-23) ----------------------------
+
+
+def _con_raiz_icloud(monkeypatch, tmp_path):
+    """Arma `01. IAV/2026/09. Septiembre/` y `03. Templates/` con los dos
+    templates, y deja la preferencia apuntando ahí."""
+    from clasificador_video import preferencias
+
+    raiz = tmp_path / "icloud"
+    (raiz / "01. IAV" / "2026" / "09. Septiembre").mkdir(parents=True)
+    templates = raiz / "03. Templates"
+    templates.mkdir()
+    (templates / "TemplatePremiere.prproj").write_text("premiere vacio")
+    (templates / "TemplateAE.aep").write_text("ae vacio")
+    monkeypatch.setattr(preferencias, "RUTA", tmp_path / "preferencias.json")
+    preferencias.guardar_carpeta_raiz_icloud(raiz)
+    return raiz
+
+
+def _elige_botones(*textos):
+    respuestas = iter(textos)
+
+    def elegir(self):
+        texto = next(respuestas)
+        return next(b for b in self.buttons() if b.text() == texto)
+
+    return elegir
+
+
+def test_con_folio_crea_la_carpeta_completa_y_abre_el_proyecto(
+        qtbot, tmp_path, monkeypatch):
+    raiz = _con_raiz_icloud(monkeypatch, tmp_path)
+    monkeypatch.setattr(QMessageBox, "exec", lambda self: None)
+    monkeypatch.setattr(QMessageBox, "clickedButton", _elige_botones("Con folio…", "Crear aquí"))
+    monkeypatch.setattr(QInputDialog, "getText", lambda *a, **k: ("IAV-2609.10-A", True))
+    coord = _coordinador(tmp_path)
+    qtbot.addWidget(coord.inicio)
+    coord.mostrar_inicio()
+
+    coord.inicio.nuevo_pedido.emit()
+
+    carpeta = raiz / "01. IAV" / "2026" / "09. Septiembre" / "IAV-2609.10-A"
+    assert (carpeta / "01. Proyecto premiere" / "IAV-2609.10-A.prproj").exists()
+    assert (carpeta / "02. Proyecto AE" / "IAV-2609.10-A.aep").exists()
+    assert (carpeta / "08. Clipify" / "IAV-2609.10-A.cvproj").exists()
+    ventana = coord.ventanas[0]
+    assert ventana.project_name == "IAV-2609.10-A"
+    assert ventana.carpeta_de_icloud == carpeta
+    ventana.close()
+
+
+def test_con_folio_sin_raiz_configurada_avisa_y_no_crea_nada(qtbot, tmp_path, monkeypatch):
+    from clasificador_video import preferencias
+    monkeypatch.setattr(preferencias, "RUTA", tmp_path / "preferencias.json")
+    monkeypatch.setattr(QMessageBox, "exec", lambda self: None)
+    monkeypatch.setattr(QMessageBox, "clickedButton", _elige_botones("Con folio…"))
+    coord = _coordinador(tmp_path); qtbot.addWidget(coord.inicio); coord.mostrar_inicio()
+    avisos = []; monkeypatch.setattr(coord.inicio, "avisar", avisos.append)
+    coord.inicio.nuevo_pedido.emit()
+    assert coord.ventanas == []
+    assert avisos and "Configuración" in avisos[0]
+
+
+def test_con_folio_invalido_avisa_y_no_crea_nada(qtbot, tmp_path, monkeypatch):
+    _con_raiz_icloud(monkeypatch, tmp_path)
+    monkeypatch.setattr(QMessageBox, "exec", lambda self: None)
+    monkeypatch.setattr(QMessageBox, "clickedButton", _elige_botones("Con folio…"))
+    monkeypatch.setattr(QInputDialog, "getText", lambda *a, **k: ("esto no es un folio", True))
+    coord = _coordinador(tmp_path); qtbot.addWidget(coord.inicio); coord.mostrar_inicio()
+    avisos = []; monkeypatch.setattr(coord.inicio, "avisar", avisos.append)
+    coord.inicio.nuevo_pedido.emit()
+    assert coord.ventanas == []
+    assert avisos and "esto no es un folio" in avisos[0]
+
+
+def test_con_folio_cancelar_el_input_no_crea_nada(qtbot, tmp_path, monkeypatch):
+    _con_raiz_icloud(monkeypatch, tmp_path)
+    monkeypatch.setattr(QMessageBox, "exec", lambda self: None)
+    monkeypatch.setattr(QMessageBox, "clickedButton", _elige_botones("Con folio…"))
+    monkeypatch.setattr(QInputDialog, "getText", lambda *a, **k: ("", False))
+    coord = _coordinador(tmp_path); qtbot.addWidget(coord.inicio); coord.mostrar_inicio()
+    coord.inicio.nuevo_pedido.emit()
+    assert coord.ventanas == []
+
+
+def test_con_folio_cancelar_la_confirmacion_no_crea_nada(qtbot, tmp_path, monkeypatch):
+    raiz = _con_raiz_icloud(monkeypatch, tmp_path)
+    monkeypatch.setattr(QMessageBox, "exec", lambda self: None)
+    monkeypatch.setattr(QMessageBox, "clickedButton", _elige_botones("Con folio…", "Cancelar"))
+    monkeypatch.setattr(QInputDialog, "getText", lambda *a, **k: ("IAV-2609.10-A", True))
+    coord = _coordinador(tmp_path); qtbot.addWidget(coord.inicio); coord.mostrar_inicio()
+    coord.inicio.nuevo_pedido.emit()
+    assert coord.ventanas == []
+    assert not (raiz / "01. IAV" / "2026" / "09. Septiembre" / "IAV-2609.10-A").exists()
+
+
+def test_con_folio_carpeta_ya_existente_avisa_y_no_la_toca(qtbot, tmp_path, monkeypatch):
+    raiz = _con_raiz_icloud(monkeypatch, tmp_path)
+    carpeta = raiz / "01. IAV" / "2026" / "09. Septiembre" / "IAV-2609.10-A"
+    carpeta.mkdir(); (carpeta / "Musica").mkdir()
+    monkeypatch.setattr(QMessageBox, "exec", lambda self: None)
+    monkeypatch.setattr(QMessageBox, "clickedButton", _elige_botones("Con folio…", "Crear aquí"))
+    monkeypatch.setattr(QInputDialog, "getText", lambda *a, **k: ("IAV-2609.10-A", True))
+    coord = _coordinador(tmp_path); qtbot.addWidget(coord.inicio); coord.mostrar_inicio()
+    avisos = []; monkeypatch.setattr(coord.inicio, "avisar", avisos.append)
+    coord.inicio.nuevo_pedido.emit()
+    assert coord.ventanas == []
+    assert [p.name for p in carpeta.iterdir()] == ["Musica"]
+    assert avisos and "ya existe" in avisos[0].lower()
+
+
+def test_con_folio_sin_template_avisa_y_no_crea_nada(qtbot, tmp_path, monkeypatch):
+    raiz = _con_raiz_icloud(monkeypatch, tmp_path)
+    (raiz / "03. Templates" / "TemplateAE.aep").unlink()
+    monkeypatch.setattr(QMessageBox, "exec", lambda self: None)
+    monkeypatch.setattr(QMessageBox, "clickedButton", _elige_botones("Con folio…", "Crear aquí"))
+    monkeypatch.setattr(QInputDialog, "getText", lambda *a, **k: ("IAV-2609.10-A", True))
+    coord = _coordinador(tmp_path); qtbot.addWidget(coord.inicio); coord.mostrar_inicio()
+    avisos = []; monkeypatch.setattr(coord.inicio, "avisar", avisos.append)
+    coord.inicio.nuevo_pedido.emit()
+    assert coord.ventanas == []
+    carpeta = raiz / "01. IAV" / "2026" / "09. Septiembre" / "IAV-2609.10-A"
+    assert not carpeta.exists()
+    assert avisos and "TemplateAE.aep" in avisos[0]
 
 
 def test_al_proyecto_nuevo_se_le_pone_la_extension_si_falta(qtbot, tmp_path, monkeypatch):
