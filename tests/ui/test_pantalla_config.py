@@ -175,6 +175,17 @@ def test_elegir_carpeta_premiere_emite_la_señal(config_screen, monkeypatch, tmp
     assert recibido == [tmp_path]
 
 
+def test_elegir_carpeta_icloud_emite_la_señal(config_screen, monkeypatch, tmp_path):
+    monkeypatch.setattr(
+        QFileDialog, "getExistingDirectory", staticmethod(lambda *a, **k: str(tmp_path)))
+
+    recibido = []
+    config_screen.carpeta_icloud_guardada.connect(recibido.append)
+    config_screen.carpeta_icloud_button.click()
+
+    assert recibido == [tmp_path]
+
+
 # --- miniaturas guardadas: peso y borrado -------------------------------
 
 

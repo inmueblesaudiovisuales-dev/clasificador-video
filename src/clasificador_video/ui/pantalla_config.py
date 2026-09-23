@@ -51,6 +51,7 @@ class PantallaConfig(QWidget):
     modo_economico_cambiado = Signal(bool)
     modo_rapido_cambiado = Signal(bool)
     carpeta_premiere_guardada = Signal(Path)
+    carpeta_icloud_guardada = Signal(Path)
     drive_conectado = Signal()
     drive_estado_cambiado = Signal(str)
     miniaturas_borrar_pedido = Signal()
@@ -199,6 +200,22 @@ class PantallaConfig(QWidget):
         self.carpeta_premiere_button.clicked.connect(self._al_elegir_carpeta_premiere)
         raiz.addWidget(self.carpeta_premiere_button)
 
+        titulo_icloud = QLabel("Carpeta de iCloud")
+        titulo_icloud.setObjectName("configTitulo")
+        raiz.addWidget(titulo_icloud)
+        self.carpeta_icloud_label = QLabel(
+            "Elige la carpeta donde ya tienes armado 01. IAV, 02. PI y "
+            "03. Templates. Ahí es donde \"Proyecto nuevo\" con folio va a "
+            "crear cada proyecto."
+        )
+        self.carpeta_icloud_label.setObjectName("configDonde")
+        self.carpeta_icloud_label.setWordWrap(True)
+        raiz.addWidget(self.carpeta_icloud_label)
+        self.carpeta_icloud_button = QPushButton("Elegir…")
+        self.carpeta_icloud_button.setObjectName("configIcloud")
+        self.carpeta_icloud_button.clicked.connect(self._al_elegir_carpeta_icloud)
+        raiz.addWidget(self.carpeta_icloud_button)
+
         self.drive_label = QLabel("Google Drive no está conectado.")
         self.drive_label.setObjectName("configDonde")
         raiz.addWidget(self.drive_label)
@@ -221,6 +238,11 @@ class PantallaConfig(QWidget):
         elegida = QFileDialog.getExistingDirectory(self, "Carpeta de proyectos de Premiere")
         if elegida:
             self.carpeta_premiere_guardada.emit(Path(elegida))
+
+    def _al_elegir_carpeta_icloud(self) -> None:
+        elegida = QFileDialog.getExistingDirectory(self, "Carpeta de iCloud")
+        if elegida:
+            self.carpeta_icloud_guardada.emit(Path(elegida))
 
     def _al_conectar_drive(self) -> None:
         """Abre OAuth fuera del hilo de la interfaz, que sigue respondiendo."""
