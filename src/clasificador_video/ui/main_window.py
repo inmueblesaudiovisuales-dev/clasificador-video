@@ -11,8 +11,8 @@ from dataclasses import replace
 from pathlib import Path
 from typing import Callable
 
-from PySide6.QtCore import Qt, QObject, QRunnable, QThreadPool, QTimer, Signal
-from PySide6.QtGui import QKeySequence, QShortcut
+from PySide6.QtCore import Qt, QObject, QRunnable, QThreadPool, QTimer, QUrl, Signal
+from PySide6.QtGui import QDesktopServices, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QApplication,
     QFileDialog,
@@ -982,6 +982,7 @@ class MainWindow(QWidget):
             self._on_modo_horizontal_cambiado)
         self.title_bar.subir_a_drive_requested.connect(self._al_pedir_subir_a_drive)
         self.title_bar.traer_de_vuelta_requested.connect(self._al_pedir_traer_de_vuelta)
+        self.title_bar.abrir_en_finder_requested.connect(self._al_abrir_carpeta_de_icloud_en_finder)
 
         self.room_rail = RoomRail()
         self.room_rail.import_requested.connect(self._on_import_folders)
@@ -3536,7 +3537,14 @@ class MainWindow(QWidget):
 
     def set_carpeta_de_icloud(self, carpeta: Path | None) -> None:
         self._carpeta_de_icloud = Path(carpeta) if carpeta is not None else None
+        self.title_bar.set_carpeta_de_icloud_disponible(
+            self._carpeta_de_icloud is not None)
         self._autosave()
+
+    def _al_abrir_carpeta_de_icloud_en_finder(self) -> None:
+        if self._carpeta_de_icloud is None:
+            return
+        QDesktopServices.openUrl(QUrl.fromLocalFile(str(self._carpeta_de_icloud)))
 
     def _carpeta_de_proxies_en_icloud(self) -> Path | None:
         """La subcarpeta de proxies dentro de la carpeta de iCloud del

@@ -73,6 +73,36 @@ def test_la_carpeta_de_icloud_viaja_con_el_proyecto(ventana, tmp_path):
     assert data["carpeta_de_icloud"] == str(carpeta)
 
 
+def test_set_carpeta_de_icloud_muestra_el_boton_de_finder(ventana, qtbot, tmp_path):
+    ventana.show()
+    qtbot.waitExposed(ventana)
+
+    ventana.set_carpeta_de_icloud(tmp_path / "IAV-2609.10-A")
+
+    assert ventana.title_bar.icloud_button.isVisible()
+
+
+def test_sin_carpeta_de_icloud_el_boton_queda_escondido(ventana, qtbot):
+    ventana.show()
+    qtbot.waitExposed(ventana)
+
+    assert not ventana.title_bar.icloud_button.isVisible()
+
+
+def test_apretar_abrir_en_finder_abre_la_carpeta(ventana, tmp_path, monkeypatch):
+    from PySide6.QtCore import QUrl
+    from PySide6.QtGui import QDesktopServices
+
+    carpeta = tmp_path / "IAV-2609.10-A"
+    ventana.set_carpeta_de_icloud(carpeta)
+    abiertas = []
+    monkeypatch.setattr(QDesktopServices, "openUrl", lambda url: abiertas.append(url))
+
+    ventana.title_bar.abrir_en_finder_requested.emit()
+
+    assert abiertas == [QUrl.fromLocalFile(str(carpeta))]
+
+
 def test_los_proxies_nuevos_van_a_la_subcarpeta_de_la_elegida(ventana, tmp_path):
     material = _con_un_bin(ventana, tmp_path)
     elegida = tmp_path / "07. PROXIES"
