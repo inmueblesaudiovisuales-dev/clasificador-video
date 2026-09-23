@@ -384,6 +384,29 @@ def test_proyecto_nuevo_crea_el_archivo_de_una_vez(qtbot, tmp_path):
     assert abrir(ruta)["proyecto"] == "Casa Nueva"
 
 
+def test_crear_proyecto_con_carpeta_de_icloud_la_guarda(qtbot, tmp_path):
+    ruta = tmp_path / "IAV-2609.10-A.cvproj"
+    carpeta_icloud = tmp_path / "IAV-2609.10-A"
+
+    window = crear_proyecto(ruta, "IAV-2609.10-A", video_factory=_FakeMpv,
+                            recientes_path=tmp_path / "r.json",
+                            carpeta_de_icloud=carpeta_icloud)
+    qtbot.addWidget(window)
+
+    assert window.carpeta_de_icloud == carpeta_icloud
+    assert abrir(ruta)["carpeta_de_icloud"] == str(carpeta_icloud)
+
+
+def test_crear_proyecto_sin_carpeta_de_icloud_queda_en_none(qtbot, tmp_path):
+    ruta = tmp_path / "Casa Nueva.cvproj"
+
+    window = crear_proyecto(ruta, "Casa Nueva", video_factory=_FakeMpv,
+                            recientes_path=tmp_path / "r.json")
+    qtbot.addWidget(window)
+
+    assert window.carpeta_de_icloud is None
+
+
 def test_proyecto_nuevo_queda_en_recientes(qtbot, tmp_path):
     from clasificador_video.recientes import Recientes
 

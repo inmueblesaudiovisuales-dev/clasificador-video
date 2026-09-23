@@ -284,7 +284,8 @@ def abrir_proyecto(ruta: Path, video_factory: Callable[..., object] | None = Non
 
 def crear_proyecto(ruta: Path, nombre: str,
                    video_factory: Callable[..., object] | None = None,
-                   recientes_path: Path | None = None) -> MainWindow | None:
+                   recientes_path: Path | None = None,
+                   carpeta_de_icloud: Path | None = None) -> MainWindow | None:
     """Un proyecto nuevo, vacio y YA guardado. `None` si no se pudo escribir.
 
     Se escribe el archivo antes de devolver la ventana por decision de
@@ -296,6 +297,9 @@ def crear_proyecto(ruta: Path, nombre: str,
     ventana abierta sobre un archivo que nunca se creo, y un reciente que
     salia apagado desde el primer dia: todo el trabajo de esa tarde vivia
     solo en memoria.
+
+    `carpeta_de_icloud` -- si se pasa -- se guarda con el proyecto antes
+    del primer autoguardado (spec 2026-09-23-proyecto-colaborativo-icloud-design.md).
     """
     window = MainWindow(
         project_name=nombre,
@@ -303,6 +307,8 @@ def crear_proyecto(ruta: Path, nombre: str,
         video_factory=video_factory,
     )
     window.session_path = ruta
+    if carpeta_de_icloud is not None:
+        window.set_carpeta_de_icloud(carpeta_de_icloud)
     window._write_autosave_now()
     window._autosave_pool.waitForDone(2000)
     if not ruta.exists():
