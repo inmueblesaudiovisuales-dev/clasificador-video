@@ -154,3 +154,22 @@ def test_el_menu_del_bin_deja_cambiar_la_carpeta(ventana, tmp_path):
     renglones = [a.text() for a in menu.actions()]
 
     assert "Cambiar carpeta de proxies…" in renglones
+
+
+def test_con_carpeta_de_icloud_la_propuesta_de_proxies_va_ahi(
+        ventana, tmp_path, monkeypatch):
+    _con_un_bin(ventana, tmp_path)
+    (tmp_path / "07. PROXIES").mkdir()
+    carpeta_proyecto = tmp_path / "IAV-2609.10-A"
+    ventana.set_carpeta_de_icloud(carpeta_proyecto)
+    propuestas = []
+
+    def espia(propuesta):
+        propuestas.append(propuesta)
+        return propuesta
+
+    monkeypatch.setattr(ventana, "_preguntar_por_la_carpeta_de_proxies", espia)
+
+    ventana.generar_proxies_de_bin("02. VIDEO DRONE")
+
+    assert propuestas == [carpeta_proyecto / "03. Proxies"]

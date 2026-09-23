@@ -33,6 +33,7 @@ from clasificador_video import (
     preferencias,
     proxy_gen,
     proyecto,
+    proyecto_colaborativo,
     revinculo,
 )
 from clasificador_video import bins as bins_module
@@ -3537,6 +3538,14 @@ class MainWindow(QWidget):
         self._carpeta_de_icloud = Path(carpeta) if carpeta is not None else None
         self._autosave()
 
+    def _carpeta_de_proxies_en_icloud(self) -> Path | None:
+        """La subcarpeta de proxies dentro de la carpeta de iCloud del
+        proyecto, o `None` si este proyecto no tiene una (spec
+        2026-09-23-proyecto-colaborativo-icloud-design.md)."""
+        if self._carpeta_de_icloud is None:
+            return None
+        return self._carpeta_de_icloud / proyecto_colaborativo.CARPETA_PROXIES
+
     def _carpeta_de_material_del_bin(self, nombre_de_bin: str) -> Path | None:
         """De donde salio el material de ese bin. `None` si el bin esta vacio."""
         indices = [i for i in self.bins.clips_de(nombre_de_bin)
@@ -3817,7 +3826,8 @@ class MainWindow(QWidget):
             return
         self.set_carpeta_de_proxies(
             self._preguntar_por_la_carpeta_de_proxies(
-                proxy_gen.proponer_carpeta(material))
+                proxy_gen.proponer_carpeta(
+                    material, self._carpeta_de_proxies_en_icloud()))
         )
 
     def cambiar_carpeta_de_proxies(self, nombre_de_bin: str) -> None:
@@ -3829,7 +3839,8 @@ class MainWindow(QWidget):
         material = self._carpeta_de_material_del_bin(nombre_de_bin)
         if material is None:
             return
-        actual = self._carpeta_de_proxies or proxy_gen.proponer_carpeta(material)
+        actual = self._carpeta_de_proxies or proxy_gen.proponer_carpeta(
+            material, self._carpeta_de_proxies_en_icloud())
         escogida = QFileDialog.getExistingDirectory(
             self, "Carpeta de proxies", str(actual))
         if escogida:
