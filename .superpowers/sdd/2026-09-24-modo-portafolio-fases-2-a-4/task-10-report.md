@@ -89,3 +89,13 @@ la única imagen que se carga ahora; `cantidad_miniaturas` deja explícita la
 cantidad de puntos que el generador deberá producir al implementar scrub, sin
 arrastrar widgets de la UI normal. Se capturó e inspeccionó otra vez la UI
 offscreen.
+
+## Fix round 4 — RED/GREEN
+
+Dos pruebas RED comprobaron que ninguna tira se pide antes de interacción y
+que el motor recibe exactamente 12 cuadros para clips importados y 3 para los
+fuera de secuencia. La tarjeta ahora pide `extract_thumbnail_strip` compartido
+solo al entrar o mover el mouse sobre una tarjeta visible; la tira queda en
+cache por tarjeta y reutiliza la misma cache económica.
+
+Suite final: **48 passed in 2.08s**.

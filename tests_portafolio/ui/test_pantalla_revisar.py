@@ -31,6 +31,7 @@ def test_flecha_arriba_elige_el_clip_actual(qtbot, tmp_path):
     pantalla = PantallaRevisar(p)
     qtbot.addWidget(pantalla)
     pantalla.mostrar_proyecto(proyecto)
+    pantalla.show()
 
     pantalla.elegir_actual()
 
@@ -42,6 +43,7 @@ def test_tecla_arriba_en_la_tarjeta_sube_un_peldano(qtbot, tmp_path):
     pantalla = PantallaRevisar(p)
     qtbot.addWidget(pantalla)
     pantalla.mostrar_proyecto(proyecto)
+    pantalla.show()
     pantalla.show()
 
     qtbot.keyPress(pantalla.tarjetas[0], Qt.Key.Key_Up)
@@ -207,3 +209,42 @@ def test_cantidad_de_miniaturas_depende_de_su_origen(qtbot, tmp_path):
 
     assert pantalla.tarjetas[0].cantidad_miniaturas == 12
     assert pantalla.tarjetas[1].cantidad_miniaturas == 3
+
+
+def test_scrub_pide_doze_miniaturas_solo_al_interactuar(qtbot, tmp_path, monkeypatch):
+    p, proyecto = _con_un_proyecto(tmp_path)
+    proyecto.clips[0].ruta_origen.touch()
+    pantalla = PantallaRevisar(p)
+    qtbot.addWidget(pantalla)
+    pantalla.mostrar_proyecto(proyecto)
+    pantalla.show()
+    tarjeta = pantalla.tarjetas[0]
+    llamadas = []
+    monkeypatch.setattr(
+        "clasificador_video_portafolio.ui.pantalla_revisar.extract_thumbnail_strip",
+        lambda video, duration, count, outdir, economico: llamadas.append(count) or [],
+    )
+
+    assert llamadas == []
+    tarjeta.cargar_tira_scrub()
+
+    assert llamadas == [12]
+
+
+def test_scrub_pide_tres_miniaturas_para_clip_fuera_de_secuencia(qtbot, tmp_path, monkeypatch):
+    p, proyecto = _con_un_proyecto(tmp_path)
+    proyecto.clips[0].fuera_de_secuencia = True
+    proyecto.clips[0].ruta_origen.touch()
+    pantalla = PantallaRevisar(p)
+    qtbot.addWidget(pantalla)
+    pantalla.mostrar_proyecto(proyecto)
+    pantalla.show()
+    llamadas = []
+    monkeypatch.setattr(
+        "clasificador_video_portafolio.ui.pantalla_revisar.extract_thumbnail_strip",
+        lambda video, duration, count, outdir, economico: llamadas.append(count) or [],
+    )
+
+    pantalla.tarjetas[0].cargar_tira_scrub()
+
+    assert llamadas == [3]

@@ -24,7 +24,7 @@ from PySide6.QtWidgets import (
 
 from clasificador_video_portafolio import portafolio as pf
 from clasificador_video_portafolio import rodaje_completo
-from clasificador_video.thumbnails import cache_dir_for, default_cache_root, extract_thumbnail
+from clasificador_video.thumbnails import cache_dir_for, default_cache_root, extract_thumbnail, extract_thumbnail_strip
 
 
 ESTILO_REVISAR = """
@@ -59,6 +59,7 @@ class TarjetaClip(QFrame):
         self.clip = clip
         # La tira se genera al hacer scrub; por ahora solo se carga portada.
         self.cantidad_miniaturas = 3 if clip.fuera_de_secuencia else 12
+        self.tira_scrub: list[Path] = []
         self.setObjectName("tarjetaClip")
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self.setMinimumWidth(145)
@@ -96,6 +97,29 @@ class TarjetaClip(QFrame):
         pixmap = QPixmap(str(ruta))
         if not pixmap.isNull():
             self.miniatura.setPixmap(pixmap.scaled(128, 72, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
+
+    def cargar_tira_scrub(self) -> None:
+        """Pide la tira una sola vez, al entrar al scrub y solo si es visible."""
+        if self.tira_scrub or not self.isVisible() or not self.clip.ruta_origen.exists():
+            return
+        try:
+            cuadros = extract_thumbnail_strip(
+                self.clip.ruta_origen, 1.0, self.cantidad_miniaturas,
+                cache_dir_for(self.clip.ruta_origen, default_cache_root(), economico=True),
+                economico=True,
+            )
+        except RuntimeError:
+            return
+        # La portada que ya vio Bruno conserva el primer lugar de la tira.
+        self.tira_scrub = cuadros
+
+    def enterEvent(self, event):  # noqa: N802 -- override de Qt
+        self.cargar_tira_scrub()
+        super().enterEvent(event)
+
+    def mouseMoveEvent(self, event):  # noqa: N802 -- override de Qt
+        self.cargar_tira_scrub()
+        super().mouseMoveEvent(event)
 
     def actualizar(self) -> None:
         etiquetas = {"descartada": "↓ Descartada", "sin_decidir": "— Sin decidir", "elegida": "↑ Elegida"}
