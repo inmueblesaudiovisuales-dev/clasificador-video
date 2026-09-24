@@ -1,5 +1,6 @@
 import pytest
 import base64
+import os
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
@@ -209,6 +210,18 @@ def test_reescribir_rutas_de_media_reemplaza_todas_las_copias():
     assert {n.text for n in media.findall("FilePath")} == {str(ruta)}
     assert {n.text for n in media.findall("ActualMediaFilePath")} == {str(ruta)}
     assert {n.text for n in media.findall("Title")} == {ruta.name}
+
+
+def test_proyecto_generado_calcula_relative_path_desde_su_carpeta(tmp_path):
+    proxy = tmp_path / "con_proxyS03.mp4"
+    proxy.write_bytes(b"")
+
+    raiz = _generar_proyecto_con_proxy(tmp_path, proxy)
+    media_proxy = _proxy_de_video(raiz, _clip_items_visibles(raiz)[0])
+    carpeta_prproj = tmp_path / "salida"
+
+    assert media_proxy.findtext("RelativePath") == os.path.relpath(
+        proxy, carpeta_prproj)
 
 
 def test_clonar_clip_pone_la_ruta_del_archivo_real(raiz, tmp_path):

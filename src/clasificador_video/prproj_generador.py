@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import base64
 from dataclasses import dataclass
+import os
 from pathlib import Path
 import shutil
 import xml.etree.ElementTree as ET
@@ -59,15 +60,18 @@ def _actualizar_streams(streams, datos_probe: dict) -> None:
             n.text = str(orientacion_de(datos_probe.get("rotation", 0)))
 
 
-def _ruta_relativa_de_proyecto(ruta: Path) -> str:
+def _ruta_relativa_de_proyecto(ruta: Path, carpeta_proyecto: Path | None = None) -> str:
     """La forma relativa que Premiere guarda junto a su ruta absoluta."""
-    return "../" + str(ruta).lstrip("/")
+    if carpeta_proyecto is None:
+        return "../" + str(ruta).lstrip("/")
+    return os.path.relpath(ruta, carpeta_proyecto)
 
 
-def _reescribir_rutas_de_media(media: ET.Element, ruta: Path) -> None:
+def _reescribir_rutas_de_media(media: ET.Element, ruta: Path,
+                               carpeta_proyecto: Path | None = None) -> None:
     """Actualiza cada serialización de ruta, sin dejar copias de plantilla."""
     for nodo in media.findall("RelativePath"):
-        nodo.text = _ruta_relativa_de_proyecto(ruta)
+        nodo.text = _ruta_relativa_de_proyecto(ruta, carpeta_proyecto)
     for tag in ("FilePath", "ActualMediaFilePath"):
         for nodo in media.findall(tag):
             nodo.text = str(ruta)
@@ -75,7 +79,7 @@ def _reescribir_rutas_de_media(media: ET.Element, ruta: Path) -> None:
         nodo.text = ruta.name
 
 
-def clonar_clip(raiz: ET.Element, arquetipo: ArchetipoDeClip, asignador: AsignadorDeIds, *, ruta_archivo: Path, nombre_en_premiere: str, label_name: str, label_color: int, datos_probe: dict) -> ClipClonado:
+def clonar_clip(raiz: ET.Element, arquetipo: ArchetipoDeClip, asignador: AsignadorDeIds, *, ruta_archivo: Path, nombre_en_premiere: str, label_name: str, label_color: int, datos_probe: dict, carpeta_proyecto: Path | None = None) -> ClipClonado:
     item = next((i for i in raiz.findall('ClipProjectItem') if (m:=i.find('MasterClip')) is not None and m.get('ObjectURef') == arquetipo.master_clip_uid), None)
     if item is None: raise ValueError(f'No se encontró ClipProjectItem para {arquetipo.master_clip_uid}')
     fronteras = {('ObjectID', arquetipo.video_component_chain_id)} if arquetipo.video_component_chain_id else set()
@@ -87,7 +91,7 @@ def clonar_clip(raiz: ET.Element, arquetipo: ArchetipoDeClip, asignador: Asignad
     if etiqueta is not None: etiqueta.text=label_name
     medias=[e for e in mapa.values() if e.tag == 'Media']
     for media in medias:
-        _reescribir_rutas_de_media(media, ruta_archivo)
+        _reescribir_rutas_de_media(media, ruta_archivo, carpeta_proyecto)
         for tipo in ('VideoStream','AudioStream'):
             if (ref:=media.find(tipo)) is None: continue
             stream=next((e for e in mapa.values() if e.tag==tipo and e.get('ObjectID')==ref.get('ObjectRef')), None)
@@ -143,7 +147,8 @@ def _datos_de_proxy_son_compatibles(original: dict, proxy: dict) -> bool:
 
 def adjuntar_proxy(raiz: ET.Element, clip: ClipClonado,
                     arquetipo: ArquetipoDeProxy, ruta_proxy: Path,
-                    datos_probe: dict, asignador: AsignadorDeIds) -> None:
+                    datos_probe: dict, asignador: AsignadorDeIds,
+                    carpeta_proyecto: Path | None = None) -> None:
     """Replica el ``Media`` proxy, ``ProxyMedia`` y ``AudioProxies`` de Premiere."""
     if not _datos_de_proxy_son_compatibles(clip.datos_probe, datos_probe):
         return
@@ -174,7 +179,7 @@ def adjuntar_proxy(raiz: ET.Element, clip: ClipClonado,
         raiz.append(copia)
         copias.append(copia)
     media_proxy = next(e for e in copias if e.tag == "Media")
-    _reescribir_rutas_de_media(media_proxy, ruta_proxy)
+    _reescribir_rutas_de_media(media_proxy, ruta_proxy, carpeta_proyecto)
     _actualizar_streams((e for e in copias if e.tag in ("VideoStream", "AudioStream")), datos_probe)
     video = next(e for e in raiz if e.tag == "VideoMediaSource"
                  and e.get("ObjectID") == clip.video_media_source_id)
@@ -494,12 +499,13 @@ def generar_prproj(manifest, destino: Path, carpeta_luts_destino: Path, *,
         clon = clonar_clip(
             raiz, archetipos_clip[camara], asignador, ruta_archivo=clip.ruta,
             nombre_en_premiere=nombre, label_name=label_name,
-            label_color=label_color, datos_probe=probe(clip.ruta))
+            label_color=label_color, datos_probe=probe(clip.ruta),
+            carpeta_proyecto=destino.parent)
         if clip.ruta_proxy is not None and clip.ruta_proxy.is_file():
             try:
                 adjuntar_proxy(
                     raiz, clon, arquetipo_proxy, clip.ruta_proxy,
-                    probe(clip.ruta_proxy), asignador)
+                    probe(clip.ruta_proxy), asignador, destino.parent)
             except (OSError, ValueError, KeyError, TypeError):
                 # Un proxy ausente o que ffprobe no puede validar deja el
                 # original intacto; nunca se serializa un vínculo a medias.
