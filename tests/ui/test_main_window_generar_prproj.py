@@ -45,19 +45,18 @@ def test_ctrl_e_llama_a_generar_prproj_no_a_escribir_manifest(
     generar.assert_called_once()
 
 
-def test_si_el_prproj_ya_existe_pregunta_antes_de_reemplazar(
+def test_si_el_prproj_ya_existe_genera_la_siguiente_version(
         ventana_con_clips, tmp_path, monkeypatch):
     destino = tmp_path / "IAV-2609.10-A.prproj"
-    destino.write_bytes(b"ya existia")
+    destino.write_bytes(b"trabajo de ayer")
     monkeypatch.setattr(ventana_con_clips, "_ruta_sugerida_del_prproj",
                         lambda: str(destino))
+    avisos = []
     monkeypatch.setattr(ventana_con_clips, "_avisar_prproj_generado",
-                        lambda _destino: None)
-    respuestas = []
-    monkeypatch.setattr(
-        ventana_con_clips, "_confirmar_reemplazar_prproj",
-        lambda *_args: respuestas.append(True) or True)
+                        lambda ruta: avisos.append(ruta))
     with patch("clasificador_video.ui.main_window.prproj_generador.generar_prproj") as generar:
         ventana_con_clips._on_generar_prproj()
-    assert respuestas == [True]
     generar.assert_called_once()
+    assert generar.call_args.args[1] == tmp_path / "IAV-2609.10-A v2.prproj"
+    assert avisos == [tmp_path / "IAV-2609.10-A v2.prproj"]
+    assert destino.read_bytes() == b"trabajo de ayer"

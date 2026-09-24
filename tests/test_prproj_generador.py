@@ -428,6 +428,22 @@ def test_arbol_visible_completo_replica_la_estructura_de_clipify(tmp_path):
     assert original not in blob
 
 
+def test_ruta_libre_con_version_no_cambia_si_no_existe(tmp_path):
+    destino = tmp_path / "IAV-2609.10-A.prproj"
+    assert prproj_generador.ruta_libre_con_version(destino) == destino
+
+
+def test_ruta_libre_con_version_salta_a_v2_y_luego_v3(tmp_path):
+    destino = tmp_path / "IAV-2609.10-A.prproj"
+    destino.write_bytes(b"original")
+    v2 = tmp_path / "IAV-2609.10-A v2.prproj"
+    assert prproj_generador.ruta_libre_con_version(destino) == v2
+    v2.write_bytes(b"v2")
+    assert prproj_generador.ruta_libre_con_version(destino) == (
+        tmp_path / "IAV-2609.10-A v3.prproj")
+    assert destino.read_bytes() == b"original"
+
+
 def test_generar_prproj_copia_solo_los_cube_que_hacen_falta(tmp_path):
     from clasificador_video.manifest import Clip, Manifest
 

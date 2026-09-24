@@ -6031,10 +6031,13 @@ class MainWindow(QWidget):
         self.escribir_manifest(Path(path))
 
     def _on_generar_prproj(self) -> None:
-        """Ctrl+E genera el proyecto de Premiere directamente."""
-        destino = Path(self._ruta_sugerida_del_prproj())
-        if destino.is_file() and not self._confirmar_reemplazar_prproj(destino):
-            return
+        """Ctrl+E genera el proyecto de Premiere directamente.
+
+        Si ya hay un proyecto con ese nombre, no lo pisa: escribe la
+        siguiente versión («... v2», «... v3») para no perder trabajo.
+        """
+        destino = prproj_generador.ruta_libre_con_version(
+            Path(self._ruta_sugerida_del_prproj()))
         try:
             prproj_generador.generar_prproj(
                 self._armar_manifest(), destino, destino.parent / "LUTs")
@@ -6048,13 +6051,6 @@ class MainWindow(QWidget):
         if self._carpeta_de_icloud is not None:
             return str(self._carpeta_de_icloud / proyecto_colaborativo.CARPETA_PREMIERE / nombre)
         return str(Path(self._ruta_sugerida_del_manifest()).with_suffix(".prproj"))
-
-    def _confirmar_reemplazar_prproj(self, destino: Path) -> bool:
-        respuesta = QMessageBox.question(
-            self, "El proyecto ya existe",
-            f"Ya existe {destino.name}. ¿Reemplazarlo?",
-            QMessageBox.Yes | QMessageBox.No)
-        return respuesta == QMessageBox.Yes
 
     def _mostrar_error_generando_prproj(self, detalle: str) -> None:
         QMessageBox.critical(self, "No se pudo generar el proyecto", detalle)

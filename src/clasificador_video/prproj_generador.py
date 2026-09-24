@@ -305,6 +305,24 @@ def _reescribir_ruta_lut(raiz: ET.Element, chain_id: str, destino: Path,
             if hijo.get("ObjectRef"))
 
 
+def ruta_libre_con_version(destino: Path) -> Path:
+    """La ruta donde escribir sin pisar trabajo que ya estaba.
+
+    Si ``destino`` no existe, es esa. Si ya existe, ``<nombre> v2``; si esa
+    también, ``v3``, y así. Así un Ctrl+E encima de un proyecto exportado no
+    puede borrar el anterior por accidente.
+    """
+    if not destino.exists():
+        return destino
+    version = 2
+    while True:
+        candidato = destino.with_name(
+            f"{destino.stem} v{version}{destino.suffix}")
+        if not candidato.exists():
+            return candidato
+        version += 1
+
+
 def generar_prproj(manifest, destino: Path, carpeta_luts_destino: Path, *,
                     probe=None) -> None:
     """Genera el proyecto de Premiere y deja junto a él los LUT usados."""
