@@ -18,3 +18,18 @@ def test_la_ventana_arranca_en_el_modulo_importar(qtbot):
     qtbot.addWidget(ventana)
 
     assert ventana.modulo_actual == "importar"
+
+
+def test_el_switcher_muestra_revisar_y_arma_sin_funcionalidad(qtbot):
+    ventana = VentanaPortafolio()
+    qtbot.addWidget(ventana)
+
+    ventana.mostrar_modulo("revisar")
+
+    assert ventana.modulo_actual == "revisar"
+    assert ventana.modulos.currentWidget() is ventana.pantalla_revisar
+
+    ventana.mostrar_modulo("armar")
+
+    assert ventana.modulo_actual == "armar"
+    assert ventana.modulos.currentWidget() is ventana.pantalla_armar
