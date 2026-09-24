@@ -75,3 +75,17 @@ QT_QPA_PLATFORM=offscreen .venv/bin/pytest tests_portafolio/ -q
 ```
 
 Resultado: **43 passed in 1.79s**.
+
+## Fix round 3 — RED/GREEN
+
+Se añadieron pruebas RED para persistir una decisión, reaplicar el filtro al
+cambiar estado y distinguir 12 puntos de scrub para clips importados contra 3
+para clips encontrados fuera de la secuencia. GREEN final: **46 passed in
+1.80s** con `tests_portafolio/ -q`.
+
+Revisar recibe la misma ruta `.cvportafolio` que Importar y guarda después de
+decidir, cambiar categoría o sumar el rodaje. La portada visible sigue siendo
+la única imagen que se carga ahora; `cantidad_miniaturas` deja explícita la
+cantidad de puntos que el generador deberá producir al implementar scrub, sin
+arrastrar widgets de la UI normal. Se capturó e inspeccionó otra vez la UI
+offscreen.

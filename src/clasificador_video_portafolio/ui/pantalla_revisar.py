@@ -57,6 +57,8 @@ class TarjetaClip(QFrame):
     def __init__(self, clip: pf.ClipDelPortafolio, parent=None):
         super().__init__(parent)
         self.clip = clip
+        # La tira se genera al hacer scrub; por ahora solo se carga portada.
+        self.cantidad_miniaturas = 3 if clip.fuera_de_secuencia else 12
         self.setObjectName("tarjetaClip")
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self.setMinimumWidth(145)
@@ -106,13 +108,14 @@ class TarjetaClip(QFrame):
 class PantallaRevisar(QWidget):
     """Rail de proyectos y hoja de clips, sin mezclar proyectos."""
 
-    def __init__(self, portafolio: pf.Portafolio, elegir_carpeta: Callable[[], Path | None] | None = None, parent=None):
+    def __init__(self, portafolio: pf.Portafolio, elegir_carpeta: Callable[[], Path | None] | None = None, ruta_portafolio: Path | None = None, parent=None):
         super().__init__(parent)
         self.portafolio = portafolio
         self.proyecto_actual: pf.ProyectoImportado | None = None
         self.tarjetas: list[TarjetaClip] = []
         self._filtro = "todos"
         self._elegir_carpeta = elegir_carpeta or self._pedir_carpeta
+        self.ruta_portafolio = ruta_portafolio
         self.setObjectName("pantallaRevisar")
         self.setStyleSheet(ESTILO_REVISAR)
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
@@ -223,6 +226,7 @@ class PantallaRevisar(QWidget):
         if self.proyecto_actual is not None and categoria:
             self.portafolio.asignar_categoria(self.proyecto_actual, categoria)
             self.actualizar_rail()
+            self._guardar()
 
     def _reconstruir_hoja(self) -> None:
         while self._grid.count():
@@ -264,15 +268,17 @@ class PantallaRevisar(QWidget):
         tarjeta = self._tarjeta_actual()
         if tarjeta is not None:
             pf.subir(tarjeta.clip)
-            tarjeta.actualizar()
+            self._reconstruir_hoja()
             self.actualizar_rail()
+            self._guardar()
 
     def descartar_actual(self) -> None:
         tarjeta = self._tarjeta_actual()
         if tarjeta is not None:
             pf.bajar(tarjeta.clip)
-            tarjeta.actualizar()
+            self._reconstruir_hoja()
             self.actualizar_rail()
+            self._guardar()
 
     def ver_rodaje_completo(self) -> None:
         if self.proyecto_actual is None:
@@ -288,6 +294,11 @@ class PantallaRevisar(QWidget):
                 self.proyecto_actual.clips.append(pf.ClipDelPortafolio(ruta, self.proyecto_actual.nombre, fuera_de_secuencia=True))
         self._reconstruir_hoja()
         self.actualizar_rail()
+        self._guardar()
+
+    def _guardar(self) -> None:
+        if self.ruta_portafolio is not None:
+            self.portafolio.guardar(self.ruta_portafolio)
 
     def _pedir_carpeta(self) -> Path | None:
         ruta = QFileDialog.getExistingDirectory(self, "Ubica la carpeta del rodaje")

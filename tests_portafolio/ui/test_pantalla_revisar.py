@@ -172,3 +172,38 @@ def test_hoja_pide_portadas_solo_para_las_tarjetas_visibles(qtbot, tmp_path, mon
     pantalla._cargar_miniaturas_visibles()
 
     assert llamadas == [0]
+
+
+def test_decidir_clip_guarda_el_portafolio(qtbot, tmp_path):
+    destino = tmp_path / "Mi.cvportafolio"
+    p, proyecto = _con_un_proyecto(tmp_path)
+    pantalla = PantallaRevisar(p, ruta_portafolio=destino)
+    qtbot.addWidget(pantalla)
+    pantalla.mostrar_proyecto(proyecto)
+
+    pantalla.elegir_actual()
+
+    assert pf.Portafolio.cargar(destino).proyectos[0].clips[0].estado == "elegida"
+
+
+def test_cambiar_estado_respeta_el_filtro_actual(qtbot, tmp_path):
+    p, proyecto = _con_un_proyecto(tmp_path)
+    pantalla = PantallaRevisar(p)
+    qtbot.addWidget(pantalla)
+    pantalla.mostrar_proyecto(proyecto)
+    pantalla._cambiar_filtro("sin_decidir")
+
+    pantalla.elegir_actual()
+
+    assert pantalla.tarjetas == []
+
+
+def test_cantidad_de_miniaturas_depende_de_su_origen(qtbot, tmp_path):
+    p, proyecto = _con_un_proyecto(tmp_path)
+    proyecto.clips.append(pf.ClipDelPortafolio(tmp_path / "extra.mov", proyecto.nombre, fuera_de_secuencia=True))
+    pantalla = PantallaRevisar(p)
+    qtbot.addWidget(pantalla)
+    pantalla.mostrar_proyecto(proyecto)
+
+    assert pantalla.tarjetas[0].cantidad_miniaturas == 12
+    assert pantalla.tarjetas[1].cantidad_miniaturas == 3

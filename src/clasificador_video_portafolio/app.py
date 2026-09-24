@@ -71,6 +71,7 @@ class VentanaPortafolio(QWidget):
         for clave, boton in self.botones_modulo.items():
             boton.setChecked(clave == modulo)
         if modulo == "revisar":
+            self.pantalla_revisar.ruta_portafolio = self.pantalla_importar.ruta_portafolio
             self.pantalla_revisar.actualizar_rail()
 
     def _elegir_ruta_portafolio(self) -> Path | None:
