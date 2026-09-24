@@ -351,6 +351,37 @@ def test_secuencias_generadas_estan_vacias(tmp_path):
             assert track.findall(".//TrackItem") == []
 
 
+def _blob_de_cadena(raiz, chain_id):
+    indice = {e.get("ObjectID"): e for e in raiz if e.get("ObjectID")}
+    pendientes, vistos = [chain_id], set()
+    while pendientes:
+        ident = pendientes.pop()
+        if ident in vistos or ident not in indice:
+            continue
+        vistos.add(ident)
+        nodo = indice[ident]
+        if nodo.tag == "ArbVideoComponentParam" \
+                and (nodo.findtext("Name") or "").strip() == "Blob":
+            valor = nodo.find("StartKeyframeValue")
+            return base64.b64decode(
+                (valor.text or "").strip()).decode("utf-8", errors="ignore")
+        pendientes.extend(
+            h.get("ObjectRef") for h in nodo.iter() if h.get("ObjectRef"))
+    return None
+
+
+def test_lut_sony_apunta_a_la_copia_local_dentro_del_blob(tmp_path):
+    original = prproj_plantilla.archetipos_de_clip(
+        prproj_xml.leer_prproj(recursos.template_color_luts()))["sony"].ruta_lut
+    destino, luts, _manifest = _generar_proyecto_de_prueba(tmp_path)
+    raiz = prproj_xml.leer_prproj(destino)
+    arquetipo = prproj_plantilla.archetipos_de_clip(raiz)["sony"]
+    blob = _blob_de_cadena(raiz, arquetipo.video_component_chain_id)
+    assert blob is not None
+    assert str(luts / "SONY-SLOG3.cube") in blob
+    assert original not in blob
+
+
 def test_generar_prproj_copia_solo_los_cube_que_hacen_falta(tmp_path):
     from clasificador_video.manifest import Clip, Manifest
 

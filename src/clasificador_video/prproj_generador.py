@@ -254,8 +254,18 @@ def _agregar_item_al_bin(bin_destino: ET.Element, item: ET.Element) -> None:
         "Index": str(len(items)), "ObjectURef": item.get("ObjectUID")})
 
 
-def _reescribir_ruta_lut(raiz: ET.Element, chain_id: str, destino: Path) -> None:
-    """Cambia la ruta en el bloque Lumetri ya validado por Premiere."""
+def _reescribir_ruta_lut(raiz: ET.Element, chain_id: str, destino: Path,
+                         ruta_original: str | None) -> None:
+    """Cambia la ruta en el bloque Lumetri ya validado por Premiere.
+
+    La ruta vive en DOS lugares dentro del mismo efecto, y hay que cambiar
+    los dos para que no queden diciendo cosas distintas:
+
+    - un ``ArbVideoComponentParam`` sin nombre con la ruta en texto plano
+      (``StartKeyframeValue`` en UTF-16LE);
+    - el ``Blob``, que es la serialización que Premiere lee de verdad, con
+      la ruta adentro de un XML en UTF-8.
+    """
     por_id = {elemento.get("ObjectID"): elemento for elemento in raiz
               if elemento.get("ObjectID")}
     pendientes, vistos = [chain_id], set()
@@ -270,10 +280,22 @@ def _reescribir_ruta_lut(raiz: ET.Element, chain_id: str, destino: Path) -> None
                 texto = base64.b64decode((valor.text or "").strip()).decode(
                     "utf-16-le").rstrip("\0")
             except UnicodeDecodeError:
-                continue
+                texto = ""
             if texto.lower().endswith(".cube"):
                 valor.text = base64.b64encode(
                     str(destino).encode("utf-16-le")).decode("ascii")
+                continue
+            if ruta_original is None:
+                continue
+            try:
+                blob = base64.b64decode(
+                    (valor.text or "").strip()).decode("utf-8")
+            except (UnicodeDecodeError, ValueError):
+                continue
+            if ruta_original in blob:
+                valor.text = base64.b64encode(
+                    blob.replace(ruta_original, str(destino)).encode(
+                        "utf-8")).decode("ascii")
         pendientes.extend(
             hijo.get("ObjectRef") for hijo in nodo.iter()
             if hijo.get("ObjectRef"))
@@ -374,7 +396,7 @@ def generar_prproj(manifest, destino: Path, carpeta_luts_destino: Path, *,
         if arquetipo.video_component_chain_id is not None and origen is not None:
             _reescribir_ruta_lut(
                 raiz, arquetipo.video_component_chain_id,
-                carpeta_luts_destino / origen.name)
+                carpeta_luts_destino / origen.name, arquetipo.ruta_lut)
 
     destino.parent.mkdir(parents=True, exist_ok=True)
     escribir_prproj(raiz, destino)
