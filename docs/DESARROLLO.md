@@ -132,12 +132,9 @@ palomearon. De este lado (Clipify) se reparte así, y el corte es a propósito
 
 | Archivo | De qué se encarga |
 |---|---|
-| `patron.py` | Leer `docs/patron-de-recorrido/MI-PATRON.md` y entregarlo como texto. |
-| `guia.py` | Lo que PIENSA: arma el prompt, lee la respuesta, revisa la lista. Sin Qt, sin red, sin disco. |
-| `llave.py` | Guardar y leer la llave en `~/.clasificador_video/llave.json`. |
-| `ia.py` | La llamada HTTP, y nada más. Cambiar de proveedor es este archivo. |
-| `ui/pantalla_guia.py` | La pantalla: dos preguntas, el resultado, «Usar este orden». |
-| `ui/pantalla_config.py` | La pantalla de configuración. Hoy, un ajuste: la llave. |
+| `guia.py` | Lo que PIENSA: clasifica los cuartos por palabras clave y arma las piezas de la guía. Sin Qt, sin red, sin disco. |
+| `ui/pantalla_guia.py` | La pantalla: el tablero de siete columnas, la franja y «Usar este orden». |
+| `ui/pantalla_config.py` | La pantalla de configuración: modos de miniaturas, carpetas y Drive. |
 
 Del lado del plugin, el avance —qué pasos ya se montaron— está **partido en
 dos**, y el corte es el mismo criterio de siempre: lo que se puede probar sin

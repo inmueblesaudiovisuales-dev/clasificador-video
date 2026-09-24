@@ -1411,55 +1411,26 @@ def test_la_guia_del_proyecto_vuelve_al_abrirlo(tmp_path, monkeypatch):
 # --- el coordinador: configuracion desde la pantalla de inicio -------------
 
 
-def test_configuracion_pedida_abre_la_pantalla_de_config(qtbot, tmp_path, monkeypatch):
+def test_configuracion_pedida_abre_la_pantalla_de_config(qtbot, tmp_path):
     """Nada de esto es de un proyecto -- por eso se puede pedir sin haber
     abierto ninguno. Ver docs/superpowers/specs/2026-09-20-configuracion-
     desde-inicio-design.md."""
-    from clasificador_video import llave, preferencias
-
     coord = _coordinador(tmp_path)
     qtbot.addWidget(coord.inicio)
-    monkeypatch.setattr(llave, "leer", lambda: "una-llave")
-    monkeypatch.setattr(preferencias, "modo_economico", lambda: False)
-    monkeypatch.setattr(preferencias, "modo_rapido", lambda: False)
 
     coord.inicio.configuracion_pedida.emit()
 
     assert coord._pantalla_config is not None
-    assert "Ya está puesta" in coord._pantalla_config.estado_label.text()
-
-
-def test_configuracion_guarda_la_llave_sin_ventana_de_proyecto(
-        qtbot, tmp_path, monkeypatch):
-    from clasificador_video import llave, preferencias
-
-    coord = _coordinador(tmp_path)
-    qtbot.addWidget(coord.inicio)
-    monkeypatch.setattr(llave, "leer", lambda: "")
-    monkeypatch.setattr(preferencias, "modo_economico", lambda: False)
-    monkeypatch.setattr(preferencias, "modo_rapido", lambda: False)
-    guardadas = []
-    monkeypatch.setattr(llave, "guardar", guardadas.append)
-
-    coord.inicio.configuracion_pedida.emit()
-    coord._pantalla_config.llave_guardada.emit("otra-llave")
-
-    assert guardadas == ["otra-llave"]
 
 
 def test_configuracion_crece_la_ventana_de_inicio_si_hace_falta_y_la_devuelve(
-        qtbot, tmp_path, monkeypatch):
+        qtbot, tmp_path):
     """El bug que Bruno reportó: la pantalla de inicio (560x480) es mucho
     mas chica que la de un proyecto, y los mismos márgenes que le quedan
     comodos a MainWindow ahi dejaban el contenido de Configuración
     amontonado encima de si mismo."""
-    from clasificador_video import llave, preferencias
-
     coord = _coordinador(tmp_path)
     qtbot.addWidget(coord.inicio)
-    monkeypatch.setattr(llave, "leer", lambda: "")
-    monkeypatch.setattr(preferencias, "modo_economico", lambda: False)
-    monkeypatch.setattr(preferencias, "modo_rapido", lambda: False)
     alto_original = coord.inicio.height()
 
     coord.inicio.configuracion_pedida.emit()
@@ -1478,11 +1449,10 @@ def test_configuracion_crece_la_ventana_de_inicio_si_hace_falta_y_la_devuelve(
 
 def test_configuracion_guarda_modo_economico_y_rapido_como_preferencia(
         qtbot, tmp_path, monkeypatch):
-    from clasificador_video import llave, preferencias
+    from clasificador_video import preferencias
 
     coord = _coordinador(tmp_path)
     qtbot.addWidget(coord.inicio)
-    monkeypatch.setattr(llave, "leer", lambda: "")
     monkeypatch.setattr(preferencias, "modo_economico", lambda: False)
     monkeypatch.setattr(preferencias, "modo_rapido", lambda: False)
     guardado_economico = []

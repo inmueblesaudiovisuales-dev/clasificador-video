@@ -1,9 +1,9 @@
-"""Preferencias globales de la app: hoy, un solo ajuste (modo económico).
+"""Preferencias globales de la app: el modo económico y el modo rápido.
 
-Mismo lugar que la llave --``~/.clasificador_video/``-- y mismo criterio:
-si el archivo no existe o está roto, se devuelve el valor por defecto en
-vez de romper la app. Es global a la app, no del proyecto: no viaja con el
-manifest ni con el material.
+Viven en ``~/.clasificador_video/`` y con un criterio: si el archivo no
+existe o está roto, se devuelve el valor por defecto en vez de romper la
+app. Son globales a la app, no del proyecto: no viajan con el manifest ni
+con el material.
 
 Sin Qt.
 """

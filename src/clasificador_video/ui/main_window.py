@@ -28,8 +28,6 @@ from clasificador_video import guia as logica_guia
 from clasificador_video import (
     buscar_prproj,
     drive,
-    ia,
-    llave,
     preferencias,
     prproj_generador,
     proxy_gen,
@@ -241,51 +239,6 @@ class _AutosaveWriteJob(QRunnable):
         self._señales.guardado_listo.emit()
 
 
-class _GuiaJob(QRunnable):
-    """Le pide la guia al modelo FUERA del hilo de la interfaz.
-
-    Antes `pedir_guia` llamaba directo y esperaba ahi mismo: entre que Bruno
-    apretaba «Armar la guia» y que el modelo contestaba --diez o veinte
-    segundos-- Clipify se quedaba tieso, y sin internet se quedaba asi hasta
-    el minuto que dura la espera de `ia.py`. Una app que no responde se lee
-    como una app muerta.
-
-    No crea ningun objeto de Qt: recibe el portador compartido de la
-    ventana, por el segfault que documenta `SeñalesDeTrabajos`.
-
-    **No revienta nunca**: un fallo es una `Respuesta` con su error dicho en
-    palabras, igual que una respuesta fea. Una excepcion que sube desde un
-    hilo del pool no la atrapa nadie.
-    """
-
-    def __init__(self, llave_de_la_api: str, cuerpo: dict,
-                 cuartos_reales: list[str], señales: "SeñalesDeTrabajos"):
-        super().__init__()
-        self._llave = llave_de_la_api
-        self._cuerpo = cuerpo
-        self._cuartos_reales = cuartos_reales
-        self._señales = señales
-
-    def run(self) -> None:
-        try:
-            crudo = ia.preguntar(self._llave, self._cuerpo)
-        except ia.ErrorDeIA as error:
-            self._señales.guia_lista.emit(
-                logica_guia.Clasificacion(ok=False, error=str(error))
-            )
-            return
-        except Exception as error:  # noqa: BLE001 -- ver el docstring
-            self._señales.guia_lista.emit(
-                logica_guia.Clasificacion(
-                    ok=False,
-                    error="No se pudo clasificar: " + str(error),
-                )
-            )
-            return
-        self._señales.guia_lista.emit(
-            logica_guia.leer_clasificacion(crudo, self._cuartos_reales))
-
-
 # Cuantos `ffprobe` a la vez al importar. Ocho porque es donde la medicion
 # se aplana: con 40 clips reales de la FX30, en serie 1.06 s, con 4 en
 # paralelo 0.26 s y con 8 en paralelo 0.14 s. Son procesos aparte esperando
@@ -387,7 +340,6 @@ class SeñalesDeTrabajos(QObject):
     miniatura_lista = Signal(int, int, object)  # generation, indice, list[Path] | None
     proxy_sondeado = Signal(int, int, object)   # generation, indice, info | None
     guardado_listo = Signal()
-    guia_lista = Signal(object)                 # logica_guia.Clasificacion
     guardado_fallo = Signal(str)                # el motivo, tal como lo dio el SO
     pesos_medidos = Signal(int, object)         # generacion de indices, {clip: bytes}
     # los clips cuyo archivo ya no esta, y los proxies perdidos. Se revisa
@@ -748,7 +700,6 @@ class MainWindow(QWidget):
         self._señales_de_trabajos.guardado_listo.connect(self._on_guardado_listo)
         self._señales_de_trabajos.guardado_fallo.connect(self._on_guardado_fallo)
         self._señales_de_trabajos.pesos_medidos.connect(self._on_pesos_medidos)
-        self._señales_de_trabajos.guia_lista.connect(self._mostrar_guia)
         self._señales_de_trabajos.media_revisada.connect(self._on_media_revisada)
         self._señales_de_trabajos.proxy_generado.connect(self._on_proxy_generado)
         self._señales_de_trabajos.drive_subida_lista.connect(self._on_drive_subida_lista)
@@ -759,12 +710,6 @@ class MainWindow(QWidget):
         # en vuelo, y esa espera es lo que impide que una señal llegue
         # cuando la ventana ya no puede atenderla.
         self._thread_pool = QThreadPool(self)
-        # La guia tiene el SUYO, de un hilo: es una espera de red de decenas
-        # de segundos y encolarla detras de las portadas --o encolar las
-        # portadas detras de ella-- deja a una de las dos sin llegar. Hijo
-        # de la ventana, igual que los otros.
-        self._guia_pool = QThreadPool(self)
-        self._guia_pool.setMaxThreadCount(1)
         # La revisión de media tiene el SUYO, y no es un lujo: el otro pool
         # se llena con las portadas --tres hilos, un trabajo por clip-- y el
         # aviso que le dice a Bruno «tu material no está» quedaba encolado
@@ -5578,8 +5523,6 @@ class MainWindow(QWidget):
         """
         if self._pantalla_config is None:
             self._pantalla_config = PantallaConfig(self)
-            self._pantalla_config.llave_guardada.connect(self.guardar_llave)
-            self._pantalla_config.llave_borrada.connect(self.borrar_llave)
             self._pantalla_config.modo_economico_cambiado.connect(
                 self._cambiar_modo_economico
             )
@@ -5596,10 +5539,8 @@ class MainWindow(QWidget):
                 self._al_pedir_borrar_miniaturas
             )
             self._pantalla_config.cerrada.connect(self._pantalla_config.hide)
-        # Se relee del disco cada vez que se abre y no se cachea: la llave
-        # se puede haber puesto desde otra ventana de Clipify.
         self._pantalla_config.cargar(
-            llave.leer(), preferencias.modo_economico(), preferencias.modo_rapido()
+            preferencias.modo_economico(), preferencias.modo_rapido()
         )
         self._pantalla_config.mostrar_peso_de_miniaturas(
             tamano_del_cache(self._thumbnail_cache_root)
@@ -5607,12 +5548,6 @@ class MainWindow(QWidget):
         self._pantalla_config.setGeometry(self.rect().adjusted(110, 80, -110, -80))
         self._pantalla_config.show()
         self._pantalla_config.raise_()
-
-    def guardar_llave(self, valor: str) -> None:
-        llave.guardar(valor)
-
-    def borrar_llave(self) -> None:
-        llave.borrar()
 
     def _al_pedir_borrar_miniaturas(self) -> None:
         """Borra TODAS las miniaturas guardadas y las vuelve a pedir.
@@ -5774,13 +5709,12 @@ class MainWindow(QWidget):
         self._pantalla_guia.mostrar_clasificacion(clasificacion, unidad=unidad)
         # DESDE QUE SE ENSEÑA, no desde que se acepta: si a Bruno le gusta
         # el tablero como quedó y no aprieta «Usar este orden» --o cierra
-        # Clipify sin apretarlo-- la clasificación que acaba de costar una
-        # llamada a la API no se puede perder. Ya paso una vez (arreglado
-        # el 2026-09-19, y el rediseño del tablero lo volvió a romper el
-        # mismo día).
+        # Clipify sin apretarlo-- la pre-ordenada no se puede perder. Ya
+        # paso una vez (arreglado el 2026-09-19, y el rediseño del tablero
+        # lo volvió a romper el mismo día).
         if unidad != self._unidad_de_la_guia():
-            # Bruno cambió de unidad mientras esperaba: la clasificación es
-            # de la otra, y guardarla aqui seria pisar el tablero equivocado.
+            # La clasificación es de otra unidad: guardarla aqui seria
+            # pisar el tablero equivocado.
             return
         orden = self._pantalla_guia.orden_final()
         if not orden:

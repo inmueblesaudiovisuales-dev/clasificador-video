@@ -16,7 +16,7 @@ from PySide6.QtCore import QObject, QRunnable, QThreadPool, Signal
 from PySide6.QtGui import QSurfaceFormat
 from PySide6.QtWidgets import QApplication, QFileDialog, QInputDialog, QMessageBox
 
-from clasificador_video import llave, preferencias, proyecto, proyecto_colaborativo
+from clasificador_video import preferencias, proyecto, proyecto_colaborativo
 from clasificador_video.autosave import load_session
 from clasificador_video.bins import BinTree
 from clasificador_video.keyboard import KeyboardRouter
@@ -554,8 +554,6 @@ class Coordinador(QObject):
         """
         if self._pantalla_config is None:
             self._pantalla_config = PantallaConfig(self.inicio)
-            self._pantalla_config.llave_guardada.connect(llave.guardar)
-            self._pantalla_config.llave_borrada.connect(llave.borrar)
             self._pantalla_config.modo_economico_cambiado.connect(
                 preferencias.guardar_modo_economico
             )
@@ -578,7 +576,7 @@ class Coordinador(QObject):
             )
             self._pantalla_config.cerrada.connect(self._al_cerrar_configuracion)
         self._pantalla_config.cargar(
-            llave.leer(), preferencias.modo_economico(), preferencias.modo_rapido()
+            preferencias.modo_economico(), preferencias.modo_rapido()
         )
         self._pantalla_config.mostrar_peso_de_miniaturas(
             tamano_del_cache(default_cache_root())
