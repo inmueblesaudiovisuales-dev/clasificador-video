@@ -63,6 +63,19 @@ class Portafolio:
         rutas_ya = {clip.ruta_origen for clip in proyecto.clips}
         proyecto.clips.extend(clip for clip in nuevos if clip.ruta_origen not in rutas_ya)
 
+    @staticmethod
+    def medios_faltantes_de(proyecto: ProyectoImportado) -> list[ClipDelPortafolio]:
+        return [clip for clip in proyecto.clips if not clip.ruta_origen.exists()]
+
+    @staticmethod
+    def revincular(clip: ClipDelPortafolio, carpeta_nueva: Path) -> bool:
+        """Actualiza una ruta solo si la carpeta indicada contiene ese archivo."""
+        candidata = carpeta_nueva / clip.ruta_origen.name
+        if not candidata.exists():
+            return False
+        clip.ruta_origen = candidata
+        return True
+
     def guardar(self, destino: Path) -> None:
         datos = {
             "proyectos": [

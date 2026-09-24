@@ -43,3 +43,30 @@ def test_cargar_archivo_que_no_existe_da_portafolio_vacio(tmp_path):
     cargado = pf.Portafolio.cargar(tmp_path / "no existe.cvportafolio")
 
     assert cargado.proyectos == []
+
+
+def test_medios_faltantes_de_un_proyecto(tmp_path):
+    portafolio = pf.Portafolio()
+    clips = [
+        ClipUsado(tmp_path / "existe.mov", []),
+        ClipUsado(tmp_path / "no_existe.mov", []),
+    ]
+    (tmp_path / "existe.mov").write_text("x")
+    proyecto = portafolio.agregar_proyecto("Depto Polanco", tmp_path / "Depto Polanco.prproj", clips)
+
+    faltantes = portafolio.medios_faltantes_de(proyecto)
+
+    assert [clip.ruta_origen.name for clip in faltantes] == ["no_existe.mov"]
+
+
+def test_revincular_actualiza_solo_si_encuentra_el_mismo_archivo(tmp_path):
+    clip = pf.ClipDelPortafolio(tmp_path / "desconectado" / "clip_014.mov", "Casa")
+    carpeta_nueva = tmp_path / "SSD nuevo"
+    carpeta_nueva.mkdir()
+    encontrada = carpeta_nueva / "clip_014.mov"
+    encontrada.write_text("material")
+
+    resultado = pf.Portafolio().revincular(clip, carpeta_nueva)
+
+    assert resultado is True
+    assert clip.ruta_origen == encontrada
