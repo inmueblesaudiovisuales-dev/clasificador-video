@@ -1,4 +1,5 @@
 """Leer y escribir un .prproj real (gzip + XML)."""
+import gzip
 import xml.etree.ElementTree as ET
 
 from clasificador_video import prproj_xml, recursos
@@ -17,6 +18,18 @@ def test_escribir_y_releer_prproj_da_el_mismo_xml(tmp_path):
     releido = prproj_xml.leer_prproj(destino)
 
     assert ET.tostring(releido) == ET.tostring(raiz)
+
+
+def test_escribir_prproj_guarda_los_acentos_como_utf8(tmp_path):
+    raiz = ET.fromstring(
+        '<PremiereData Version="3"><Nodo><Name>Resolución ✓ ★ ✕</Name></Nodo></PremiereData>')
+    destino = tmp_path / "p.prproj"
+
+    prproj_xml.escribir_prproj(raiz, destino)
+
+    crudo = gzip.open(destino, "rb").read()
+    assert "Resolución ✓ ★ ✕".encode("utf-8") in crudo
+    assert b"&#" not in crudo
 
 
 def _premiere_data_de_prueba():

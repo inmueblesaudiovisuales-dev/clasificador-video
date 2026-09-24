@@ -14,8 +14,16 @@ def leer_prproj(ruta: Path) -> ET.Element:
 
 
 def escribir_prproj(raiz: ET.Element, destino: Path) -> None:
-    """Comprime ``raiz`` como gzip y lo escribe en ``destino``."""
-    cuerpo = b'<?xml version="1.0" encoding="UTF-8" ?>\n' + ET.tostring(raiz)
+    """Comprime ``raiz`` como gzip y lo escribe en ``destino``.
+
+    Los caracteres no ASCII (acentos, ``✓``, ``★``, ``✕``) se escriben como
+    UTF-8 de verdad y no como entidades ``&#...;``: Premiere muestra la
+    entidad tal cual en los nombres de bins y clips, no la decodifica.
+    """
+    cuerpo = (
+        '<?xml version="1.0" encoding="UTF-8" ?>\n'
+        + ET.tostring(raiz, encoding="unicode")
+    ).encode("utf-8")
     with gzip.open(destino, "wb") as archivo:
         archivo.write(cuerpo)
 
