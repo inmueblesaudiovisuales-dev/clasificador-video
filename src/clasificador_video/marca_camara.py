@@ -13,6 +13,8 @@ editor externo, §4.
 """
 from __future__ import annotations
 
+import re
+
 
 def _bin_dice(nombre: str, palabra: str) -> bool:
     return palabra in (nombre or "").lower()
@@ -33,3 +35,34 @@ def bin_dice_pocket(nombre: str) -> bool:
     "osmo" -- que Bruno también usa para el Action, que NO entra en este
     sistema (spec 2026-09-18 §4)."""
     return _bin_dice(nombre, "pocket")
+
+
+_MARCAS = (("SONY", "bin_sony"), ("POCKET", "bin_pocket"), ("DRONE", "bin_dron"))
+_MARCA_CONOCIDA = r"(?:SONY|POCKET|DRONE)(?:\+(?:SONY|POCKET|DRONE))*"
+_PREFIJO_MARCA = re.compile(r"^\[" + _MARCA_CONOCIDA + r"\] ")
+_SUFIJO_MARCA = re.compile(r" \[" + _MARCA_CONOCIDA + r"\]$")
+
+
+def sin_marca_de_camara(nombre: str) -> str:
+    """Quita una única marca conocida, no texto escrito por Bruno."""
+    texto = str(nombre or "")
+    return _SUFIJO_MARCA.sub("", _PREFIJO_MARCA.sub("", texto))
+
+
+def _algun_clip_empieza_con(clips, prefijo, campo) -> bool:
+    for clip in clips or []:
+        categoria = clip.get("categoria_path") if isinstance(clip, dict) else None
+        if categoria is None or not clip.get(campo) or len(categoria) < len(prefijo):
+            continue
+        if categoria[:len(prefijo)] == prefijo:
+            return True
+    return False
+
+
+def marca_de_camara_del_prefijo(clips, prefijo) -> str:
+    return "+".join(palabra for palabra, campo in _MARCAS if _algun_clip_empieza_con(clips, prefijo, campo))
+
+
+def nombre_del_cuarto_con_marca(nombre_con_numero, nombre_sin_numero, clips, prefijo_de_categoria=None) -> str:
+    marca = marca_de_camara_del_prefijo(clips, prefijo_de_categoria or [nombre_sin_numero])
+    return f"{nombre_con_numero} [{marca}]" if marca else nombre_con_numero
