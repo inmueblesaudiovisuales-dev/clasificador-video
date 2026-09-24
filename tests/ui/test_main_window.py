@@ -208,6 +208,145 @@ def test_importar_carpeta_construye_clips_con_fps_de_ffprobe(qtbot, monkeypatch,
     assert window.clip_sheet.count() == 1
 
 
+def _falso_generar_proxy(monkeypatch):
+    """Como `_generados` (más abajo, junto a los tests de proxies), pero
+    reutilizable aquí sin mover el helper: sustituye ffmpeg y escribe el
+    archivo del proxy de una vez, sin correr nada de verdad."""
+    hechos = []
+
+    def falso(original, carpeta, **kwargs):
+        carpeta.mkdir(parents=True, exist_ok=True)
+        destino = proxy_gen.ruta_de_proxy(original, carpeta)
+        destino.write_bytes(b"proxy")
+        hechos.append(original.name)
+        return destino
+
+    monkeypatch.setattr(proxy_gen, "generar", falso)
+    return hechos
+
+
+def _armar_proyecto_local(tmp_path, *, con_pocket=False):
+    proyecto = tmp_path / "IAV-2609.10-A"
+    assets = proyecto / "01. ASSETS VIDEO"
+    sony = assets / "01. VIDEOS SONY"
+    sony.mkdir(parents=True)
+    (sony / "C0001.MP4").touch()
+    dron = assets / "02. VIDEO DRONE"
+    dron.mkdir(parents=True)
+    (dron / "DJI_0001.MP4").touch()
+    action = assets / "04. VIDEOS OSMO ACTION"
+    action.mkdir(parents=True)
+    (action / "ACT_0001.MP4").touch()
+    if con_pocket:
+        pocket = assets / "03. VIDEOS OSMO POCKET"
+        pocket.mkdir(parents=True)
+        (pocket / "POC_0001.MP4").touch()
+    return proyecto
+
+
+def test_importar_carpeta_de_proyecto_mete_sony_y_dron_en_bines_y_omite_action(
+        qtbot, monkeypatch, tmp_path):
+    window = _window_with_video(qtbot, cache_root=tmp_path / "cache")
+    monkeypatch.setattr(
+        "clasificador_video.ui.main_window.extract_thumbnail_strip", lambda *a, **k: [])
+    monkeypatch.setattr(window, "_probe_clip", FakeProbe())
+    _falso_generar_proxy(monkeypatch)
+    from clasificador_video import preferencias
+    monkeypatch.setattr(preferencias, "carpeta_raiz_icloud", lambda *a, **k: None)
+    _sin_avisos(monkeypatch)
+    proyecto = _armar_proyecto_local(tmp_path)
+
+    window.importar_carpeta_de_proyecto(proyecto)
+    _esperar_generacion(window)
+
+    assert set(window.bins.nombres()) == {"01. VIDEOS SONY", "02. VIDEO DRONE"}
+    assert {c.ruta.name for c in window.clips} == {"C0001.MP4", "DJI_0001.MP4"}
+
+
+def test_importar_carpeta_de_proyecto_incluye_pocket_cuando_existe(
+        qtbot, monkeypatch, tmp_path):
+    window = _window_with_video(qtbot, cache_root=tmp_path / "cache")
+    monkeypatch.setattr(
+        "clasificador_video.ui.main_window.extract_thumbnail_strip", lambda *a, **k: [])
+    monkeypatch.setattr(window, "_probe_clip", FakeProbe())
+    _falso_generar_proxy(monkeypatch)
+    from clasificador_video import preferencias
+    monkeypatch.setattr(preferencias, "carpeta_raiz_icloud", lambda *a, **k: None)
+    _sin_avisos(monkeypatch)
+    proyecto = _armar_proyecto_local(tmp_path, con_pocket=True)
+
+    window.importar_carpeta_de_proyecto(proyecto)
+    _esperar_generacion(window)
+
+    assert "03. VIDEOS OSMO POCKET" in window.bins.nombres()
+    assert "POC_0001.MP4" in {c.ruta.name for c in window.clips}
+
+
+def test_importar_carpeta_de_proyecto_arranca_los_proxies_solo(
+        qtbot, monkeypatch, tmp_path):
+    """Bruno lo pidió así: en la importación rápida los proxies arrancan
+    sin preguntar, a diferencia del flujo normal de arrastrar carpetas."""
+    window = _window_with_video(qtbot, cache_root=tmp_path / "cache")
+    monkeypatch.setattr(
+        "clasificador_video.ui.main_window.extract_thumbnail_strip", lambda *a, **k: [])
+    monkeypatch.setattr(window, "_probe_clip", FakeProbe())
+    hechos = _falso_generar_proxy(monkeypatch)
+    from clasificador_video import preferencias
+    monkeypatch.setattr(preferencias, "carpeta_raiz_icloud", lambda *a, **k: None)
+    # si algo llamara a QMessageBox.question (la pregunta del flujo normal),
+    # esto lo revienta -- aquí no debe preguntar nada.
+    monkeypatch.setattr(
+        "clasificador_video.ui.main_window.QMessageBox.question",
+        lambda *a, **k: (_ for _ in ()).throw(AssertionError("no debía preguntar")))
+    _sin_avisos(monkeypatch)
+    proyecto = _armar_proyecto_local(tmp_path)
+
+    window.importar_carpeta_de_proyecto(proyecto)
+    # dos bins entran, así que el segundo se forma detrás del primero: una
+    # sola pasada de espera puede alcanzar al primero justo cuando el
+    # segundo apenas se encola, no cuando ya terminó.
+    for _ in range(10):
+        _esperar_generacion(window)
+        if window._generando_proxies is None and not window._cola_de_proxies:
+            break
+
+    assert set(hechos) == {"C0001.MP4", "DJI_0001.MP4"}
+    assert all(c.ruta_proxy is not None for c in window.clips)
+
+
+def test_importar_carpeta_de_proyecto_manda_los_proxies_a_icloud(
+        qtbot, monkeypatch, tmp_path):
+    window = _window_with_video(qtbot, cache_root=tmp_path / "cache")
+    monkeypatch.setattr(
+        "clasificador_video.ui.main_window.extract_thumbnail_strip", lambda *a, **k: [])
+    monkeypatch.setattr(window, "_probe_clip", FakeProbe())
+    _falso_generar_proxy(monkeypatch)
+    from clasificador_video import preferencias, proyecto_colaborativo as pc
+    raiz_icloud = tmp_path / "iCloud"
+    monkeypatch.setattr(preferencias, "carpeta_raiz_icloud", lambda *a, **k: raiz_icloud)
+    _sin_avisos(monkeypatch)
+    proyecto = _armar_proyecto_local(tmp_path)
+
+    window.importar_carpeta_de_proyecto(proyecto)
+    _esperar_generacion(window)
+
+    esperado = pc.ruta_del_proyecto(raiz_icloud, "IAV-2609.10-A") / pc.CARPETA_PROXIES
+    assert window.carpeta_de_proxies == esperado
+
+
+def test_importar_carpeta_de_proyecto_sin_material_no_hace_nada(
+        qtbot, monkeypatch, tmp_path):
+    window = _window_with_video(qtbot, cache_root=tmp_path / "cache")
+    _sin_avisos(monkeypatch)
+    proyecto = tmp_path / "IAV-2609.10-A"
+    proyecto.mkdir()
+
+    window.importar_carpeta_de_proyecto(proyecto)
+
+    assert window.clips == []
+    assert window.bins.nombres() == []
+
+
 class _FlakyProbe:
     """Probe que falla para ciertas rutas y devuelve info valida para el resto."""
 

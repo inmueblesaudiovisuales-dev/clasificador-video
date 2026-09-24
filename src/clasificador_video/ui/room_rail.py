@@ -587,6 +587,7 @@ class RoomRail(QWidget):
     """
 
     import_requested = Signal()
+    import_rapido_requested = Signal()
     room_assign_requested = Signal(str)
     room_reordered = Signal(str, int)     # nombre, posicion destino
     room_created = Signal(str)
@@ -783,11 +784,25 @@ class RoomRail(QWidget):
         self.import_button.setObjectName("importButton")
         self.import_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self.import_button.clicked.connect(self.import_requested.emit)
+        # Importación rápida: mismo botón, click derecho -- no se le agrega
+        # un segundo botón permanente al rail por un flujo que no todos los
+        # proyectos usan (necesita la estructura de carpetas de Bruno).
+        self.import_button.setContextMenuPolicy(
+            Qt.ContextMenuPolicy.CustomContextMenu)
+        self.import_button.customContextMenuRequested.connect(
+            self._abrir_menu_de_importar)
         pie = QWidget()
         fl = QVBoxLayout(pie)
         fl.setContentsMargins(9, 6, 9, 10)
         fl.addWidget(self.import_button)
         raiz.addWidget(pie)
+
+    def _abrir_menu_de_importar(self, punto: QPoint) -> None:
+        menu = QMenu(self)
+        rapida = menu.addAction("Importación rápida (carpeta del proyecto)…")
+        elegida = menu.exec(self.import_button.mapToGlobal(punto))
+        if elegida is rapida:
+            self.import_rapido_requested.emit()
 
     def set_rooms(self, rooms: list[str], counts: dict[str, int]) -> None:
         """Repuebla el rail. Si la LISTA no cambió, solo refresca conteos.

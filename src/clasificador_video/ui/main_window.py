@@ -26,6 +26,7 @@ from PySide6.QtWidgets import (
 
 from clasificador_video import guia as logica_guia
 from clasificador_video import (
+    importacion_rapida,
     preferencias,
     prproj_generador,
     proxy_gen,
@@ -862,6 +863,8 @@ class MainWindow(QWidget):
 
         self.room_rail = RoomRail()
         self.room_rail.import_requested.connect(self._on_import_folders)
+        self.room_rail.import_rapido_requested.connect(
+            self._on_importar_carpeta_de_proyecto)
         self.room_rail.room_created.connect(self._on_room_created)
         # Por `_asignar_cuarto` y no por un camino propio: es el unico lugar
         # que registra en el historial, avanza en la cola y anota el ultimo
@@ -2459,8 +2462,14 @@ class MainWindow(QWidget):
         self._autosave()
 
     def agregar_clips(self, nuevos: list[Clip], nombre_de_bin: str | None,
-                      origen: Path) -> None:
+                      origen: Path, auto_proxies: bool = False) -> None:
         """Suma material SIN reiniciar el proyecto.
+
+        `auto_proxies=True` es el camino de la importación rápida (spec
+        2026-09-24-importacion-rapida-por-carpeta-design.md): en vez de
+        preguntar «¿te creo los proxies?», arranca a generarlos directo. Lo
+        pide Bruno explícitamente para ese flujo -- el normal (arrastrar una
+        carpeta a mano) sigue preguntando igual que siempre.
 
         `nombre_de_bin=None` mete los clips SIN bin: quedan sueltos y la hoja
         los muestra en la seccion «Sin bin». Es un estado valido del dato --un
@@ -2513,7 +2522,10 @@ class MainWindow(QWidget):
         # del proxy cuestan 5 veces menos (medido: 5.8 s contra 1.2 s por
         # clip) y hacerlas ahora seria pagar el precio caro justo antes de
         # que exista el barato.
-        if not self._ofrecer_proxies_antes(nombre_de_bin, indices):
+        if auto_proxies and nombre_de_bin is not None and indices and not any(
+                self.clips[i].ruta_proxy is not None for i in indices):
+            self.generar_proxies_de_bin(nombre_de_bin, preguntar=False)
+        elif not self._ofrecer_proxies_antes(nombre_de_bin, indices):
             self._schedule_thumbnails(indices)
         if estaba_vacio:
             self.current_index = 0
@@ -3164,7 +3176,8 @@ class MainWindow(QWidget):
         )
 
     def importar_rutas(self, rutas: list[Path], nombre_de_bin: str | None = None,
-                       origen: Path | None = None, sueltos: bool = False) -> None:
+                       origen: Path | None = None, sueltos: bool = False,
+                       auto_proxies: bool = False) -> None:
         """El unico camino de entrada de material nuevo.
 
         Sirve al boton de importar y al arrastre. Si no se dice a que bin
@@ -3219,7 +3232,8 @@ class MainWindow(QWidget):
         self._clip_sizes.update(medidas["tamanos"])
         self._clip_rotations.update(medidas["rotaciones"])
         self.agregar_clips(
-            nuevos, None if sueltos else (nombre_de_bin or carpeta.name), carpeta
+            nuevos, None if sueltos else (nombre_de_bin or carpeta.name), carpeta,
+            auto_proxies=auto_proxies,
         )
 
     def adjuntar_proxies(self) -> None:
@@ -5725,6 +5739,61 @@ class MainWindow(QWidget):
         # tarjetas. Por eso a Bruno se le caian las portadas al importar una
         # segunda carpeta.
         self.importar_rutas([carpeta])
+
+    def _on_importar_carpeta_de_proyecto(self) -> None:
+        """«Importación rápida»: le das la carpeta RAÍZ de un proyecto local
+        (la que trae `01. ASSETS VIDEO` adentro) y Clipify saca sola Sony,
+        dron y Pocket, sin arrastrar cada una a mano."""
+        folder = QFileDialog.getExistingDirectory(
+            self, "Elegir carpeta del proyecto")
+        if folder:
+            self.importar_carpeta_de_proyecto(Path(folder))
+
+    def importar_carpeta_de_proyecto(self, carpeta: Path) -> None:
+        """El corazón de la importación rápida (spec
+        2026-09-24-importacion-rapida-por-carpeta-design.md).
+
+        A diferencia de `importar_rutas`, aquí Bruno da la carpeta del
+        PROYECTO, no la de una cámara: `importacion_rapida` encuentra
+        adentro las carpetas de Sony, dron y Pocket -- Osmo Action nunca
+        entra -- y cada una se importa por su cuenta, con proxies que
+        arrancan solos directo en la carpeta de iCloud del proyecto. Nunca
+        mira los proxies que ya existan en la carpeta local `07. PROXIES`:
+        Bruno lo decidió así -- todo proxy nuevo va a iCloud.
+        """
+        resultado = importacion_rapida.detectar_carpetas_de_material(carpeta)
+        encontradas = [c for c in (resultado.sony, resultado.dron, resultado.pocket)
+                       if c is not None]
+        if not encontradas:
+            QMessageBox.warning(
+                self, "Nada que importar",
+                f"No encontré carpetas de Sony, dron ni Pocket dentro de "
+                f"«{carpeta.name}».\n\n¿Es la carpeta raíz del proyecto, la "
+                "que tiene «01. ASSETS VIDEO» adentro?",
+            )
+            return
+        if resultado.faltantes:
+            QMessageBox.information(
+                self, "Falta material",
+                "No encontré: " + ", ".join(resultado.faltantes) + ".\n\n"
+                "Se va a importar lo que sí se encontró.",
+            )
+        destino_proxies = importacion_rapida.carpeta_de_proxies_en_icloud(
+            carpeta, preferencias.carpeta_raiz_icloud())
+        if destino_proxies is None:
+            QMessageBox.information(
+                self, "Sin carpeta de iCloud",
+                "No pude calcular dónde van los proxies en iCloud -- falta "
+                "configurar la carpeta raíz de iCloud, o el nombre de esta "
+                "carpeta no es un folio (ej. IAV-2609.10-A).\n\nSe va a "
+                "importar el material, pero los proxies van a preguntar "
+                "dónde guardarse como de costumbre.",
+            )
+        else:
+            self.set_carpeta_de_proxies(destino_proxies)
+        self.status_bar.set_volume(str(carpeta), _gigas_del_volumen(carpeta))
+        for carpeta_camara in encontradas:
+            self.importar_rutas([carpeta_camara], auto_proxies=True)
 
     def _refresh_sheet(self, force_rebuild: bool = False) -> None:
         # NO REENTRA. La hoja avisa de un filtro nuevo desde adentro de

@@ -142,6 +142,32 @@ def test_el_boton_de_importar_emite_su_senal(qtbot):
         rail.import_button.click()
 
 
+def test_el_menu_del_boton_de_importar_ofrece_la_importacion_rapida(qtbot, monkeypatch):
+    """Click derecho sobre «Importar carpetas…»: no es un botón nuevo en el
+    rail, es una opción extra en el mismo, porque no todos los proyectos
+    usan esta estructura de carpetas."""
+    rail = _rail(qtbot)
+    elegida_guardada = {}
+
+    class _MenuFalso:
+        def __init__(self, *a, **k):
+            self.acciones = []
+
+        def addAction(self, texto):
+            accion = object()
+            self.acciones.append((texto, accion))
+            return accion
+
+        def exec(self, *a, **k):
+            elegida_guardada["accion"] = self.acciones[0][1]
+            return self.acciones[0][1]
+
+    monkeypatch.setattr(
+        "clasificador_video.ui.room_rail.QMenu", _MenuFalso)
+    with qtbot.waitSignal(rail.import_rapido_requested):
+        rail._abrir_menu_de_importar(rail.import_button.rect().center())
+
+
 def test_un_nombre_largo_se_elide_en_vez_de_desbordar(qtbot):
     """QSS no tiene text-overflow: sin elidir, un nombre largo estira el
     rail y el layout deja de parecerse al mockup."""
