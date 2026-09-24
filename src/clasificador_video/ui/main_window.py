@@ -5241,9 +5241,6 @@ class MainWindow(QWidget):
             self._pantalla_config.modo_rapido_cambiado.connect(
                 self._cambiar_modo_rapido
             )
-            self._pantalla_config.carpeta_premiere_guardada.connect(
-                preferencias.guardar_carpeta_de_proyectos_premiere
-            )
             self._pantalla_config.miniaturas_borrar_pedido.connect(
                 self._al_pedir_borrar_miniaturas
             )

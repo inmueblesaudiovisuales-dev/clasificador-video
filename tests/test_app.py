@@ -93,6 +93,33 @@ def test_abrir_proyecto_recupera_la_carpeta_de_icloud(qtbot, tmp_path):
     ventana.close()
 
 
+def test_abrir_un_proyecto_viejo_quita_entrega_y_lo_reescribe(qtbot, tmp_path):
+    ruta = _proyecto_en(tmp_path, extra={"entrega": {"estado": "con_editor"}})
+
+    ventana = abrir_proyecto(ruta, video_factory=_FakeMpv,
+                             recientes_path=tmp_path / "r.json")
+    qtbot.addWidget(ventana)
+
+    assert ventana is not None
+    assert "entrega" not in abrir(ruta)
+    ventana.close()
+
+
+def test_abrir_un_proyecto_viejo_sigue_si_no_se_puede_reescribir(
+        qtbot, tmp_path, monkeypatch):
+    ruta = _proyecto_en(tmp_path, extra={"entrega": {"estado": "con_editor"}})
+    monkeypatch.setattr(app_module.proyecto, "guardar",
+                        lambda *_args: (_ for _ in ()).throw(OSError("disco lleno")))
+
+    ventana = abrir_proyecto(ruta, video_factory=_FakeMpv,
+                             recientes_path=tmp_path / "r.json")
+    qtbot.addWidget(ventana)
+
+    assert ventana is not None
+    assert "entrega" in abrir(ruta)
+    ventana.close()
+
+
 def test_abrir_proyecto_sin_carpeta_de_icloud_queda_en_none(qtbot, tmp_path):
     ruta = _proyecto_en(tmp_path)
 

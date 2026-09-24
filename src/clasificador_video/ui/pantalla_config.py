@@ -42,7 +42,6 @@ class PantallaConfig(QWidget):
 
     modo_economico_cambiado = Signal(bool)
     modo_rapido_cambiado = Signal(bool)
-    carpeta_premiere_guardada = Signal(Path)
     carpeta_icloud_guardada = Signal(Path)
     miniaturas_borrar_pedido = Signal()
     cerrada = Signal()
@@ -139,18 +138,6 @@ class PantallaConfig(QWidget):
         self.miniaturas_borrar_button.clicked.connect(self.miniaturas_borrar_pedido.emit)
         raiz.addWidget(self.miniaturas_borrar_button)
 
-        titulo_premiere = QLabel("Proyectos de Premiere")
-        titulo_premiere.setObjectName("configTitulo")
-        raiz.addWidget(titulo_premiere)
-        self.carpeta_premiere_label = QLabel("Elige la carpeta raíz donde guardas tus proyectos.")
-        self.carpeta_premiere_label.setObjectName("configDonde")
-        self.carpeta_premiere_label.setWordWrap(True)
-        raiz.addWidget(self.carpeta_premiere_label)
-        self.carpeta_premiere_button = QPushButton("Elegir…")
-        self.carpeta_premiere_button.setObjectName("configPremiere")
-        self.carpeta_premiere_button.clicked.connect(self._al_elegir_carpeta_premiere)
-        raiz.addWidget(self.carpeta_premiere_button)
-
         titulo_icloud = QLabel("Carpeta de iCloud")
         titulo_icloud.setObjectName("configTitulo")
         raiz.addWidget(titulo_icloud)
@@ -176,11 +163,6 @@ class PantallaConfig(QWidget):
         deshabilitar el boton en ese caso evita un «borrar» sobre la nada."""
         self.miniaturas_peso_label.setText(f"Ocupan {_formatear_bytes(bytes_)} en tu disco.")
         self.miniaturas_borrar_button.setEnabled(bytes_ > 0)
-
-    def _al_elegir_carpeta_premiere(self) -> None:
-        elegida = QFileDialog.getExistingDirectory(self, "Carpeta de proyectos de Premiere")
-        if elegida:
-            self.carpeta_premiere_guardada.emit(Path(elegida))
 
     def _al_elegir_carpeta_icloud(self) -> None:
         elegida = QFileDialog.getExistingDirectory(self, "Carpeta de iCloud")

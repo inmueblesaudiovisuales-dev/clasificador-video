@@ -134,7 +134,7 @@ palomearon. De este lado (Clipify) se reparte así, y el corte es a propósito
 |---|---|
 | `guia.py` | Lo que PIENSA: clasifica los cuartos por palabras clave y arma las piezas de la guía. Sin Qt, sin red, sin disco. |
 | `ui/pantalla_guia.py` | La pantalla: el tablero de siete columnas, la franja y «Usar este orden». |
-| `ui/pantalla_config.py` | La pantalla de configuración: modos de miniaturas, carpetas y Drive. |
+| `ui/pantalla_config.py` | La pantalla de configuración: modos de miniaturas y carpetas. |
 
 Del lado del plugin, el avance —qué pasos ya se montaron— está **partido en
 dos**, y el corte es el mismo criterio de siempre: lo que se puede probar sin

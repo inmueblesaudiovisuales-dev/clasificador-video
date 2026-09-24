@@ -39,20 +39,6 @@ def test_un_archivo_roto_devuelve_el_default(tmp_path: Path):
     assert mod.modo_economico(destino) is True
 
 
-def test_carpeta_de_proyectos_premiere_vacia_por_defecto(tmp_path):
-    ruta = tmp_path / "preferencias.json"
-    assert mod.carpeta_de_proyectos_premiere(ruta) is None
-
-
-def test_guardar_y_leer_carpeta_de_proyectos_premiere(tmp_path):
-    ruta = tmp_path / "preferencias.json"
-    carpeta = tmp_path / "IAV"
-
-    mod.guardar_carpeta_de_proyectos_premiere(carpeta, ruta)
-
-    assert mod.carpeta_de_proyectos_premiere(ruta) == carpeta
-
-
 def test_sin_archivo_modo_rapido_es_falso(tmp_path: Path):
     # A diferencia de economico, este SI viene apagado por default: cambia
     # como se ve el escrubeo, no evita que la app se trabe.

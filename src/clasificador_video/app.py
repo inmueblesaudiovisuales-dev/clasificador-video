@@ -265,6 +265,14 @@ def abrir_proyecto(ruta: Path, video_factory: Callable[..., object] | None = Non
     data = proyecto.abrir(ruta)
     if not proyecto.es_proyecto(data):
         return None
+    if "entrega" in data:
+        data.pop("entrega")
+        try:
+            proyecto.guardar(ruta, data)
+        except OSError:
+            # El proyecto ya se puede abrir sin ese estado viejo; no se le
+            # niega el acceso solo porque el disco no dejó reescribirlo hoy.
+            pass
     clips = _clips_de(data)
     if clips is None:
         return None
@@ -504,9 +512,6 @@ class Coordinador(QObject):
             )
             self._pantalla_config.modo_rapido_cambiado.connect(
                 preferencias.guardar_modo_rapido
-            )
-            self._pantalla_config.carpeta_premiere_guardada.connect(
-                preferencias.guardar_carpeta_de_proyectos_premiere
             )
             self._pantalla_config.carpeta_icloud_guardada.connect(
                 preferencias.guardar_carpeta_raiz_icloud

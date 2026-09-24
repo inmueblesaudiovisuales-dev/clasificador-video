@@ -389,19 +389,6 @@ def build_stylesheet() -> str:
         color: {TEXT_3};
         font-size: {FONT_MICRO}px;
     }}
-    QLabel#entregaPill {{
-        background-color: {con_alfa_qss(PENDING_COLOR, 150)};
-        border: 1px solid {LINE};
-        border-radius: {RADIUS_LG}px;
-        color: {CURRENT_COLOR};
-        font-size: {FONT_SMALL}px;
-        padding: 3px 8px;
-    }}
-    QLabel#entregaPill[tono="contesto"] {{
-        background-color: {con_alfa_qss(PICK_COLOR, 45)};
-        border-color: {con_alfa_qss(PICK_COLOR, 120)};
-        color: {PICK_COLOR};
-    }}
     QLabel#positionLabel {{
         color: {TEXT};
         font-family: {MONO_FONT};
@@ -701,25 +688,6 @@ def build_stylesheet() -> str:
         border-color: {LINE_SOFT};
         color: {TEXT_3};
     }}
-    QPushButton#configPremiere, QPushButton#configDrive {{
-        background-color: {BG_SURFACE_2}; border: 1px solid {LINE}; border-radius: 6px;
-        color: {TEXT}; padding: 6px 14px;
-    }}
-    QLabel#recientePildora {{
-        background-color: {PENDING_COLOR}; border-radius: 9px; color: {CURRENT_COLOR};
-        padding: 3px 7px;
-    }}
-    QLabel#recientePildora[tono="contesto"] {{ color: {PICK_COLOR}; }}
-    QLabel#recientePildora[tono="revision"] {{ color: {TRIM_COLOR}; }}
-    QPushButton#recienteRefrescar, QPushButton#activaTraer,
-    QPushButton#activaYaEntregado {{
-        background-color: {BG_SURFACE_2}; border: 1px solid {LINE}; border-radius: 8px;
-        color: {TEXT}; padding: 2px 6px;
-    }}
-    QPushButton#activaTraer, QPushButton#activaYaEntregado {{
-        padding: 4px 10px;
-    }}
-
     /* ---------------- la pantalla de la guia de edicion ------------- */
     /* Todo el bloque sale del mockup aprobado del 2026-09-19
        (`docs/superpowers/mockups/guia-de-edicion-2026-09-19/mockup.html`).

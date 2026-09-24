@@ -35,6 +35,14 @@ def test_la_configuracion_ya_no_tiene_conexion_de_drive(qtbot):
     assert not hasattr(p, "drive_estado_cambiado")
 
 
+def test_la_configuracion_ya_no_tiene_carpeta_de_proyectos_premiere(qtbot):
+    p = _pantalla(qtbot)
+
+    assert not hasattr(p, "carpeta_premiere_label")
+    assert not hasattr(p, "carpeta_premiere_button")
+    assert not hasattr(p, "carpeta_premiere_guardada")
+
+
 def test_el_modo_economico_nace_apagado_por_default(qtbot):
     p = _pantalla(qtbot)
     assert not p.economico_check.isChecked()
@@ -118,17 +126,6 @@ def test_economico_y_rapido_son_independientes(qtbot):
     p = _pantalla(qtbot, modo_economico=True, modo_rapido=False)
     assert p.economico_check.isChecked()
     assert not p.rapido_check.isChecked()
-
-
-def test_elegir_carpeta_premiere_emite_la_señal(config_screen, monkeypatch, tmp_path):
-    monkeypatch.setattr(
-        QFileDialog, "getExistingDirectory", staticmethod(lambda *a, **k: str(tmp_path)))
-
-    recibido = []
-    config_screen.carpeta_premiere_guardada.connect(recibido.append)
-    config_screen.carpeta_premiere_button.click()
-
-    assert recibido == [tmp_path]
 
 
 def test_elegir_carpeta_icloud_emite_la_señal(config_screen, monkeypatch, tmp_path):

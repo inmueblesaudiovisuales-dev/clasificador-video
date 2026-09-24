@@ -68,22 +68,6 @@ def guardar_modo_rapido(valor: bool, ruta: Path | None = None) -> None:
     destino.write_text(json.dumps(datos), encoding="utf-8")
 
 
-def carpeta_de_proyectos_premiere(ruta: Path | None = None) -> Path | None:
-    """Dónde busca `buscar_prproj.buscar_por_folio`. `None` hasta que
-    Bruno la ponga en Configuración -- sin ella, "Subir a Drive" cae
-    directo al selector manual."""
-    valor = _leer_todo(ruta).get("carpeta_de_proyectos_premiere")
-    return Path(valor) if valor else None
-
-
-def guardar_carpeta_de_proyectos_premiere(carpeta: Path, ruta: Path | None = None) -> None:
-    destino = _destino(ruta)
-    destino.parent.mkdir(parents=True, exist_ok=True)
-    datos = _leer_todo(ruta)
-    datos["carpeta_de_proyectos_premiere"] = str(carpeta)
-    destino.write_text(json.dumps(datos), encoding="utf-8")
-
-
 def carpeta_raiz_icloud(ruta: Path | None = None) -> Path | None:
     """La carpeta raíz de iCloud donde Bruno ya tiene armado
     `01. IAV/`, `02. PI/` y `03. Templates/` (spec

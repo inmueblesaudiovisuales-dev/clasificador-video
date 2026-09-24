@@ -17,7 +17,7 @@ from pathlib import Path
 
 from clasificador_video import proyecto
 
-# El folio ya es el nombre del proyecto en Clipify (ver `buscar_prproj.py`).
+# El folio ya es el nombre del proyecto en Clipify.
 # Formato confirmado con Bruno: NEGOCIO-AAMM.DD-LETRA, por ejemplo
 # "IAV-2609.10-A" -> negocio IAV, año 2026, mes 09, día 10, primer
 # proyecto del día. El día y la letra no hacen falta para armar la ruta
