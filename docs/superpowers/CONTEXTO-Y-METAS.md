@@ -634,6 +634,9 @@ Si aparece un cuarto, vale la pena revisar los demás controles de un jalón.
   sobre la marcha.
 - **Nada en la nube, ni dos personas en el mismo proyecto a la vez.**
 - **El proyecto apunta al material, no lo copia ni lo mueve.**
+- **El proxy no sustituye al original.** En Premiere sólo sirve para la
+  reproducción al activar proxies; editar y exportar siguen usando el medio
+  original enlazado por Clipify.
 - **Arrastrar cambia el bin, nunca el cuarto.**
 
 ## Ideas que se ofrecieron y no se tomaron

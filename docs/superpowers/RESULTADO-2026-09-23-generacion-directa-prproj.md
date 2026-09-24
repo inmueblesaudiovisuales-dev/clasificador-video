@@ -333,3 +333,34 @@ Antes de reemplazar el exportador real, diseñar y aprobar:
 
 El plugin UXP actual sigue funcionando y no debe eliminarse hasta que ese
 camino completo produzca y abra un proyecto real con el mismo resultado.
+
+## Validación manual: proxies reales de Premiere
+
+La exportación directa ahora clona el cierre que Premiere 26.3 guarda al usar
+**Adjuntar proxies**: un `Media` separado con `IsProxy=true`, `ProxyMedia` de
+video y `AudioProxies`. El original permanece como `MediaSource/Media`; el
+proxy no recibe un `ClipProjectItem` y por tanto no debe aparecer como clip
+extra en el bin.
+
+Para revisarlo en Premiere (sin modificar el proyecto desde Clipify):
+
+1. Genera un proyecto de prueba que incluya un clip horizontal y uno vertical
+   con proxy, además de un clip sin proxy, y ábrelo en Premiere 26.3.
+2. En `02. Clip`, confirma que aparece exactamente un item por original; los
+   dos proxies no deben listarse como clips independientes.
+3. Activa y desactiva el botón **Alternar proxies**. La reproducción debe
+   cambiar en los dos clips con proxy, pero el panel de propiedades debe seguir
+   mostrando el original como medio principal para edición y exportación.
+4. Revisa audio multicanal en una toma Sony: cada canal debe seguir sonando al
+   alternar, porque el proyecto contiene los `AudioProxy` correspondientes.
+5. Revisa un proxy horizontal y uno vertical: el glifo de Clipify debe ser
+   pequeño, semitransparente y estar abajo a la derecha, sin cambio de
+   resolución, orientación, fps, duración ni cuadros.
+6. Comprueba los nombres y orden: `COCINA-01 ✓ [DRONE]`,
+   `COCINA-02 [SONY]`, `COCINA-03 ✕ [SONY]` y
+   `COCINA-04 ★ [DRONE]`.
+
+Si Premiere muestra un segundo item, pierde audio, cambia el medio principal o
+no reconoce el interruptor, guardar una copia del `.prproj` sin modificarla y
+compararla contra `Downloads/despues.prproj`; no agregar tags ni rutas por
+conjetura.
