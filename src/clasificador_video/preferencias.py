@@ -68,6 +68,25 @@ def guardar_modo_rapido(valor: bool, ruta: Path | None = None) -> None:
     destino.write_text(json.dumps(datos), encoding="utf-8")
 
 
+def importacion_rapida_pregunta_antes(ruta: Path | None = None) -> bool:
+    """Si la importación rápida por carpeta (spec
+    2026-09-24-importacion-rapida-por-carpeta-design.md) debe preguntar
+    antes de generar los proxies que falten, en vez de arrancar sola.
+
+    Por default viene APAGADO -- arranca sola -- porque así lo pidió Bruno
+    al construir el flujo. Quien quiere que pregunte lo prende una vez en
+    Configuración."""
+    return bool(_leer_todo(ruta).get("importacion_rapida_pregunta_antes", False))
+
+
+def guardar_importacion_rapida_pregunta_antes(valor: bool, ruta: Path | None = None) -> None:
+    destino = _destino(ruta)
+    destino.parent.mkdir(parents=True, exist_ok=True)
+    datos = _leer_todo(ruta)
+    datos["importacion_rapida_pregunta_antes"] = bool(valor)
+    destino.write_text(json.dumps(datos), encoding="utf-8")
+
+
 def carpeta_raiz_icloud(ruta: Path | None = None) -> Path | None:
     """La carpeta raíz de iCloud donde Bruno ya tiene armado
     `01. IAV/`, `02. PI/` y `03. Templates/` (spec

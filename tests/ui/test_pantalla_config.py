@@ -4,11 +4,12 @@ import pytest
 from clasificador_video.ui.pantalla_config import PantallaConfig
 
 
-def _pantalla(qtbot, modo_economico=False, modo_rapido=False) -> PantallaConfig:
+def _pantalla(qtbot, modo_economico=False, modo_rapido=False,
+              importacion_rapida_pregunta_antes=False) -> PantallaConfig:
     p = PantallaConfig()
     qtbot.addWidget(p)
     p.resize(520, 300)
-    p.cargar(modo_economico, modo_rapido)
+    p.cargar(modo_economico, modo_rapido, importacion_rapida_pregunta_antes)
     return p
 
 
@@ -126,6 +127,37 @@ def test_economico_y_rapido_son_independientes(qtbot):
     p = _pantalla(qtbot, modo_economico=True, modo_rapido=False)
     assert p.economico_check.isChecked()
     assert not p.rapido_check.isChecked()
+
+
+def test_importacion_rapida_pregunta_antes_nace_apagado_por_default(qtbot):
+    p = _pantalla(qtbot)
+    assert not p.importacion_rapida_pregunta_check.isChecked()
+
+
+def test_cargar_refleja_importacion_rapida_pregunta_antes_guardado(qtbot):
+    p = _pantalla(qtbot, importacion_rapida_pregunta_antes=True)
+    assert p.importacion_rapida_pregunta_check.isChecked()
+
+
+def test_marcar_importacion_rapida_pregunta_antes_emite_true(qtbot):
+    p = _pantalla(qtbot)
+    with qtbot.waitSignal(p.importacion_rapida_pregunta_antes_cambiado) as blocker:
+        p.importacion_rapida_pregunta_check.setChecked(True)
+    assert blocker.args[0] is True
+
+
+def test_cargar_no_reemite_importacion_rapida_pregunta_antes(qtbot):
+    p = _pantalla(qtbot)
+    disparo = False
+
+    def _marcar(_valor):
+        nonlocal disparo
+        disparo = True
+
+    p.importacion_rapida_pregunta_antes_cambiado.connect(_marcar)
+    p.cargar(False, False, True)
+    assert not disparo
+    assert p.importacion_rapida_pregunta_check.isChecked()
 
 
 def test_elegir_carpeta_icloud_emite_la_señal(config_screen, monkeypatch, tmp_path):

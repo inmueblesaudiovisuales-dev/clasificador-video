@@ -36,6 +36,12 @@ def preferencias_de_prueba(monkeypatch):
     from clasificador_video import preferencias
     monkeypatch.setattr(preferencias, "modo_economico", lambda *a, **k: False)
     monkeypatch.setattr(preferencias, "modo_rapido", lambda *a, **k: False)
+    # Misma trampa: sin aislar esto, un test que de verdad dispara la señal
+    # conectada de PantallaConfig dejaba `True` en el archivo real de la
+    # maquina, y el siguiente test que llamara a `importar_carpeta_de_proyecto`
+    # sin pasar por esa señal heredaba la pregunta en vez de arrancar solo.
+    monkeypatch.setattr(
+        preferencias, "importacion_rapida_pregunta_antes", lambda *a, **k: False)
     yield
 
 

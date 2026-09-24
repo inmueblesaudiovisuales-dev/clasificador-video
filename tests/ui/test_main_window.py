@@ -334,6 +334,37 @@ def test_importar_carpeta_de_proyecto_manda_los_proxies_a_icloud(
     assert window.carpeta_de_proxies == esperado
 
 
+def test_importar_carpeta_de_proyecto_pregunta_si_la_preferencia_esta_prendida(
+        qtbot, monkeypatch, tmp_path):
+    """Con "Preguntar antes de crear los proxies" prendido en Configuración,
+    la importación rápida deja de arrancar sola y usa la misma pregunta de
+    siempre por bin."""
+    window = _window_with_video(qtbot, cache_root=tmp_path / "cache")
+    monkeypatch.setattr(
+        "clasificador_video.ui.main_window.extract_thumbnail_strip", lambda *a, **k: [])
+    monkeypatch.setattr(window, "_probe_clip", FakeProbe())
+    _falso_generar_proxy(monkeypatch)
+    from clasificador_video import preferencias
+    monkeypatch.setattr(preferencias, "carpeta_raiz_icloud", lambda *a, **k: None)
+    monkeypatch.setattr(
+        preferencias, "importacion_rapida_pregunta_antes", lambda *a, **k: True)
+    preguntas = []
+
+    def _pregunta_falsa(nombre_de_bin, indices):
+        preguntas.append(nombre_de_bin)
+        return "nada"
+
+    monkeypatch.setattr(
+        window, "_preguntar_que_hacer_con_proxies", _pregunta_falsa)
+    _sin_avisos(monkeypatch)
+    proyecto = _armar_proyecto_local(tmp_path)
+
+    window.importar_carpeta_de_proyecto(proyecto)
+
+    assert set(preguntas) == {"01. VIDEOS SONY", "02. VIDEO DRONE"}
+    assert all(c.ruta_proxy is None for c in window.clips)
+
+
 def test_importar_carpeta_de_proyecto_sin_material_no_hace_nada(
         qtbot, monkeypatch, tmp_path):
     window = _window_with_video(qtbot, cache_root=tmp_path / "cache")

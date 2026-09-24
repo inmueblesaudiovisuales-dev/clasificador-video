@@ -42,6 +42,7 @@ class PantallaConfig(QWidget):
 
     modo_economico_cambiado = Signal(bool)
     modo_rapido_cambiado = Signal(bool)
+    importacion_rapida_pregunta_antes_cambiado = Signal(bool)
     carpeta_icloud_guardada = Signal(Path)
     miniaturas_borrar_pedido = Signal()
     cerrada = Signal()
@@ -126,6 +127,32 @@ class PantallaConfig(QWidget):
         rapido_label.setWordWrap(True)
         raiz.addWidget(rapido_label)
 
+        titulo_importacion_rapida = QLabel("Importación rápida")
+        titulo_importacion_rapida.setObjectName("configTitulo")
+        raiz.addWidget(titulo_importacion_rapida)
+
+        self.importacion_rapida_pregunta_check = QCheckBox(
+            "Preguntar antes de crear los proxies"
+        )
+        self.importacion_rapida_pregunta_check.setObjectName(
+            "configImportacionRapidaPregunta")
+        self.importacion_rapida_pregunta_check.checkStateChanged.connect(
+            lambda estado: self.importacion_rapida_pregunta_antes_cambiado.emit(
+                estado == Qt.CheckState.Checked
+            )
+        )
+        raiz.addWidget(self.importacion_rapida_pregunta_check)
+
+        importacion_rapida_label = QLabel(
+            "Al darle a Clipify la carpeta de un proyecto (clic derecho "
+            "sobre \"Importar carpetas…\"), los proxies que falten arrancan "
+            "solos. Prende esto para que primero te pregunte, como en el "
+            "resto de la app."
+        )
+        importacion_rapida_label.setObjectName("configDonde")
+        importacion_rapida_label.setWordWrap(True)
+        raiz.addWidget(importacion_rapida_label)
+
         titulo_miniaturas = QLabel("Miniaturas guardadas")
         titulo_miniaturas.setObjectName("configTitulo")
         raiz.addWidget(titulo_miniaturas)
@@ -170,7 +197,8 @@ class PantallaConfig(QWidget):
             self.carpeta_icloud_guardada.emit(Path(elegida))
 
     def cargar(self, modo_economico: bool = False,
-              modo_rapido: bool = False) -> None:
+              modo_rapido: bool = False,
+              importacion_rapida_pregunta_antes: bool = False) -> None:
         """Enseña qué hay guardado, reflejando las preferencias en sus
         casillas. Se bloquean las señales para no reemitir nada al solo
         reflejar lo guardado."""
@@ -180,3 +208,7 @@ class PantallaConfig(QWidget):
         self.rapido_check.blockSignals(True)
         self.rapido_check.setChecked(modo_rapido)
         self.rapido_check.blockSignals(False)
+        self.importacion_rapida_pregunta_check.blockSignals(True)
+        self.importacion_rapida_pregunta_check.setChecked(
+            importacion_rapida_pregunta_antes)
+        self.importacion_rapida_pregunta_check.blockSignals(False)

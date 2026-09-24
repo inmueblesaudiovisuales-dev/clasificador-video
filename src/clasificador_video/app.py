@@ -516,12 +516,16 @@ class Coordinador(QObject):
             self._pantalla_config.carpeta_icloud_guardada.connect(
                 preferencias.guardar_carpeta_raiz_icloud
             )
+            self._pantalla_config.importacion_rapida_pregunta_antes_cambiado.connect(
+                preferencias.guardar_importacion_rapida_pregunta_antes
+            )
             self._pantalla_config.miniaturas_borrar_pedido.connect(
                 self._al_pedir_borrar_miniaturas
             )
             self._pantalla_config.cerrada.connect(self._al_cerrar_configuracion)
         self._pantalla_config.cargar(
-            preferencias.modo_economico(), preferencias.modo_rapido()
+            preferencias.modo_economico(), preferencias.modo_rapido(),
+            preferencias.importacion_rapida_pregunta_antes(),
         )
         self._pantalla_config.mostrar_peso_de_miniaturas(
             tamano_del_cache(default_cache_root())

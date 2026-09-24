@@ -5255,9 +5255,13 @@ class MainWindow(QWidget):
             self._pantalla_config.miniaturas_borrar_pedido.connect(
                 self._al_pedir_borrar_miniaturas
             )
+            self._pantalla_config.importacion_rapida_pregunta_antes_cambiado.connect(
+                preferencias.guardar_importacion_rapida_pregunta_antes
+            )
             self._pantalla_config.cerrada.connect(self._pantalla_config.hide)
         self._pantalla_config.cargar(
-            preferencias.modo_economico(), preferencias.modo_rapido()
+            preferencias.modo_economico(), preferencias.modo_rapido(),
+            preferencias.importacion_rapida_pregunta_antes(),
         )
         self._pantalla_config.mostrar_peso_de_miniaturas(
             tamano_del_cache(self._thumbnail_cache_root)
@@ -5757,9 +5761,12 @@ class MainWindow(QWidget):
         PROYECTO, no la de una cámara: `importacion_rapida` encuentra
         adentro las carpetas de Sony, dron y Pocket -- Osmo Action nunca
         entra -- y cada una se importa por su cuenta, con proxies que
-        arrancan solos directo en la carpeta de iCloud del proyecto. Nunca
-        mira los proxies que ya existan en la carpeta local `07. PROXIES`:
-        Bruno lo decidió así -- todo proxy nuevo va a iCloud.
+        arrancan solos directo en la carpeta de iCloud del proyecto -- salvo
+        que Bruno haya prendido "Preguntar antes de crear los proxies" en
+        Configuración, y entonces cada bin pregunta como en el flujo normal
+        de arrastrar carpetas. Nunca mira los proxies que ya existan en la
+        carpeta local `07. PROXIES`: Bruno lo decidió así -- todo proxy
+        nuevo va a iCloud.
         """
         resultado = importacion_rapida.detectar_carpetas_de_material(carpeta)
         encontradas = [c for c in (resultado.sony, resultado.dron, resultado.pocket)
@@ -5792,8 +5799,9 @@ class MainWindow(QWidget):
         else:
             self.set_carpeta_de_proxies(destino_proxies)
         self.status_bar.set_volume(str(carpeta), _gigas_del_volumen(carpeta))
+        auto = not preferencias.importacion_rapida_pregunta_antes()
         for carpeta_camara in encontradas:
-            self.importar_rutas([carpeta_camara], auto_proxies=True)
+            self.importar_rutas([carpeta_camara], auto_proxies=auto)
 
     def _refresh_sheet(self, force_rebuild: bool = False) -> None:
         # NO REENTRA. La hoja avisa de un filtro nuevo desde adentro de
