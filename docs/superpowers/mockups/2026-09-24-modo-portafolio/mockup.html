@@ -2,15 +2,19 @@
 <html lang="es">
 <head>
 <meta charset="utf-8">
-<title>Modo Portafolio — mockup de rediseño (estático)</title>
+<title>Modo Portafolio — mockup de rediseño (estático) v2</title>
 <style>
 /* ------------------------------------------------------------------
    MOCKUP ESTÁTICO — no es la app, no es funcional.
-   Tres pantallas del modo Portafolio, mismo motor visual que
-   rediseno-2026-08-08/mockup.html (mismos tokens de theme.py):
-     1. REVISAR — proyecto por proyecto, marcar Elegida
-     2. ARMAR   — solo las elegidas, etiquetas + carpeta de portafolio
-     3. ENTREGAR — generar el .prproj final
+   v2, después del brainstorm del 2026-09-24. Tres módulos, no cuatro:
+     1. IMPORTAR — soltar .prproj (todas las secuencias), resolver medios
+     2. REVISAR  — proyecto por proyecto, escalera Descartada/Sin decidir/
+                   Elegida con ↓/↑, categoría de proyecto, "ver el rodaje
+                   completo" sin costo hasta que se pide
+     3. ARMAR Y ENTREGAR — un solo portafolio que crece para siempre;
+                   etiquetas de clip, carpeta con alias y proxies
+                   faltantes, y generar la entrega las veces que haga
+                   falta, filtrando por etiqueta cada vez
    Principio rector: nunca se ve el portafolio completo de golpe.
 ------------------------------------------------------------------- */
 :root{
@@ -66,7 +70,7 @@ body{
 .session span{font-size:11px;color:var(--text-3)}
 .tb-spacer{flex:1}
 
-/* selector de MODULO — Importar / Revisar / Armar / Entregar */
+/* selector de MODULO — Importar / Revisar / Armar y entregar */
 .modulos{display:flex;background:var(--surface-1);border:1px solid var(--line);border-radius:6px;overflow:hidden}
 .modulos b{font-size:10.5px;font-weight:550;padding:4px 12px;color:var(--text-3);display:flex;align-items:center;gap:6px;border-right:1px solid var(--line)}
 .modulos b:last-child{border-right:0}
@@ -98,15 +102,22 @@ body{
 .bar i{display:block;height:100%}
 
 .proys{flex:1 1 auto;overflow:hidden;padding:6px 7px;min-height:0}
-.proy{display:flex;align-items:center;gap:8px;height:38px;padding:0 8px;border-radius:6px;font-size:12px;margin-bottom:3px}
+.proy{display:flex;align-items:center;gap:8px;height:44px;padding:0 8px;border-radius:6px;font-size:12px;margin-bottom:3px}
 .proy.on{background:var(--surface-2)}
-.pswatch{width:3px;height:22px;border-radius:2px;flex:0 0 3px}
+.pswatch{width:3px;height:26px;border-radius:2px;flex:0 0 3px}
 .proy .txt{flex:1;min-width:0}
 .proy .nm{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#ccd2db;display:block}
-.proy .sub{font-family:var(--mono);font-size:9.5px;color:var(--text-3)}
+.proy .sub{font-family:var(--mono);font-size:9.5px;color:var(--text-3);display:flex;align-items:center;gap:5px}
+.proy .cat{font-size:9px;padding:1px 5px;border-radius:8px;background:var(--surface-1);border:1px solid var(--line);color:var(--text-2);text-transform:none}
 .proy .elegidas{font-family:var(--mono);font-size:10px;color:var(--pick)}
 
-.addproy{display:flex;align-items:center;justify-content:center;gap:7px;height:56px;margin:8px 7px 0;border-radius:8px;border:1px dashed var(--line);color:var(--text-3);font-size:11px;text-align:center}
+/* proyecto sin disco conectado — apagado, nunca se poda */
+.proy.perdido{opacity:.55}
+.proy.perdido .pswatch{background:var(--line) !important}
+.proy.perdido .nm{color:var(--text-3)}
+.proy.perdido .sub{color:var(--reject)}
+
+.addproy{display:flex;align-items:center;justify-content:center;gap:7px;height:50px;margin:8px 7px 0;border-radius:8px;border:1px dashed var(--line);color:var(--text-3);font-size:11px;text-align:center}
 
 .history{flex:0 0 auto;border-top:1px solid var(--line-soft);padding:8px 12px}
 .history h4{font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--text-3);margin-bottom:6px}
@@ -115,8 +126,10 @@ body{
 
 /* ================= filtros + hoja ================= */
 .sheet-head{flex:0 0 auto;padding:9px 13px;border-bottom:1px solid var(--line-soft);display:flex;flex-direction:column;gap:8px}
-.crumb{font-size:11px;color:var(--text-3);display:flex;align-items:center;gap:6px}
+.crumb{font-size:11px;color:var(--text-3);display:flex;align-items:center;gap:8px}
 .crumb b{color:var(--text);font-weight:600}
+.crumb .cat{font-size:9.5px;padding:1.5px 7px;border-radius:9px;background:var(--surface-1);border:1px solid var(--line);color:var(--text-2)}
+.crumb .sp{flex:1}
 .filtrow{display:flex;align-items:center;gap:8px}
 .seg{display:flex;background:var(--surface-1);border:1px solid var(--line);border-radius:6px;overflow:hidden}
 .seg b{font-size:10.5px;font-weight:550;padding:4px 10px;color:var(--text-3);border-right:1px solid var(--line)}
@@ -134,22 +147,26 @@ body{
 .card .th{aspect-ratio:16/9;position:relative;overflow:hidden;background:linear-gradient(160deg,#2a2f38,#191c21)}
 .card .id{position:absolute;left:6px;top:5px;font-family:var(--mono);font-size:9px;color:#e4e8ee;background:rgba(4,5,7,.62);padding:1.5px 4px;border-radius:3px;z-index:3}
 .card .dur{position:absolute;right:5px;bottom:5px;font-family:var(--mono);font-size:9px;color:#e4e8ee;background:rgba(4,5,7,.66);padding:1.5px 4px;border-radius:3px;z-index:3}
-.card .elegida{position:absolute;right:5px;top:5px;width:17px;height:17px;border-radius:4px;z-index:3;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;font-family:var(--mono);background:rgba(10,12,15,.55);border:1px solid rgba(255,255,255,.2);color:rgba(255,255,255,.5)}
-.card .elegida.on{background:var(--pick);color:#07130d;border-color:transparent}
+
+/* escalera Descartada / Sin decidir / Elegida, con ↓ / ↑ */
+.card .estado{position:absolute;right:5px;top:5px;height:17px;border-radius:4px;z-index:3;display:flex;align-items:center;justify-content:center;gap:2px;padding:0 5px;font-size:9px;font-weight:800;font-family:var(--mono);background:rgba(10,12,15,.6);border:1px solid rgba(255,255,255,.18);color:rgba(255,255,255,.45)}
+.card .estado.elegida{background:var(--pick);color:#07130d;border-color:transparent}
+.card .estado.descartada{background:var(--reject);color:#1b0708;border-color:transparent}
 .card.cur{border-color:var(--current);box-shadow:0 0 0 1px var(--current),0 0 18px rgba(232,163,61,.3)}
 .card .noproxy{position:absolute;left:6px;bottom:5px;font-size:8px;letter-spacing:.06em;text-transform:uppercase;font-weight:700;padding:2px 5px;border-radius:3px;background:rgba(212,105,108,.18);border:1px solid rgba(212,105,108,.4);color:#f0a3a5;z-index:3}
 .cardname{font-size:10px;color:var(--text-2);padding:5px 6px 6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .card .tagpills{position:absolute;left:5px;top:23px;display:flex;flex-direction:column;gap:3px;z-index:3}
 .card .tagpills i{width:14px;height:14px;border-radius:3px;background:rgba(10,12,15,.6);border:1px solid rgba(255,255,255,.18);display:flex;align-items:center;justify-content:center;font-size:8px;color:rgba(255,255,255,.75);font-style:normal}
 
-/* ================= grupo por proyecto (pantalla ARMAR) ================= */
+/* ================= grupo por proyecto (pantalla ARMAR/ENTREGAR) ================= */
 .grupo{margin-bottom:16px}
 .grupo-head{display:flex;align-items:center;gap:8px;padding:2px 2px 8px;font-size:11px;color:var(--text-2)}
 .grupo-head .pswatch{height:12px}
 .grupo-head b{color:var(--text);font-weight:650}
+.grupo-head .cat{font-size:9px;padding:1.5px 6px;border-radius:8px;background:var(--surface-1);border:1px solid var(--line);color:var(--text-3)}
 .grupo-head .ct{margin-left:auto;font-family:var(--mono);color:var(--text-3)}
 
-/* ================= barra de carpeta de portafolio (ARMAR) ================= */
+/* ================= barra de carpeta de portafolio ================= */
 .carpeta{margin:0 13px 12px;padding:10px 12px;border-radius:8px;background:var(--surface-1);border:1px solid var(--line);display:flex;align-items:center;gap:10px}
 .carpeta .ico{width:28px;height:28px;border-radius:6px;background:var(--surface-2);display:flex;align-items:center;justify-content:center;font-size:13px;flex:0 0 28px}
 .carpeta .txt{flex:1;min-width:0}
@@ -161,7 +178,14 @@ body{
 .carpeta .estado.ok .dot{background:var(--pick)}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
 
-/* ================= dropzone (IMPORTAR, y permanente en ARMAR/REVISAR vacíos) ================= */
+/* ================= barra de entrega, fija abajo (ARMAR/ENTREGAR) ================= */
+.entrega-bar{flex:0 0 auto;border-top:1px solid var(--line);background:var(--surface-1);padding:12px 18px;display:flex;align-items:center;gap:16px}
+.entrega-bar .txt{flex:1}
+.entrega-bar .t1{font-size:12px;font-weight:600;color:var(--text)}
+.entrega-bar .t2{font-size:10.5px;color:var(--text-3);margin-top:2px}
+.entrega-bar .t2 b{color:var(--text-2)}
+
+/* ================= dropzone (IMPORTAR) ================= */
 .dropzone{margin:40px auto;width:640px;padding:44px 30px;border-radius:14px;border:2px dashed var(--line);display:flex;flex-direction:column;align-items:center;gap:10px;text-align:center}
 .dropzone .ico{font-size:30px;color:var(--text-3)}
 .dropzone .t1{font-size:14px;font-weight:600;color:var(--text)}
@@ -177,23 +201,6 @@ body{
 .import-row .estado{font-size:10.5px;padding:3px 8px;border-radius:10px;white-space:nowrap}
 .import-row .estado.ok{background:rgba(85,192,138,.14);color:var(--pick);border:1px solid rgba(85,192,138,.35)}
 .import-row .estado.falta{background:rgba(212,105,108,.14);color:var(--reject);border:1px solid rgba(212,105,108,.35)}
-
-/* ================= bins de entrega (ENTREGAR) ================= */
-.bins{width:900px;margin:20px auto 0;display:flex;flex-direction:column;gap:10px}
-.bin{border-radius:8px;background:var(--surface-1);border:1px solid var(--line);overflow:hidden}
-.bin-head{display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid var(--line-soft)}
-.bin-head .pswatch{height:14px}
-.bin-head b{font-size:12px}
-.bin-head .ct{margin-left:auto;font-family:var(--mono);font-size:10.5px;color:var(--text-3)}
-.bin-clips{padding:8px 12px;display:flex;flex-wrap:wrap;gap:6px}
-.bin-clips span{font-family:var(--mono);font-size:9.5px;color:var(--text-2);background:var(--surface-2);border:1px solid var(--line-soft);padding:2px 6px;border-radius:4px}
-
-.summary{width:900px;margin:20px auto 0;padding:16px 20px;border-radius:10px;background:var(--surface-1);border:1px solid var(--line);display:flex;align-items:center;gap:20px}
-.summary .n{font-family:var(--mono);font-size:30px;font-weight:650}
-.summary .lbl{font-size:10px;color:var(--text-3);text-transform:uppercase;letter-spacing:.08em}
-.summary .stat{display:flex;flex-direction:column;gap:2px}
-.summary .sep{width:1px;height:34px;background:var(--line)}
-.summary .sp{flex:1}
 </style>
 </head>
 <body>
@@ -201,19 +208,18 @@ body{
 <!-- ================= PANTALLA 1: IMPORTAR ================= -->
 <div class="caption">
   <h2>Modo Portafolio · Importar</h2>
-  <span>Sueltas .prproj. Se resuelven medios faltantes antes de seguir. Se puede volver aquí cuando quieras para sumar más.</span>
+  <span>Sueltas .prproj — se leen TODAS las secuencias que traiga. Se resuelven medios faltantes antes de seguir. Se puede volver aquí siempre para sumar más al portafolio.</span>
   <span class="tab">estático · no navegable</span>
 </div>
 <div class="window">
   <div class="titlebar">
     <div class="appmark"></div>
-    <div class="session"><b>Portafolio — Reel 2026</b><span>Portafolio</span></div>
+    <div class="session"><b>Mi Portafolio</b><span>crece para siempre — no se cierra por video</span></div>
     <div class="tb-spacer"></div>
     <div class="modulos">
       <b class="on">① Importar</b>
       <b>② Revisar</b>
-      <b>③ Armar</b>
-      <b>④ Entregar</b>
+      <b>③ Armar y entregar</b>
     </div>
     <div class="tb-spacer"></div>
     <div class="saved"><i class="led"></i> guardado</div>
@@ -223,12 +229,12 @@ body{
       <div class="dropzone">
         <div class="ico">⇩</div>
         <div class="t1">Suelta aquí tus .prproj</div>
-        <div class="t2">Cada uno se vuelve un proyecto dentro de este portafolio. Se leen los clips que sí se usaron en el video final — nada más.</div>
+        <div class="t2">Cada uno se vuelve un proyecto en el rail de Revisar. Se leen los clips que se usaron en cualquiera de sus secuencias — nada más.</div>
       </div>
       <div class="import-list">
         <div class="import-row">
           <div class="pswatch" style="background:var(--p1)"></div>
-          <div class="txt"><div class="t1">Casa Reforma — entrega final.prproj</div><div class="t2">18 clips usados · todos vinculados</div></div>
+          <div class="txt"><div class="t1">Casa Reforma — entrega final.prproj</div><div class="t2">18 clips usados, en 2 secuencias · todos vinculados</div></div>
           <div class="estado ok">✓ listo</div>
         </div>
         <div class="import-row">
@@ -249,26 +255,25 @@ body{
 <!-- ================= PANTALLA 2: REVISAR ================= -->
 <div class="caption">
   <h2>Modo Portafolio · Revisar</h2>
-  <span>Proyecto por proyecto — nunca se mezclan. Rail izquierdo = proyectos importados, no cuartos. Una sola marca: Elegida.</span>
+  <span>Proyecto por proyecto — nunca se mezclan. Escalera Descartada ↓ / Sin decidir / Elegida ↑, como pick/reject en el modo normal. Un disco desconectado se ve apagado, nunca se pierde.</span>
   <span class="tab">estático · no navegable</span>
 </div>
 <div class="window">
   <div class="titlebar">
     <div class="appmark"></div>
-    <div class="session"><b>Portafolio — Reel 2026</b><span>Portafolio</span></div>
+    <div class="session"><b>Mi Portafolio</b><span>crece para siempre</span></div>
     <div class="tb-spacer"></div>
     <div class="modulos">
       <b class="done">① Importar</b>
       <b class="on">② Revisar</b>
-      <b>③ Armar</b>
-      <b>④ Entregar</b>
+      <b>③ Armar y entregar</b>
     </div>
     <div class="tb-spacer"></div>
     <div class="saved"><i class="led"></i> guardado</div>
   </div>
   <div class="body">
     <div class="rail-l">
-      <div class="rail-head"><h3>Proyectos importados</h3><div class="find">⏎ buscar</div></div>
+      <div class="rail-head"><h3>Proyectos importados</h3><div class="find">41 en total</div></div>
       <div class="progress">
         <div class="prog-top"><span class="big">9</span><span class="of">/ 41</span><span class="lbl">revisados</span></div>
         <div class="bar"><i style="width:22%;background:var(--pick)"></i><i style="width:78%;background:var(--surface-2)"></i></div>
@@ -276,74 +281,83 @@ body{
       <div class="proys">
         <div class="proy on">
           <div class="pswatch" style="background:var(--p1)"></div>
-          <div class="txt"><span class="nm">Casa Reforma</span><span class="sub">18 clips</span></div>
+          <div class="txt"><span class="nm">Casa Reforma</span><span class="sub"><span class="cat">Casa</span> 18 clips</span></div>
           <span class="elegidas">6 ✓</span>
         </div>
         <div class="proy">
           <div class="pswatch" style="background:var(--p2)"></div>
-          <div class="txt"><span class="nm">Depto Polanco</span><span class="sub">9 clips</span></div>
+          <div class="txt"><span class="nm">Depto Polanco</span><span class="sub"><span class="cat">Depto</span> 9 clips</span></div>
           <span class="elegidas">3 ✓</span>
         </div>
         <div class="proy">
           <div class="pswatch" style="background:var(--p3)"></div>
-          <div class="txt"><span class="nm">Torre Insurgentes</span><span class="sub">14 clips · sin revisar</span></div>
+          <div class="txt"><span class="nm">Torre Insurgentes</span><span class="sub"><span class="cat">Depto</span> 14 clips · sin revisar</span></div>
           <span class="elegidas" style="color:var(--text-3)">0 ✓</span>
+        </div>
+        <div class="proy perdido">
+          <div class="pswatch"></div>
+          <div class="txt"><span class="nm">Rancho Los Encinos</span><span class="sub">💿 disco no conectado</span></div>
+          <span class="elegidas" style="color:var(--text-3)">4 ✓</span>
         </div>
         <div class="addproy">+ arrastrar más .prproj<br>aquí en cualquier momento</div>
       </div>
       <div class="history">
         <h4>Historial</h4>
-        <div class="row"><b>Elegida</b> → clip_014.mov</div>
-        <div class="row"><b>Elegida</b> → clip_009.mov</div>
-        <div class="row">Descartada → clip_003.mov</div>
+        <div class="row"><b>↑ Elegida</b> → clip_014.mov</div>
+        <div class="row"><b>↑ Elegida</b> → clip_009.mov</div>
+        <div class="row"><b>↓ Descartada</b> → clip_003.mov</div>
       </div>
     </div>
     <div class="sheet">
       <div class="sheet-head">
-        <div class="crumb">Revisando <b>Casa Reforma</b> · 18 clips, el rango que se usó en el video entregado</div>
+        <div class="crumb">
+          Revisando <b>Casa Reforma</b> <span class="cat">Casa</span> · 18 clips, el rango usado en sus secuencias
+          <span class="sp"></span>
+          <div class="btn">📂 Ver el rodaje completo</div>
+        </div>
         <div class="filtrow">
-          <div class="seg"><b class="on">Todos</b><b>Sin revisar</b><b>Elegidas</b></div>
+          <div class="seg"><b class="on">Todos</b><b>Sin decidir</b><b>Elegidas</b><b>Descartadas</b></div>
+          <span style="font-size:10.5px;color:var(--text-3);margin-left:auto">↓ descarta · ↑ elige · ←/→ recorre sin decidir</span>
         </div>
       </div>
       <div class="sheet-body">
         <div class="grid">
           <!-- 14 tarjetas, portada = el rango usado -->
-          <div class="card cur"><div class="th"><div class="id">014</div><div class="dur">0:04</div><div class="elegida on">✓</div></div><div class="cardname">clip_014.mov</div></div>
-          <div class="card"><div class="th"><div class="id">015</div><div class="dur">0:07</div><div class="elegida"></div></div><div class="cardname">clip_015.mov</div></div>
-          <div class="card"><div class="th"><div class="id">016</div><div class="dur">0:03</div><div class="elegida on">✓</div></div><div class="cardname">clip_016.mov</div></div>
-          <div class="card"><div class="th"><div class="id">017</div><div class="dur">0:09</div><div class="elegida"></div></div><div class="cardname">clip_017.mov</div></div>
-          <div class="card"><div class="th"><div class="id">018</div><div class="dur">0:05</div><div class="elegida on">✓</div></div><div class="cardname">clip_018.mov</div></div>
-          <div class="card"><div class="th"><div class="id">019</div><div class="dur">0:04</div><div class="elegida"></div></div><div class="cardname">clip_019.mov</div></div>
-          <div class="card"><div class="th"><div class="id">020</div><div class="dur">0:11</div><div class="elegida"></div></div><div class="cardname">clip_020.mov</div></div>
-          <div class="card"><div class="th"><div class="id">021</div><div class="dur">0:06</div><div class="elegida"></div></div><div class="cardname">clip_021.mov</div></div>
-          <div class="card"><div class="th"><div class="id">022</div><div class="dur">0:04</div><div class="elegida"></div></div><div class="cardname">clip_022.mov</div></div>
-          <div class="card"><div class="th noproxy-th"><div class="id">023</div><div class="dur">0:08</div><div class="noproxy">sin proxy</div><div class="elegida"></div></div><div class="cardname">DJI_023.mov</div></div>
-          <div class="card"><div class="th"><div class="id">024</div><div class="dur">0:05</div><div class="elegida"></div></div><div class="cardname">clip_024.mov</div></div>
-          <div class="card"><div class="th"><div class="id">025</div><div class="dur">0:03</div><div class="elegida"></div></div><div class="cardname">clip_025.mov</div></div>
-          <div class="card"><div class="th"><div class="id">026</div><div class="dur">0:07</div><div class="elegida"></div></div><div class="cardname">clip_026.mov</div></div>
-          <div class="card"><div class="th noproxy-th"><div class="id">027</div><div class="dur">0:12</div><div class="noproxy">sin proxy</div><div class="elegida"></div></div><div class="cardname">DJI_027.mov</div></div>
+          <div class="card cur"><div class="th"><div class="id">014</div><div class="dur">0:04</div><div class="estado elegida">↑</div></div><div class="cardname">clip_014.mov</div></div>
+          <div class="card"><div class="th"><div class="id">015</div><div class="dur">0:07</div><div class="estado">·</div></div><div class="cardname">clip_015.mov</div></div>
+          <div class="card"><div class="th"><div class="id">016</div><div class="dur">0:03</div><div class="estado elegida">↑</div></div><div class="cardname">clip_016.mov</div></div>
+          <div class="card"><div class="th"><div class="id">017</div><div class="dur">0:09</div><div class="estado descartada">↓</div></div><div class="cardname">clip_017.mov</div></div>
+          <div class="card"><div class="th"><div class="id">018</div><div class="dur">0:05</div><div class="estado elegida">↑</div></div><div class="cardname">clip_018.mov</div></div>
+          <div class="card"><div class="th"><div class="id">019</div><div class="dur">0:04</div><div class="estado">·</div></div><div class="cardname">clip_019.mov</div></div>
+          <div class="card"><div class="th"><div class="id">020</div><div class="dur">0:11</div><div class="estado descartada">↓</div></div><div class="cardname">clip_020.mov</div></div>
+          <div class="card"><div class="th"><div class="id">021</div><div class="dur">0:06</div><div class="estado">·</div></div><div class="cardname">clip_021.mov</div></div>
+          <div class="card"><div class="th"><div class="id">022</div><div class="dur">0:04</div><div class="estado">·</div></div><div class="cardname">clip_022.mov</div></div>
+          <div class="card"><div class="th noproxy-th"><div class="id">023</div><div class="dur">0:08</div><div class="noproxy">sin proxy</div><div class="estado">·</div></div><div class="cardname">DJI_023.mov</div></div>
+          <div class="card"><div class="th"><div class="id">024</div><div class="dur">0:05</div><div class="estado">·</div></div><div class="cardname">clip_024.mov</div></div>
+          <div class="card"><div class="th"><div class="id">025</div><div class="dur">0:03</div><div class="estado">·</div></div><div class="cardname">clip_025.mov</div></div>
+          <div class="card"><div class="th"><div class="id">026</div><div class="dur">0:07</div><div class="estado">·</div></div><div class="cardname">clip_026.mov</div></div>
+          <div class="card"><div class="th noproxy-th"><div class="id">027</div><div class="dur">0:12</div><div class="noproxy">sin proxy</div><div class="estado">·</div></div><div class="cardname">DJI_027.mov</div></div>
         </div>
       </div>
     </div>
   </div>
 </div>
 
-<!-- ================= PANTALLA 3: ARMAR ================= -->
+<!-- ================= PANTALLA 3: ARMAR Y ENTREGAR ================= -->
 <div class="caption">
-  <h2>Modo Portafolio · Armar</h2>
-  <span>Universo: solo las Elegidas de todos los proyectos. Aquí sí conviven — es el único momento en que se mezclan. Etiquetas libres + carpeta de portafolio.</span>
+  <h2>Modo Portafolio · Armar y entregar</h2>
+  <span>Universo: solo las Elegidas de todo el portafolio (aquí sí conviven, es el único momento). Etiquetas de clip + carpeta con alias. Filtras por etiqueta y generas tu .prproj las veces que quieras.</span>
   <span class="tab">estático · no navegable</span>
 </div>
 <div class="window">
   <div class="titlebar">
     <div class="appmark"></div>
-    <div class="session"><b>Portafolio — Reel 2026</b><span>Portafolio</span></div>
+    <div class="session"><b>Mi Portafolio</b><span>127 elegidas en total</span></div>
     <div class="tb-spacer"></div>
     <div class="modulos">
       <b class="done">① Importar</b>
       <b class="done">② Revisar</b>
-      <b class="on">③ Armar</b>
-      <b>④ Entregar</b>
+      <b class="on">③ Armar y entregar</b>
     </div>
     <div class="tb-spacer"></div>
     <div class="saved"><i class="led"></i> guardado</div>
@@ -372,7 +386,7 @@ body{
           <div class="txt"><span class="nm">Alberca</span></div>
           <span class="elegidas" style="color:var(--text-3)">2</span>
         </div>
-        <div class="addproy" style="height:40px">sin etiqueta: 3 clips</div>
+        <div class="addproy" style="height:40px">sin etiqueta: 105 clips</div>
       </div>
       <div class="history">
         <h4>Historial</h4>
@@ -382,12 +396,12 @@ body{
     </div>
     <div class="sheet">
       <div class="sheet-head">
-        <div class="crumb"><b>37 clips elegidos</b>, de 4 proyectos · agrupados por proyecto de origen</div>
+        <div class="crumb"><b>16 clips</b> con estas etiquetas, de 2 proyectos · de 127 elegidas en total en el portafolio</div>
         <div class="filtrow">
           <div class="searchbox">🔍 buscar por nombre…</div>
           <div class="taglist">
             <span class="tagchip on">Dron · 7</span>
-            <span class="tagchip">Exteriores · 9</span>
+            <span class="tagchip on">Exteriores · 9</span>
             <span class="tagchip">Cocina · 4</span>
             <span class="tagchip">Alberca · 2</span>
           </div>
@@ -397,14 +411,14 @@ body{
         <div class="ico">📁</div>
         <div class="txt">
           <div class="t1">Carpeta de portafolio</div>
-          <div class="t2">/Volumes/Trabajo/Portafolios/Reel 2026 — alias por proyecto, proxies faltantes se generan aquí</div>
+          <div class="t2">/Volumes/Trabajo/Portafolios/Mi Portafolio — alias por proyecto de origen, proxies faltantes se generan aquí</div>
         </div>
         <div class="estado gen"><i class="dot"></i> generando 2 proxies de dron…</div>
         <div class="btn">Cambiar…</div>
       </div>
       <div class="sheet-body">
         <div class="grupo">
-          <div class="grupo-head"><div class="pswatch" style="background:var(--p1)"></div><b>Casa Reforma</b><span class="ct">6 elegidas</span></div>
+          <div class="grupo-head"><div class="pswatch" style="background:var(--p1)"></div><b>Casa Reforma</b><span class="cat">Casa</span><span class="ct">9 de sus elegidas tienen estas etiquetas</span></div>
           <div class="grid">
             <div class="card cur"><div class="th"><div class="id">014</div><div class="dur">0:04</div><div class="tagpills"><i>Ext</i></div></div><div class="cardname">clip_014.mov</div></div>
             <div class="card"><div class="th"><div class="id">016</div><div class="dur">0:03</div><div class="tagpills"><i>Coc</i></div></div><div class="cardname">clip_016.mov</div></div>
@@ -412,7 +426,7 @@ body{
           </div>
         </div>
         <div class="grupo">
-          <div class="grupo-head"><div class="pswatch" style="background:var(--p3)"></div><b>Torre Insurgentes</b><span class="ct">7 elegidas</span></div>
+          <div class="grupo-head"><div class="pswatch" style="background:var(--p3)"></div><b>Torre Insurgentes</b><span class="cat">Depto</span><span class="ct">7 de sus elegidas tienen estas etiquetas</span></div>
           <div class="grid">
             <div class="card"><div class="th noproxy-th"><div class="id">023</div><div class="dur">0:08</div><div class="noproxy">generando proxy</div><div class="tagpills"><i>Dr</i></div></div><div class="cardname">DJI_023.mov</div></div>
             <div class="card"><div class="th noproxy-th"><div class="id">027</div><div class="dur">0:12</div><div class="noproxy">generando proxy</div><div class="tagpills"><i>Dr</i></div></div><div class="cardname">DJI_027.mov</div></div>
@@ -420,54 +434,12 @@ body{
           </div>
         </div>
       </div>
-    </div>
-  </div>
-</div>
-
-<!-- ================= PANTALLA 4: ENTREGAR ================= -->
-<div class="caption">
-  <h2>Modo Portafolio · Entregar</h2>
-  <span>Genera el .prproj final, con bins por proyecto de origen apuntando a la carpeta de portafolio.</span>
-  <span class="tab">estático · no navegable</span>
-</div>
-<div class="window">
-  <div class="titlebar">
-    <div class="appmark"></div>
-    <div class="session"><b>Portafolio — Reel 2026</b><span>Portafolio</span></div>
-    <div class="tb-spacer"></div>
-    <div class="modulos">
-      <b class="done">① Importar</b>
-      <b class="done">② Revisar</b>
-      <b class="done">③ Armar</b>
-      <b class="on">④ Entregar</b>
-    </div>
-    <div class="tb-spacer"></div>
-    <div class="btn primary">Generar .prproj <span class="k">⌘⏎</span></div>
-  </div>
-  <div class="body">
-    <div class="sheet" style="align-items:center;padding-top:30px">
-      <div class="summary">
-        <div class="stat"><span class="n">37</span><span class="lbl">clips elegidos</span></div>
-        <div class="sep"></div>
-        <div class="stat"><span class="n">4</span><span class="lbl">proyectos de origen</span></div>
-        <div class="sep"></div>
-        <div class="stat"><span class="n">4</span><span class="lbl">etiquetas usadas</span></div>
-        <div class="sp"></div>
-        <div class="stat" style="align-items:flex-end"><span class="n" style="color:var(--pick)">✓</span><span class="lbl">todos los proxies listos</span></div>
-      </div>
-      <div class="bins">
-        <div class="bin">
-          <div class="bin-head"><div class="pswatch" style="background:var(--p1)"></div><b>Casa Reforma</b><span class="ct">6 clips</span></div>
-          <div class="bin-clips"><span>clip_014.mov</span><span>clip_016.mov</span><span>clip_018.mov</span><span>+3 más</span></div>
+      <div class="entrega-bar">
+        <div class="txt">
+          <div class="t1">Entrega con estas etiquetas: Dron + Exteriores</div>
+          <div class="t2"><b>16 clips</b> · 2 proyectos de origen · se guarda como <b>Mi Portafolio — entrega 2026-09-24.prproj</b></div>
         </div>
-        <div class="bin">
-          <div class="bin-head"><div class="pswatch" style="background:var(--p2)"></div><b>Depto Polanco</b><span class="ct">3 clips</span></div>
-          <div class="bin-clips"><span>clip_005.mov</span><span>clip_008.mov</span><span>clip_009.mov</span></div>
-        </div>
-        <div class="bin">
-          <div class="bin-head"><div class="pswatch" style="background:var(--p3)"></div><b>Torre Insurgentes</b><span class="ct">7 clips</span></div>
-          <div class="bin-clips"><span>DJI_023.mov</span><span>DJI_027.mov</span><span>clip_031.mov</span><span>+4 más</span></div>
-        </div>
+        <div class="btn primary">Generar .prproj <span class="k">⌘⏎</span></div>
       </div>
     </div>
   </div>
