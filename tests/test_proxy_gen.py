@@ -19,13 +19,13 @@ def test_la_carpeta_de_antes_seguia_al_lado_del_material():
     assert proxy_gen.carpeta_al_lado(material) == Path("/tarjeta/Proxies")
 
 
-def test_el_proxy_lleva_el_sufijo_de_proxy_y_sale_en_mp4():
+def test_ruta_de_proxy_termina_en_proxy(tmp_path):
     """El sufijo `S03` no es cosmetica: `ingest.es_archivo_de_proxy` descarta
     por el, asi que arrastrar la carpeta de proxies como si fuera material no
     duplica nada."""
-    destino = proxy_gen.ruta_de_proxy(Path("/m/DRON/DJI_0001.MP4"), Path("/m/Proxies"))
+    destino = proxy_gen.ruta_de_proxy(tmp_path / "C0001.MP4", tmp_path)
 
-    assert destino == Path("/m/Proxies/DJI_0001S03.mp4")
+    assert destino == tmp_path / "C0001_proxy.mp4"
 
 
 def test_el_comando_toma_la_primera_pista_de_video():
@@ -36,7 +36,7 @@ def test_el_comando_toma_la_primera_pista_de_video():
     args = proxy_gen.comando(Path("a.MP4"), Path("b.mp4"), ffmpeg="ffmpeg")
 
     assert "-map" in args
-    assert args[args.index("-map") + 1] == "0:v:0"
+    assert args[args.index("-map") + 1] == "[v]"
 
 
 def test_el_comando_ya_no_escala___sale_al_tamano_real_del_original():
@@ -48,6 +48,15 @@ def test_el_comando_ya_no_escala___sale_al_tamano_real_del_original():
     args = proxy_gen.comando(Path("a.MP4"), Path("b.mp4"), ffmpeg="ffmpeg")
 
     assert "-vf" not in args
+
+
+def test_comando_superpone_la_marca_sin_escalar_ni_rotar(tmp_path):
+    args = proxy_gen.comando(tmp_path / "C0001.MP4", tmp_path / "C0001_proxy.mp4")
+
+    filtro = args[args.index("-filter_complex") + 1]
+    assert "overlay=W-w-" in filtro
+    assert "scale" not in filtro and "transpose" not in filtro and "setpts" not in filtro
+    assert "-loop" not in args
 
 
 def test_el_comando_no_falla_si_el_clip_no_trae_audio():
@@ -119,8 +128,8 @@ def test_generar_escribe_a_un_parcial_y_renombra_al_final(tmp_path, monkeypatch)
     destino = proxy_gen.generar(Path("/m/DJI_0001.MP4"), tmp_path / "Proxies",
                                 ffmpeg="ffmpeg")
 
-    assert vistos == ["DJI_0001S03.mp4.parcial"]   # ffmpeg escribio al temporal
-    assert destino.name == "DJI_0001S03.mp4"       # y quedo con el nombre bueno
+    assert vistos == ["DJI_0001_proxy.mp4.parcial"]   # ffmpeg escribio al temporal
+    assert destino.name == "DJI_0001_proxy.mp4"       # y quedo con el nombre bueno
     assert destino.exists()
 
 

@@ -21,12 +21,14 @@ import subprocess
 from pathlib import Path
 
 from clasificador_video.binarios import ruta_de
+from clasificador_video import recursos
 
 # Los proxies generados terminan igual que los de la Sony. No es cosmetica:
 # `ingest.es_archivo_de_proxy` descarta por ese sufijo, asi que si algun dia
 # alguien arrastra la carpeta de proxies como si fuera material, no entra
 # nada duplicado.
-SUFIJO = "S03"
+SUFIJO = "_proxy"
+SUFIJO_HISTORICO = "S03"
 
 CARPETA = "Proxies"
 
@@ -177,9 +179,10 @@ def ruta_de_proxy_existente(original: Path, carpeta_del_bin: Path,
     antes abre igual, sin regenerar nada y sin mover un archivo.
     """
     for carpeta in carpetas_de_proxies(carpeta_del_bin, elegida):
-        candidato = ruta_de_proxy(original, carpeta)
-        if candidato.exists():
-            return candidato
+        for candidato in (ruta_de_proxy(original, carpeta),
+                           carpeta / f"{original.stem}{SUFIJO_HISTORICO}.mp4"):
+            if candidato.exists():
+                return candidato
     return None
 
 
@@ -243,7 +246,9 @@ def comando(original: Path, destino: Path, ffmpeg: str | None = None) -> list[st
         ffmpeg or str(ruta_de("ffmpeg")),
         "-y",                       # el destino ya se comprobo antes de llamar
         "-i", str(original),
-        "-map", "0:v:0",            # el video de verdad, no la miniatura
+        "-i", str(recursos.marca_de_proxy()),
+        "-filter_complex", "[0:v:0][1:v]overlay=W-w-32:H-h-32:format=auto:alpha=0.35[v]",
+        "-map", "[v]",              # el video de verdad, no la miniatura
         "-map", "0:a?",             # el audio si lo hay, y sin fallar si no
         "-c:v", "h264_videotoolbox",  # el codificador del chip: sin el, 10x mas lento
         "-b:v", "6M",
@@ -267,7 +272,8 @@ def faltantes(originales: list[Path], carpeta: Path) -> list[Path]:
     dron eso serian varios minutos tirados, y es el caso normal despues de
     cancelar a la mitad.
     """
-    return [o for o in originales if not ruta_de_proxy(o, carpeta).exists()]
+    return [o for o in originales if not ruta_de_proxy(o, carpeta).exists()
+            and not (carpeta / f"{o.stem}{SUFIJO_HISTORICO}.mp4").exists()]
 
 
 SUFIJO_PARCIAL = ".parcial"

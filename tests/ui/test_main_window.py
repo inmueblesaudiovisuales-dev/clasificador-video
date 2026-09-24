@@ -4154,7 +4154,7 @@ def test_crear_proxies_los_genera_y_los_engancha_solos(qtbot, monkeypatch, tmp_p
 
     assert hechos == ["C0000.MP4", "C0001.MP4", "C0002.MP4"]
     assert [c.ruta_proxy.name for c in window.clips] == [
-        "C0000S03.mp4", "C0001S03.mp4", "C0002S03.mp4"
+        "C0000_proxy.mp4", "C0001_proxy.mp4", "C0002_proxy.mp4"
     ]
 
 
@@ -4189,7 +4189,7 @@ def test_los_proxies_nuevos_van_a_la_subcarpeta_de_la_carpeta_elegida(
     window.generar_proxies_de_bin(nombre)
     _esperar_generacion(window)
 
-    nuestro = clips.parent / "proxy" / clips.name / "C0000S03.mp4"
+    nuestro = clips.parent / "proxy" / clips.name / "C0000_proxy.mp4"
     assert nuestro.exists()
     assert window.carpeta_de_proxies == clips.parent / "proxy"
 
