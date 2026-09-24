@@ -6,6 +6,7 @@ from dataclasses import dataclass
 import os
 from pathlib import Path
 import shutil
+import uuid
 import xml.etree.ElementTree as ET
 
 from clasificador_video import recursos
@@ -79,6 +80,31 @@ def _reescribir_rutas_de_media(media: ET.Element, ruta: Path,
         nodo.text = ruta.name
 
 
+def _reescribir_identidad_de_media(media: ET.Element) -> None:
+    """Cada archivo real tiene su propio ``FileKey`` y ``ContentAndMetadataState``.
+
+    Comprobado contra un proyecto que Premiere guardó de verdad
+    (``despues.prproj``, 2026-09-24): el original y su proxy llevan cada
+    uno un GUID distinto en ambos campos, nunca el mismo entre dos
+    archivos. La plantilla trae esos campos sanitizados a un valor fijo
+    para poder versionarla sin rutas personales; sin este paso, TODOS los
+    ``Media`` de un proyecto generado -- de todos los clips -- terminaban
+    con el mismo ``FileKey``, como si fueran copias del mismo archivo.
+    """
+    if (nodo := media.find("FileKey")) is not None:
+        nodo.text = str(uuid.uuid4())
+    if (nodo := media.find("ContentAndMetadataState")) is not None:
+        nuevo_estado = str(uuid.uuid4())
+        nodo.text = nuevo_estado
+        # El ``ModificationState`` guarda el MISMO valor, codificado como
+        # UTF-16LE en base64 -- comprobado decodificando el de Bruno.
+        # Dejarlo con el texto viejo dejaría dos campos del mismo Media
+        # diciendo estados distintos.
+        if (mod := media.find("ModificationState")) is not None:
+            mod.text = base64.b64encode(
+                nuevo_estado.encode("utf-16-le")).decode("ascii")
+
+
 def clonar_clip(raiz: ET.Element, arquetipo: ArchetipoDeClip, asignador: AsignadorDeIds, *, ruta_archivo: Path, nombre_en_premiere: str, label_name: str, label_color: int, datos_probe: dict, carpeta_proyecto: Path | None = None) -> ClipClonado:
     item = next((i for i in raiz.findall('ClipProjectItem') if (m:=i.find('MasterClip')) is not None and m.get('ObjectURef') == arquetipo.master_clip_uid), None)
     if item is None: raise ValueError(f'No se encontró ClipProjectItem para {arquetipo.master_clip_uid}')
@@ -87,11 +113,19 @@ def clonar_clip(raiz: ET.Element, arquetipo: ArchetipoDeClip, asignador: Asignad
     item_clon = mapa[('ObjectUID', item.get('ObjectUID'))]
     master_uid = mapa[('ObjectUID', arquetipo.master_clip_uid)].get('ObjectUID')
     item_clon.find('.//Name').text = nombre_en_premiere
+    # El ClipProjectItem trae el nombre visible del bin, pero el MasterClip
+    # -- otro objeto, aparte -- tiene su PROPIO `Name` con el nombre viejo
+    # del archivo. Dejarlo sin tocar es justo el caso que Bruno reportó:
+    # el nombre nuevo existe en el XML pero Premiere no lo enseña.
+    master_clon = mapa.get(('ObjectUID', arquetipo.master_clip_uid))
+    if master_clon is not None and (n := master_clon.find('Name')) is not None:
+        n.text = nombre_en_premiere
     etiqueta=item_clon.find('.//Column.PropertyText.Label')
     if etiqueta is not None: etiqueta.text=label_name
     medias=[e for e in mapa.values() if e.tag == 'Media']
     for media in medias:
         _reescribir_rutas_de_media(media, ruta_archivo, carpeta_proyecto)
+        _reescribir_identidad_de_media(media)
         for tipo in ('VideoStream','AudioStream'):
             if (ref:=media.find(tipo)) is None: continue
             stream=next((e for e in mapa.values() if e.tag==tipo and e.get('ObjectID')==ref.get('ObjectRef')), None)
@@ -180,6 +214,7 @@ def adjuntar_proxy(raiz: ET.Element, clip: ClipClonado,
         copias.append(copia)
     media_proxy = next(e for e in copias if e.tag == "Media")
     _reescribir_rutas_de_media(media_proxy, ruta_proxy, carpeta_proyecto)
+    _reescribir_identidad_de_media(media_proxy)
     _actualizar_streams((e for e in copias if e.tag in ("VideoStream", "AudioStream")), datos_probe)
     video = next(e for e in raiz if e.tag == "VideoMediaSource"
                  and e.get("ObjectID") == clip.video_media_source_id)

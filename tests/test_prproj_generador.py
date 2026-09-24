@@ -178,6 +178,21 @@ def test_generar_prproj_adjunta_proxy_real_sin_crear_otro_clip_visible(tmp_path)
     assert _audio_proxies_de(raiz, con_proxy)
 
 
+def test_generar_prproj_el_proxy_no_comparte_identidad_con_el_original(tmp_path):
+    proxy = tmp_path / "con_proxy_proxy.mp4"
+    proxy.write_bytes(b"")
+
+    raiz = _generar_proyecto_con_proxy(tmp_path, proxy)
+    item = _clip_items_visibles(raiz)[0]
+    media_proxy = _proxy_de_video(raiz, item)
+    # El original del mismo clip es el otro Media del proyecto.
+    medias = raiz.findall("Media")
+    media_original = next(m for m in medias if m is not media_proxy)
+
+    assert media_proxy.find("FileKey").text != media_original.find("FileKey").text
+    assert media_proxy.find("FileKey").text != "00000000-0000-0000-0000-000000000000"
+
+
 def test_generar_prproj_omite_proxy_cuya_ruta_no_existe(tmp_path):
     raiz = _generar_proyecto_con_proxy(tmp_path, tmp_path / "no-existe_proxy.mp4")
 
@@ -236,6 +251,59 @@ def test_clonar_clip_pone_la_ruta_del_archivo_real(raiz, tmp_path):
 def test_clonar_clip_pone_el_nombre_en_el_project_item(raiz,tmp_path):
     a=prproj_plantilla.archetipos_de_clip(raiz); clon=prproj_generador.clonar_clip(raiz,a['dji'],prproj_xml.AsignadorDeIds(raiz),ruta_archivo=tmp_path/'d.mp4',nombre_en_premiere='★ Jardin 02 [DRONE]',label_name='BE.Prefs.LabelColors.7',label_color=999,datos_probe=_probe_falso())
     assert raiz.find(f'.//ClipProjectItem[@ObjectUID="{clon.clip_project_item_uid}"]').find('.//Name').text == '★ Jardin 02 [DRONE]'
+
+
+def test_clonar_clip_tambien_renombra_el_master_clip(raiz, tmp_path):
+    """Premiere lee el nombre del MasterClip, no solo el del ClipProjectItem.
+
+    Comprobado contra `TemplateColorLuts.prproj`: el MasterClip tiene su
+    PROPIO `Name`, separado del `ProjectItem/Node/Name` del item visible.
+    Si solo se cambia el del item, el XML dice `COCINA-01` en un lugar y
+    el nombre viejo del archivo en otro -- justo el síntoma reportado.
+    """
+    a = prproj_plantilla.archetipos_de_clip(raiz)
+    clon = prproj_generador.clonar_clip(
+        raiz, a['sony'], prproj_xml.AsignadorDeIds(raiz),
+        ruta_archivo=tmp_path / 'c.mp4', nombre_en_premiere='COCINA-01 [SONY]',
+        label_name='x', label_color=1, datos_probe=_probe_falso())
+    master = raiz.find(f'.//MasterClip[@ObjectUID="{clon.master_clip_uid}"]')
+    assert master.find('Name').text == 'COCINA-01 [SONY]'
+
+
+def test_clonar_clip_le_da_a_cada_media_su_propio_identificador(raiz, tmp_path):
+    """Dos clips clonados no pueden compartir FileKey ni ContentAndMetadataState.
+
+    Comprobado contra un proyecto real de Premiere (`despues.prproj`,
+    2026-09-24): el original y su proxy llevan cada uno un GUID distinto
+    en esos dos campos. La plantilla los trae sanitizados al mismo valor
+    fijo para poder versionarla; sin regenerarlos, dos archivos distintos
+    terminaban con la misma identidad.
+    """
+    ids = prproj_xml.AsignadorDeIds(raiz)
+    a = prproj_plantilla.archetipos_de_clip(raiz)
+    c1 = prproj_generador.clonar_clip(
+        raiz, a['sony'], ids, ruta_archivo=tmp_path / 'a.mp4',
+        nombre_en_premiere='a', label_name='x', label_color=1,
+        datos_probe=_probe_falso())
+    c2 = prproj_generador.clonar_clip(
+        raiz, a['sony'], ids, ruta_archivo=tmp_path / 'b.mp4',
+        nombre_en_premiere='b', label_name='x', label_color=1,
+        datos_probe=_probe_falso())
+    def _media_con_file_key(ruta_archivo):
+        return next(
+            m for m in raiz.findall('Media')
+            if m.find('FileKey') is not None
+            and (p := m.find('FilePath')) is not None
+            and p.text == str(ruta_archivo))
+
+    m1 = _media_con_file_key(tmp_path / 'a.mp4')
+    m2 = _media_con_file_key(tmp_path / 'b.mp4')
+    assert m1.find('FileKey').text != m2.find('FileKey').text
+    assert m1.find('ContentAndMetadataState').text != m2.find(
+        'ContentAndMetadataState').text
+    estado = m1.find('ContentAndMetadataState').text
+    assert base64.b64decode(
+        m1.find('ModificationState').text).decode('utf-16-le') == estado
 
 
 def test_clonar_clip_recalcula_frame_rate_y_duracion_en_ticks(raiz,tmp_path):
