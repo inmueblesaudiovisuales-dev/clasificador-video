@@ -8,8 +8,14 @@ import xml.etree.ElementTree as ET
 from clasificador_video.prproj_plantilla import ArchetipoDeClip
 from clasificador_video.prproj_xml import AsignadorDeIds, clonar_por_cierre
 from clasificador_video.orientacion_premiere import orientacion_de
+from clasificador_video.marca_camara import nombre_del_cuarto_con_marca
+from clasificador_video.numero_de_cuarto import con_numero
 
 TICKS_POR_SEGUNDO = 254016000000
+CARPETAS_DEL_PROYECTO = (
+    "01. Secuencia", "02. Clip", "03. AE composition", "04. Musica",
+    "05. Voz", "06. Graficos", "07. Assets adicionales",
+)
 
 
 @dataclass(frozen=True)
@@ -88,3 +94,53 @@ def clonar_secuencia_con_medidas(
                 if rect is not None:
                     rect.text = f"0,0,{ancho},{alto}"
     return clon
+
+
+def crear_bin_hijo(raiz: ET.Element, arquetipo_bin: ET.Element,
+                    padre: ET.Element, asignador: AsignadorDeIds, *,
+                    nombre: str) -> ET.Element:
+    """Clona el bin arquetipo vacío y lo enlaza dentro de ``padre``."""
+    tipo_ancla = "ObjectUID" if arquetipo_bin.get("ObjectUID") else "ObjectID"
+    ancla_vieja = arquetipo_bin.get(tipo_ancla)
+    mapa = clonar_por_cierre(raiz, tipo_ancla, ancla_vieja, asignador)
+    clon = mapa[(tipo_ancla, ancla_vieja)]
+    clon.find(".//Name").text = nombre
+
+    items = clon.find("ProjectItemContainer/Items")
+    if items is not None:
+        for item in list(items):
+            items.remove(item)
+
+    items_padre = padre.find("ProjectItemContainer/Items")
+    if items_padre is None:
+        contenedor = padre.find("ProjectItemContainer")
+        items_padre = ET.SubElement(contenedor, "Items", {"Version": "1"})
+    atributo_ref = "ObjectURef" if tipo_ancla == "ObjectUID" else "ObjectRef"
+    ET.SubElement(items_padre, "Item", {
+        "Index": str(len(items_padre)), atributo_ref: clon.get(tipo_ancla)})
+    return clon
+
+
+def crear_esqueleto(raiz: ET.Element, arquetipo_bin: ET.Element,
+                    root: ET.Element, asignador: AsignadorDeIds
+                    ) -> dict[str, ET.Element]:
+    """Crea los siete bins fijos del proyecto como hijos del bin raíz."""
+    return {
+        nombre: crear_bin_hijo(raiz, arquetipo_bin, root, asignador,
+                               nombre=nombre)
+        for nombre in CARPETAS_DEL_PROYECTO
+    }
+
+
+def bin_del_cuarto(raiz: ET.Element, arquetipo_bin: ET.Element,
+                   carpeta_de_clips: ET.Element, asignador: AsignadorDeIds,
+                   *, categoria_path: list[str], posicion: int,
+                   clips_del_manifest: list) -> ET.Element:
+    """Crea un bin de cuarto/unidad, numerado y marcado por cámara."""
+    nombre_sin_numero = categoria_path[-1]
+    nombre_con_numero = con_numero(nombre_sin_numero, posicion)
+    nombre = nombre_del_cuarto_con_marca(
+        nombre_con_numero, nombre_sin_numero, clips_del_manifest,
+        categoria_path)
+    return crear_bin_hijo(raiz, arquetipo_bin, carpeta_de_clips, asignador,
+                           nombre=nombre)

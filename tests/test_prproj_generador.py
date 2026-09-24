@@ -72,3 +72,38 @@ def test_clonar_secuencia_con_medidas_no_toca_la_original(raiz):
         raiz, archetipos["4k_9x16"], prproj_xml.AsignadorDeIds(raiz),
         nombre="otro", ancho=1080, alto=1920)
     assert grupo_original.find("FrameRect").text == rect_original
+
+
+def test_crear_bin_hijo_lo_agrega_al_container_del_padre(raiz):
+    arquetipo_bin = prproj_plantilla.archetipo_de_bin(raiz)
+    padre = raiz.find("RootProjectItem")
+    bin_nuevo = prproj_generador.crear_bin_hijo(
+        raiz, arquetipo_bin, padre, prproj_xml.AsignadorDeIds(raiz),
+        nombre="02. Clip")
+    assert bin_nuevo.find(".//Name").text == "02. Clip"
+    items = padre.find("ProjectItemContainer/Items")
+    refs = [item.get("ObjectURef") or item.get("ObjectRef") for item in items]
+    assert (bin_nuevo.get("ObjectUID") or bin_nuevo.get("ObjectID")) in refs
+
+
+def test_arbol_de_bins_crea_las_7_carpetas_fijas(raiz):
+    arquetipo_bin = prproj_plantilla.archetipo_de_bin(raiz)
+    bins = prproj_generador.crear_esqueleto(
+        raiz, arquetipo_bin, raiz.find("RootProjectItem"),
+        prproj_xml.AsignadorDeIds(raiz))
+    assert list(bins) == [
+        "01. Secuencia", "02. Clip", "03. AE composition", "04. Musica",
+        "05. Voz", "06. Graficos", "07. Assets adicionales"]
+
+
+def test_bin_del_cuarto_numera_y_marca_camara(raiz):
+    arquetipo_bin = prproj_plantilla.archetipo_de_bin(raiz)
+    asignador = prproj_xml.AsignadorDeIds(raiz)
+    bins = prproj_generador.crear_esqueleto(
+        raiz, arquetipo_bin, raiz.find("RootProjectItem"), asignador)
+    clips = [{"categoria_path": ["Cocina"], "bin_sony": True,
+              "bin_dron": False, "bin_pocket": False}]
+    bin_cuarto = prproj_generador.bin_del_cuarto(
+        raiz, arquetipo_bin, bins["02. Clip"], asignador,
+        categoria_path=["Cocina"], posicion=3, clips_del_manifest=clips)
+    assert bin_cuarto.find(".//Name").text == "03. Cocina [SONY]"
