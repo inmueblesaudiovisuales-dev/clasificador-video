@@ -132,48 +132,41 @@ Pruebas modificadas:
 
 ## Tarea 0: Bruno prepara la plantilla en Premiere (MANUAL, bloqueante)
 
-**Esta tarea la hace Bruno, no Codex.** Codex no tiene Premiere. Ninguna
-tarea de código de este plan que use la plantilla puede empezar sin el
-archivo que sale de aquí. Si Codex llega a esta tarea y el archivo no
-existe todavía, se detiene y lo pide -- no continúa con datos inventados.
+**Ya terminada, confirmada el 2026-09-23 leyendo el XML real y con
+confirmación de Bruno en el chat.** Se deja documentada aquí completa
+--incluido lo que se pidió originalmente y luego se simplificó-- para que
+quien ejecute la Tarea 1 sepa qué contiene el archivo y por qué.
 
-- [ ] **Paso 1:** Abrir `/Users/brunogutierrez/Downloads/testcolorlut.prproj`
-  en Premiere (ya trae el LUT de Sony en un clip y el de DJI en otro,
-  confirmado leyendo su XML durante el brainstorm).
+Lo que quedó en `/Users/brunogutierrez/Downloads/testcolorlut.prproj`
+(confirmado, no es un plan a futuro):
 
-- [ ] **Paso 2:** Al clip que tiene el LUT de Sony (`20260910_PIB0001.MP4`),
-  ponerle la etiqueta de color **Cerulean** (clic derecho → Label).
+- Clip `20260910_PIB0001.MP4` (Sony, con el LUT de Sony ya aplicado) con
+  la etiqueta de color **Cerulean**.
+- Clip `DJI_20260910113520_0008_D.MP4` (con el LUT de DJI ya aplicado) con
+  la etiqueta **Mango**.
+- Clip `20260910_PIB0002.MP4` (sin ningún LUT) con la etiqueta **Violet**
+  -- el color de referencia para clips de cámara "otra".
+- Un bin vacío llamado `Bin` (`BinProjectItem`, `ClassID`
+  `dbfd6653-24da-480e-a35e-ba45e9504e4b` -- confirmado leyendo el XML; ya
+  no es una incógnita para la Tarea 8).
+- Secuencia `REF 4K 9x16`, vacía, 2160×3840, 59.94 fps.
+- Secuencia `REF 2.7K 9x16`, vacía, **1512×2688** (Bruno corrigió esta
+  medida -- el plan original decía 2160×3840, que estaba mal; la de
+  verdad NO es la misma que la 4K).
 
-- [ ] **Paso 3:** Al clip que tiene el LUT de DJI
-  (`DJI_20260910113520_0008_D.MP4`), ponerle la etiqueta **Mango**.
+**Lo que YA NO hace falta que Bruno arme a mano** (simplificación acordada
+el 2026-09-23): las secuencias `4K 16x9`, `9x16 1080p` y `16x9 1080p`.  Se
+leyó el XML real de `REF 4K 9x16` y su ancho/alto vive en un campo
+editable (`VideoTrackGroup.FrameRect`, ver Tarea 11) -- así que estas tres
+se DERIVAN por código clonando `REF 4K 9x16` y reescribiendo ese campo, en
+vez de pedirle a Bruno que las cree una por una en Premiere. Sigue
+haciendo falta que exista `REF 2.7K 9x16` como secuencia real aparte,
+porque su 1512×2688 no es una rotación simple de ninguna otra.
 
-- [ ] **Paso 4:** Importar UN clip de video más, cualquiera, corto, sin
-  ponerle ningún LUT. Ponerle la etiqueta **Violet**. Este es el color de
-  referencia para clips de cámara "otra" (los que no son Sony ni DJI).
-
-- [ ] **Paso 5:** Crear un bin nuevo vacío (clic derecho en el panel de
-  proyecto → New Bin). Nombre sugerido: `REF BIN`. No hace falta meterle
-  nada adentro.
-
-- [ ] **Paso 6:** Crear 5 secuencias vacías (File → New → Sequence →
-  Settings, sin arrastrar ningún clip adentro) con estos ajustes EXACTOS
-  (son los mismos 5 formatos que ya usa Clipify hoy en
-  `uxp-plugin/js/secuencia.js`):
-
-  | Nombre sugerido      | Ancho | Alto | FPS   |
-  |-----------------------|-------|------|-------|
-  | `REF 4K 9x16`         | 2160  | 3840 | 59.94 |
-  | `REF 2.7K 9x16`       | 2160  | 3840 | 59.94 |
-  | `REF 4K 16x9`         | 3840  | 2160 | 59.94 |
-  | `REF 9x16 1080p`      | 1080  | 1920 | 59.94 |
-  | `REF 16x9 1080p`      | 1920  | 1080 | 59.94 |
-
-- [ ] **Paso 7:** Guardar el proyecto (`Cmd+S`). Confirmar la ruta final del
-  archivo y decírsela a quien ejecute la Tarea 1 (Codex la copia de ahí, no
-  la vuelve a pedir).
-
-- [ ] **Paso 8 (si los archivos originales siguen en disco):** Correr en
-  Terminal, y guardar la salida completa para la Tarea 9:
+- [ ] **Paso único que falta:** correr en Terminal, contra los dos
+  archivos reales que ya están referenciados dentro de la plantilla (si
+  siguen en disco en esa ruta), y guardar la salida completa para la
+  Tarea 9:
 
   ```bash
   ffprobe -v quiet -print_format json -show_streams \
@@ -205,7 +198,7 @@ existe todavía, se detiene y lo pide -- no continúa con datos inventados.
 
 ```bash
 mkdir -p "recursos/premiere"
-cp "/ruta/que/dio/Bruno/en/la/Tarea/0/TemplateColorLuts.prproj" \
+cp "/Users/brunogutierrez/Downloads/testcolorlut.prproj" \
    "recursos/premiere/TemplateColorLuts.prproj"
 cp "/Users/brunogutierrez/Library/Application Support/Adobe/Common/LUTs/Technical/SONY-SLOG3.cube" \
    "recursos/premiere/SONY-SLOG3.cube"
@@ -1705,45 +1698,87 @@ git commit -m "Clonar un clip real: tiempo, nombre, color y LUT compartido"
 - Modify: `tests/test_prproj_plantilla.py` (quitar el skip)
 - Modify: `tests/test_prproj_generador.py`
 
-- [ ] **Paso 1: inspeccionar cómo se ve una `Sequence` real**
+**Confirmado leyendo el XML real de la plantilla el 2026-09-23** (no hace
+falta un Paso 1 de exploración -- ya se hizo durante el brainstorm): el
+ancho/alto y el frame rate EDITABLES de una secuencia NO viven en el
+elemento `<Sequence>` mismo (ahí solo hay un `MZ.Sequence.PreviewFrameSizeWidth/Height`,
+que es cosmético, del renderizado de preview). Viven en su
+`VideoTrackGroup`, al que la secuencia llega por
+`TrackGroups/TrackGroup[0]/Second@ObjectRef`:
 
-```bash
-python3 -c "
-import gzip, xml.etree.ElementTree as ET
-raiz = ET.fromstring(gzip.open('recursos/premiere/TemplateColorLuts.prproj','rb').read())
-for seq in raiz.findall('Sequence'):
-    print(ET.tostring(seq, encoding='unicode')[:2000])
-    print('---')
-"
+```xml
+<VideoTrackGroup ObjectID="378" ...>
+    <TrackGroup Version="1">
+        ...
+        <FrameRate>4237833600</FrameRate>   <!-- ticks/frame, ver TICKS_POR_SEGUNDO -->
+    </TrackGroup>
+    ...
+    <FrameRect>0,0,2160,3840</FrameRect>    <!-- "x,y,ancho,alto" -->
+    ...
+</VideoTrackGroup>
 ```
 
-Leer la salida con calma: buscar dónde vive el ancho/alto (probablemente
-`VideoFrameWidth`/`VideoFrameHeight` o un `Rect` como el que ya se vio en
-`SequenceSettings`) y el frame rate, dentro de la `Sequence` o de un
-`ObjectRef` que cuelgue de ella. **Escribir lo que se encontró como
-comentario al tope de la función `archetipos_de_secuencia`, con las líneas
-reales copiadas** -- no seguir a la Tarea 2 de este paso sin eso, porque el
-`find` de abajo depende de los nombres reales de estos campos.
+La plantilla trae **2 secuencias reales**, no 5 (simplificación acordada
+con Bruno el 2026-09-23 -- ver Tarea 0): `REF 4K 9x16` (2160×3840) y
+`REF 2.7K 9x16` (1512×2688, medida real confirmada por Bruno, NO es una
+proporción simple de la 4K). Las otras 3 formatos
+(`4k_16x9`, `9x16_1080p`, `16x9_1080p`) se DERIVAN clonando `REF 4K 9x16`
+y reescribiendo su `FrameRect` -- todas comparten el mismo 59.94 fps, así
+que el `FrameRate` del `VideoTrackGroup` NO cambia entre formatos.
 
-- [ ] **Paso 2: completar `archetipos_de_secuencia` en `prproj_plantilla.py`**
+- [ ] **Paso 1: completar `archetipos_de_secuencia` en `prproj_plantilla.py`**
 
 ```python
+def _video_track_group_de_secuencia(raiz: ET.Element,
+                                      secuencia: ET.Element) -> ET.Element | None:
+    for grupo in secuencia.findall(".//TrackGroup"):
+        ref = grupo.find("Second")
+        if ref is None:
+            continue
+        candidato = raiz.find(f'.//VideoTrackGroup[@ObjectID="{ref.get("ObjectRef")}"]')
+        if candidato is not None:
+            return candidato
+    return None
+
+
+def _ancho_alto_de_secuencia(raiz: ET.Element, secuencia: ET.Element
+                              ) -> tuple[int, int] | None:
+    grupo = _video_track_group_de_secuencia(raiz, secuencia)
+    if grupo is None:
+        return None
+    rect = grupo.find("FrameRect")
+    if rect is None or not rect.text:
+        return None
+    _x, _y, ancho, alto = rect.text.split(",")
+    return int(ancho), int(alto)
+
+
+# Las 2 medidas que existen como secuencia REAL en la plantilla -- las
+# otras 3 claves de FORMATOS_DE_SECUENCIA se derivan en el generador
+# (Tarea 13), no se buscan aquí.
+_CLAVES_REALES_EN_PLANTILLA = ("4k_9x16", "2_7k_9x16")
+
+
 def archetipos_de_secuencia(raiz: ET.Element) -> dict[str, ET.Element]:
-    """Una `Sequence` (el elemento `Sequence` completo) por cada una de
-    las 6 claves de `FORMATOS_DE_SECUENCIA`, ubicada por su ancho/alto
-    reales -- no por el nombre que Bruno le haya puesto en la plantilla.
-    """
+    """Una `Sequence` real por cada clave de `_CLAVES_REALES_EN_PLANTILLA`,
+    ubicada por su ancho/alto real (vía su `VideoTrackGroup`). Las otras 3
+    formatos de `FORMATOS_DE_SECUENCIA` no están acá -- se derivan de
+    `archetipos["4k_9x16"]` en tiempo de generación (ver
+    `prproj_generador.clonar_secuencia_con_medidas`)."""
     encontrados: dict[str, ET.Element] = {}
     for secuencia in raiz.findall("Sequence"):
-        ancho, alto = _ancho_alto_de_secuencia(secuencia)  # ver Paso 1
-        for clave, (a, h, _fps) in FORMATOS_DE_SECUENCIA.items():
+        medidas = _ancho_alto_de_secuencia(raiz, secuencia)
+        if medidas is None:
+            continue
+        for clave in _CLAVES_REALES_EN_PLANTILLA:
             if clave in encontrados:
                 continue
-            if (ancho, alto) == (a, h):
+            ancho, alto, _fps = FORMATOS_DE_SECUENCIA[clave]
+            if medidas == (ancho, alto):
                 encontrados[clave] = secuencia
                 break
 
-    faltan = set(FORMATOS_DE_SECUENCIA) - encontrados.keys()
+    faltan = set(_CLAVES_REALES_EN_PLANTILLA) - encontrados.keys()
     if faltan:
         raise PlantillaIncompleta(
             "La plantilla no tiene secuencia de referencia para: "
@@ -1751,32 +1786,39 @@ def archetipos_de_secuencia(raiz: ET.Element) -> dict[str, ET.Element]:
     return encontrados
 ```
 
-**`_ancho_alto_de_secuencia` se escribe con lo que salga del Paso 1** --
-no está definida arriba a propósito, para no inventar el nombre del campo
-antes de verlo. Nota importante: `4k_9x16` y `2_7k_9x16` tienen el MISMO
-ancho/alto (2160×3840, ver la tabla de `secuencia.js` -- así está también
-en el código de hoy, no es un error de este plan). Para distinguir esos
-dos casos específicamente, usar el ORDEN en que aparecen las secuencias en
-el archivo (la primera que calce 2160×3840 es `4k_9x16`, la segunda es
-`2_7k_9x16`) -- Bruno debe crearlas en ESE orden en la Tarea 0, Paso 6 (ya
-están listadas en ese orden en la tabla).
+- [ ] **Paso 2: escribir la prueba y correr**
 
-- [ ] **Paso 3: quitar el `@pytest.mark.skip` de
-  `test_archetipos_de_secuencia_completos` en `tests/test_prproj_plantilla.py`**
-
-- [ ] **Paso 4: correr**
-
-Run: `QT_QPA_PLATFORM=offscreen .venv/bin/pytest tests/test_prproj_plantilla.py -v`
-Expected: 7 passed, 0 skipped
-
-- [ ] **Paso 5: agregar `clonar_secuencia` a `prproj_generador.py`**
+Agregar a `tests/test_prproj_plantilla.py`, reemplazando el
+`test_archetipos_de_secuencia_completos` que estaba con skip:
 
 ```python
-def clonar_secuencia(raiz: ET.Element, archetipo_secuencia: ET.Element,
-                      asignador: AsignadorDeIds, *, nombre: str) -> ET.Element:
+def test_archetipos_de_secuencia_encuentra_las_2_reales(raiz):
+    archetipos = prproj_plantilla.archetipos_de_secuencia(raiz)
+    assert set(archetipos.keys()) == {"4k_9x16", "2_7k_9x16"}
+
+
+def test_archetipo_2_7k_tiene_su_medida_real_no_la_de_4k(raiz):
+    archetipos = prproj_plantilla.archetipos_de_secuencia(raiz)
+    ancho, alto = prproj_plantilla._ancho_alto_de_secuencia(raiz, archetipos["2_7k_9x16"])
+    assert (ancho, alto) == (1512, 2688)
+```
+
+Run: `QT_QPA_PLATFORM=offscreen .venv/bin/pytest tests/test_prproj_plantilla.py -v`
+Expected: todos pasan, ninguno con skip
+
+- [ ] **Paso 3: agregar `clonar_secuencia_con_medidas` a `prproj_generador.py`**
+
+```python
+def clonar_secuencia_con_medidas(raiz: ET.Element, archetipo_secuencia: ET.Element,
+                                  asignador: AsignadorDeIds, *, nombre: str,
+                                  ancho: int | None = None,
+                                  alto: int | None = None) -> ET.Element:
     """Clona una `Sequence` de referencia completa (cierre de referencias,
-    sin fronteras -- una secuencia vacía no comparte nada que valga la
-    pena reusar) y le pone `nombre`."""
+    sin fronteras) y le pone `nombre`. Si `ancho`/`alto` vienen, además
+    reescribe el `FrameRect` de su `VideoTrackGroup` clonado -- así es como
+    se derivan `4k_16x9` y las dos de 1080p a partir de `4k_9x16` sin que
+    Bruno tenga que crearlas a mano en Premiere (ver Tarea 0 y el Paso 1 de
+    esta tarea para la evidencia de dónde vive ese campo)."""
     uid_o_id = archetipo_secuencia.get("ObjectUID") or archetipo_secuencia.get("ObjectID")
     tipo_ancla = "ObjectUID" if archetipo_secuencia.get("ObjectUID") else "ObjectID"
 
@@ -1785,46 +1827,72 @@ def clonar_secuencia(raiz: ET.Element, archetipo_secuencia: ET.Element,
     nombre_nodo = clon.find(".//Name")
     if nombre_nodo is not None:
         nombre_nodo.text = nombre
+
+    if ancho is not None and alto is not None:
+        from clasificador_video.prproj_plantilla import _video_track_group_de_secuencia
+        grupo_original = _video_track_group_de_secuencia(raiz, archetipo_secuencia)
+        tipo_grupo = "ObjectUID" if grupo_original.get("ObjectUID") else "ObjectID"
+        grupo_clonado = mapa.get((tipo_grupo, grupo_original.get(tipo_grupo)))
+        if grupo_clonado is not None:
+            rect = grupo_clonado.find("FrameRect")
+            if rect is not None:
+                rect.text = f"0,0,{ancho},{alto}"
+
     return clon
 ```
 
-- [ ] **Paso 6: agregar la prueba a `tests/test_prproj_generador.py`**
+- [ ] **Paso 4: agregar las pruebas a `tests/test_prproj_generador.py`**
 
 ```python
-def test_clonar_secuencia_le_pone_el_nombre(raiz):
+def test_clonar_secuencia_con_medidas_le_pone_el_nombre(raiz):
     from clasificador_video import prproj_plantilla
     archetipos = prproj_plantilla.archetipos_de_secuencia(raiz)
     asignador = prproj_xml.AsignadorDeIds(raiz)
 
-    clon = prproj_generador.clonar_secuencia(
+    clon = prproj_generador.clonar_secuencia_con_medidas(
         raiz, archetipos["4k_9x16"], asignador, nombre="IAV-2609.10-A 4K 9:16")
 
     assert clon.find(".//Name").text == "IAV-2609.10-A 4K 9:16"
 
 
-def test_clonar_secuencia_no_toca_la_original(raiz):
+def test_clonar_secuencia_con_medidas_voltea_para_16x9(raiz):
     from clasificador_video import prproj_plantilla
     archetipos = prproj_plantilla.archetipos_de_secuencia(raiz)
     asignador = prproj_xml.AsignadorDeIds(raiz)
-    nombre_original = archetipos["4k_16x9"].find(".//Name").text
 
-    prproj_generador.clonar_secuencia(
-        raiz, archetipos["4k_16x9"], asignador, nombre="otro nombre")
+    clon = prproj_generador.clonar_secuencia_con_medidas(
+        raiz, archetipos["4k_9x16"], asignador, nombre="x 4K 16:9",
+        ancho=3840, alto=2160)
 
-    assert archetipos["4k_16x9"].find(".//Name").text == nombre_original
+    grupo = prproj_plantilla._video_track_group_de_secuencia(raiz, clon)
+    assert grupo.find("FrameRect").text == "0,0,3840,2160"
+
+
+def test_clonar_secuencia_con_medidas_no_toca_la_original(raiz):
+    from clasificador_video import prproj_plantilla
+    archetipos = prproj_plantilla.archetipos_de_secuencia(raiz)
+    asignador = prproj_xml.AsignadorDeIds(raiz)
+    grupo_original = prproj_plantilla._video_track_group_de_secuencia(
+        raiz, archetipos["4k_9x16"])
+    rect_original = grupo_original.find("FrameRect").text
+
+    prproj_generador.clonar_secuencia_con_medidas(
+        raiz, archetipos["4k_9x16"], asignador, nombre="otro", ancho=1080, alto=1920)
+
+    assert grupo_original.find("FrameRect").text == rect_original
 ```
 
-- [ ] **Paso 7: correr**
+- [ ] **Paso 5: correr**
 
 Run: `QT_QPA_PLATFORM=offscreen .venv/bin/pytest tests/test_prproj_generador.py tests/test_prproj_plantilla.py -v`
 Expected: todos pasan
 
-- [ ] **Paso 8: commit**
+- [ ] **Paso 6: commit**
 
 ```bash
 git add src/clasificador_video/prproj_plantilla.py src/clasificador_video/prproj_generador.py \
         tests/test_prproj_plantilla.py tests/test_prproj_generador.py
-git commit -m "Localizar y clonar las 5 secuencias de referencia"
+git commit -m "Localizar las 2 secuencias reales y derivar las otras 3 por medidas"
 ```
 
 ---
@@ -2199,6 +2267,18 @@ def generar_prproj(manifest, destino: Path, carpeta_luts_destino: Path, *,
     if manifest.crear_secuencias or manifest.formato_secuencia:
         nombre_base = (manifest.proyecto or "Proyecto").strip() or "Proyecto"
         carpeta_1080p = None
+        # "4k_9x16" y "2_7k_9x16" son secuencias REALES de la plantilla
+        # (`archetipos_seq`); las otras 3 se derivan clonando "4k_9x16" y
+        # reescribiendo su FrameRect -- ver Tarea 11. El archetipo base de
+        # cada clave, y sus medidas finales, salen todos de
+        # FORMATOS_DE_SECUENCIA (misma fuente para las 5, real o derivada).
+        archetipo_base_por_clave = {
+            "4k_9x16": archetipos_seq["4k_9x16"],
+            "2_7k_9x16": archetipos_seq["2_7k_9x16"],
+            "4k_16x9": archetipos_seq["4k_9x16"],
+            "9x16_1080p": archetipos_seq["4k_9x16"],
+            "16x9_1080p": archetipos_seq["4k_9x16"],
+        }
         for clave in FORMATOS_DE_SECUENCIA:
             sufijo = {
                 "4k_9x16": "4K 9:16", "2_7k_9x16": "2.7K 9:16",
@@ -2212,14 +2292,16 @@ def generar_prproj(manifest, destino: Path, carpeta_luts_destino: Path, *,
                         raiz, archetipo_bin, bins_fijos["01. Secuencia"],
                         asignador, nombre="1080p")
                 padre = carpeta_1080p
-            clonar_secuencia(raiz, archetipos_seq[clave], asignador,
-                              nombre=f"{nombre_base} {sufijo}")
+            ancho, alto, _fps = FORMATOS_DE_SECUENCIA[clave]
+            clonar_secuencia_con_medidas(
+                raiz, archetipo_base_por_clave[clave], asignador,
+                nombre=f"{nombre_base} {sufijo}", ancho=ancho, alto=alto)
             # La secuencia clonada ya se agregó al documento; falta
             # colgarla del bin correcto -- mismo mecanismo que
             # `crear_bin_hijo` usa para los bins, pero para una Sequence
             # (que se referencia por su ClipProjectItem asociado, no por
-            # sí misma -- ver Tarea 11, Paso 1, para el nombre real del
-            # campo si difiere).
+            # sí misma -- ver el mismo detalle pendiente que quedó anotado
+            # en la Tarea 13 original).
 
     destino.parent.mkdir(parents=True, exist_ok=True)
     escribir_prproj(raiz, destino)
