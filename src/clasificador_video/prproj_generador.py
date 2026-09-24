@@ -9,10 +9,10 @@ import xml.etree.ElementTree as ET
 
 from clasificador_video import recursos
 from clasificador_video.nombre_de_clip import nombre_de_clip, numeros_de_clip
-from clasificador_video.prproj_plantilla import ArchetipoDeClip
+from clasificador_video.prproj_plantilla import ArchetipoDeClip, ArquetipoDeProxy
 from clasificador_video.prproj_plantilla import (
     FORMATOS_DE_SECUENCIA, archetipo_de_bin, archetipo_de_secuencia,
-    archetipos_de_clip, _video_track_group_de_secuencia,
+    arquetipo_de_proxy, archetipos_de_clip, _video_track_group_de_secuencia,
 )
 from clasificador_video.prproj_xml import (
     AsignadorDeIds, clonar_por_cierre, escribir_prproj, leer_prproj,
@@ -37,6 +37,26 @@ class ClipClonado:
     clip_project_item_uid: str
     master_clip_uid: str
     media_uid: str
+    video_media_source_id: str
+    audio_media_source_id: str | None
+    video_stream_id: str
+    audio_stream_ids: tuple[str, ...]
+    datos_probe: dict
+
+
+def _actualizar_streams(streams, datos_probe: dict) -> None:
+    for stream in streams:
+        if (n := stream.find("Duration")) is not None:
+            n.text = str(round(TICKS_POR_SEGUNDO * datos_probe["duration_seconds"]))
+        if stream.tag != "VideoStream":
+            continue
+        if (n := stream.find("FrameRate")) is not None:
+            n.text = str(round(TICKS_POR_SEGUNDO / datos_probe["fps"]))
+        if ((n := stream.find("FrameRect")) is not None
+                and datos_probe.get("width") and datos_probe.get("height")):
+            n.text = f"0,0,{datos_probe['width']},{datos_probe['height']}"
+        if (n := stream.find("OriginalImageOrientationType")) is not None:
+            n.text = str(orientacion_de(datos_probe.get("rotation", 0)))
 
 
 def clonar_clip(raiz: ET.Element, arquetipo: ArchetipoDeClip, asignador: AsignadorDeIds, *, ruta_archivo: Path, nombre_en_premiere: str, label_name: str, label_color: int, datos_probe: dict) -> ClipClonado:
@@ -66,17 +86,95 @@ def clonar_clip(raiz: ET.Element, arquetipo: ArchetipoDeClip, asignador: Asignad
     # En la plantilla real los streams no cuelgan directamente de Media:
     # están en su cierre por DataStream. Actualizar los clones del cierre
     # evita depender de un anidamiento que el XML no tiene.
-    for stream in (e for e in mapa.values() if e.tag in ('VideoStream', 'AudioStream')):
-        if (n:=stream.find('Duration')) is not None: n.text=str(round(TICKS_POR_SEGUNDO*datos_probe['duration_seconds']))
-        if stream.tag == 'VideoStream':
-            if (n:=stream.find('FrameRate')) is not None: n.text=str(round(TICKS_POR_SEGUNDO/datos_probe['fps']))
-            if (n:=stream.find('FrameRect')) is not None and datos_probe.get('width') and datos_probe.get('height'): n.text=f"0,0,{datos_probe['width']},{datos_probe['height']}"
-            if (n:=stream.find('OriginalImageOrientationType')) is not None: n.text=str(orientacion_de(datos_probe.get('rotation',0)))
+    _actualizar_streams(
+        (e for e in mapa.values() if e.tag in ("VideoStream", "AudioStream")),
+        datos_probe)
     for e in mapa.values():
         if e.tag in ('VideoClip','AudioClip'):
             if (n:=e.find('.//asl.clip.label.name')) is not None: n.text=label_name
             if (n:=e.find('.//asl.clip.label.color')) is not None: n.text=str(label_color)
-    return ClipClonado(item_clon.get('ObjectUID'), master_uid, medias[0].get('ObjectUID'))
+    fuentes = {e.tag: e for e in mapa.values()
+               if e.tag in ("VideoMediaSource", "AudioMediaSource")}
+    streams = [e for e in mapa.values() if e.tag in ("VideoStream", "AudioStream")]
+    video_stream = next(stream for stream in streams if stream.tag == "VideoStream")
+    return ClipClonado(
+        item_clon.get("ObjectUID"), master_uid, medias[0].get("ObjectUID"),
+        fuentes["VideoMediaSource"].get("ObjectID"),
+        fuentes.get("AudioMediaSource").get("ObjectID")
+        if fuentes.get("AudioMediaSource") is not None else None,
+        video_stream.get("ObjectID"),
+        tuple(stream.get("ObjectID") for stream in streams
+              if stream.tag == "AudioStream"),
+        datos_probe)
+
+
+def _datos_de_proxy_son_compatibles(original: dict, proxy: dict) -> bool:
+    """Evita enlazar un proxy que Premiere reproduciría fuera de sincronía."""
+    try:
+        misma_geometria = (original["width"], original["height"]) == (
+            proxy["width"], proxy["height"])
+        mismo_fps = abs(float(original["fps"]) - float(proxy["fps"])) < 0.01
+        mismos_cuadros = round(original["duration_seconds"] * original["fps"]) == round(
+            proxy["duration_seconds"] * proxy["fps"])
+        misma_orientacion = int(original.get("rotation", 0)) % 360 == int(
+            proxy.get("rotation", 0)) % 360
+    except (KeyError, TypeError, ValueError):
+        return False
+    return misma_geometria and mismo_fps and mismos_cuadros and misma_orientacion
+
+
+def adjuntar_proxy(raiz: ET.Element, clip: ClipClonado,
+                    arquetipo: ArquetipoDeProxy, ruta_proxy: Path,
+                    datos_probe: dict, asignador: AsignadorDeIds) -> None:
+    """Replica el ``Media`` proxy, ``ProxyMedia`` y ``AudioProxies`` de Premiere."""
+    if not _datos_de_proxy_son_compatibles(clip.datos_probe, datos_probe):
+        return
+    plantilla = leer_prproj(recursos.template_proxy_adjunto())
+    medio = next(m for m in plantilla.findall("Media")
+                 if m.get("ObjectUID") == arquetipo.proxy_media_uid)
+    ids_stream = {ref.get("ObjectRef") for ref in medio
+                  if ref.tag in ("VideoStream", "AudioStream")}
+    cierre = [medio] + [e for e in plantilla
+                        if e.get("ObjectID") in ids_stream
+                        or (e.tag == "AudioProxy" and e.find("ProxyMedia") is not None
+                            and e.find("ProxyMedia").get("ObjectURef") == arquetipo.proxy_media_uid)]
+    ids = {}
+    for elemento in cierre:
+        if elemento.get("ObjectUID"):
+            ids[("ObjectUID", elemento.get("ObjectUID"))] = asignador.nuevo_object_uid()
+        if elemento.get("ObjectID"):
+            ids[("ObjectID", elemento.get("ObjectID"))] = asignador.nuevo_object_id()
+    copias = []
+    for elemento in cierre:
+        copia = ET.fromstring(ET.tostring(elemento))
+        for nodo in copia.iter():
+            for ancla, referencia in (("ObjectUID", "ObjectURef"), ("ObjectID", "ObjectRef")):
+                if nodo.get(ancla) and (ancla, nodo.get(ancla)) in ids:
+                    nodo.set(ancla, ids[(ancla, nodo.get(ancla))])
+                if nodo.get(referencia) and (ancla, nodo.get(referencia)) in ids:
+                    nodo.set(referencia, ids[(ancla, nodo.get(referencia))])
+        raiz.append(copia)
+        copias.append(copia)
+    media_proxy = next(e for e in copias if e.tag == "Media")
+    for tag in ("RelativePath", "FilePath", "ActualMediaFilePath"):
+        if (nodo := media_proxy.find(tag)) is not None:
+            nodo.text = str(ruta_proxy)
+    if (nodo := media_proxy.find("Title")) is not None:
+        nodo.text = ruta_proxy.name
+    _actualizar_streams((e for e in copias if e.tag in ("VideoStream", "AudioStream")), datos_probe)
+    video = next(e for e in raiz if e.tag == "VideoMediaSource"
+                 and e.get("ObjectID") == clip.video_media_source_id)
+    contenido = video.find("MediaSource/Content")
+    ET.SubElement(contenido, "ProxyMedia", {"ObjectURef": media_proxy.get("ObjectUID")})
+    if clip.audio_media_source_id is None:
+        return
+    audio = next(e for e in raiz if e.tag == "AudioMediaSource"
+                 and e.get("ObjectID") == clip.audio_media_source_id)
+    contenido_audio = audio.find("MediaSource/Content")
+    proxies = ET.SubElement(contenido_audio, "AudioProxies", {"Version": "1"})
+    for indice, proxy in enumerate(e for e in copias if e.tag == "AudioProxy"):
+        ET.SubElement(proxies, "AudioProxyItem", {
+            "Index": str(indice), "ObjectRef": proxy.get("ObjectID")})
 
 
 def _vaciar_timeline_de_secuencia(raiz: ET.Element, secuencia: ET.Element) -> None:
@@ -334,6 +432,8 @@ def generar_prproj(manifest, destino: Path, carpeta_luts_destino: Path, *,
     arquetipo_bin = archetipo_de_bin(raiz)
     archetipos_clip = archetipos_de_clip(raiz)
     arquetipo_secuencia = archetipo_de_secuencia(raiz)
+    arquetipo_proxy = arquetipo_de_proxy(
+        leer_prproj(recursos.template_proxy_adjunto()))
     labels = _label_de_camara(raiz, archetipos_clip)
     limpiar_items_visibles_de_plantilla(raiz)
     bins_fijos = crear_esqueleto(
@@ -381,6 +481,15 @@ def generar_prproj(manifest, destino: Path, carpeta_luts_destino: Path, *,
             raiz, archetipos_clip[camara], asignador, ruta_archivo=clip.ruta,
             nombre_en_premiere=nombre, label_name=label_name,
             label_color=label_color, datos_probe=probe(clip.ruta))
+        if clip.ruta_proxy is not None and clip.ruta_proxy.is_file():
+            try:
+                adjuntar_proxy(
+                    raiz, clon, arquetipo_proxy, clip.ruta_proxy,
+                    probe(clip.ruta_proxy), asignador)
+            except (OSError, ValueError, KeyError, TypeError):
+                # Un proxy ausente o que ffprobe no puede validar deja el
+                # original intacto; nunca se serializa un vínculo a medias.
+                pass
         if camino[1:]:
             item = raiz.find(
                 f'.//ClipProjectItem[@ObjectUID="{clon.clip_project_item_uid}"]')

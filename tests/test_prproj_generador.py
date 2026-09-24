@@ -59,6 +59,40 @@ def _aplanar(arbol):
         yield from _aplanar(rama["hijos"])
 
 
+def _clip_items_visibles(raiz):
+    clip = next(rama for rama in _arbol_visible(raiz)
+                if rama["nombre"] == "02. Clip")
+    return [rama["objeto"] for rama in _aplanar(clip["hijos"])
+            if rama["tag"] == "ClipProjectItem"]
+
+
+def _fuente_de_item(raiz, item, tag):
+    master = next(m for m in raiz.findall("MasterClip")
+                  if m.get("ObjectUID") == item.find("MasterClip").get("ObjectURef"))
+    for clip_ref in master.findall("Clips/Clip"):
+        clip = next(c for c in raiz if c.get("ObjectID") == clip_ref.get("ObjectRef"))
+        if clip.tag != tag:
+            continue
+        return next(c for c in raiz if c.get("ObjectID") == clip.find("Clip/Source").get("ObjectRef"))
+
+
+def _proxy_de_video(raiz, item):
+    fuente = _fuente_de_item(raiz, item, "VideoClip")
+    referencia = fuente.find("MediaSource/Content/ProxyMedia")
+    return (next((m for m in raiz.findall("Media")
+                  if m.get("ObjectUID") == referencia.get("ObjectURef")), None)
+            if referencia is not None else None)
+
+
+def _audio_proxies_de(raiz, item):
+    fuente = _fuente_de_item(raiz, item, "AudioClip")
+    return fuente.findall("MediaSource/Content/AudioProxies/AudioProxyItem")
+
+
+def _ruta_de(media):
+    return media.findtext("FilePath")
+
+
 def _tracks_de_secuencia(raiz, secuencia):
     """Los objetos de track colgados del ``VideoTrackGroup``/``AudioTrackGroup``."""
     tracks = []
@@ -102,6 +136,48 @@ def _generar_proyecto_de_prueba(tmp_path):
     prproj_generador.generar_prproj(
         manifest, destino, carpeta_luts, probe=probe_falso)
     return destino, carpeta_luts, manifest
+
+
+def _generar_proyecto_con_proxy(tmp_path, ruta_proxy):
+    from clasificador_video.manifest import Clip, Guia, Manifest
+
+    original_con_proxy = tmp_path / "con_proxy.mp4"
+    original_sin_proxy = tmp_path / "sin_proxy.mp4"
+    original_con_proxy.write_bytes(b"")
+    original_sin_proxy.write_bytes(b"")
+    manifest = Manifest(
+        proyecto="Proxies", orientacion="vertical", clips=[
+            Clip(orden=0, ruta=original_con_proxy, ruta_proxy=ruta_proxy,
+                 categoria_path=["Cocina"], fps=59.94, camara="sony"),
+            Clip(orden=1, ruta=original_sin_proxy, categoria_path=["Cocina"],
+                 fps=59.94, camara="sony"),
+        ], guia=Guia(orden=["Cocina"]))
+    destino = tmp_path / "salida" / "proxies.prproj"
+    datos = {"width": 2160, "height": 3840, "fps": 59.94,
+             "duration_seconds": 6.0, "rotation": 90}
+    prproj_generador.generar_prproj(
+        manifest, destino, tmp_path / "luts", probe=lambda _ruta: datos)
+    return prproj_xml.leer_prproj(destino)
+
+
+def test_generar_prproj_adjunta_proxy_real_sin_crear_otro_clip_visible(tmp_path):
+    proxy = tmp_path / "con_proxy_proxy.mp4"
+    proxy.write_bytes(b"")
+
+    raiz = _generar_proyecto_con_proxy(tmp_path, proxy)
+    con_proxy, sin_proxy = _clip_items_visibles(raiz)
+
+    assert _proxy_de_video(raiz, con_proxy).find("IsProxy").text == "true"
+    assert _ruta_de(_proxy_de_video(raiz, con_proxy)) == str(proxy)
+    assert _proxy_de_video(raiz, sin_proxy) is None
+    assert len(_clip_items_visibles(raiz)) == 2
+    assert _audio_proxies_de(raiz, con_proxy)
+
+
+def test_generar_prproj_omite_proxy_cuya_ruta_no_existe(tmp_path):
+    raiz = _generar_proyecto_con_proxy(tmp_path, tmp_path / "no-existe_proxy.mp4")
+
+    assert _proxy_de_video(raiz, _clip_items_visibles(raiz)[0]) is None
 
 
 def test_clonar_clip_pone_la_ruta_del_archivo_real(raiz, tmp_path):
