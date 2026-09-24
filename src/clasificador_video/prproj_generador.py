@@ -26,6 +26,10 @@ CARPETAS_DEL_PROYECTO = (
     "01. Secuencia", "02. Clip", "03. AE composition", "04. Musica",
     "05. Voz", "06. Graficos", "07. Assets adicionales",
 )
+# Sub-bins de "01. Secuencia": las tres resoluciones nativas en un bin y las
+# dos 1080p en otro, igual que los agrupa Clipify.
+CARPETA_RESOLUCION_ORIGINAL = "Resolución original"
+CARPETA_1080P = "1080p"
 
 
 @dataclass(frozen=True)
@@ -372,16 +376,20 @@ def generar_prproj(manifest, destino: Path, carpeta_luts_destino: Path, *,
             "16x9_1080p": "16:9 1080p",
         }
         carpeta_secuencia = bins_fijos["01. Secuencia"]
+        carpeta_original = crear_bin_hijo(
+            raiz, arquetipo_bin, carpeta_secuencia, asignador,
+            nombre=CARPETA_RESOLUCION_ORIGINAL)
         for clave in ("4k_9x16", "2_7k_9x16", "4k_16x9"):
             ancho, alto, _fps = FORMATOS_DE_SECUENCIA[clave]
             item = clonar_secuencia_con_medidas(
                 raiz, arquetipo_secuencia, asignador,
                 nombre=f"{nombre_base} {sufijos[clave]}", ancho=ancho,
                 alto=alto)
-            _agregar_item_al_bin(carpeta_secuencia, item)
+            _agregar_item_al_bin(carpeta_original, item)
 
         carpeta_1080p = crear_bin_hijo(
-            raiz, arquetipo_bin, carpeta_secuencia, asignador, nombre="1080p")
+            raiz, arquetipo_bin, carpeta_secuencia, asignador,
+            nombre=CARPETA_1080P)
         for clave in ("9x16_1080p", "16x9_1080p"):
             ancho, alto, _fps = FORMATOS_DE_SECUENCIA[clave]
             item = clonar_secuencia_con_medidas(

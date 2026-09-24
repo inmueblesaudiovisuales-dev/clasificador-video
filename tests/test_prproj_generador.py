@@ -307,11 +307,13 @@ def test_01_secuencia_tiene_las_cinco_secuencias_en_su_lugar(tmp_path):
     sec = next(rama for rama in arbol if rama["nombre"] == "01. Secuencia")
     hijos = sec["hijos"]
     assert [h["nombre"] for h in hijos] == [
+        prproj_generador.CARPETA_RESOLUCION_ORIGINAL,
+        prproj_generador.CARPETA_1080P]
+    assert all(h["tag"] == "BinProjectItem" for h in hijos)
+    assert [h["nombre"] for h in hijos[0]["hijos"]] == [
         "IAV-2609.10-A 4K 9:16", "IAV-2609.10-A 2.7K 9:16",
-        "IAV-2609.10-A 4K 16:9", "1080p"]
-    assert all(h["tag"] == "ClipProjectItem" for h in hijos[:3])
-    assert hijos[3]["tag"] == "BinProjectItem"
-    assert [h["nombre"] for h in hijos[3]["hijos"]] == [
+        "IAV-2609.10-A 4K 16:9"]
+    assert [h["nombre"] for h in hijos[1]["hijos"]] == [
         "IAV-2609.10-A 9:16 1080p", "IAV-2609.10-A 16:9 1080p"]
 
 
@@ -401,12 +403,15 @@ def test_arbol_visible_completo_replica_la_estructura_de_clipify(tmp_path):
     assert not [rama for rama in arbol
                 if rama["tag"] in ("ClipProjectItem", "Sequence")]
 
-    # 01. Secuencia: tres grandes y el sub-bin 1080p con dos.
+    # 01. Secuencia: el bin de resoluciones originales y el sub-bin 1080p.
     secuencia = next(rama for rama in arbol if rama["nombre"] == "01. Secuencia")
     assert [h["nombre"] for h in secuencia["hijos"]] == [
+        prproj_generador.CARPETA_RESOLUCION_ORIGINAL,
+        prproj_generador.CARPETA_1080P]
+    assert [h["nombre"] for h in secuencia["hijos"][0]["hijos"]] == [
         "IAV-2609.10-A 4K 9:16", "IAV-2609.10-A 2.7K 9:16",
-        "IAV-2609.10-A 4K 16:9", "1080p"]
-    assert [h["nombre"] for h in secuencia["hijos"][3]["hijos"]] == [
+        "IAV-2609.10-A 4K 16:9"]
+    assert [h["nombre"] for h in secuencia["hijos"][1]["hijos"]] == [
         "IAV-2609.10-A 9:16 1080p", "IAV-2609.10-A 16:9 1080p"]
 
     # 02. Clip: solo los clips del manifest.
