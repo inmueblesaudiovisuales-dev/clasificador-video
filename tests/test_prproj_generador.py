@@ -1,4 +1,5 @@
 import pytest
+import base64
 
 from clasificador_video import prproj_generador, prproj_plantilla, prproj_xml, recursos
 
@@ -107,3 +108,65 @@ def test_bin_del_cuarto_numera_y_marca_camara(raiz):
         raiz, arquetipo_bin, bins["02. Clip"], asignador,
         categoria_path=["Cocina"], posicion=3, clips_del_manifest=clips)
     assert bin_cuarto.find(".//Name").text == "03. Cocina [SONY]"
+
+
+def test_generar_prproj_produce_un_archivo_que_se_puede_releer(tmp_path):
+    from clasificador_video.manifest import Clip, Guia, Manifest
+
+    manifest = Manifest(
+        proyecto="IAV-2609.10-A", orientacion="vertical",
+        clips=[
+            Clip(orden=0, ruta=tmp_path / "sony1.mp4",
+                 categoria_path=["Cocina"], fps=59.94, flag="pick",
+                 camara="sony"),
+            Clip(orden=1, ruta=tmp_path / "dron1.mp4",
+                 categoria_path=["Cocina"], fps=59.94, flag="none",
+                 camara="dji", bin_dron=True),
+        ], guia=Guia(orden=["Cocina"]), formato_secuencia="4K 9:16",
+        crear_secuencias=True)
+    for clip in manifest.clips:
+        clip.ruta.write_bytes(b"")
+    destino = tmp_path / "salida" / "IAV-2609.10-A.prproj"
+    carpeta_luts = tmp_path / "salida" / "01. Proyecto premiere" / "LUTs"
+
+    def probe_falso(_ruta):
+        return {"width": 2160, "height": 3840, "fps": 59.94,
+                "duration_seconds": 6.0, "rotation": 90}
+
+    prproj_generador.generar_prproj(
+        manifest, destino, carpeta_luts, probe=probe_falso)
+
+    assert destino.is_file()
+    raiz = prproj_xml.leer_prproj(destino)
+    assert len(raiz.findall("ClipProjectItem")) >= 2 + 3
+    valores_lut = []
+    for valor in raiz.iter("StartKeyframeValue"):
+        try:
+            valores_lut.append(base64.b64decode(
+                (valor.text or "").strip()).decode("utf-16-le").rstrip("\0"))
+        except UnicodeDecodeError:
+            pass
+    assert str(carpeta_luts / "SONY-SLOG3.cube") in valores_lut
+    assert str(carpeta_luts / "DJI-DLOGM.cube") in valores_lut
+
+
+def test_generar_prproj_copia_solo_los_cube_que_hacen_falta(tmp_path):
+    from clasificador_video.manifest import Clip, Manifest
+
+    manifest = Manifest(
+        proyecto="Solo Sony", orientacion="horizontal",
+        clips=[Clip(orden=0, ruta=tmp_path / "a.mp4",
+                    categoria_path=["Sala"], fps=59.94, camara="sony")])
+    manifest.clips[0].ruta.write_bytes(b"")
+    destino = tmp_path / "s" / "p.prproj"
+    carpeta_luts = tmp_path / "s" / "01. Proyecto premiere" / "LUTs"
+
+    def probe_falso(_ruta):
+        return {"width": 1920, "height": 1080, "fps": 59.94,
+                "duration_seconds": 3.0, "rotation": 0}
+
+    prproj_generador.generar_prproj(
+        manifest, destino, carpeta_luts, probe=probe_falso)
+
+    assert (carpeta_luts / "SONY-SLOG3.cube").is_file()
+    assert not (carpeta_luts / "DJI-DLOGM.cube").is_file()

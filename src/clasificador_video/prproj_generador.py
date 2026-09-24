@@ -1,12 +1,22 @@
 """Generación de objetos de Premiere a partir de la plantilla. Sin Qt."""
 from __future__ import annotations
 
+import base64
 from dataclasses import dataclass
 from pathlib import Path
+import shutil
 import xml.etree.ElementTree as ET
 
+from clasificador_video import recursos
+from clasificador_video.nombre_de_clip import nombre_de_clip, numeros_de_clip
 from clasificador_video.prproj_plantilla import ArchetipoDeClip
-from clasificador_video.prproj_xml import AsignadorDeIds, clonar_por_cierre
+from clasificador_video.prproj_plantilla import (
+    FORMATOS_DE_SECUENCIA, archetipo_de_bin, archetipos_de_clip,
+    archetipos_de_secuencia,
+)
+from clasificador_video.prproj_xml import (
+    AsignadorDeIds, clonar_por_cierre, escribir_prproj, leer_prproj,
+)
 from clasificador_video.orientacion_premiere import orientacion_de
 from clasificador_video.marca_camara import nombre_del_cuarto_con_marca
 from clasificador_video.numero_de_cuarto import con_numero
@@ -144,3 +154,182 @@ def bin_del_cuarto(raiz: ET.Element, arquetipo_bin: ET.Element,
         categoria_path)
     return crear_bin_hijo(raiz, arquetipo_bin, carpeta_de_clips, asignador,
                            nombre=nombre)
+
+
+def _label_de_camara(raiz: ET.Element, archetipos: dict) -> dict[str, tuple[str, int]]:
+    """Lee el label real de cada clip de referencia de la plantilla."""
+    resultado = {}
+    for camara, arquetipo in archetipos.items():
+        item = next(
+            (candidato for candidato in raiz.findall("ClipProjectItem")
+             if (ref := candidato.find("MasterClip")) is not None
+             and ref.get("ObjectURef") == arquetipo.master_clip_uid),
+            None)
+        master = raiz.find(
+            f'.//MasterClip[@ObjectUID="{arquetipo.master_clip_uid}"]')
+        if item is None or master is None:
+            continue
+        for clip_ref in master.findall(".//Clip"):
+            video_clip = raiz.find(
+                f'.//VideoClip[@ObjectID="{clip_ref.get("ObjectRef")}"]')
+            if video_clip is None:
+                continue
+            nombre = video_clip.find(".//asl.clip.label.name")
+            color = video_clip.find(".//asl.clip.label.color")
+            if nombre is not None and color is not None:
+                resultado[camara] = (nombre.text, int(color.text))
+                break
+    return resultado
+
+
+def _camino_del_clip(categoria_path: list[str], guia) -> list[str]:
+    camino = list(categoria_path or [])
+    if not camino:
+        return ["02. Clip"]
+    orden = list(guia.orden) if guia else []
+    unidades = list(guia.unidades) if guia else []
+    if len(camino) > 1:
+        lugar = next((i for i, unidad in enumerate(unidades)
+                      if unidad.get("nombre") == camino[0]), -1)
+        if lugar != -1:
+            camino[0] = con_numero(camino[0], lugar + 1)
+            orden_unidad = unidades[lugar].get("orden", [])
+            if camino[1] in orden_unidad:
+                camino[1] = con_numero(
+                    camino[1], orden_unidad.index(camino[1]) + 1)
+    elif camino[0] in orden:
+        camino[0] = con_numero(camino[0], orden.index(camino[0]) + 1)
+    return ["02. Clip"] + camino
+
+
+def _agregar_item_al_bin(bin_destino: ET.Element, item: ET.Element) -> None:
+    items = bin_destino.find("ProjectItemContainer/Items")
+    if items is None:
+        contenedor = bin_destino.find("ProjectItemContainer")
+        items = ET.SubElement(contenedor, "Items", {"Version": "1"})
+    ET.SubElement(items, "Item", {
+        "Index": str(len(items)), "ObjectURef": item.get("ObjectUID")})
+
+
+def _reescribir_ruta_lut(raiz: ET.Element, chain_id: str, destino: Path) -> None:
+    """Cambia la ruta en el bloque Lumetri ya validado por Premiere."""
+    por_id = {elemento.get("ObjectID"): elemento for elemento in raiz
+              if elemento.get("ObjectID")}
+    pendientes, vistos = [chain_id], set()
+    while pendientes:
+        identificador = pendientes.pop()
+        if identificador in vistos or identificador not in por_id:
+            continue
+        vistos.add(identificador)
+        nodo = por_id[identificador]
+        for valor in nodo.iter("StartKeyframeValue"):
+            try:
+                texto = base64.b64decode((valor.text or "").strip()).decode(
+                    "utf-16-le").rstrip("\0")
+            except UnicodeDecodeError:
+                continue
+            if texto.lower().endswith(".cube"):
+                valor.text = base64.b64encode(
+                    str(destino).encode("utf-16-le")).decode("ascii")
+        pendientes.extend(
+            hijo.get("ObjectRef") for hijo in nodo.iter()
+            if hijo.get("ObjectRef"))
+
+
+def generar_prproj(manifest, destino: Path, carpeta_luts_destino: Path, *,
+                    probe=None) -> None:
+    """Genera el proyecto de Premiere y deja junto a él los LUT usados."""
+    if probe is None:
+        from clasificador_video.probe import probe_clip as probe
+
+    raiz = leer_prproj(recursos.template_color_luts())
+    asignador = AsignadorDeIds(raiz)
+    arquetipo_bin = archetipo_de_bin(raiz)
+    archetipos_clip = archetipos_de_clip(raiz)
+    archetipos_seq = archetipos_de_secuencia(raiz)
+    labels = _label_de_camara(raiz, archetipos_clip)
+    bins_fijos = crear_esqueleto(
+        raiz, arquetipo_bin, raiz.find("RootProjectItem"), asignador)
+
+    clips_para_nombres = [
+        {"categoria_path": clip.categoria_path} for clip in manifest.clips]
+    numeros = numeros_de_clip(clips_para_nombres)
+    clips_del_manifest = [
+        {"categoria_path": clip.categoria_path, "bin_sony": clip.bin_sony,
+         "bin_pocket": clip.bin_pocket, "bin_dron": clip.bin_dron}
+        for clip in manifest.clips
+    ]
+    bins_de_categoria: dict[tuple[str, ...], ET.Element] = {}
+    camaras_usadas: set[str] = set()
+
+    for indice, clip in enumerate(manifest.clips):
+        camino = _camino_del_clip(clip.categoria_path, manifest.guia)
+        padre = bins_fijos["02. Clip"]
+        acumulado: tuple[str, ...] = ()
+        for nivel, segmento in enumerate(camino[1:]):
+            acumulado += (segmento,)
+            if acumulado not in bins_de_categoria:
+                texto_posicion = segmento.split(".", 1)[0]
+                posicion = int(texto_posicion) if texto_posicion.isdigit() else 1
+                bins_de_categoria[acumulado] = bin_del_cuarto(
+                    raiz, arquetipo_bin, padre, asignador,
+                    categoria_path=clip.categoria_path[:nivel + 1],
+                    posicion=posicion, clips_del_manifest=clips_del_manifest)
+            padre = bins_de_categoria[acumulado]
+
+        camara = clip.camara if clip.camara in archetipos_clip else "otra"
+        camaras_usadas.add(camara)
+        from clasificador_video.marca_camara import marca_de_camara_del_prefijo
+        marca = marca_de_camara_del_prefijo(
+            [{"categoria_path": clip.categoria_path,
+              "bin_sony": clip.bin_sony, "bin_pocket": clip.bin_pocket,
+              "bin_dron": clip.bin_dron}],
+            clip.categoria_path or [clip.ruta.name])
+        nombre = nombre_de_clip(
+            clip.categoria_path[-1] if clip.categoria_path else clip.ruta.stem,
+            numeros[indice], marca, clip.flag)
+        label_name, label_color = labels[camara]
+        clon = clonar_clip(
+            raiz, archetipos_clip[camara], asignador, ruta_archivo=clip.ruta,
+            nombre_en_premiere=nombre, label_name=label_name,
+            label_color=label_color, datos_probe=probe(clip.ruta))
+        if camino[1:]:
+            item = raiz.find(
+                f'.//ClipProjectItem[@ObjectUID="{clon.clip_project_item_uid}"]')
+            _agregar_item_al_bin(padre, item)
+
+    if manifest.crear_secuencias or manifest.formato_secuencia:
+        nombre_base = (manifest.proyecto or "Proyecto").strip() or "Proyecto"
+        bases = {
+            "4k_9x16": archetipos_seq["4k_9x16"],
+            "2_7k_9x16": archetipos_seq["2_7k_9x16"],
+            "4k_16x9": archetipos_seq["4k_9x16"],
+            "9x16_1080p": archetipos_seq["4k_9x16"],
+            "16x9_1080p": archetipos_seq["4k_9x16"],
+        }
+        sufijos = {
+            "4k_9x16": "4K 9:16", "2_7k_9x16": "2.7K 9:16",
+            "4k_16x9": "4K 16:9", "9x16_1080p": "9:16 1080p",
+            "16x9_1080p": "16:9 1080p",
+        }
+        for clave, (ancho, alto, _fps) in FORMATOS_DE_SECUENCIA.items():
+            clonar_secuencia_con_medidas(
+                raiz, bases[clave], asignador,
+                nombre=f"{nombre_base} {sufijos[clave]}", ancho=ancho,
+                alto=alto)
+
+    for camara in camaras_usadas:
+        arquetipo = archetipos_clip[camara]
+        origen = recursos.cube_de_camara(camara)
+        if arquetipo.video_component_chain_id is not None and origen is not None:
+            _reescribir_ruta_lut(
+                raiz, arquetipo.video_component_chain_id,
+                carpeta_luts_destino / origen.name)
+
+    destino.parent.mkdir(parents=True, exist_ok=True)
+    escribir_prproj(raiz, destino)
+    carpeta_luts_destino.mkdir(parents=True, exist_ok=True)
+    for camara in camaras_usadas:
+        origen = recursos.cube_de_camara(camara)
+        if origen is not None:
+            shutil.copyfile(origen, carpeta_luts_destino / origen.name)
