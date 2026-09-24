@@ -28,3 +28,4 @@ where = ["src"]
 
 [project.scripts]
 clasificador = "clasificador_video.app:main"
+clipify-portafolio = "clasificador_video_portafolio.app:main"
