@@ -96,3 +96,8 @@ def _ruta_de_clip(clip, por_id, por_uid) -> Path | None:
     media = por_uid.get(media_ref.get("ObjectURef")) if media_ref is not None else None
     ruta = media.findtext("FilePath") if media is not None else None
     return Path(ruta) if ruta else None
+
+
+def medios_faltantes(usados: list[ClipUsado]) -> list[ClipUsado]:
+    """Devuelve los clips cuyo archivo de origen no está conectado ahora."""
+    return [usado for usado in usados if not usado.ruta_origen.exists()]

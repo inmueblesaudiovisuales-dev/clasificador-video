@@ -41,3 +41,18 @@ def test_prproj_sin_secuencias_da_lista_vacia(tmp_path):
     prproj_xml.escribir_prproj(ET.Element("PremiereData"), ruta)
 
     assert lector.clips_usados_en(ruta) == []
+
+
+def test_medios_faltantes_detecta_archivo_que_no_existe(tmp_path):
+    usados = [
+        lector.ClipUsado(ruta_origen=tmp_path / "no_existe.mov"),
+        lector.ClipUsado(ruta_origen=Path(__file__)),
+    ]
+
+    assert lector.medios_faltantes(usados) == [usados[0]]
+
+
+def test_medios_faltantes_vacio_si_todo_vincula():
+    usados = [lector.ClipUsado(ruta_origen=Path(__file__))]
+
+    assert lector.medios_faltantes(usados) == []
