@@ -382,6 +382,47 @@ def test_lut_sony_apunta_a_la_copia_local_dentro_del_blob(tmp_path):
     assert original not in blob
 
 
+def test_arbol_visible_completo_replica_la_estructura_de_clipify(tmp_path):
+    original = prproj_plantilla.archetipos_de_clip(
+        prproj_xml.leer_prproj(recursos.template_color_luts()))["sony"].ruta_lut
+    destino, luts, _manifest = _generar_proyecto_de_prueba(tmp_path)
+    raiz = prproj_xml.leer_prproj(destino)
+    arbol = _arbol_visible(raiz)
+    plano = list(_aplanar(arbol))
+    nombres = {rama["nombre"] for rama in plano}
+
+    # Raíz: exactamente los siete bins, sin items de plantilla.
+    assert [rama["nombre"] for rama in arbol] == list(
+        prproj_generador.CARPETAS_DEL_PROYECTO)
+    assert "Bin" not in nombres
+    for referencia in ("20260910_PIB0001.MP4", "DJI_20260910113520_0008_D.MP4",
+                       "20260910_PIB0002.MP4"):
+        assert referencia not in nombres
+    assert not [rama for rama in arbol
+                if rama["tag"] in ("ClipProjectItem", "Sequence")]
+
+    # 01. Secuencia: tres grandes y el sub-bin 1080p con dos.
+    secuencia = next(rama for rama in arbol if rama["nombre"] == "01. Secuencia")
+    assert [h["nombre"] for h in secuencia["hijos"]] == [
+        "IAV-2609.10-A 4K 9:16", "IAV-2609.10-A 2.7K 9:16",
+        "IAV-2609.10-A 4K 16:9", "1080p"]
+    assert [h["nombre"] for h in secuencia["hijos"][3]["hijos"]] == [
+        "IAV-2609.10-A 9:16 1080p", "IAV-2609.10-A 16:9 1080p"]
+
+    # 02. Clip: solo los clips del manifest.
+    clip = next(rama for rama in arbol if rama["nombre"] == "02. Clip")
+    assert sorted(rama["nombre"] for rama in _aplanar(clip["hijos"])
+                  if rama["tag"] == "ClipProjectItem") == sorted([
+        "✓ Cocina 01 [SONY]", "Cocina 02 [DRONE]"])
+
+    # LUT Sony: en el componente efectivo y con el archivo empaquetado.
+    assert (luts / "SONY-SLOG3.cube").is_file()
+    arquetipo = prproj_plantilla.archetipos_de_clip(raiz)["sony"]
+    blob = _blob_de_cadena(raiz, arquetipo.video_component_chain_id)
+    assert str(luts / "SONY-SLOG3.cube") in blob
+    assert original not in blob
+
+
 def test_generar_prproj_copia_solo_los_cube_que_hacen_falta(tmp_path):
     from clasificador_video.manifest import Clip, Manifest
 
