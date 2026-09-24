@@ -62,7 +62,8 @@ a = Analysis(
     # nota hasta que ya editaste con ella. La ruta de destino es la misma
     # que busca `patron.py`.
     datas=[(str(RAIZ / "docs" / "patron-de-recorrido" / "MI-PATRON.md"),
-            "docs/patron-de-recorrido")],
+            "docs/patron-de-recorrido"),
+           (str(RAIZ / "recursos" / "premiere"), "recursos/premiere")],
     hiddenimports=["mpv"],
     excludes=["tkinter", "PySide6.QtWebEngineCore", "PySide6.Qt3DCore",
               "PySide6.QtQuick3D", "PySide6.QtCharts", "PySide6.QtDataVisualization"],
