@@ -3,13 +3,16 @@ from __future__ import annotations
 
 import json
 
-_PREFIJO_POR_FLAG = {"destacado": "★ ", "pick": "✓ ", "reject": "✕ "}
+_PREFIJO_POR_FLAG = {"destacado": "★", "pick": "✓", "reject": "✕"}
 
 
 def nombre_de_clip(cuarto: str, numero: int, marca_de_camara: str, flag: str) -> str:
-    simbolo = _PREFIJO_POR_FLAG.get(flag, "")
-    camara = f" [{marca_de_camara}]" if marca_de_camara else ""
-    return f"{simbolo}{cuarto or ''} {numero:02d}{camara}"
+    base = f"{(cuarto or '').upper()}-{numero:02d}"
+    marca = _PREFIJO_POR_FLAG.get(flag, "")
+    partes = [base] + ([marca] if marca else [])
+    if marca_de_camara:
+        partes.append(f"[{marca_de_camara}]")
+    return " ".join(partes)
 
 
 def numeros_de_clip(clips: list) -> list[int]:

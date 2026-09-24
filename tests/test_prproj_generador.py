@@ -295,7 +295,7 @@ def test_02_clip_solo_tiene_los_clips_del_manifest(tmp_path):
                for rama in visibles)
     clips = [rama for rama in visibles if rama["tag"] == "ClipProjectItem"]
     assert sorted(rama["nombre"] for rama in clips) == sorted([
-        "✓ Cocina 01 [SONY]", "Cocina 02 [DRONE]"])
+        "COCINA-01 ✓ [SONY]", "COCINA-02 [DRONE]"])
 
 
 def test_01_secuencia_tiene_las_cinco_secuencias_en_su_lugar(tmp_path):
@@ -416,7 +416,7 @@ def test_arbol_visible_completo_replica_la_estructura_de_clipify(tmp_path):
     clip = next(rama for rama in arbol if rama["nombre"] == "02. Clip")
     assert sorted(rama["nombre"] for rama in _aplanar(clip["hijos"])
                   if rama["tag"] == "ClipProjectItem") == sorted([
-        "✓ Cocina 01 [SONY]", "Cocina 02 [DRONE]"])
+        "COCINA-01 ✓ [SONY]", "COCINA-02 [DRONE]"])
 
     # LUT Sony: en el componente efectivo y con el archivo empaquetado.
     assert (luts / "SONY-SLOG3.cube").is_file()
