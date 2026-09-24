@@ -59,6 +59,22 @@ def _actualizar_streams(streams, datos_probe: dict) -> None:
             n.text = str(orientacion_de(datos_probe.get("rotation", 0)))
 
 
+def _ruta_relativa_de_proyecto(ruta: Path) -> str:
+    """La forma relativa que Premiere guarda junto a su ruta absoluta."""
+    return "../" + str(ruta).lstrip("/")
+
+
+def _reescribir_rutas_de_media(media: ET.Element, ruta: Path) -> None:
+    """Actualiza cada serialización de ruta, sin dejar copias de plantilla."""
+    for nodo in media.findall("RelativePath"):
+        nodo.text = _ruta_relativa_de_proyecto(ruta)
+    for tag in ("FilePath", "ActualMediaFilePath"):
+        for nodo in media.findall(tag):
+            nodo.text = str(ruta)
+    for nodo in media.findall("Title"):
+        nodo.text = ruta.name
+
+
 def clonar_clip(raiz: ET.Element, arquetipo: ArchetipoDeClip, asignador: AsignadorDeIds, *, ruta_archivo: Path, nombre_en_premiere: str, label_name: str, label_color: int, datos_probe: dict) -> ClipClonado:
     item = next((i for i in raiz.findall('ClipProjectItem') if (m:=i.find('MasterClip')) is not None and m.get('ObjectURef') == arquetipo.master_clip_uid), None)
     if item is None: raise ValueError(f'No se encontró ClipProjectItem para {arquetipo.master_clip_uid}')
@@ -71,9 +87,7 @@ def clonar_clip(raiz: ET.Element, arquetipo: ArchetipoDeClip, asignador: Asignad
     if etiqueta is not None: etiqueta.text=label_name
     medias=[e for e in mapa.values() if e.tag == 'Media']
     for media in medias:
-        for campo in ('RelativePath','FilePath','ActualMediaFilePath'):
-            if (n:=media.find(campo)) is not None: n.text=str(ruta_archivo)
-        if (n:=media.find('Title')) is not None: n.text=ruta_archivo.name
+        _reescribir_rutas_de_media(media, ruta_archivo)
         for tipo in ('VideoStream','AudioStream'):
             if (ref:=media.find(tipo)) is None: continue
             stream=next((e for e in mapa.values() if e.tag==tipo and e.get('ObjectID')==ref.get('ObjectRef')), None)
@@ -156,11 +170,7 @@ def adjuntar_proxy(raiz: ET.Element, clip: ClipClonado,
         raiz.append(copia)
         copias.append(copia)
     media_proxy = next(e for e in copias if e.tag == "Media")
-    for tag in ("RelativePath", "FilePath", "ActualMediaFilePath"):
-        if (nodo := media_proxy.find(tag)) is not None:
-            nodo.text = str(ruta_proxy)
-    if (nodo := media_proxy.find("Title")) is not None:
-        nodo.text = ruta_proxy.name
+    _reescribir_rutas_de_media(media_proxy, ruta_proxy)
     _actualizar_streams((e for e in copias if e.tag in ("VideoStream", "AudioStream")), datos_probe)
     video = next(e for e in raiz if e.tag == "VideoMediaSource"
                  and e.get("ObjectID") == clip.video_media_source_id)

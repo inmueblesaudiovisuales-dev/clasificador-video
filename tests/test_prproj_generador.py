@@ -1,5 +1,7 @@
 import pytest
 import base64
+import xml.etree.ElementTree as ET
+from pathlib import Path
 
 from clasificador_video import prproj_generador, prproj_plantilla, prproj_xml, recursos
 
@@ -178,6 +180,22 @@ def test_generar_prproj_omite_proxy_cuya_ruta_no_existe(tmp_path):
     raiz = _generar_proyecto_con_proxy(tmp_path, tmp_path / "no-existe_proxy.mp4")
 
     assert _proxy_de_video(raiz, _clip_items_visibles(raiz)[0]) is None
+
+
+def test_reescribir_rutas_de_media_reemplaza_todas_las_copias():
+    ruta = Path("/media/nueva/toma_proxy.mp4")
+    media = ET.fromstring("""
+        <Media><RelativePath>../vieja/a.mp4</RelativePath>
+        <RelativePath>../vieja/b.mp4</RelativePath><FilePath>/vieja/a.mp4</FilePath>
+        <FilePath>/vieja/b.mp4</FilePath><ActualMediaFilePath>/vieja/a.mp4</ActualMediaFilePath>
+        <ActualMediaFilePath>/vieja/b.mp4</ActualMediaFilePath><Title>vieja.mp4</Title></Media>""")
+
+    prproj_generador._reescribir_rutas_de_media(media, ruta)
+
+    assert {n.text for n in media.findall("RelativePath")} == {"../media/nueva/toma_proxy.mp4"}
+    assert {n.text for n in media.findall("FilePath")} == {str(ruta)}
+    assert {n.text for n in media.findall("ActualMediaFilePath")} == {str(ruta)}
+    assert {n.text for n in media.findall("Title")} == {ruta.name}
 
 
 def test_clonar_clip_pone_la_ruta_del_archivo_real(raiz, tmp_path):
