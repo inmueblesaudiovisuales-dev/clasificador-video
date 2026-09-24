@@ -26,6 +26,18 @@ class ClipDelPortafolio:
     fuera_de_secuencia: bool = False
 
 
+def subir(clip: ClipDelPortafolio) -> None:
+    """`↑` -- un peldaño hacia Elegida."""
+    indice = min(ESTADOS.index(clip.estado) + 1, len(ESTADOS) - 1)
+    clip.estado = ESTADOS[indice]
+
+
+def bajar(clip: ClipDelPortafolio) -> None:
+    """`↓` -- un peldaño hacia Descartada."""
+    indice = max(ESTADOS.index(clip.estado) - 1, 0)
+    clip.estado = ESTADOS[indice]
+
+
 @dataclass
 class ProyectoImportado:
     nombre: str

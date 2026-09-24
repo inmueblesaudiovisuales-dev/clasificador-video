@@ -5,6 +5,51 @@ from clasificador_video_portafolio import portafolio as pf
 from clasificador_video_portafolio.lector_de_entregas import ClipUsado, RangoUsado
 
 
+def test_subir_de_sin_decidir_a_elegida():
+    clip = pf.ClipDelPortafolio(ruta_origen=Path("x.mov"), proyecto="P")
+
+    pf.subir(clip)
+
+    assert clip.estado == "elegida"
+
+
+def test_subir_dos_veces_seguidas_se_queda_en_elegida():
+    clip = pf.ClipDelPortafolio(ruta_origen=Path("x.mov"), proyecto="P")
+
+    pf.subir(clip)
+    pf.subir(clip)
+
+    assert clip.estado == "elegida"
+
+
+def test_bajar_de_elegida_regresa_a_sin_decidir_primero():
+    clip = pf.ClipDelPortafolio(
+        ruta_origen=Path("x.mov"), proyecto="P", estado="elegida"
+    )
+
+    pf.bajar(clip)
+
+    assert clip.estado == "sin_decidir"
+
+
+def test_bajar_de_sin_decidir_llega_a_descartada():
+    clip = pf.ClipDelPortafolio(ruta_origen=Path("x.mov"), proyecto="P")
+
+    pf.bajar(clip)
+
+    assert clip.estado == "descartada"
+
+
+def test_bajar_no_pasa_de_descartada():
+    clip = pf.ClipDelPortafolio(
+        ruta_origen=Path("x.mov"), proyecto="P", estado="descartada"
+    )
+
+    pf.bajar(clip)
+
+    assert clip.estado == "descartada"
+
+
 def test_portafolio_nuevo_empieza_vacio():
     p = pf.Portafolio()
 
