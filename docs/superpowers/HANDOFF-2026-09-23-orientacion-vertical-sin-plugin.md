@@ -5,6 +5,23 @@
 **Estado:** investigación pura, sin cambios en el repo. Detenerse aquí hasta
 que Bruno decida si se sigue con el spike de `.prproj`.
 
+## Qué es Clipify y dónde vive
+
+Clipify es la app de escritorio (PySide6/Python) que usa Bruno, editor de
+video, para clasificar el material de un rodaje (picks, rejects, destacados,
+a qué cuarto de la casa pertenece cada clip) antes de editar en Adobe
+Premiere Pro. El repo completo está en:
+
+```
+/Users/brunogutierrez/Documents/CLAUDE CODE/ORGANIZADOR VIDEO
+```
+
+Al terminar de clasificar, Clipify exporta un JSON, y un plugin de Premiere
+(UXP, en `uxp-plugin/` dentro de este mismo repo) lo lee y arma el proyecto
+de Premiere: bins por cuarto, color por cámara, secuencias vacías ya
+armadas, y una guía de edición con avance. Ese plugin es la pieza que esta
+sesión evaluó reemplazar o achicar.
+
 ## Punto de partida
 
 Bruno quería dejar de depender del plugin UXP por completo, con la
