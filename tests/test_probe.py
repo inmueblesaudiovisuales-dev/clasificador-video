@@ -142,3 +142,11 @@ def test_sin_ningun_tamano_conocido_queda_el_default_de_siempre():
 def test_los_tamanos_en_cero_no_cuentan():
     assert orientacion_predominante([(0, 0), (2160, 3840)]) == "vertical"
     assert orientacion_predominante([(0, 0)]) == "horizontal"
+
+
+def test_probe_clip_incluye_duration_seconds(tmp_path):
+    def runner_falso(_ruta):
+        return ('{"streams":[{"codec_type":"video","width":1080,"height":1920,'
+                '"r_frame_rate":"60000/1001"}],"format":{"duration":"6.006"}}')
+    resultado = probe.probe_clip(tmp_path / "x.mp4", runner=runner_falso)
+    assert resultado["duration_seconds"] == 6.006

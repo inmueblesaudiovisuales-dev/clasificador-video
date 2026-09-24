@@ -70,6 +70,7 @@ def probe_clip(path: Path, runner: Callable[[Path], str] = _run_ffprobe) -> dict
         "height": height,
         "fps": fps,
         "has_audio": has_audio,
+        "duration_seconds": duration_seconds,
         "duration_frames": round(duration_seconds * fps),
         "rotation": rotation,
     }
