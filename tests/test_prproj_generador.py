@@ -44,3 +44,31 @@ def test_clonar_clip_sony_y_dji_comparten_el_mismo_lut_sin_clonarlo(raiz,tmp_pat
 def test_clonar_clip_otra_no_tiene_video_component_chain(raiz,tmp_path):
     a=prproj_plantilla.archetipos_de_clip(raiz); c=prproj_generador.clonar_clip(raiz,a['otra'],prproj_xml.AsignadorDeIds(raiz),ruta_archivo=tmp_path/'c.mp4',nombre_en_premiere='c',label_name='x',label_color=1,datos_probe=_probe_falso())
     assert raiz.find(f'.//MasterClip[@ObjectUID="{c.master_clip_uid}"]').find('VideoComponentChain') is None
+
+
+def test_clonar_secuencia_con_medidas_le_pone_el_nombre(raiz):
+    archetipos = prproj_plantilla.archetipos_de_secuencia(raiz)
+    clon = prproj_generador.clonar_secuencia_con_medidas(
+        raiz, archetipos["4k_9x16"], prproj_xml.AsignadorDeIds(raiz),
+        nombre="IAV-2609.10-A 4K 9:16")
+    assert clon.find(".//Name").text == "IAV-2609.10-A 4K 9:16"
+
+
+def test_clonar_secuencia_con_medidas_voltea_para_16x9(raiz):
+    archetipos = prproj_plantilla.archetipos_de_secuencia(raiz)
+    clon = prproj_generador.clonar_secuencia_con_medidas(
+        raiz, archetipos["4k_9x16"], prproj_xml.AsignadorDeIds(raiz),
+        nombre="x 4K 16:9", ancho=3840, alto=2160)
+    grupo = prproj_plantilla._video_track_group_de_secuencia(raiz, clon)
+    assert grupo.find("FrameRect").text == "0,0,3840,2160"
+
+
+def test_clonar_secuencia_con_medidas_no_toca_la_original(raiz):
+    archetipos = prproj_plantilla.archetipos_de_secuencia(raiz)
+    grupo_original = prproj_plantilla._video_track_group_de_secuencia(
+        raiz, archetipos["4k_9x16"])
+    rect_original = grupo_original.find("FrameRect").text
+    prproj_generador.clonar_secuencia_con_medidas(
+        raiz, archetipos["4k_9x16"], prproj_xml.AsignadorDeIds(raiz),
+        nombre="otro", ancho=1080, alto=1920)
+    assert grupo_original.find("FrameRect").text == rect_original

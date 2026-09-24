@@ -78,5 +78,52 @@ def archetipo_de_bin(raiz: ET.Element) -> ET.Element | None:
 FORMATOS_DE_SECUENCIA = {"4k_9x16": (2160, 3840, 59.94), "2_7k_9x16": (1512, 2688, 59.94), "4k_16x9": (3840, 2160, 59.94), "9x16_1080p": (1080, 1920, 59.94), "16x9_1080p": (1920, 1080, 59.94)}
 
 
+def _video_track_group_de_secuencia(
+        raiz: ET.Element, secuencia: ET.Element) -> ET.Element | None:
+    for grupo in secuencia.findall(".//TrackGroup"):
+        ref = grupo.find("Second")
+        if ref is None:
+            continue
+        candidato = raiz.find(
+            f'.//VideoTrackGroup[@ObjectID="{ref.get("ObjectRef")}"]')
+        if candidato is not None:
+            return candidato
+    return None
+
+
+def _ancho_alto_de_secuencia(
+        raiz: ET.Element, secuencia: ET.Element) -> tuple[int, int] | None:
+    grupo = _video_track_group_de_secuencia(raiz, secuencia)
+    if grupo is None:
+        return None
+    rect = grupo.find("FrameRect")
+    if rect is None or not rect.text:
+        return None
+    _x, _y, ancho, alto = rect.text.split(",")
+    return int(ancho), int(alto)
+
+
+_CLAVES_REALES_EN_PLANTILLA = ("4k_9x16", "2_7k_9x16")
+
+
 def archetipos_de_secuencia(raiz: ET.Element) -> dict[str, ET.Element]:
-    raise NotImplementedError("se implementa en la Tarea 11")
+    """Localiza las dos secuencias reales por su ``VideoTrackGroup``."""
+    encontrados: dict[str, ET.Element] = {}
+    for secuencia in raiz.findall("Sequence"):
+        medidas = _ancho_alto_de_secuencia(raiz, secuencia)
+        if medidas is None:
+            continue
+        for clave in _CLAVES_REALES_EN_PLANTILLA:
+            if clave in encontrados:
+                continue
+            ancho, alto, _fps = FORMATOS_DE_SECUENCIA[clave]
+            if medidas == (ancho, alto):
+                encontrados[clave] = secuencia
+                break
+
+    faltan = set(_CLAVES_REALES_EN_PLANTILLA) - encontrados.keys()
+    if faltan:
+        raise PlantillaIncompleta(
+            "La plantilla no tiene secuencia de referencia para: "
+            + ", ".join(sorted(faltan)) + ". Revisar la Tarea 0 del plan.")
+    return encontrados

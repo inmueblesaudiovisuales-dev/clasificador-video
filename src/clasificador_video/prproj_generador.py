@@ -57,3 +57,34 @@ def clonar_clip(raiz: ET.Element, arquetipo: ArchetipoDeClip, asignador: Asignad
             if (n:=e.find('.//asl.clip.label.name')) is not None: n.text=label_name
             if (n:=e.find('.//asl.clip.label.color')) is not None: n.text=str(label_color)
     return ClipClonado(item_clon.get('ObjectUID'), master_uid, medias[0].get('ObjectUID'))
+
+
+def clonar_secuencia_con_medidas(
+        raiz: ET.Element, arquetipo_secuencia: ET.Element,
+        asignador: AsignadorDeIds, *, nombre: str,
+        ancho: int | None = None, alto: int | None = None) -> ET.Element:
+    """Clona una secuencia y opcionalmente cambia su tamaño de cuadro."""
+    tipo_ancla = (
+        "ObjectUID" if arquetipo_secuencia.get("ObjectUID") else "ObjectID")
+    valor_ancla = arquetipo_secuencia.get(tipo_ancla)
+    mapa = clonar_por_cierre(raiz, tipo_ancla, valor_ancla, asignador)
+    clon = mapa[(tipo_ancla, valor_ancla)]
+
+    nombre_nodo = clon.find(".//Name")
+    if nombre_nodo is not None:
+        nombre_nodo.text = nombre
+
+    if ancho is not None and alto is not None:
+        from clasificador_video.prproj_plantilla import _video_track_group_de_secuencia
+
+        grupo_original = _video_track_group_de_secuencia(raiz, arquetipo_secuencia)
+        if grupo_original is not None:
+            tipo_grupo = (
+                "ObjectUID" if grupo_original.get("ObjectUID") else "ObjectID")
+            grupo_clonado = mapa.get(
+                (tipo_grupo, grupo_original.get(tipo_grupo)))
+            if grupo_clonado is not None:
+                rect = grupo_clonado.find("FrameRect")
+                if rect is not None:
+                    rect.text = f"0,0,{ancho},{alto}"
+    return clon

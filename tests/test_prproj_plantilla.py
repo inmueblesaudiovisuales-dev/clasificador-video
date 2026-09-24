@@ -29,9 +29,15 @@ def test_archetipo_de_bin_existe(raiz):
     assert prproj_plantilla.archetipo_de_bin(raiz) is not None
 
 
-@pytest.mark.skip(reason="se implementa en la Tarea 11")
 def test_archetipos_de_secuencia_encuentra_las_2_reales(raiz):
     assert set(prproj_plantilla.archetipos_de_secuencia(raiz)) == {"4k_9x16", "2_7k_9x16"}
+
+
+def test_archetipo_2_7k_tiene_su_medida_real_no_la_de_4k(raiz):
+    archetipos = prproj_plantilla.archetipos_de_secuencia(raiz)
+    ancho, alto = prproj_plantilla._ancho_alto_de_secuencia(
+        raiz, archetipos["2_7k_9x16"])
+    assert (ancho, alto) == (1512, 2688)
 
 
 def test_plantilla_incompleta_avisa_en_vez_de_adivinar():
