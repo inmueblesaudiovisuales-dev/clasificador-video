@@ -614,6 +614,35 @@ def test_arbol_visible_completo_replica_la_estructura_de_clipify(tmp_path):
     assert original not in blob
 
 
+def test_generar_prproj_ordena_bien_un_cuarto_con_mas_de_99_clips(tmp_path):
+    from clasificador_video.manifest import Clip, Guia, Manifest
+
+    clips = []
+    for i in range(101):
+        ruta = tmp_path / f"c{i}.mp4"
+        ruta.write_bytes(b"")
+        clips.append(Clip(orden=i, ruta=ruta, categoria_path=["Cocina"],
+                           fps=59.94, camara="sony"))
+    manifest = Manifest(proyecto="Cien", orientacion="horizontal", clips=clips,
+                        guia=Guia(orden=["Cocina"]))
+    destino = tmp_path / "salida" / "cien.prproj"
+
+    def probe_falso(_ruta):
+        return {"width": 1920, "height": 1080, "fps": 59.94,
+                "duration_seconds": 1.0, "rotation": 0}
+
+    prproj_generador.generar_prproj(
+        manifest, destino, tmp_path / "luts", probe=probe_falso)
+    raiz = prproj_xml.leer_prproj(destino)
+    clip = next(rama for rama in _arbol_visible(raiz) if rama["nombre"] == "02. Clip")
+    nombres = sorted(rama["nombre"] for rama in _aplanar(clip["hijos"])
+                      if rama["tag"] == "ClipProjectItem")
+    assert len(nombres) == 101
+    assert nombres[0] == "COCINA-001"
+    assert nombres[1] == "COCINA-002"
+    assert nombres[-1] == "COCINA-101"
+
+
 def test_ruta_libre_con_version_no_cambia_si_no_existe(tmp_path):
     destino = tmp_path / "IAV-2609.10-A.prproj"
     assert prproj_generador.ruta_libre_con_version(destino) == destino

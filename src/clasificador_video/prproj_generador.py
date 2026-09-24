@@ -10,7 +10,9 @@ import uuid
 import xml.etree.ElementTree as ET
 
 from clasificador_video import recursos
-from clasificador_video.nombre_de_clip import nombre_de_clip, numeros_de_clip
+from clasificador_video.nombre_de_clip import (
+    anchos_de_clip, nombre_de_clip, numeros_de_clip,
+)
 from clasificador_video.prproj_plantilla import ArchetipoDeClip, ArquetipoDeProxy
 from clasificador_video.prproj_plantilla import (
     FORMATOS_DE_SECUENCIA, archetipo_de_bin, archetipo_de_secuencia,
@@ -496,6 +498,7 @@ def generar_prproj(manifest, destino: Path, carpeta_luts_destino: Path, *,
     clips_para_nombres = [
         {"categoria_path": clip.categoria_path} for clip in manifest.clips]
     numeros = numeros_de_clip(clips_para_nombres)
+    anchos = anchos_de_clip(clips_para_nombres)
     clips_del_manifest = [
         {"categoria_path": clip.categoria_path, "bin_sony": clip.bin_sony,
          "bin_pocket": clip.bin_pocket, "bin_dron": clip.bin_dron}
@@ -529,7 +532,7 @@ def generar_prproj(manifest, destino: Path, carpeta_luts_destino: Path, *,
             clip.categoria_path or [clip.ruta.name])
         nombre = nombre_de_clip(
             clip.categoria_path[-1] if clip.categoria_path else clip.ruta.stem,
-            numeros[indice], marca, clip.flag)
+            numeros[indice], marca, clip.flag, ancho=anchos[indice])
         label_name, label_color = labels[camara]
         clon = clonar_clip(
             raiz, archetipos_clip[camara], asignador, ruta_archivo=clip.ruta,
