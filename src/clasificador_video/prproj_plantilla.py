@@ -11,6 +11,74 @@ class PlantillaIncompleta(Exception):
 
 
 @dataclass(frozen=True)
+class ArquetipoDeProxy:
+    """IDs del cierre que Premiere crea al adjuntar un proxy."""
+    media_uid: str
+    video_media_source_id: str
+    audio_media_source_id: str
+    proxy_media_uid: str
+    proxy_video_stream_id: str
+    proxy_audio_stream_ids: tuple[str, ...]
+
+
+def arquetipo_de_proxy(raiz: ET.Element) -> ArquetipoDeProxy:
+    """Describe el cierre que Premiere crea al adjuntar un proxy.
+
+    Se resuelve exclusivamente a través de referencias XML; los nombres de
+    archivo se sanitizan en la plantilla y no son parte de esta identidad.
+    """
+    medios = _indice_por_uid(raiz)
+    video = next((fuente for fuente in raiz.findall("VideoMediaSource")
+                  if fuente.find("MediaSource/Content/ProxyMedia") is not None), None)
+    if video is None:
+        raise PlantillaIncompleta("Falta VideoMediaSource/MediaSource/Content/ProxyMedia")
+    proxy_ref = video.find("MediaSource/Content/ProxyMedia")
+    original_ref = video.find("MediaSource/Media")
+    if proxy_ref is None or not proxy_ref.get("ObjectURef"):
+        raise PlantillaIncompleta("Falta ProxyMedia/ObjectURef")
+    if original_ref is None or not original_ref.get("ObjectURef"):
+        raise PlantillaIncompleta("Falta Media original/ObjectURef")
+    proxy_uid = proxy_ref.get("ObjectURef")
+    media_proxy = medios.get(proxy_uid)
+    if media_proxy is None or media_proxy.findtext("IsProxy") != "true":
+        raise PlantillaIncompleta("Falta Media proxy con IsProxy=true")
+    video_stream = media_proxy.find("VideoStream")
+    if video_stream is None or not video_stream.get("ObjectRef"):
+        raise PlantillaIncompleta("Falta VideoStream del Media proxy")
+    audio = next((fuente for fuente in raiz.findall("AudioMediaSource")
+                  if fuente.find("MediaSource/Content/AudioProxies") is not None
+                  and fuente.find("MediaSource/Media") is not None
+                  and fuente.find("MediaSource/Media").get("ObjectURef") == original_ref.get("ObjectURef")), None)
+    if audio is None:
+        raise PlantillaIncompleta("Falta AudioMediaSource/AudioProxies del original")
+    audio_proxies = audio.findall("MediaSource/Content/AudioProxies/AudioProxyItem")
+    if not audio_proxies:
+        raise PlantillaIncompleta("Falta AudioProxyItem")
+    por_id = {elemento.get("ObjectID"): elemento for elemento in raiz
+              if elemento.get("ObjectID")}
+    for item in audio_proxies:
+        proxy = por_id.get(item.get("ObjectRef"))
+        if proxy is None or proxy.tag != "AudioProxy":
+            raise PlantillaIncompleta("Falta AudioProxy referenciado")
+        enlace = proxy.find("ProxyMedia")
+        if enlace is None or enlace.get("ObjectURef") != proxy_uid:
+            raise PlantillaIncompleta("AudioProxy no apunta al Media proxy")
+    audio_stream_ids = tuple(
+        stream.get("ObjectRef") for stream in media_proxy.findall("AudioStream")
+        if stream.get("ObjectRef"))
+    if not audio_stream_ids:
+        raise PlantillaIncompleta("Falta AudioStream del Media proxy")
+    return ArquetipoDeProxy(
+        media_uid=original_ref.get("ObjectURef"),
+        video_media_source_id=video.get("ObjectID"),
+        audio_media_source_id=audio.get("ObjectID"),
+        proxy_media_uid=proxy_uid,
+        proxy_video_stream_id=video_stream.get("ObjectRef"),
+        proxy_audio_stream_ids=audio_stream_ids,
+    )
+
+
+@dataclass(frozen=True)
 class ArchetipoDeClip:
     master_clip_uid: str
     video_component_chain_id: str | None

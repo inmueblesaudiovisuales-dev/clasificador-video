@@ -11,6 +11,7 @@ from pathlib import Path
 RELATIVA = Path("recursos") / "premiere"
 
 TEMPLATE_COLOR_LUTS_NOMBRE = "TemplateColorLuts.prproj"
+TEMPLATE_PROXY_ADJUNTO_NOMBRE = "TemplateProxyAdjunto.prproj"
 SONY_CUBE_NOMBRE = "SONY-SLOG3.cube"
 DJI_CUBE_NOMBRE = "DJI-DLOGM.cube"
 
@@ -26,6 +27,11 @@ def carpeta_premiere() -> Path:
 def template_color_luts() -> Path:
     """Ruta a la plantilla de Premiere con los LUTs validados."""
     return carpeta_premiere() / TEMPLATE_COLOR_LUTS_NOMBRE
+
+
+def template_proxy_adjunto() -> Path:
+    """Ruta al cierre real de Premiere para un proxy ya adjunto."""
+    return carpeta_premiere() / TEMPLATE_PROXY_ADJUNTO_NOMBRE
 
 
 def cube_de_camara(camara: str) -> Path | None:

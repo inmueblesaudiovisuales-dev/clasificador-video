@@ -71,3 +71,16 @@ def test_plantilla_incompleta_avisa_en_vez_de_adivinar():
             raiz.remove(elemento)
     with pytest.raises(prproj_plantilla.PlantillaIncompleta):
         prproj_plantilla.archetipos_de_clip(raiz)
+
+
+def test_arquetipo_de_proxy_exige_medio_proxy_y_enlaces_de_audio():
+    raiz = prproj_xml.leer_prproj(recursos.template_proxy_adjunto())
+
+    arquetipo = prproj_plantilla.arquetipo_de_proxy(raiz)
+
+    assert raiz.find(
+        f'.//Media[@ObjectUID="{arquetipo.proxy_media_uid}"]/IsProxy'
+    ).text == "true"
+    assert arquetipo.video_media_source_id
+    assert arquetipo.audio_media_source_id
+    assert len(arquetipo.proxy_audio_stream_ids) > 0
