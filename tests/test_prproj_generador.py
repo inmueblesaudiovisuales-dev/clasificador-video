@@ -14,6 +14,97 @@ def _probe_falso(fps=59.94, duration_seconds=6.006, rotation=0):
     return {"fps": fps, "duration_seconds": duration_seconds, "rotation": rotation, "width": 1080, "height": 1920}
 
 
+def _resolver(raiz, elemento):
+    """Objeto de raíz al que apunta la referencia de un Item visible."""
+    referencia = elemento.get("ObjectURef") or elemento.get("ObjectRef")
+    if referencia is None:
+        return None
+    return next(
+        (c for c in raiz
+         if c.get("ObjectUID") == referencia or c.get("ObjectID") == referencia),
+        None)
+
+
+def _items_visibles(raiz, contenedor):
+    items = contenedor.find("ProjectItemContainer/Items")
+    return list(items) if items is not None else []
+
+
+def _nombre_de(raiz, elemento):
+    objeto = _resolver(raiz, elemento)
+    nombre = objeto.find(".//Name") if objeto is not None else None
+    return nombre.text if nombre is not None else None
+
+
+def _arbol_visible(raiz):
+    """Recorre SOLO el árbol visible de ``ProjectItemContainer/Items``."""
+    def recorrer(contenedor):
+        ramas = []
+        for item in _items_visibles(raiz, contenedor):
+            objeto = _resolver(raiz, item)
+            if objeto is None:
+                continue
+            rama = {"nombre": _nombre_de(raiz, item), "tag": objeto.tag,
+                    "objeto": objeto, "hijos": []}
+            if objeto.tag == "BinProjectItem":
+                rama["hijos"] = recorrer(objeto)
+            ramas.append(rama)
+        return ramas
+    return recorrer(raiz.find("RootProjectItem"))
+
+
+def _aplanar(arbol):
+    for rama in arbol:
+        yield rama
+        yield from _aplanar(rama["hijos"])
+
+
+def _tracks_de_secuencia(raiz, secuencia):
+    """Los objetos de track colgados del ``VideoTrackGroup``/``AudioTrackGroup``."""
+    tracks = []
+    for grupo_ref in secuencia.findall(".//TrackGroup/Second"):
+        grupo = next(
+            (c for c in raiz if c.get("ObjectID") == grupo_ref.get("ObjectRef")),
+            None)
+        if grupo is None:
+            continue
+        for track_ref in grupo.findall(".//Track"):
+            track = next(
+                (c for c in raiz if c.get("ObjectUID") == track_ref.get("ObjectURef")),
+                None)
+            if track is not None:
+                tracks.append(track)
+    return tracks
+
+
+def _generar_proyecto_de_prueba(tmp_path):
+    from clasificador_video.manifest import Clip, Guia, Manifest
+
+    manifest = Manifest(
+        proyecto="IAV-2609.10-A", orientacion="vertical",
+        clips=[
+            Clip(orden=0, ruta=tmp_path / "sony1.mp4",
+                 categoria_path=["Cocina"], fps=59.94, flag="pick",
+                 camara="sony", bin_sony=True),
+            Clip(orden=1, ruta=tmp_path / "dron1.mp4",
+                 categoria_path=["Cocina"], fps=59.94, flag="none",
+                 camara="dji", bin_dron=True),
+        ], guia=Guia(orden=["Cocina"]), formato_secuencia="4K 9:16",
+        crear_secuencias=True)
+    for clip in manifest.clips:
+        clip.ruta.write_bytes(b"")
+    destino = tmp_path / "salida" / "IAV-2609.10-A.prproj"
+    carpeta_luts = tmp_path / "salida" / "01. Proyecto premiere" / "LUTs"
+
+    def probe_falso(_ruta):
+        return {"width": 2160, "height": 3840, "fps": 59.94,
+                "duration_seconds": 6.0, "rotation": 90}
+
+    prproj_generador.generar_prproj(
+        manifest, destino, carpeta_luts, probe=probe_falso)
+    return destino, carpeta_luts, manifest
+
+
 def test_clonar_clip_pone_la_ruta_del_archivo_real(raiz, tmp_path):
     a=prproj_plantilla.archetipos_de_clip(raiz); archivo=tmp_path/'MiClip.MP4'; archivo.write_bytes(b'')
     clon=prproj_generador.clonar_clip(raiz,a['sony'],prproj_xml.AsignadorDeIds(raiz),ruta_archivo=archivo,nombre_en_premiere='✓ Cocina 01 [SONY]',label_name='BE.Prefs.LabelColors.10',label_color=123456,datos_probe=_probe_falso())
@@ -118,7 +209,7 @@ def test_generar_prproj_produce_un_archivo_que_se_puede_releer(tmp_path):
         clips=[
             Clip(orden=0, ruta=tmp_path / "sony1.mp4",
                  categoria_path=["Cocina"], fps=59.94, flag="pick",
-                 camara="sony"),
+                 camara="sony", bin_sony=True),
             Clip(orden=1, ruta=tmp_path / "dron1.mp4",
                  categoria_path=["Cocina"], fps=59.94, flag="none",
                  camara="dji", bin_dron=True),
@@ -148,6 +239,47 @@ def test_generar_prproj_produce_un_archivo_que_se_puede_releer(tmp_path):
             pass
     assert str(carpeta_luts / "SONY-SLOG3.cube") in valores_lut
     assert str(carpeta_luts / "DJI-DLOGM.cube") in valores_lut
+
+
+def test_arbol_visible_solo_tiene_los_siete_bins_en_orden(tmp_path):
+    destino, _luts, _manifest = _generar_proyecto_de_prueba(tmp_path)
+    raiz = prproj_xml.leer_prproj(destino)
+    arbol = _arbol_visible(raiz)
+    assert [rama["nombre"] for rama in arbol] == list(
+        prproj_generador.CARPETAS_DEL_PROYECTO)
+    assert all(rama["tag"] == "BinProjectItem" for rama in arbol)
+
+
+def test_arbol_visible_no_conserva_items_de_la_plantilla(tmp_path):
+    destino, _luts, _manifest = _generar_proyecto_de_prueba(tmp_path)
+    raiz = prproj_xml.leer_prproj(destino)
+    nombres = {rama["nombre"] for rama in _aplanar(_arbol_visible(raiz))}
+    assert "Bin" not in nombres
+    for referencia in (
+            "20260910_PIB0001.MP4", "DJI_20260910113520_0008_D.MP4",
+            "20260910_PIB0002.MP4"):
+        assert referencia not in nombres
+
+
+def test_arbol_visible_no_tiene_clips_ni_secuencias_en_la_raiz(tmp_path):
+    destino, _luts, _manifest = _generar_proyecto_de_prueba(tmp_path)
+    raiz = prproj_xml.leer_prproj(destino)
+    arbol = _arbol_visible(raiz)
+    assert not [rama for rama in arbol
+                if rama["tag"] in ("ClipProjectItem", "Sequence")]
+
+
+def test_02_clip_solo_tiene_los_clips_del_manifest(tmp_path):
+    destino, _luts, _manifest = _generar_proyecto_de_prueba(tmp_path)
+    raiz = prproj_xml.leer_prproj(destino)
+    arbol = _arbol_visible(raiz)
+    clip = next(rama for rama in arbol if rama["nombre"] == "02. Clip")
+    visibles = list(_aplanar(clip["hijos"]))
+    assert all(rama["tag"] in ("BinProjectItem", "ClipProjectItem")
+               for rama in visibles)
+    clips = [rama for rama in visibles if rama["tag"] == "ClipProjectItem"]
+    assert sorted(rama["nombre"] for rama in clips) == sorted([
+        "✓ Cocina 01 [SONY]", "Cocina 02 [DRONE]"])
 
 
 def test_generar_prproj_copia_solo_los_cube_que_hacen_falta(tmp_path):

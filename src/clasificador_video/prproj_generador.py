@@ -106,6 +106,24 @@ def clonar_secuencia_con_medidas(
     return clon
 
 
+def limpiar_items_visibles_de_plantilla(raiz: ET.Element) -> None:
+    """Desenlaza del árbol visible los items de referencia de la plantilla.
+
+    No borra los objetos XML: los arquetipos de clip, bin y secuencia se
+    siguen alcanzando desde la raíz y se clonan después. Lo único que
+    desaparece es el enlace desde ``RootProjectItem``, que es lo que
+    Premiere dibuja como contenido del proyecto.
+    """
+    root = raiz.find("RootProjectItem")
+    if root is None:
+        return
+    items = root.find("ProjectItemContainer/Items")
+    if items is None:
+        return
+    for item in list(items):
+        items.remove(item)
+
+
 def crear_bin_hijo(raiz: ET.Element, arquetipo_bin: ET.Element,
                     padre: ET.Element, asignador: AsignadorDeIds, *,
                     nombre: str) -> ET.Element:
@@ -248,6 +266,7 @@ def generar_prproj(manifest, destino: Path, carpeta_luts_destino: Path, *,
     archetipos_clip = archetipos_de_clip(raiz)
     archetipos_seq = archetipos_de_secuencia(raiz)
     labels = _label_de_camara(raiz, archetipos_clip)
+    limpiar_items_visibles_de_plantilla(raiz)
     bins_fijos = crear_esqueleto(
         raiz, arquetipo_bin, raiz.find("RootProjectItem"), asignador)
 
