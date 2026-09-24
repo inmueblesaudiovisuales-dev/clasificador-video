@@ -1,10 +1,15 @@
 """Pantalla de revisión de un proyecto importado a la vez."""
 from __future__ import annotations
 
+import hashlib
+from collections.abc import Callable
 from pathlib import Path
 
-from PySide6.QtCore import QEvent, Qt
+from PySide6.QtCore import QEvent, QTimer, Qt
+from PySide6.QtGui import QColor, QPixmap
 from PySide6.QtWidgets import (
+    QComboBox,
+    QFileDialog,
     QFrame,
     QGridLayout,
     QHBoxLayout,
@@ -19,6 +24,7 @@ from PySide6.QtWidgets import (
 
 from clasificador_video_portafolio import portafolio as pf
 from clasificador_video_portafolio import rodaje_completo
+from clasificador_video.thumbnails import cache_dir_for, default_cache_root, extract_thumbnail
 
 
 ESTILO_REVISAR = """
@@ -31,6 +37,8 @@ QLabel#tituloRail { color: #626b78; font-size: 10px; font-weight: 600; letter-sp
 QPushButton#filtro, QPushButton#rodajeCompleto { background: #16191e; border: 1px solid #262b33; border-radius: 6px; color: #9aa3b0; padding: 5px 9px; font-size: 11px; }
 QPushButton#filtro:checked { background: #1d2128; color: #e6e9ee; }
 QPushButton#rodajeCompleto { color: #e6e9ee; }
+QComboBox { background: #16191e; border: 1px solid #262b33; border-radius: 5px; color: #e6e9ee; padding: 4px 8px; min-width: 110px; }
+QComboBox QAbstractItemView { background: #16191e; color: #e6e9ee; selection-background-color: #1d2128; }
 QScrollArea { border: 0; background: #101216; }
 QWidget#hoja { background: #101216; }
 QFrame#tarjetaClip { background: #1d2128; border: 1px solid #262b33; border-radius: 6px; }
@@ -61,12 +69,31 @@ class TarjetaClip(QFrame):
         fila.addWidget(self.estado)
         fila.addStretch()
         layout.addLayout(fila)
-        layout.addStretch()
+        self.miniatura = QLabel()
+        self.miniatura.setFixedHeight(72)
+        self.miniatura.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(self.miniatura)
         self.nombre = QLabel(clip.ruta_origen.name)
         self.nombre.setObjectName("nombreClip")
         self.nombre.setToolTip(str(clip.ruta_origen))
         layout.addWidget(self.nombre)
         self.actualizar()
+
+    def cargar_miniatura(self) -> None:
+        """Carga una portada reducida solo cuando esta tarjeta ya es visible."""
+        if self.miniatura.pixmap() or not self.clip.ruta_origen.exists():
+            return
+        try:
+            ruta = extract_thumbnail(
+                self.clip.ruta_origen, 0.5,
+                cache_dir_for(self.clip.ruta_origen, default_cache_root(), economico=True),
+                economico=True,
+            )
+        except RuntimeError:
+            return
+        pixmap = QPixmap(str(ruta))
+        if not pixmap.isNull():
+            self.miniatura.setPixmap(pixmap.scaled(128, 72, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
 
     def actualizar(self) -> None:
         etiquetas = {"descartada": "↓ Descartada", "sin_decidir": "— Sin decidir", "elegida": "↑ Elegida"}
@@ -79,12 +106,13 @@ class TarjetaClip(QFrame):
 class PantallaRevisar(QWidget):
     """Rail de proyectos y hoja de clips, sin mezclar proyectos."""
 
-    def __init__(self, portafolio: pf.Portafolio, parent=None):
+    def __init__(self, portafolio: pf.Portafolio, elegir_carpeta: Callable[[], Path | None] | None = None, parent=None):
         super().__init__(parent)
         self.portafolio = portafolio
         self.proyecto_actual: pf.ProyectoImportado | None = None
         self.tarjetas: list[TarjetaClip] = []
         self._filtro = "todos"
+        self._elegir_carpeta = elegir_carpeta or self._pedir_carpeta
         self.setObjectName("pantallaRevisar")
         self.setStyleSheet(ESTILO_REVISAR)
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
@@ -110,6 +138,10 @@ class PantallaRevisar(QWidget):
         cabecera = QHBoxLayout()
         self.titulo_proyecto = QLabel("Selecciona un proyecto")
         cabecera.addWidget(self.titulo_proyecto)
+        self.selector_categoria = QComboBox()
+        self.selector_categoria.setEditable(True)
+        self.selector_categoria.currentTextChanged.connect(self.asignar_categoria_actual)
+        cabecera.addWidget(self.selector_categoria)
         cabecera.addStretch()
         self.boton_rodaje = QPushButton("Ver el rodaje completo")
         self.boton_rodaje.setObjectName("rodajeCompleto")
@@ -138,6 +170,8 @@ class PantallaRevisar(QWidget):
         scroll.setWidgetResizable(True)
         scroll.setWidget(self.hoja)
         contenido.addWidget(scroll, 1)
+        self.scroll = scroll
+        scroll.verticalScrollBar().valueChanged.connect(self._cargar_miniaturas_visibles)
         layout.addLayout(contenido, 1)
         self.actualizar_rail()
 
@@ -148,11 +182,18 @@ class PantallaRevisar(QWidget):
             elegidas = sum(clip.estado == "elegida" for clip in proyecto.clips)
             categoria = f" · {proyecto.categoria}" if proyecto.categoria else ""
             item = QListWidgetItem(f"{proyecto.nombre}\n{len(proyecto.clips)} clips · {elegidas} elegidas{categoria}")
+            item.setForeground(QColor(self.color_de_proyecto(proyecto)))
             if not self.proyecto_disponible(proyecto):
                 item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEnabled)
                 item.setForeground(Qt.GlobalColor.darkGray)
             self.rail.addItem(item)
         self.rail.blockSignals(False)
+
+    @staticmethod
+    def color_de_proyecto(proyecto: pf.ProyectoImportado) -> str:
+        """Color determinista por nombre, para que el rail no cambie al recargar."""
+        paleta = ("#c0885a", "#6d8ca8", "#8b7ca8", "#4f9a8e", "#7e9e5e")
+        return paleta[int(hashlib.sha1(proyecto.nombre.encode()).hexdigest(), 16) % len(paleta)]
 
     def proyecto_disponible(self, proyecto: pf.ProyectoImportado) -> bool:
         # Un solo clip existente basta: permite avanzar proyecto por proyecto
@@ -166,7 +207,17 @@ class PantallaRevisar(QWidget):
     def mostrar_proyecto(self, proyecto: pf.ProyectoImportado) -> None:
         self.proyecto_actual = proyecto
         self.titulo_proyecto.setText(proyecto.nombre)
+        self.selector_categoria.blockSignals(True)
+        self.selector_categoria.clear()
+        self.selector_categoria.addItems(self.portafolio.categorias_conocidas)
+        self.selector_categoria.setCurrentText(proyecto.categoria or "")
+        self.selector_categoria.blockSignals(False)
         self._reconstruir_hoja()
+
+    def asignar_categoria_actual(self, categoria: str) -> None:
+        if self.proyecto_actual is not None and categoria:
+            self.portafolio.asignar_categoria(self.proyecto_actual, categoria)
+            self.actualizar_rail()
 
     def _reconstruir_hoja(self) -> None:
         while self._grid.count():
@@ -183,7 +234,17 @@ class PantallaRevisar(QWidget):
             self.tarjetas.append(tarjeta)
             self._grid.addWidget(tarjeta, indice // 5, indice % 5)
         if self.tarjetas:
+            self.tarjetas[0].setProperty("actual", True)
             self.tarjetas[0].setFocus()
+        QTimer.singleShot(0, self._cargar_miniaturas_visibles)
+
+    def _cargar_miniaturas_visibles(self) -> None:
+        """No genera portadas fuera del viewport: el rodaje completo puede ser grande."""
+        viewport = self.scroll.viewport().rect()
+        for tarjeta in self.tarjetas:
+            posicion = tarjeta.mapTo(self.scroll.viewport(), tarjeta.rect().topLeft())
+            if viewport.intersects(tarjeta.rect().translated(posicion)):
+                tarjeta.cargar_miniatura()
 
     def _cambiar_filtro(self, filtro: str) -> None:
         self._filtro = filtro
@@ -213,15 +274,19 @@ class PantallaRevisar(QWidget):
             return
         carpeta = rodaje_completo.deducir_carpeta([clip.ruta_origen for clip in self.proyecto_actual.clips])
         if carpeta is None:
-            # Elegir manualmente la carpeta corresponde a la interfaz posterior;
-            # aquí no se adivina una ruta para no incorporar clips equivocados.
-            return
+            carpeta = self._elegir_carpeta()
+            if carpeta is None:
+                return
         conocidas = {clip.ruta_origen for clip in self.proyecto_actual.clips}
         for ruta in rodaje_completo.listar_videos(carpeta):
             if ruta not in conocidas:
                 self.proyecto_actual.clips.append(pf.ClipDelPortafolio(ruta, self.proyecto_actual.nombre, fuera_de_secuencia=True))
         self._reconstruir_hoja()
         self.actualizar_rail()
+
+    def _pedir_carpeta(self) -> Path | None:
+        ruta = QFileDialog.getExistingDirectory(self, "Ubica la carpeta del rodaje")
+        return Path(ruta) if ruta else None
 
     def keyPressEvent(self, event):  # noqa: N802 -- override de Qt
         if event.key() == Qt.Key.Key_Up:
@@ -240,5 +305,18 @@ class PantallaRevisar(QWidget):
                 return True
             if event.key() == Qt.Key.Key_Down:
                 self.descartar_actual()
+                return True
+            if event.key() in (Qt.Key.Key_Left, Qt.Key.Key_Right):
+                indice = self.tarjetas.index(watched)
+                paso = -1 if event.key() == Qt.Key.Key_Left else 1
+                destino = max(0, min(len(self.tarjetas) - 1, indice + paso))
+                for tarjeta in self.tarjetas:
+                    tarjeta.setProperty("actual", False)
+                    tarjeta.style().unpolish(tarjeta)
+                    tarjeta.style().polish(tarjeta)
+                self.tarjetas[destino].setProperty("actual", True)
+                self.tarjetas[destino].style().unpolish(self.tarjetas[destino])
+                self.tarjetas[destino].style().polish(self.tarjetas[destino])
+                self.tarjetas[destino].setFocus()
                 return True
         return super().eventFilter(watched, event)

@@ -35,3 +35,25 @@ tarjetas y colores distintos para Descartada / Sin decidir / Elegida.
 - Si no se deduce una carpeta común para el rodaje, el botón no hace nada. La
   interfaz para pedir la carpeta manualmente queda fuera de este Task y se deja
   comentario para evitar adivinar rutas.
+
+## Fix round 1 — RED/GREEN
+
+La revisión encontró cuatro huecos. Primero se añadieron pruebas para pedir una
+carpeta inyectable cuando no hay una común, editar categoría, conservar color
+de proyecto, navegar con `←`/`→` y pedir portadas solo para tarjetas visibles.
+La corrida RED mostró cuatro fallas de API y navegación antes de implementar.
+
+GREEN final:
+
+```sh
+QT_QPA_PLATFORM=offscreen .venv/bin/pytest tests_portafolio/ -q
+```
+
+Resultado: **41 passed in 1.52s**.
+
+La portada usa el motor compartido `clasificador_video.thumbnails`, no widgets
+de la UI normal: pide JPEG reducido (`economico=True`) y solo intenta cargar
+tarjetas que intersectan el viewport. Se reutiliza su cache estable; no se
+duplica criterio de extracción ni extensiones. También se capturó e inspeccionó
+otra vez la pantalla offscreen, confirmando el selector de categoría oscuro,
+el color estable del rail y el borde ámbar de la tarjeta actual.

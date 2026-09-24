@@ -74,3 +74,70 @@ def test_ver_rodaje_completo_agrega_solo_las_rutas_faltantes(qtbot, tmp_path):
 
     assert [clip.ruta_origen for clip in proyecto.clips] == [existente, extra]
     assert proyecto.clips[-1].fuera_de_secuencia is True
+
+
+def test_rodaje_sin_carpeta_deducible_pide_la_carpeta(qtbot, tmp_path):
+    p, proyecto = _con_un_proyecto(tmp_path)
+    otra = tmp_path / "otra"
+    otra.mkdir()
+    proyecto.clips.append(pf.ClipDelPortafolio(otra / "otro.mov", proyecto.nombre))
+    carpeta = tmp_path / "rodaje"
+    carpeta.mkdir()
+    extra = carpeta / "extra.mov"
+    extra.touch()
+    pantalla = PantallaRevisar(p, elegir_carpeta=lambda: carpeta)
+    qtbot.addWidget(pantalla)
+    pantalla.mostrar_proyecto(proyecto)
+
+    pantalla.ver_rodaje_completo()
+
+    assert any(clip.ruta_origen == extra for clip in proyecto.clips)
+
+
+def test_categoria_es_editable_desde_revisar(qtbot, tmp_path):
+    p, proyecto = _con_un_proyecto(tmp_path)
+    pantalla = PantallaRevisar(p)
+    qtbot.addWidget(pantalla)
+    pantalla.mostrar_proyecto(proyecto)
+
+    pantalla.asignar_categoria_actual("Rancho")
+
+    assert proyecto.categoria == "Rancho"
+    assert "Rancho" in p.categorias_conocidas
+
+
+def test_color_del_proyecto_en_rail_es_estable(qtbot, tmp_path):
+    p, proyecto = _con_un_proyecto(tmp_path)
+    pantalla = PantallaRevisar(p)
+    qtbot.addWidget(pantalla)
+
+    primero = pantalla.color_de_proyecto(proyecto)
+    pantalla.actualizar_rail()
+
+    assert pantalla.color_de_proyecto(proyecto) == primero
+
+
+def test_flechas_izquierda_y_derecha_mueven_el_foco_entre_tarjetas(qtbot, tmp_path):
+    p, proyecto = _con_un_proyecto(tmp_path)
+    proyecto.clips.append(pf.ClipDelPortafolio(tmp_path / "clip_015.mov", proyecto.nombre))
+    pantalla = PantallaRevisar(p)
+    qtbot.addWidget(pantalla)
+    pantalla.mostrar_proyecto(proyecto)
+    pantalla.show()
+
+    qtbot.keyPress(pantalla.tarjetas[0], Qt.Key.Key_Right)
+
+    assert pantalla.tarjetas[1].property("actual") is True
+
+
+def test_hoja_pide_portadas_solo_para_las_tarjetas_visibles(qtbot, tmp_path, monkeypatch):
+    p, proyecto = _con_un_proyecto(tmp_path)
+    pantalla = PantallaRevisar(p)
+    qtbot.addWidget(pantalla)
+    pantalla.mostrar_proyecto(proyecto)
+    llamadas = []
+    monkeypatch.setattr(pantalla.tarjetas[0], "cargar_miniatura", lambda: llamadas.append(0))
+
+    pantalla._cargar_miniaturas_visibles()
+
+    assert llamadas == [0]
