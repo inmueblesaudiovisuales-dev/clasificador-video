@@ -5755,30 +5755,17 @@ class MainWindow(QWidget):
         self._pantalla_guia.raise_()
 
     def pedir_clasificacion(self) -> None:
-        """Le pide a DeepSeek que pre-ordene los cuartos de la unidad elegida.
+        """Pre-ordena los cuartos de la unidad elegida por su nombre.
 
-        **Nunca revienta hacia afuera**: un fallo de red se dice y ya. La
-        app sigue exportando sin guia, que es un manifest perfectamente
-        valido.
+        Sin IA, sin llave y sin red: `clasificar_por_palabras` es puro y
+        devuelve al instante. Lo que no reconoce se queda en la franja para
+        que Bruno lo arrastre a mano -- nunca se adivina.
         """
         unidad = self._unidad_de_la_guia()
         cuartos = self.room_selections[unidad].active_rooms()
-        clave = llave.leer()
-        if not clave:
-            # Sin llave no hay a quien preguntarle: se dice y se acomoda a
-            # mano. Mismo principio que un fallo de red -- no bloquea nada.
-            if self._pantalla_guia is not None:
-                self._pantalla_guia.mostrar_falta_llave()
-            return
         self._unidad_clasificando = unidad
-        cuerpo = logica_guia.cuerpo_de_clasificacion(cuartos)
-        if self._pantalla_guia is not None:
-            self._pantalla_guia.armando()
-        # DEVUELVE DE INMEDIATO. La respuesta llega por `guia_lista`, que
-        # esta conectada a `_mostrar_guia`.
-        self._guia_pool.start(
-            _GuiaJob(clave, cuerpo, cuartos, self._señales_de_trabajos)
-        )
+        clasificacion = logica_guia.clasificar_por_palabras(cuartos)
+        self._mostrar_guia(clasificacion)
 
     def _mostrar_guia(self, clasificacion) -> None:
         if self._pantalla_guia is None:

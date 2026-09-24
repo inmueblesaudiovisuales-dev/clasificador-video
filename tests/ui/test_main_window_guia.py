@@ -45,17 +45,20 @@ def test_aceptar_orden_conserva_repetidos_en_la_guia(ventana):
     assert ventana._guia_para_el_manifest().orden == ["Aérea", "Sala", "Aérea"]
 
 
-def test_pedir_clasificacion_manda_los_cuartos(qtbot, ventana, monkeypatch):
-    visto = {}
-    def preguntar(llave, cuerpo, url=None):
-        visto["cuerpo"] = cuerpo
-        return '{"clasificacion": [{"cuarto": "Sala", "columna": "sociales"}]}'
-    monkeypatch.setattr("clasificador_video.ui.main_window.ia.preguntar", preguntar)
-    monkeypatch.setattr("clasificador_video.ui.main_window.llave.leer", lambda: "sk")
-    ventana.room_selection.add("Sala")
-    with qtbot.waitSignal(ventana._señales_de_trabajos.guia_lista, timeout=3000):
-        ventana.pedir_clasificacion()
-    assert "Sala" in visto["cuerpo"]["messages"][0]["content"]
+def test_pedir_clasificacion_pre_ordena_por_palabras_sin_llave(ventana):
+    """Sin llave configurada, «Pre-ordenar» llena el tablero al instante
+    reconociendo los nombres de los cuartos (handoff 2026-09-24)."""
+    for cuarto in ("Cocina", "Recámara 1", "Pasillo"):
+        ventana.room_selection.add(cuarto)
+    ventana._abrir_pantalla_de_guia()
+
+    ventana.pedir_clasificacion()
+
+    pantalla = ventana._pantalla_guia
+    assert pantalla.columnas["sociales"].cuartos() == ["Cocina"]
+    assert pantalla.columnas["habitaciones"].cuartos() == ["Recámara 1"]
+    # «Pasillo» no trae término: se queda en la franja, no se adivina.
+    assert all("Pasillo" not in c.cuartos() for c in pantalla.columnas.values())
 
 
 def test_abrir_la_guia_le_pasa_los_cuartos_reales(ventana):

@@ -304,7 +304,6 @@ class PantallaGuia(QWidget):
         self.setObjectName("pantallaGuia")
         _fondo_estilizado(self)
         self._cuartos_reales = []
-        self._armando = False
         # Un tablero por unidad (spec 2026-09-21): la llave "" es «sin
         # unidad». Al cambiar de unidad se guarda el vivo y se carga el otro,
         # así no se pierde el acomodo a mano de la que se dejó.
@@ -363,7 +362,7 @@ class PantallaGuia(QWidget):
         titulo = QLabel("Guía de edición")
         titulo.setObjectName("guiaTitulo")
         subtitulo = QLabel(
-            "La IA acomodó tus cuartos como punto de partida — arrastra para cambiarlo"
+            "Tus cuartos se acomodaron por su nombre como punto de partida — arrastra para cambiarlo"
         )
         subtitulo.setObjectName("guiaSubtitulo")
         titulos.addWidget(titulo)
@@ -371,9 +370,10 @@ class PantallaGuia(QWidget):
         fila.addLayout(titulos)
         fila.addStretch(1)
 
-        # «Pre-ordenar»: le pide a DeepSeek que acomode los cuartos de la
-        # unidad elegida como punto de partida; después Bruno reacomoda a
-        # mano. El texto cambia a «de nuevo» cuando ya hay algo acomodado.
+        # «Pre-ordenar»: acomoda los cuartos de la unidad elegida por su
+        # nombre --sin IA, al instante-- como punto de partida; después Bruno
+        # reacomoda a mano. El texto cambia a «de nuevo» cuando ya hay algo
+        # acomodado.
         self.pre_ordenar_button = QPushButton("Pre-ordenar")
         self.pre_ordenar_button.setObjectName("guiaBoton")
         self.pre_ordenar_button.clicked.connect(self._pedir)
@@ -531,7 +531,6 @@ class PantallaGuia(QWidget):
         """
         if unidad is not None and unidad != self._unidad:
             return
-        self._armando = False
         for caja in self.columnas.values():
             caja.poner([])
         if not clasificacion.ok:
@@ -558,18 +557,6 @@ class PantallaGuia(QWidget):
         self.columnas[logica.COLUMNAS[0].id].poner([r.cuarto for r in lista])
         self._repintar_todo()
         self._refrescar_aviso()
-
-    def armando(self):
-        self._armando = True
-        self._poner_aviso("Pre-ordenando…")
-
-    def mostrar_falta_llave(self):
-        """Sin llave de DeepSeek no hay pre-ordenada posible: se dice y se
-        puede acomodar a mano. Mismo trato que un fallo de red."""
-        self._armando = False
-        self._poner_aviso(
-            "Falta la llave de DeepSeek. Ponla en Configuración para "
-            "pre-ordenar; mientras, acomoda los cuartos a mano.")
 
     def agregar_a_columna(self, columna, cuarto):
         self.columnas[columna].agregar(cuarto)
@@ -632,7 +619,7 @@ class PantallaGuia(QWidget):
         self.clasificacion_pedida.emit()
 
     def keyPressEvent(self, e):
-        if e.key() == Qt.Key.Key_Escape and not self._armando:
+        if e.key() == Qt.Key.Key_Escape:
             self.cerrada.emit()
             return
         super().keyPressEvent(e)

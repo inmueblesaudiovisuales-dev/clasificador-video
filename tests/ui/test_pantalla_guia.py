@@ -89,11 +89,6 @@ def test_cambiar_de_unidad_conserva_el_tablero(pantalla):
     assert pantalla.orden_final() == ["Cocina"]
 
 
-def test_pre_ordenar_se_deshabilita_sin_llave(pantalla):
-    pantalla.mostrar_falta_llave()
-    assert "llave" in pantalla.aviso_label.text().lower()
-
-
 def test_el_boton_dice_pre_ordenar_y_luego_de_nuevo(pantalla):
     assert pantalla.pre_ordenar_button.text() == "Pre-ordenar"
     pantalla.agregar_a_columna("sociales", "Sala")
