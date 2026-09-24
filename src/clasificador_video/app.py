@@ -12,7 +12,7 @@ import sys
 from pathlib import Path
 from typing import Callable
 
-from PySide6.QtCore import QObject, QRunnable, QThreadPool, Signal
+from PySide6.QtCore import QObject, Signal
 from PySide6.QtGui import QSurfaceFormat
 from PySide6.QtWidgets import QApplication, QFileDialog, QInputDialog, QMessageBox
 
@@ -37,7 +37,6 @@ RECIENTES_PATH = Path.home() / ".clasificador_video" / "recientes.json"
 # en `~/.clasificador_video/`: la gracia de que el proyecto sea un archivo es
 # que Bruno pueda encontrarlo, moverlo y respaldarlo sin nosotros.
 CARPETA_DE_MIGRACION = Path.home() / "Documents"
-CREDENCIALES_DRIVE = Path.home() / ".clasificador_video" / "credenciales_google.json"
 
 
 def configure_gl_surface_format() -> None:
@@ -450,53 +449,6 @@ def migrar_sesion_vieja(sesion: Path | None = None, carpeta: Path | None = None,
     return destino
 
 
-class _SeñalesDeDrive(QObject):
-    """Resultados de trabajos de Drive lanzados desde la pantalla de
-    inicio, sin ventana abierta. A diferencia de `SeñalesDeTrabajos` de
-    `main_window.py` -- que solo atiende a UNA ventana -- aquí puede
-    haber varios proyectos activos en vuelo a la vez, así que la señal
-    lleva la ruta del `.cvproj` que identifica de cuál se trata.
-    """
-
-    traida_lista = Signal(Path, str)  # ruta_cvproj, error
-
-
-class _TraidaActivaJob(QRunnable):
-    """Trae el `.prproj` y el material nuevo de un proyecto sin abrirlo.
-
-    Repite la lógica de `_TraidaDeDriveJob` (`ui/main_window.py`) en vez
-    de reusarla: esa identifica su resultado con una señal sin ruta
-    -- le basta, porque una ventana solo tiene un proyecto -- y aquí hace
-    falta saber a cuál de varios proyectos activos corresponde cada
-    resultado.
-    """
-
-    def __init__(self, cliente, estado, raiz_del_proyecto, ruta_cvproj, señales):
-        super().__init__()
-        self._cliente = cliente
-        self._estado = estado
-        self._raiz = raiz_del_proyecto
-        self._ruta_cvproj = ruta_cvproj
-        self.signals = señales
-
-    def run(self) -> None:
-        from clasificador_video import drive
-
-        try:
-            drive.traer_prproj(self._cliente, self._estado.drive_folder_id,
-                               Path(self._estado.prproj_local))
-            if self._raiz is not None:
-                destinos = {
-                    categoria: self._raiz / ruta
-                    for categoria, ruta in drive.mapa_de_categorias_de_material_nuevo().items()
-                }
-                drive.traer_material_nuevo(self._cliente, self._estado.drive_folder_id, destinos)
-        except Exception as e:
-            self.signals.traida_lista.emit(self._ruta_cvproj, str(e))
-            return
-        self.signals.traida_lista.emit(self._ruta_cvproj, "")
-
-
 class Coordinador(QObject):
     """La pantalla de inicio y las ventanas abiertas desde ella.
 
@@ -520,16 +472,9 @@ class Coordinador(QObject):
         self.inicio.nuevo_pedido.connect(self._nuevo)
         self.inicio.abrir_otro_pedido.connect(self._abrir_otro)
         self.inicio.quitar_pedido.connect(self._quitar)
-        self.inicio.refrescar_pedido.connect(self._al_refrescar)
-        self.inicio.traer_de_vuelta_pedido.connect(self._al_pedir_traer_de_vuelta_activo)
-        self.inicio.ya_entregado_pedido.connect(self._al_pedir_ya_entregado)
         self.inicio.configuracion_pedida.connect(self._abrir_configuracion)
         self._pantalla_config: PantallaConfig | None = None
-        self._drive_cliente_config = None
         self._inicio_alto_original: int | None = None
-        self._drive_pool = QThreadPool(self)
-        self._señales_de_drive = _SeñalesDeDrive(self)
-        self._señales_de_drive.traida_lista.connect(self._al_terminar_traida_activa)
         self._refrescar()
 
     # --- la pantalla ------------------------------------------------------
@@ -780,130 +725,6 @@ class Coordinador(QObject):
     def _quitar(self, ruta: Path) -> None:
         Recientes(self._recientes_path).quitar(Path(ruta))
         self._refrescar()
-
-    def _al_refrescar(self, ruta: Path) -> None:
-        """Revisa Drive para una fila sin abrir OAuth por sorpresa."""
-        from clasificador_video import drive
-
-        if not drive.hay_token_guardado():
-            self.inicio.avisar(
-                "Conecta Google Drive desde Configuración antes de revisar."
-            )
-            return
-        credenciales = CREDENCIALES_DRIVE
-        try:
-            cliente = drive.cliente_autorizado(credenciales)
-        except Exception:
-            self.inicio.avisar("No se pudo conectar con Google Drive.")
-            return
-        try:
-            resultado = drive.revisar_y_persistir(ruta, cliente)
-        except Exception as e:
-            # Sin esto, un fallo de red o un token vencido a media revision
-            # no decia nada: el click en «⟳» no hacia nada visible, y asi es
-            # como Bruno lo vivia -- «no hay un aviso de que fallo, solo no
-            # se hace».
-            self.inicio.avisar(f"No se pudo revisar Drive: {e}")
-            return
-        if resultado is not None and (resultado.hay_cambios or resultado.tiene_material_nuevo):
-            self._refrescar()
-
-    def _cliente_de_drive_o_avisar(self):
-        from clasificador_video import drive
-
-        if not drive.hay_token_guardado():
-            self.inicio.avisar(
-                "Conecta Google Drive desde Configuración antes de continuar."
-            )
-            return None
-        try:
-            return drive.cliente_autorizado(CREDENCIALES_DRIVE)
-        except Exception:
-            self.inicio.avisar("No se pudo conectar con Google Drive.")
-            return None
-
-    def _al_pedir_traer_de_vuelta_activo(self, ruta_cvproj: Path) -> None:
-        from clasificador_video import drive
-        from clasificador_video.entrega import EstadoEntrega
-
-        data = proyecto.abrir(ruta_cvproj)
-        if not data:
-            self.inicio.avisar("No se pudo leer este proyecto.")
-            return
-        estado = EstadoEntrega.de_dict(data.get("entrega"))
-        if estado is None or estado.drive_folder_id is None:
-            return
-        cliente = self._cliente_de_drive_o_avisar()
-        if cliente is None:
-            return
-        try:
-            resultado = drive.revisar_y_persistir(ruta_cvproj, cliente)
-        except Exception as e:
-            self.inicio.avisar(f"No se pudo revisar Drive: {e}")
-            return
-        if resultado is None:
-            return
-        nombre = str(data.get("proyecto") or ruta_cvproj.stem)
-        if not self._confirmar_traer_de_vuelta_activo(nombre, resultado):
-            self._refrescar()
-            return
-        raiz = proyecto.raiz_de_assets_de(data)
-        self._drive_pool.start(_TraidaActivaJob(
-            cliente, estado, raiz, ruta_cvproj, self._señales_de_drive))
-
-    def _confirmar_traer_de_vuelta_activo(self, nombre_proyecto: str, resultado) -> bool:
-        from clasificador_video import drive
-
-        mensaje = drive.mensaje_confirmar_traida(resultado)
-        cuadro = QMessageBox(self.inicio)
-        cuadro.setWindowTitle(f"Traer de vuelta — {nombre_proyecto}")
-        cuadro.setText(mensaje.texto)
-        if mensaje.informativo:
-            cuadro.setInformativeText(mensaje.informativo)
-        traer = cuadro.addButton(mensaje.texto_boton, QMessageBox.ButtonRole.AcceptRole)
-        cuadro.addButton("Cancelar", QMessageBox.ButtonRole.RejectRole)
-        cuadro.setDefaultButton(traer)
-        cuadro.exec()
-        return cuadro.clickedButton() is traer
-
-    def _al_terminar_traida_activa(self, ruta_cvproj: Path, error: str) -> None:
-        if error:
-            self.inicio.avisar(f"No se pudo traer de Drive: {error}")
-            self._refrescar()
-            return
-        from dataclasses import replace
-
-        from clasificador_video.entrega import EstadoEntrega
-
-        data = proyecto.abrir(ruta_cvproj)
-        if data is not None:
-            estado = EstadoEntrega.de_dict(data.get("entrega"))
-            if estado is not None:
-                data["entrega"] = replace(estado, estado=EstadoEntrega.EN_REVISION).to_dict()
-                proyecto.guardar(ruta_cvproj, data)
-        self._refrescar()
-
-    def _al_pedir_ya_entregado(self, ruta_cvproj: Path) -> None:
-        data = proyecto.abrir(ruta_cvproj) or {}
-        nombre = str(data.get("proyecto") or ruta_cvproj.stem)
-        if not self._confirmar_ya_entregado(nombre):
-            return
-        from clasificador_video import entrega
-
-        if entrega.cerrar_en_archivo(ruta_cvproj):
-            self._refrescar()
-
-    def _confirmar_ya_entregado(self, nombre_proyecto: str) -> bool:
-        cuadro = QMessageBox(self.inicio)
-        cuadro.setWindowTitle("Marcar como ya entregado")
-        cuadro.setText(
-            f"«{nombre_proyecto}» va a dejar de aparecer en «En edición externa».")
-        cuadro.setInformativeText("Esto no baja ni borra nada de Drive.")
-        ya_entregado = cuadro.addButton("Ya entregado", QMessageBox.ButtonRole.AcceptRole)
-        cuadro.addButton("Cancelar", QMessageBox.ButtonRole.RejectRole)
-        cuadro.setDefaultButton(ya_entregado)
-        cuadro.exec()
-        return cuadro.clickedButton() is ya_entregado
 
     # --- el ciclo de vida de las ventanas ---------------------------------
 

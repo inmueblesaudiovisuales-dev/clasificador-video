@@ -13,8 +13,6 @@ disco».
 """
 from __future__ import annotations
 
-import json
-from datetime import datetime
 from pathlib import Path
 
 from PySide6.QtCore import Qt, Signal
@@ -29,7 +27,6 @@ from PySide6.QtWidgets import (
 )
 
 from clasificador_video import __version__
-from clasificador_video.ui.segmented import SegmentedControl
 from clasificador_video.ui.text import ElidedLabel
 
 FILA_ALTO = 54          # dos renglones cortos, del alto de una fila de lista
@@ -70,7 +67,6 @@ class _FilaReciente(QPushButton):
     # un proyecto que no esta no se abre, y prometerlo seria peor que verlo
     # gris.
     abrir_pedido = Signal(Path)
-    refrescar_pedido = Signal(Path)
 
     def __init__(self, entrada, parent=None):
         super().__init__(parent)
@@ -109,40 +105,10 @@ class _FilaReciente(QPushButton):
         self.detalle.setText(self._detalle(entrada, disponible))
         caja.addWidget(self.nombre)
         caja.addWidget(self.detalle)
-        self.pildora = QLabel("")
-        self.pildora.setObjectName("recientePildora")
-        self.pildora.hide()
-        self.refrescar_button = QPushButton("⟳")
-        self.refrescar_button.setObjectName("recienteRefrescar")
-        self.refrescar_button.setToolTip("Revisar si el editor ya contestó")
-        self.refrescar_button.hide()
-        self.refrescar_button.clicked.connect(
-            lambda: self.refrescar_pedido.emit(self.entrada.ruta)
-        )
         fila_horizontal.addWidget(caja_host, 1)
-        fila_horizontal.addWidget(self.pildora)
-        fila_horizontal.addWidget(self.refrescar_button)
         # la ruta completa, para cuando la elidida no alcanza
         self.setToolTip(str(entrada.ruta))
         self.clicked.connect(self._al_hacer_click)
-
-    def set_estado_de_entrega(self, estado: str | None, cuando_texto: str = "") -> None:
-        """Pinta el estado de entrega sin volver a consultar Drive."""
-        from clasificador_video.entrega import EstadoEntrega
-
-        self.pildora.hide()
-        self.refrescar_button.hide()
-        if estado == EstadoEntrega.CON_EDITOR:
-            self.pildora.setText(f"●  Con el editor · {cuando_texto}")
-            self.pildora.setProperty("tono", "esperando")
-            self.pildora.show()
-            self.refrescar_button.show()
-        elif estado == EstadoEntrega.EDITOR_CONTESTO:
-            self.pildora.setText(f"✓  El editor ya contestó · {cuando_texto}")
-            self.pildora.setProperty("tono", "contesto")
-            self.pildora.show()
-        self.pildora.style().unpolish(self.pildora)
-        self.pildora.style().polish(self.pildora)
 
     def _al_hacer_click(self) -> None:
         """Un proyecto que no esta no se abre.
@@ -183,84 +149,6 @@ class _FilaReciente(QPushButton):
         self.menu_de_contexto().popup(event.globalPos())
 
 
-class _FilaActiva(QPushButton):
-    """Una fila de la pestaña "En edición externa": el mismo proyecto que
-    ya aparece en "Tus proyectos", pero con las acciones de la entrega a
-    la vista -- sin tener que abrirlo primero (spec 2026-09-19 §5).
-
-    Solo se construye para proyectos disponibles con una entrega activa:
-    a diferencia de `_FilaReciente`, no conoce el estado "perdido".
-    """
-
-    abrir_pedido = Signal(Path)
-    refrescar_pedido = Signal(Path)
-    traer_de_vuelta_pedido = Signal(Path)
-    ya_entregado_pedido = Signal(Path)
-
-    def __init__(self, entrada, estado: str, cuando_texto: str, parent=None):
-        super().__init__(parent)
-        from clasificador_video.entrega import EstadoEntrega
-
-        self.setObjectName("filaActiva")
-        self.entrada = entrada
-        self.setFixedHeight(FILA_ALTO)
-        self.setCursor(Qt.PointingHandCursor)
-
-        fila_horizontal = QHBoxLayout(self)
-        fila_horizontal.setContentsMargins(12, 8, 12, 8)
-        fila_horizontal.setSpacing(8)
-        caja_host = QWidget()
-        caja = QVBoxLayout(caja_host)
-        caja.setContentsMargins(0, 0, 0, 0)
-        caja.setSpacing(2)
-        self.nombre = _etiqueta("recienteNombre", apagado=False)
-        self.nombre.setText(entrada.nombre)
-        self.detalle = _etiqueta("recienteDetalle", apagado=False,
-                                 modo=Qt.TextElideMode.ElideMiddle)
-        self.detalle.setText(f"subido {cuando_texto}  ·  {entrada.ruta.parent}")
-        caja.addWidget(self.nombre)
-        caja.addWidget(self.detalle)
-
-        self.pildora = QLabel("")
-        self.pildora.setObjectName("recientePildora")
-        es_en_revision = estado == EstadoEntrega.EN_REVISION
-        if estado == EstadoEntrega.CON_EDITOR:
-            self.pildora.setText("●  Con el editor")
-            self.pildora.setProperty("tono", "esperando")
-        elif estado == EstadoEntrega.EDITOR_CONTESTO:
-            self.pildora.setText("✓  El editor ya contestó")
-            self.pildora.setProperty("tono", "contesto")
-        else:
-            self.pildora.setText("◐  En revisión")
-            self.pildora.setProperty("tono", "revision")
-
-        self.refrescar_button = QPushButton("⟳")
-        self.refrescar_button.setObjectName("recienteRefrescar")
-        self.refrescar_button.setToolTip("Revisar si el editor ya contestó")
-        self.refrescar_button.setVisible(not es_en_revision)
-        self.refrescar_button.clicked.connect(
-            lambda: self.refrescar_pedido.emit(self.entrada.ruta))
-
-        self.traer_button = QPushButton("Traer de vuelta")
-        self.traer_button.setObjectName("activaTraer")
-        self.traer_button.setVisible(not es_en_revision)
-        self.traer_button.clicked.connect(
-            lambda: self.traer_de_vuelta_pedido.emit(self.entrada.ruta))
-
-        self.ya_entregado_button = QPushButton("Ya entregado")
-        self.ya_entregado_button.setObjectName("activaYaEntregado")
-        self.ya_entregado_button.clicked.connect(
-            lambda: self.ya_entregado_pedido.emit(self.entrada.ruta))
-
-        fila_horizontal.addWidget(caja_host, 1)
-        fila_horizontal.addWidget(self.pildora)
-        fila_horizontal.addWidget(self.refrescar_button)
-        fila_horizontal.addWidget(self.traer_button)
-        fila_horizontal.addWidget(self.ya_entregado_button)
-        self.setToolTip(str(entrada.ruta))
-        self.clicked.connect(lambda: self.abrir_pedido.emit(self.entrada.ruta))
-
-
 class PantallaInicio(QWidget):
     """La lista de recientes, «Proyecto nuevo» y «Abrir otro…».
 
@@ -272,9 +160,6 @@ class PantallaInicio(QWidget):
     nuevo_pedido = Signal()
     abrir_otro_pedido = Signal()
     quitar_pedido = Signal(Path)
-    refrescar_pedido = Signal(Path)
-    traer_de_vuelta_pedido = Signal(Path)
-    ya_entregado_pedido = Signal(Path)
     configuracion_pedida = Signal()
 
     def __init__(self, parent=None):
@@ -282,7 +167,6 @@ class PantallaInicio(QWidget):
         self.setObjectName("pantallaInicio")
         self.setAttribute(Qt.WA_StyledBackground, True)
         self.filas: list[_FilaReciente] = []
-        self.filas_activas: list[_FilaActiva] = []
 
         raiz = QVBoxLayout(self)
         raiz.setContentsMargins(MARGEN, MARGEN, MARGEN, MARGEN)
@@ -318,11 +202,6 @@ class PantallaInicio(QWidget):
         self.aviso.hide()
         raiz.addWidget(self.aviso)
 
-        self.switch = SegmentedControl(
-            ["Tus proyectos", "En edición externa"], object_name="inicioSwitch"
-        )
-        self.switch.selected.connect(self._al_cambiar_pestaña)
-        raiz.addWidget(self.switch)
 
         self.lista_host = QWidget()
         self.lista = QVBoxLayout(self.lista_host)
@@ -347,26 +226,6 @@ class PantallaInicio(QWidget):
         vacio_caja.addWidget(self.vacio_hint)
         raiz.addWidget(self.vacio)
 
-        self.activos_host = QWidget()
-        self.activos_lista = QVBoxLayout(self.activos_host)
-        self.activos_lista.setContentsMargins(0, 0, 0, 0)
-        self.activos_lista.setSpacing(6)
-        raiz.addWidget(self.activos_host)
-
-        self.activos_vacio = QWidget()
-        self.activos_vacio.setObjectName("inicioVacio")
-        activos_vacio_caja = QVBoxLayout(self.activos_vacio)
-        activos_vacio_caja.setContentsMargins(0, 10, 0, 10)
-        activos_vacio_caja.setSpacing(4)
-        activos_vacio_titulo = QLabel("No tienes proyectos en edición externa")
-        activos_vacio_titulo.setObjectName("inicioVacioTitulo")
-        activos_vacio_hint = QLabel(
-            "Los que subas a Drive para un editor van a aparecer aquí."
-        )
-        activos_vacio_hint.setObjectName("inicioVacioHint")
-        activos_vacio_caja.addWidget(activos_vacio_titulo)
-        activos_vacio_caja.addWidget(activos_vacio_hint)
-        raiz.addWidget(self.activos_vacio)
 
         raiz.addStretch(1)
 
@@ -404,13 +263,6 @@ class PantallaInicio(QWidget):
             fila.setParent(None)
             fila.deleteLater()
         self.filas = []
-        for fila in self.filas_activas:
-            fila.hide()
-            fila.setParent(None)
-            fila.deleteLater()
-        self.filas_activas = []
-        from clasificador_video.entrega import EstadoEntrega
-
         for entrada in entradas:
             fila = _FilaReciente(entrada, self.lista_host)
             # `abrir_pedido` de la fila y no su `clicked`: la fila decide si
@@ -418,47 +270,10 @@ class PantallaInicio(QWidget):
             # copia aqui -- dos lugares diciendo lo mismo se desincronizan.
             fila.abrir_pedido.connect(self.abrir_pedido.emit)
             fila.quitar_pedido.connect(self.quitar_pedido.emit)
-            fila.refrescar_pedido.connect(self.refrescar_pedido.emit)
-            estado, cuando = self._estado_de_entrega_de(entrada)
-            fila.set_estado_de_entrega(estado, cuando)
             self.lista.addWidget(fila)
             self.filas.append(fila)
-
-            if estado is not None and estado != EstadoEntrega.SIN_SUBIR:
-                fila_activa = _FilaActiva(entrada, estado, cuando, self.activos_host)
-                fila_activa.abrir_pedido.connect(self.abrir_pedido.emit)
-                fila_activa.refrescar_pedido.connect(self.refrescar_pedido.emit)
-                fila_activa.traer_de_vuelta_pedido.connect(self.traer_de_vuelta_pedido.emit)
-                fila_activa.ya_entregado_pedido.connect(self.ya_entregado_pedido.emit)
-                self.activos_lista.addWidget(fila_activa)
-                self.filas_activas.append(fila_activa)
-
-        self._actualizar_visibilidad()
-
-    def _al_cambiar_pestaña(self, _texto: str) -> None:
-        self._actualizar_visibilidad()
-
-    def _actualizar_visibilidad(self) -> None:
-        en_activos = self.switch.current() == "En edición externa"
-        self.lista_host.setVisible(not en_activos and bool(self.filas))
-        self.vacio.setVisible(not en_activos and not self.filas)
-        self.activos_host.setVisible(en_activos and bool(self.filas_activas))
-        self.activos_vacio.setVisible(en_activos and not self.filas_activas)
-
-    @staticmethod
-    def _estado_de_entrega_de(entrada) -> tuple[str | None, str]:
-        """Lee el estado guardado de un proyecto disponible, si lo tiene."""
-        if not entrada.disponible:
-            return None, ""
-        from clasificador_video.entrega import EstadoEntrega
-        try:
-            data = json.loads(entrada.ruta.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
-            return None, ""
-        estado = EstadoEntrega.de_dict(data.get("entrega"))
-        if estado is None:
-            return None, ""
-        return estado.estado, _hace_cuanto(estado.subido_en)
+        self.lista_host.setVisible(bool(self.filas))
+        self.vacio.setVisible(not self.filas)
 
     def avisar(self, texto: str) -> None:
         """Dice algo que salió mal, sin tapar la pantalla."""
@@ -474,28 +289,3 @@ class PantallaInicio(QWidget):
 
     def nombres_visibles(self) -> list[str]:
         return [f.entrada.nombre for f in self.filas]
-
-    def nombres_activos_visibles(self) -> list[str]:
-        return [f.entrada.nombre for f in self.filas_activas]
-
-
-def _hace_cuanto(fecha: str | None) -> str:
-    """Una fecha ISO en el texto corto que cabe dentro de una píldora."""
-    if not fecha:
-        return "sin fecha"
-    try:
-        entonces = datetime.fromisoformat(fecha.replace("Z", "+00:00"))
-        ahora = datetime.now(entonces.tzinfo)
-    except ValueError:
-        return "sin fecha"
-    segundos = max(0, int((ahora - entonces).total_seconds()))
-    if segundos < 60:
-        return "hace un momento"
-    if segundos < 3600:
-        minutos = segundos // 60
-        return f"hace {minutos} minuto" + ("s" if minutos != 1 else "")
-    if segundos < 86400:
-        horas = segundos // 3600
-        return f"hace {horas} hora" + ("s" if horas != 1 else "")
-    dias = segundos // 86400
-    return f"hace {dias} día" + ("s" if dias != 1 else "")

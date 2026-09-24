@@ -12,6 +12,14 @@ def _entrada_de_prueba():
                     disponible=True)
 
 
+def test_la_pantalla_de_inicio_no_tiene_edicion_externa(qtbot):
+    pantalla = PantallaInicio()
+    qtbot.addWidget(pantalla)
+
+    assert not hasattr(pantalla, "switch")
+    assert not hasattr(pantalla, "filas_activas")
+
+
 def test_boton_de_configuracion_emite_la_señal(qtbot):
     pantalla = PantallaInicio()
     qtbot.addWidget(pantalla)
@@ -22,115 +30,6 @@ def test_boton_de_configuracion_emite_la_señal(qtbot):
 
     assert pantalla.boton_configuracion.toolTip() == "Configuración"
     assert recibidas == [True]
-
-
-def test_fila_activa_con_editor_muestra_los_tres_controles(qtbot):
-    from clasificador_video.entrega import EstadoEntrega
-    from clasificador_video.ui.pantalla_inicio import _FilaActiva
-
-    fila = _FilaActiva(_entrada_de_prueba(), EstadoEntrega.CON_EDITOR, "hace 2 días")
-    qtbot.addWidget(fila)
-    fila.show()
-
-    assert "Con el editor" in fila.pildora.text()
-    assert fila.refrescar_button.isVisible()
-    assert fila.traer_button.isVisible()
-    assert fila.ya_entregado_button.isVisible()
-
-
-def test_fila_activa_editor_contesto_tambien_muestra_los_tres(qtbot):
-    from clasificador_video.entrega import EstadoEntrega
-    from clasificador_video.ui.pantalla_inicio import _FilaActiva
-
-    fila = _FilaActiva(_entrada_de_prueba(), EstadoEntrega.EDITOR_CONTESTO, "hace 3 horas")
-    qtbot.addWidget(fila)
-    fila.show()
-
-    assert "El editor ya contestó" in fila.pildora.text()
-    assert fila.refrescar_button.isVisible()
-    assert fila.traer_button.isVisible()
-    assert fila.ya_entregado_button.isVisible()
-
-
-def test_fila_activa_en_revision_solo_muestra_ya_entregado(qtbot):
-    from clasificador_video.entrega import EstadoEntrega
-    from clasificador_video.ui.pantalla_inicio import _FilaActiva
-
-    fila = _FilaActiva(_entrada_de_prueba(), EstadoEntrega.EN_REVISION, "hace 1 hora")
-    qtbot.addWidget(fila)
-    fila.show()
-
-    assert "En revisión" in fila.pildora.text()
-    assert not fila.refrescar_button.isVisible()
-    assert not fila.traer_button.isVisible()
-    assert fila.ya_entregado_button.isVisible()
-
-
-def test_fila_activa_emite_sus_señales_con_la_ruta(qtbot):
-    from clasificador_video.entrega import EstadoEntrega
-    from clasificador_video.ui.pantalla_inicio import _FilaActiva
-
-    entrada = _entrada_de_prueba()
-    fila = _FilaActiva(entrada, EstadoEntrega.CON_EDITOR, "hace 2 días")
-    qtbot.addWidget(fila)
-    fila.show()
-    traidos, entregados, refrescados, abiertos = [], [], [], []
-    fila.traer_de_vuelta_pedido.connect(traidos.append)
-    fila.ya_entregado_pedido.connect(entregados.append)
-    fila.refrescar_pedido.connect(refrescados.append)
-    fila.abrir_pedido.connect(abiertos.append)
-
-    fila.traer_button.click()
-    fila.ya_entregado_button.click()
-    fila.refrescar_button.click()
-    fila.click()
-
-    assert traidos == [entrada.ruta]
-    assert entregados == [entrada.ruta]
-    assert refrescados == [entrada.ruta]
-    assert abiertos == [entrada.ruta]
-
-
-def test_fila_sin_entrega_no_muestra_pildora(qtbot):
-    from clasificador_video.ui.pantalla_inicio import _FilaReciente
-
-    fila = _FilaReciente(_entrada_de_prueba())
-    qtbot.addWidget(fila)
-    fila.show()
-
-    fila.set_estado_de_entrega(None)
-
-    assert not fila.pildora.isVisible()
-    assert not fila.refrescar_button.isVisible()
-
-
-def test_fila_con_editor_muestra_pildora_y_refrescar(qtbot):
-    from clasificador_video.entrega import EstadoEntrega
-    from clasificador_video.ui.pantalla_inicio import _FilaReciente
-
-    fila = _FilaReciente(_entrada_de_prueba())
-    qtbot.addWidget(fila)
-    fila.show()
-
-    fila.set_estado_de_entrega(EstadoEntrega.CON_EDITOR, "hace 2 días")
-
-    assert fila.pildora.isVisible()
-    assert fila.refrescar_button.isVisible()
-    assert "Con el editor" in fila.pildora.text()
-
-
-def test_fila_editor_contesto_no_muestra_refrescar(qtbot):
-    from clasificador_video.entrega import EstadoEntrega
-    from clasificador_video.ui.pantalla_inicio import _FilaReciente
-
-    fila = _FilaReciente(_entrada_de_prueba())
-    qtbot.addWidget(fila)
-    fila.show()
-
-    fila.set_estado_de_entrega(EstadoEntrega.EDITOR_CONTESTO, "hace 3 horas")
-
-    assert fila.pildora.isVisible()
-    assert not fila.refrescar_button.isVisible()
 
 
 def test_lista_los_recientes_con_el_mas_nuevo_arriba(qtbot):
@@ -494,105 +393,3 @@ def test_la_pantalla_de_carga_no_se_puede_cerrar_a_mano(qtbot):
     qtbot.addWidget(pantalla)
 
     assert pantalla.windowFlags() & _Qt.WindowType.FramelessWindowHint
-
-
-def _proyecto_con_entrega(tmp_path, nombre, estado, cuando="2026-09-17T10:00:00"):
-    import json
-    from clasificador_video.entrega import EstadoEntrega
-
-    ruta = tmp_path / f"{nombre}.cvproj"
-    ruta.write_text(json.dumps({
-        "proyecto": nombre,
-        "entrega": EstadoEntrega(estado, subido_en=cuando).to_dict(),
-    }))
-    return Reciente(ruta, nombre, "2026-09-17 10:00")
-
-
-def test_la_pestaña_de_activos_empieza_escondida_y_el_switch_en_tus_proyectos(qtbot):
-    pantalla = PantallaInicio()
-    qtbot.addWidget(pantalla)
-
-    assert pantalla.switch.current() == "Tus proyectos"
-    assert pantalla.activos_host.isHidden()
-    assert pantalla.activos_vacio.isHidden()
-
-
-def test_solo_los_proyectos_con_entrega_activa_entran_a_la_pestaña(qtbot, tmp_path):
-    from clasificador_video.entrega import EstadoEntrega
-
-    pantalla = PantallaInicio()
-    qtbot.addWidget(pantalla)
-    sin_entrega = tmp_path / "Sin entrega.cvproj"
-    sin_entrega.write_text("{}")
-    pantalla.set_recientes([
-        Reciente(sin_entrega, "Sin entrega", "2026-09-17 10:00"),
-        _proyecto_con_entrega(tmp_path, "Con editor", EstadoEntrega.CON_EDITOR),
-        _proyecto_con_entrega(tmp_path, "En revision", EstadoEntrega.EN_REVISION),
-    ])
-
-    assert pantalla.nombres_activos_visibles() == ["Con editor", "En revision"]
-
-
-def test_cambiar_a_la_pestaña_de_activos_muestra_sus_filas(qtbot, tmp_path):
-    from clasificador_video.entrega import EstadoEntrega
-
-    pantalla = PantallaInicio()
-    qtbot.addWidget(pantalla)
-    pantalla.show()
-    pantalla.set_recientes([
-        _proyecto_con_entrega(tmp_path, "Con editor", EstadoEntrega.CON_EDITOR),
-    ])
-
-    pantalla.switch.buttons[1].click()
-
-    assert pantalla.activos_host.isVisible()
-    assert pantalla.lista_host.isHidden()
-
-
-def test_sin_activos_la_pestaña_muestra_el_empty_state(qtbot, tmp_path):
-    pantalla = PantallaInicio()
-    qtbot.addWidget(pantalla)
-    pantalla.show()
-    sin_entrega = tmp_path / "Sin entrega.cvproj"
-    sin_entrega.write_text("{}")
-    pantalla.set_recientes([Reciente(sin_entrega, "Sin entrega", "2026-09-17 10:00")])
-
-    pantalla.switch.buttons[1].click()
-
-    assert pantalla.activos_vacio.isVisible()
-    assert pantalla.activos_host.isHidden()
-
-
-def test_las_señales_de_la_fila_activa_llegan_a_la_pantalla(qtbot, tmp_path):
-    from clasificador_video.entrega import EstadoEntrega
-
-    pantalla = PantallaInicio()
-    qtbot.addWidget(pantalla)
-    entrada = _proyecto_con_entrega(tmp_path, "Con editor", EstadoEntrega.CON_EDITOR)
-    pantalla.set_recientes([entrada])
-    pantalla.switch.buttons[1].click()
-    traidos, entregados = [], []
-    pantalla.traer_de_vuelta_pedido.connect(traidos.append)
-    pantalla.ya_entregado_pedido.connect(entregados.append)
-
-    pantalla.filas_activas[0].traer_button.click()
-    pantalla.filas_activas[0].ya_entregado_button.click()
-
-    assert traidos == [entrada.ruta]
-    assert entregados == [entrada.ruta]
-
-
-def test_volver_a_llenar_la_lista_no_deja_filas_activas_viejas(qtbot, tmp_path):
-    from clasificador_video.entrega import EstadoEntrega
-
-    pantalla = PantallaInicio()
-    qtbot.addWidget(pantalla)
-    pantalla.set_recientes([
-        _proyecto_con_entrega(tmp_path, "Uno", EstadoEntrega.CON_EDITOR),
-    ])
-    pantalla.set_recientes([
-        _proyecto_con_entrega(tmp_path, "Dos", EstadoEntrega.CON_EDITOR),
-    ])
-
-    assert pantalla.nombres_activos_visibles() == ["Dos"]
-    assert len(pantalla.activos_host.findChildren(type(pantalla.filas_activas[0]))) == 1
