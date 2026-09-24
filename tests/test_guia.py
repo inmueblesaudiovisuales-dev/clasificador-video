@@ -103,3 +103,81 @@ def test_renglon_solo_tiene_cuarto():
 def test_respuesta_ya_no_tiene_recorrido():
     r = guia.Respuesta(ok=True, lista=[guia.Renglon(cuarto="Sala")])
     assert r.lista[0].cuarto == "Sala" and not hasattr(r, "recorrido")
+
+
+# --- clasificar por palabras, sin IA (handoff 2026-09-24) -----------------
+
+
+def test_clasificar_por_palabras_coloca_cada_termino_canonico():
+    casos = {
+        "Fachada": "apertura",
+        "Aérea": "apertura",
+        "Dron": "apertura",
+        "Cocina": "sociales",
+        "Comedor": "sociales",
+        "Recámara 1": "habitaciones",
+        "Baño": "habitaciones",
+        "Vestidor": "habitaciones",
+        "Aérea a media casa": "aerea_media",
+        "Alberca": "amenidades",
+        "Roof": "amenidades",
+        "La propiedad de lejos": "area_general",
+        "Aérea final": "aerea_final",
+    }
+    r = guia.clasificar_por_palabras(list(casos))
+    assert r.ok
+    assert r.columna_de == casos
+    assert r.inventados == []
+
+
+def test_clasificar_por_palabras_reconoce_sin_acentos_y_en_minusculas():
+    r = guia.clasificar_por_palabras(["recamara", "bano", "aerea final"])
+    assert r.columna_de == {
+        "recamara": "habitaciones",
+        "bano": "habitaciones",
+        "aerea final": "aerea_final",
+    }
+
+
+def test_clasificar_por_palabras_devuelve_el_nombre_original():
+    # Se normaliza una COPIA para buscar el término, pero el nombre que sale
+    # es el original, tal cual lo tecleó Bruno.
+    r = guia.clasificar_por_palabras(["RECÁMARA Principal"])
+    assert list(r.columna_de) == ["RECÁMARA Principal"]
+    assert r.columna_de["RECÁMARA Principal"] == "habitaciones"
+
+
+def test_clasificar_por_palabras_deja_fuera_lo_que_no_reconoce():
+    # No se adivina: lo que no trae término se queda en la franja.
+    r = guia.clasificar_por_palabras(["Pasillo", "Cocina"])
+    assert "Pasillo" not in r.columna_de
+    assert r.columna_de == {"Cocina": "sociales"}
+
+
+def test_clasificar_por_palabras_deja_fuera_un_empate_entre_columnas():
+    # «terraza» (sociales) y «alberca» (amenidades) empatan en largo y son
+    # columnas distintas: no se adivina.
+    r = guia.clasificar_por_palabras(["Terraza con alberca"])
+    assert r.columna_de == {}
+
+
+def test_clasificar_por_palabras_dos_terminos_de_la_misma_columna_no_empatan():
+    # «baño» y «recámara» son las dos de habitaciones: no es un empate real.
+    r = guia.clasificar_por_palabras(["Baño de la recámara"])
+    assert r.columna_de == {"Baño de la recámara": "habitaciones"}
+
+
+def test_clasificar_por_palabras_gana_el_termino_mas_largo():
+    # «aerea final» gana sobre «aerea» a secas, que caería en apertura.
+    r = guia.clasificar_por_palabras(["Aérea final"])
+    assert r.columna_de == {"Aérea final": "aerea_final"}
+
+
+def test_clasificar_por_palabras_lista_vacia_no_revienta():
+    r = guia.clasificar_por_palabras([])
+    assert r.ok and r.columna_de == {} and r.inventados == []
+
+
+def test_clasificar_por_palabras_inventados_siempre_vacio():
+    r = guia.clasificar_por_palabras(["Cocina", "Pasillo", "Terraza con alberca"])
+    assert r.inventados == []
