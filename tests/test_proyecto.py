@@ -42,30 +42,13 @@ def test_a_dict_unidades_colapsadas_por_default_vacio():
     assert data["unidades_colapsadas"] == []
 
 
-def test_a_dict_incluye_entrega_none_por_defecto():
+def test_a_dict_no_guarda_el_estado_de_entrega():
     data = a_dict(
         proyecto="Casa Reforma", rooms=[], clips=[], bins=_bins_vacio(),
         tamanos={}, duraciones={}, rotaciones={},
     )
 
-    assert data["entrega"] is None
-
-
-def test_a_dict_incluye_entrega_cuando_se_pasa():
-    entrega = {
-        "estado": "con_editor",
-        "subido_en": "2026-09-16T10:00:00",
-        "prproj_local": "/x/Casa Reforma.prproj",
-        "drive_folder_id": "abc123",
-        "drive_prproj_modificado_en": "2026-09-16T10:00:00",
-    }
-
-    data = a_dict(
-        proyecto="Casa Reforma", rooms=[], clips=[], bins=_bins_vacio(),
-        tamanos={}, duraciones={}, rotaciones={}, entrega=entrega,
-    )
-
-    assert data["entrega"] == entrega
+    assert "entrega" not in data
 
 
 def test_la_ruta_relativa_se_calcula_contra_la_carpeta_del_bin():

@@ -133,11 +133,10 @@ def test_con_icloud_a_1280_la_exportacion_sigue_siendo_legible(qtbot):
     botones = (
         bar.config_button,
         bar.proxies_button,
-        bar.icloud_button,
-        bar.guia_button,
-        bar.export_button,
-        bar.subir_button,
-    )
+            bar.icloud_button,
+            bar.guia_button,
+            bar.export_button,
+        )
     anchos = [(boton.text(), boton.width(), boton.minimumSizeHint().width())
               for boton in botones]
     assert all(actual >= minimo for _texto, actual, minimo in anchos), anchos
@@ -155,54 +154,6 @@ def test_tiene_objectnames_para_el_tema(qtbot):
     bar = _bar(qtbot)
     assert bar.objectName() == "titleBar"
     assert bar.export_button.objectName() == "exportButton"
-
-
-def test_sin_estado_solo_se_ve_subir_a_drive(qtbot):
-    title_bar = _bar(qtbot)
-    title_bar.show()
-    qtbot.waitExposed(title_bar)
-    title_bar.set_estado_de_entrega(None)
-
-    assert title_bar.subir_button.text() == "Subir a Drive"
-    assert not title_bar.traer_button.isVisible()
-    assert not title_bar.entrega_pill.isVisible()
-
-
-def test_con_editor_muestra_pildora_y_traer(qtbot):
-    from clasificador_video.entrega import EstadoEntrega
-
-    title_bar = _bar(qtbot)
-    title_bar.show()
-    qtbot.waitExposed(title_bar)
-    title_bar.set_estado_de_entrega(EstadoEntrega.CON_EDITOR, "hace 2 días")
-
-    assert "Con el editor" in title_bar.entrega_pill.text()
-    assert title_bar.traer_button.isVisible()
-    assert title_bar.subir_button.text() == "Subir de nuevo"
-
-
-def test_en_revision_muestra_su_pildora_sin_boton_de_traer(qtbot):
-    from clasificador_video.entrega import EstadoEntrega
-
-    barra = TitleBar()
-    qtbot.addWidget(barra)
-    barra.show()
-    qtbot.waitExposed(barra)
-
-    barra.set_estado_de_entrega(EstadoEntrega.EN_REVISION, "hace 1 hora")
-
-    assert barra.entrega_pill.isVisible()
-    assert "En revisión" in barra.entrega_pill.text()
-    assert not barra.traer_button.isVisible()
-    assert barra.subir_button.text() == "Subir de nuevo"
-
-
-def test_subiendo_apaga_el_boton_con_progreso(qtbot):
-    title_bar = _bar(qtbot)
-    title_bar.set_subiendo(42)
-
-    assert not title_bar.subir_button.isEnabled()
-    assert "42%" in title_bar.subir_button.text()
 
 
 # --- switch Clip | Hoja (F10) ------------------------------------------

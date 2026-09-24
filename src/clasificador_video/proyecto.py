@@ -134,7 +134,6 @@ def a_dict(proyecto: str, rooms: list[str], clips: list, bins,
            carpeta_de_proxies: Path | None = None,
            carpeta_de_icloud: Path | None = None,
            guia: dict | None = None,
-           entrega: dict | None = None,
            units: list[str] | None = None,
            rooms_por_unidad: dict[str, list[str]] | None = None,
            unidades_colapsadas: list[str] | None = None,
@@ -222,12 +221,6 @@ def a_dict(proyecto: str, rooms: list[str], clips: list, bins,
             {u: dict(g) for u, g in guias_por_unidad.items()}
             if guias_por_unidad else {}
         ),
-        # El estado de la entrega a un editor externo (subir/traer por
-        # Drive). `None` es un proyecto que nunca la usó -- mismo criterio
-        # que `guia` y `carpeta_de_proxies`: los proyectos de antes de hoy
-        # abren igual que siempre. La forma exacta del dict la define
-        # `entrega.py` (EstadoEntrega.to_dict / de_dict).
-        "entrega": entrega,
     }
 
 

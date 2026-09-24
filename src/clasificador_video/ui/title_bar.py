@@ -56,8 +56,6 @@ class TitleBar(QWidget):
     guia_requested = Signal()
     config_requested = Signal()
     proxies_requested = Signal()
-    subir_a_drive_requested = Signal()
-    traer_de_vuelta_requested = Signal()
     abrir_en_finder_requested = Signal()
     mode_toggled = Signal()
     # el visor ancho: la hoja se esconde en modo clip y el video se lleva su
@@ -135,8 +133,7 @@ class TitleBar(QWidget):
         self.config_button = _boton("Configuración", "", "railButton")
         self.proxies_button = _boton("Proxies", "", "railButton")
         # Solo se ve si el proyecto tiene una carpeta de iCloud vinculada
-        # (spec 2026-09-23-abrir-carpeta-icloud-en-finder-design.md) --
-        # empieza escondido, igual que `traer_button`.
+        # (spec 2026-09-23-abrir-carpeta-icloud-en-finder-design.md).
         self.icloud_button = _boton("Abrir en Finder", "", "railButton")
         self.icloud_button.hide()
         # A la izquierda de exportar: la guia se arma ANTES de exportar.
@@ -160,22 +157,6 @@ class TitleBar(QWidget):
         self.export_button.setMinimumWidth(
             self.export_button.minimumSizeHint().width())
 
-        # La cápsula de entrega cambia sin mover el resto de la barra.
-        self.entrega_host = QWidget()
-        entrega_layout = QHBoxLayout(self.entrega_host)
-        entrega_layout.setContentsMargins(0, 0, 0, 0)
-        entrega_layout.setSpacing(8)
-        self.entrega_pill = QLabel("")
-        self.entrega_pill.setObjectName("entregaPill")
-        self.entrega_pill.hide()
-        self.subir_button = _boton("Subir a Drive", "", "railButton")
-        self.subir_button.clicked.connect(self.subir_a_drive_requested.emit)
-        self.traer_button = _boton("Traer de vuelta", "", "exportButton")
-        self.traer_button.clicked.connect(self.traer_de_vuelta_requested.emit)
-        self.traer_button.hide()
-        entrega_layout.addWidget(self.entrega_pill)
-        entrega_layout.addWidget(self.subir_button)
-        entrega_layout.addWidget(self.traer_button)
         self.proxies_button.clicked.connect(self.proxies_requested.emit)
         self.icloud_button.clicked.connect(self.abrir_en_finder_requested.emit)
         self.export_button.clicked.connect(self.export_requested.emit)
@@ -195,46 +176,12 @@ class TitleBar(QWidget):
         layout.addWidget(self.icloud_button)
         layout.addWidget(self.guia_button)
         layout.addWidget(self.export_button)
-        layout.addWidget(self.entrega_host)
 
     def set_carpeta_de_icloud_disponible(self, disponible: bool) -> None:
         """Muestra u oculta "Abrir en Finder" -- solo existe una carpeta de
         iCloud que abrir en los proyectos creados con "Con folio…" (spec
         2026-09-23-abrir-carpeta-icloud-en-finder-design.md)."""
         self.icloud_button.setVisible(disponible)
-
-    def set_estado_de_entrega(self, estado: str | None, cuando_texto: str = "") -> None:
-        """Dibuja el estado de la entrega de este proyecto."""
-        from clasificador_video.entrega import EstadoEntrega
-
-        self.subir_button.setText("Subir a Drive")
-        self.subir_button.setEnabled(True)
-        self.traer_button.hide()
-        self.entrega_pill.hide()
-        if estado == EstadoEntrega.CON_EDITOR:
-            self.subir_button.setText("Subir de nuevo")
-            self.entrega_pill.setText(f"●  Con el editor · {cuando_texto}")
-            self.entrega_pill.setProperty("tono", "esperando")
-            self.entrega_pill.show()
-            self.traer_button.show()
-        elif estado == EstadoEntrega.EDITOR_CONTESTO:
-            self.subir_button.setText("Subir de nuevo")
-            self.entrega_pill.setText(f"✓  El editor ya contestó · {cuando_texto}")
-            self.entrega_pill.setProperty("tono", "contesto")
-            self.entrega_pill.show()
-            self.traer_button.show()
-        elif estado == EstadoEntrega.EN_REVISION:
-            self.subir_button.setText("Subir de nuevo")
-            self.entrega_pill.setText(f"◐  En revisión · {cuando_texto}")
-            self.entrega_pill.setProperty("tono", "revision")
-            self.entrega_pill.show()
-        self.entrega_pill.style().unpolish(self.entrega_pill)
-        self.entrega_pill.style().polish(self.entrega_pill)
-
-    def set_subiendo(self, porcentaje: int) -> None:
-        """Apaga el botón mientras sube y enseña el avance disponible."""
-        self.subir_button.setEnabled(False)
-        self.subir_button.setText(f"Subiendo… {porcentaje}%")
 
     def set_project(self, nombre: str, total_clips: int, bins: int = 0) -> None:
         """El subtitulo decia «Sony FX30» escrito a mano, de cuando todo el

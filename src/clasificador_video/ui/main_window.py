@@ -26,8 +26,6 @@ from PySide6.QtWidgets import (
 
 from clasificador_video import guia as logica_guia
 from clasificador_video import (
-    buscar_prproj,
-    drive,
     preferencias,
     prproj_generador,
     proxy_gen,
@@ -349,9 +347,6 @@ class SeñalesDeTrabajos(QObject):
     media_revisada = Signal(int, object, object)  # generacion, faltantes, proxies
     # generacion, indice, ruta del proxy generado (o None), motivo del fallo
     proxy_generado = Signal(int, int, object, str)
-    drive_subida_lista = Signal(object, str)   # ResultadoDeSubida | None, error
-    drive_subida_progreso = Signal(int)         # 0-100, archivos subidos
-    drive_traida_lista = Signal(str)            # error
 
 
 class _RevisionDeMediaJob(QRunnable):
@@ -575,59 +570,6 @@ class _GeneracionDeProxyJob(QRunnable):
         self.signals.proxy_generado.emit(self._generacion, self.index, destino, "")
 
 
-class _SubidaADriveJob(QRunnable):
-    """Sube la entrega fuera del hilo de la interfaz."""
-
-    def __init__(self, cliente, nombre_proyecto, prproj, proxies, carpeta_existente, señales,
-                 recursos=None):
-        super().__init__()
-        self._cliente = cliente
-        self._nombre_proyecto = nombre_proyecto
-        self._prproj = prproj
-        self._proxies = proxies
-        self._carpeta_existente = carpeta_existente
-        self._recursos = recursos
-        self.signals = señales
-
-    def run(self) -> None:
-        try:
-            resultado = drive.subir_paquete(
-                self._cliente, self._nombre_proyecto, self._prproj, self._proxies,
-                carpeta_existente=self._carpeta_existente,
-                progreso=self.signals.drive_subida_progreso.emit,
-                recursos=self._recursos)
-        except Exception as e:
-            self.signals.drive_subida_lista.emit(None, str(e))
-            return
-        self.signals.drive_subida_lista.emit(resultado, "")
-
-
-class _TraidaDeDriveJob(QRunnable):
-    """Trae el proyecto y el material nuevo fuera del hilo de la interfaz."""
-
-    def __init__(self, cliente, estado, raiz_del_proyecto, señales):
-        super().__init__()
-        self._cliente = cliente
-        self._estado = estado
-        self._raiz = raiz_del_proyecto
-        self.signals = señales
-
-    def run(self) -> None:
-        try:
-            drive.traer_prproj(self._cliente, self._estado.drive_folder_id,
-                               Path(self._estado.prproj_local))
-            if self._raiz is not None:
-                destinos = {
-                    categoria: self._raiz / ruta
-                    for categoria, ruta in drive.mapa_de_categorias_de_material_nuevo().items()
-                }
-                drive.traer_material_nuevo(self._cliente, self._estado.drive_folder_id, destinos)
-        except Exception as e:
-            self.signals.drive_traida_lista.emit(str(e))
-            return
-        self.signals.drive_traida_lista.emit("")
-
-
 class MainWindow(QWidget):
     """Ventana del clasificador, con la estructura del mockup.
 
@@ -702,10 +644,6 @@ class MainWindow(QWidget):
         self._señales_de_trabajos.pesos_medidos.connect(self._on_pesos_medidos)
         self._señales_de_trabajos.media_revisada.connect(self._on_media_revisada)
         self._señales_de_trabajos.proxy_generado.connect(self._on_proxy_generado)
-        self._señales_de_trabajos.drive_subida_lista.connect(self._on_drive_subida_lista)
-        self._señales_de_trabajos.drive_subida_progreso.connect(
-            self._on_drive_subida_progreso)
-        self._señales_de_trabajos.drive_traida_lista.connect(self._on_drive_traida_lista)
         # hijo de la ventana A PROPOSITO: su destructor espera a los trabajos
         # en vuelo, y esa espera es lo que impide que una señal llegue
         # cuando la ventana ya no puede atenderla.
@@ -727,7 +665,6 @@ class MainWindow(QWidget):
         # mientras corre.
         self._generacion_pool = QThreadPool(self)
         self._generacion_pool.setMaxThreadCount(1)
-        self._drive_pool = QThreadPool(self)
         # Estado de la tanda que corre, o None. Lleva su propia generación
         # por la misma razón que los proxies: quitar el bin a media tanda
         # deja trabajos en vuelo cuyos resultados ya no aplican a nada.
@@ -894,10 +831,6 @@ class MainWindow(QWidget):
         # "Con folio…" (spec 2026-09-23-proyecto-colaborativo-icloud-design.md).
         # `None` en cualquier proyecto creado "a mano" o de antes de esta fase.
         self._carpeta_de_icloud: Path | None = None
-        # Estado de la entrega de ESTE proyecto. El cliente se inyecta desde
-        # afuera: abrir esta ventana jamás debe lanzar OAuth por sorpresa.
-        self._entrega = None
-        self._drive_cliente = None
         # modo horizontal: en modo CLIP la hoja se esconde y el video se
         # lleva su ancho. Nace apagado y se guarda en el proyecto. Ver
         # `docs/superpowers/specs/2026-08-15-modo-horizontal-design.md`.
@@ -927,8 +860,6 @@ class MainWindow(QWidget):
         self.title_bar.mode_toggled.connect(self.alternar_modo_hoja)
         self.title_bar.modo_horizontal_cambiado.connect(
             self._on_modo_horizontal_cambiado)
-        self.title_bar.subir_a_drive_requested.connect(self._al_pedir_subir_a_drive)
-        self.title_bar.traer_de_vuelta_requested.connect(self._al_pedir_traer_de_vuelta)
         self.title_bar.abrir_en_finder_requested.connect(self._al_abrir_carpeta_de_icloud_en_finder)
 
         self.room_rail = RoomRail()
@@ -2711,7 +2642,6 @@ class MainWindow(QWidget):
             carpeta_de_icloud=self._carpeta_de_icloud,
             guia=self._guia_para_la_sesion(),
             guias_por_unidad=self._guias_por_unidad_para_la_sesion(),
-            entrega=self._entrega.to_dict() if self._entrega is not None else None,
             units=self.unit_selection.active_rooms(),
             rooms_por_unidad={
                 nombre: self.room_selections[nombre].active_rooms()
@@ -3548,224 +3478,6 @@ class MainWindow(QWidget):
         escogida = QFileDialog.getExistingDirectory(
             self, "Carpeta de proxies", str(propuesta.parent))
         return Path(escogida) if escogida else propuesta
-
-    # --- entrega a un editor externo por Drive --------------------------
-
-    def _estado_de_entrega(self):
-        """El estado en memoria de este proyecto, sin consultar la red."""
-        return self._entrega
-
-    def restaurar_entrega(self, datos) -> None:
-        """Restaura el estado que venía en el `.cvproj`, si lo había."""
-        from clasificador_video.entrega import EstadoEntrega
-
-        self._entrega = EstadoEntrega.de_dict(datos)
-        estado = self._entrega.estado if self._entrega is not None else None
-        cuando = self._entrega.subido_en if self._entrega is not None else ""
-        self.title_bar.set_estado_de_entrega(estado, cuando or "")
-
-    def _cliente_de_drive(self):
-        """Cliente ya autorizado. Nunca abre OAuth en el navegador desde
-        aquí -- eso solo pasa desde el botón de Configuración.
-
-        Pero SÍ reusa el permiso ya guardado en disco si esta ventana
-        todavía no lo cargó: cada ventana nueva nacía con `_drive_cliente`
-        en `None`, y la única forma de llenarlo era entrar a Configuración
-        y apretar «Conectar» -- aunque el permiso siguiera ahí de una
-        sesión anterior. Bruno lo vivía como «Drive se desconecta cada vez
-        que cierro la app». `cliente_autorizado` con un token válido no
-        toca la red ni abre nada: solo lee el archivo guardado.
-        """
-        if self._drive_cliente is None and drive.hay_token_guardado():
-            try:
-                self._drive_cliente = drive.cliente_autorizado(
-                    Path.home() / ".clasificador_video" / "credenciales_google.json")
-            except Exception:
-                pass  # sigue en None; el mensaje de abajo lo explica
-        if self._drive_cliente is None:
-            raise RuntimeError("Conecta Google Drive desde Configuración antes de subir.")
-        return self._drive_cliente
-
-    def _al_refrescar_entrega(self, ruta_proyecto: Path) -> None:
-        """Revisa en Drive solo el proyecto pedido desde la lista."""
-        drive.revisar_y_persistir(ruta_proyecto, self._cliente_de_drive())
-
-    def _al_pedir_subir_a_drive(self) -> None:
-        raiz = preferencias.carpeta_de_proyectos_premiere()
-        candidatos = buscar_prproj.buscar_por_folio(raiz, self.project_name) if raiz else []
-        prproj = self._preguntar_por_el_prproj(candidatos)
-        if prproj is not None:
-            self._subir_a_drive(prproj)
-
-    def _preguntar_por_el_prproj(self, candidatos: list[Path]) -> Path | None:
-        """Muestra la ruta que se va a subir y deja cambiarla antes de actuar."""
-        con_proxy = [clip for clip in self.clips if clip.ruta_proxy is not None]
-        cuadro = QMessageBox(self)
-        cuadro.setWindowTitle("Subir a Drive")
-        if candidatos:
-            propuesta = candidatos[0]
-            extra = (
-                f"\n\nHay {len(candidatos)} versiones con este folio -- se propone la más reciente."
-                if len(candidatos) > 1 else ""
-            )
-            cuadro.setText(f"Proyecto de Premiere:\n{propuesta}{extra}")
-        else:
-            propuesta = None
-            cuadro.setText("No se encontró un .prproj con este folio.")
-        cuadro.setInformativeText(
-            f"Clips a subir: {len(con_proxy)} de {len(self.clips)}\n"
-            "Se sube a: Google Drive de Bruno"
-        )
-        subir = cuadro.addButton("Subir", QMessageBox.ButtonRole.AcceptRole)
-        cambiar = cuadro.addButton(
-            "Cambiar…" if candidatos else "Elegir…", QMessageBox.ButtonRole.ActionRole)
-        cuadro.addButton("Cancelar", QMessageBox.ButtonRole.RejectRole)
-        subir.setEnabled(propuesta is not None)
-        cuadro.setDefaultButton(subir)
-        cuadro.exec()
-        clickeado = cuadro.clickedButton()
-        if clickeado is cambiar:
-            elegido, _ = QFileDialog.getOpenFileName(
-                self, "Elegir el .prproj", "", "Proyecto de Premiere (*.prproj)")
-            return Path(elegido) if elegido else propuesta
-        return propuesta if clickeado is subir else None
-
-    def _subir_a_drive(self, prproj: Path) -> None:
-        """Encola la subida del proyecto y los proxies de TODOS los clips
-        que ya tienen uno generado -- sin filtrar por pick/reject: el
-        editor externo corta con el material completo, no solo lo que
-        Bruno ya filtró."""
-        try:
-            cliente = self._cliente_de_drive()
-        except Exception as e:
-            # Sin esto, no tener Drive conectado en esta ventana tumbaba
-            # el boton en silencio: el mensaje de `_cliente_de_drive` ya
-            # decia exactamente que hacer, pero nadie lo atrapaba para
-            # enseñarselo a Bruno.
-            QMessageBox.warning(self, "Subir a Drive", str(e))
-            return
-        proxies = [clip.ruta_proxy for clip in self.clips if clip.ruta_proxy is not None]
-        carpeta_existente = self._entrega.drive_folder_id if self._entrega is not None else None
-        self._prproj_subiendo = prproj
-        self.title_bar.set_subiendo(0)
-        self._drive_pool.start(_SubidaADriveJob(
-            cliente, self.project_name, prproj, proxies, carpeta_existente,
-            self._señales_de_trabajos, recursos=self._recursos_locales()))
-
-    def _recursos_locales(self) -> dict[str, list[Path]]:
-        """Los archivos sueltos que Bruno ya tiene en sus carpetas de
-        música/fotos/gráficos, listos para subir junto con el proyecto
-        (spec 2026-09-20-subir-recursos-a-drive-design.md). Mismo mapa de
-        categorías que ya usa `_TraidaDeDriveJob` en sentido inverso --
-        sin raíz de proyecto (cero bins con material todavía) no hay nada
-        que ofrecer."""
-        raiz = self._raiz_del_proyecto()
-        if raiz is None:
-            return {}
-        recursos: dict[str, list[Path]] = {}
-        for categoria, ruta in drive.mapa_de_categorias_de_material_nuevo().items():
-            carpeta_local = raiz / ruta
-            if carpeta_local.is_dir():
-                recursos[categoria] = sorted(
-                    p for p in carpeta_local.iterdir() if p.is_file()
-                )
-        return recursos
-
-    def _on_drive_subida_progreso(self, porcentaje: int) -> None:
-        """Avanza el «Subiendo… N%» mientras el trabajo sube archivos.
-
-        Sin esto la barra se quedaba en 0% toda la subida -- 214 proxies
-        tardan, y un número que nunca se mueve se lee como app trabada.
-        """
-        self.title_bar.set_subiendo(porcentaje)
-
-    def _on_drive_subida_lista(self, resultado, error: str) -> None:
-        from datetime import datetime
-        from clasificador_video.entrega import EstadoEntrega
-
-        if error:
-            self.title_bar.set_estado_de_entrega(
-                self._entrega.estado if self._entrega else None,
-                self._entrega.subido_en if self._entrega else "")
-            QMessageBox.warning(
-                self, "Subir a Drive", f"No se pudo terminar de subir a Drive: {error}")
-            return
-        self._entrega = EstadoEntrega(
-            EstadoEntrega.CON_EDITOR,
-            subido_en=datetime.now().isoformat(timespec="seconds"),
-            prproj_local=str(self._prproj_subiendo), drive_folder_id=resultado.folder_id,
-            drive_folder_link=resultado.folder_link,
-            drive_prproj_modificado_en=resultado.prproj_modificado_en,
-        )
-        self.title_bar.set_estado_de_entrega(
-            self._entrega.estado, self._entrega.subido_en or "")
-        # El link quedaba guardado en `self._entrega` --y en el .cvproj-- pero
-        # nunca se le enseñaba a Bruno, asi que no tenia como pasarselo al
-        # editor (paso 4 del flujo de entrega). Se copia solo al portapapeles
-        # para que el siguiente paso sea pegarlo donde sea, sin ir a buscarlo.
-        QApplication.clipboard().setText(resultado.folder_link)
-        QMessageBox.information(
-            self, "Subir a Drive",
-            "Se subió a Drive y copiamos el enlace al portapapeles:\n\n"
-            f"{resultado.folder_link}",
-        )
-        self._autosave()
-
-    def _al_pedir_traer_de_vuelta(self) -> None:
-        estado = self._estado_de_entrega()
-        if estado is None or not estado.drive_folder_id:
-            return
-        cliente = self._cliente_de_drive()
-        resultado = drive.revisar_cambios(
-            cliente, estado.drive_folder_id, estado.drive_prproj_modificado_en)
-        if resultado.hay_cambios or resultado.tiene_material_nuevo:
-            from clasificador_video.entrega import EstadoEntrega
-
-            self._entrega = replace(
-                estado, estado=EstadoEntrega.EDITOR_CONTESTO,
-                drive_prproj_modificado_en=resultado.prproj_modificado_en,
-            )
-            self.title_bar.set_estado_de_entrega(
-                self._entrega.estado, self._entrega.subido_en or "")
-            self._autosave()
-        if self._confirmar_traer_de_vuelta(resultado):
-            self._traer_de_vuelta(self._entrega or estado, cliente)
-
-    def _confirmar_traer_de_vuelta(self, resultado) -> bool:
-        mensaje = drive.mensaje_confirmar_traida(resultado)
-        cuadro = QMessageBox(self)
-        cuadro.setWindowTitle(f"Traer de vuelta — {self.project_name}")
-        cuadro.setText(mensaje.texto)
-        if mensaje.informativo:
-            cuadro.setInformativeText(mensaje.informativo)
-        traer = cuadro.addButton(mensaje.texto_boton, QMessageBox.ButtonRole.AcceptRole)
-        cuadro.addButton("Cancelar", QMessageBox.ButtonRole.RejectRole)
-        cuadro.setDefaultButton(traer)
-        cuadro.exec()
-        return cuadro.clickedButton() is traer
-
-    def _traer_de_vuelta(self, estado, cliente) -> None:
-        """Encola la traída del `.prproj` y del material nuevo."""
-        if estado.prproj_local is None or estado.drive_folder_id is None:
-            return
-        raiz = self._raiz_del_proyecto()
-        self._drive_pool.start(_TraidaDeDriveJob(
-            cliente, estado, raiz, self._señales_de_trabajos))
-
-    def _on_drive_traida_lista(self, error: str) -> None:
-        if error:
-            QMessageBox.warning(
-                self, "Traer de vuelta", f"No se pudo traer de Drive: {error}")
-            return
-        from dataclasses import replace
-        from clasificador_video.entrega import EstadoEntrega
-
-        if self._entrega is not None:
-            self._entrega = replace(self._entrega, estado=EstadoEntrega.EN_REVISION)
-        self.title_bar.set_estado_de_entrega(
-            self._entrega.estado if self._entrega else None,
-            self._entrega.subido_en if self._entrega else "")
-        self._autosave()
 
     def _asegurar_carpeta_de_proxies(self, nombre_de_bin: str) -> None:
         """Pregunta si todavia no hay respuesta. Una vez por proyecto.
