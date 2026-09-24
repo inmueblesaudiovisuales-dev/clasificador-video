@@ -5244,9 +5244,6 @@ class MainWindow(QWidget):
             self._pantalla_config.carpeta_premiere_guardada.connect(
                 preferencias.guardar_carpeta_de_proyectos_premiere
             )
-            self._pantalla_config.drive_conectado.connect(
-                lambda: setattr(self, "_drive_cliente", self._pantalla_config.cliente_drive)
-            )
             self._pantalla_config.miniaturas_borrar_pedido.connect(
                 self._al_pedir_borrar_miniaturas
             )

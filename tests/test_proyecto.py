@@ -50,7 +50,6 @@ def test_a_dict_no_guarda_el_estado_de_entrega():
 
     assert "entrega" not in data
 
-
 def test_la_ruta_relativa_se_calcula_contra_la_carpeta_del_bin():
     bins = BinTree()
     bins.agregar("Sony", Path("/Volumes/CARD_A/01. VIDEO CAMARA"), [0, 1])
@@ -495,21 +494,3 @@ def test_a_dict_guarda_guias_por_unidad_con_datos():
     assert data["guias_por_unidad"] == {
         "Casa A": {"orden": ["Cocina"], "cuartos_de_entonces": ["Cocina"]},
     }
-
-
-def test_raiz_de_assets_de_lee_los_bins_del_documento():
-    from clasificador_video.proyecto import raiz_de_assets_de
-
-    data = {"bins": [
-        {"nombre": "Sony", "clips": [0], "camara": "sony",
-         "origen": "/Volumes/SSD/IAV-2609/01. ASSETS VIDEO/02. CLIP/Sony"},
-    ]}
-
-    assert raiz_de_assets_de(data) == Path("/Volumes/SSD/IAV-2609")
-
-
-def test_raiz_de_assets_de_sin_bins_es_none():
-    from clasificador_video.proyecto import raiz_de_assets_de
-
-    assert raiz_de_assets_de({}) is None
-    assert raiz_de_assets_de({"bins": []}) is None

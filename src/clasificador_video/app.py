@@ -511,11 +511,6 @@ class Coordinador(QObject):
             self._pantalla_config.carpeta_icloud_guardada.connect(
                 preferencias.guardar_carpeta_raiz_icloud
             )
-            self._pantalla_config.drive_conectado.connect(
-                lambda: setattr(
-                    self, "_drive_cliente_config", self._pantalla_config.cliente_drive
-                )
-            )
             self._pantalla_config.miniaturas_borrar_pedido.connect(
                 self._al_pedir_borrar_miniaturas
             )

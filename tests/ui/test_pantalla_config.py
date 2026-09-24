@@ -1,4 +1,4 @@
-"""La pantalla de configuración: modos de miniaturas, carpetas y Drive."""
+"""La pantalla de configuración: modos de miniaturas y carpetas."""
 from PySide6.QtWidgets import QFileDialog
 import pytest
 from clasificador_video.ui.pantalla_config import PantallaConfig
@@ -24,6 +24,15 @@ def test_la_configuracion_ya_no_tiene_caja_de_llave(qtbot):
     assert not hasattr(p, "caja_llave")
     assert not hasattr(p, "llave_guardada")
     assert not hasattr(p, "llave_borrada")
+
+
+def test_la_configuracion_ya_no_tiene_conexion_de_drive(qtbot):
+    p = _pantalla(qtbot)
+
+    assert not hasattr(p, "drive_button")
+    assert not hasattr(p, "drive_label")
+    assert not hasattr(p, "drive_conectado")
+    assert not hasattr(p, "drive_estado_cambiado")
 
 
 def test_el_modo_economico_nace_apagado_por_default(qtbot):
