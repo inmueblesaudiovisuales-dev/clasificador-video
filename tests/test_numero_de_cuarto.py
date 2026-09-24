@@ -1,4 +1,4 @@
-"""Puerto de uxp-plugin/js/numeroDeCuarto.js."""
+"""Numeración de cuartos en el proyecto de Premiere."""
 from clasificador_video.numero_de_cuarto import con_numero, es_el_mismo_cuarto, sin_numero
 
 

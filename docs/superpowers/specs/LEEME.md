@@ -9,7 +9,7 @@ parte es la que más vale — evita reabrir discusiones ya cerradas.
 | Spec | ¿Construido? |
 |---|---|
 | `2026-08-05-clasificador-video-design.md` | ✅ |
-| `2026-08-05-clasificador-video-uxp-design.md` | ✅ el plugin de Premiere |
+| `2026-08-05-clasificador-video-uxp-design.md` | Histórico: plugin retirado; Clipify genera `.prproj` |
 | `2026-08-06-clasificador-video-app-externa-design.md` | ✅ |
 | `2026-08-06-scrub-bar-interactiva-design.md` | ✅ |
 | `2026-08-06-scrub-bar-regla-y-playhead-design.md` | ✅ |

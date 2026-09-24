@@ -2,7 +2,7 @@
 
 Viven en ``~/.clasificador_video/`` y con un criterio: si el archivo no
 existe o está roto, se devuelve el valor por defecto en vez de romper la
-app. Son globales a la app, no del proyecto: no viajan con el manifest ni
+app. Son globales a la app, no del proyecto: no viajan con el proyecto exportado ni
 con el material.
 
 Sin Qt.

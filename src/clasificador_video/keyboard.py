@@ -33,8 +33,8 @@ class KeyboardRouter:
         de cuarto.
 
         Sigue siendo una LISTA aunque los cuartos sean planos: es el contrato
-        del manifest con el plugin de Premiere, que ya maneja el caso de un
-        solo elemento, y no hay ninguna razon para tocarlo.
+        de los datos del proyecto de Premiere, que ya manejan el caso de un
+        solo elemento, y no hay ninguna razón para tocarlo.
         """
         if not key.isdigit():
             return None

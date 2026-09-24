@@ -87,7 +87,7 @@ def orientacion_de(ancho: int, alto: int) -> str:
 
 
 def orientacion_predominante(tamanos: Iterable[tuple[int, int]]) -> str:
-    """La orientacion que declara el manifest, sacada del material.
+    """La orientación que declara el proyecto de Premiere, sacada del material.
 
     Hasta la F9 estaba escrita a mano como `"horizontal"` y el material de
     Bruno es mayoria vertical, asi que Premiere armaba la secuencia con la

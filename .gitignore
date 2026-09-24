@@ -10,8 +10,5 @@ __pycache__/
 /luts/
 .pytest_cache/
 
-# manifests exportados a mano durante pruebas
-/*.json
-
 # credenciales, nunca al repo
 /Oauth/

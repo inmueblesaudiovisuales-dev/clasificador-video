@@ -15,7 +15,7 @@ def test_una_tecla_un_cuarto_sin_estado_intermedio():
 
 
 def test_el_cuarto_se_devuelve_como_lista_aunque_sea_plano():
-    """Es el contrato del manifest con el plugin de Premiere: el plugin ya
+    """Es el formato de los datos del proyecto de Premiere: el generador ya
     maneja la lista de un elemento y no hay razon para tocarlo."""
     assert KeyboardRouter(active_rooms=["Sala"]).resolve_room_key("1") == ["Sala"]
 

@@ -1,8 +1,9 @@
-"""Ctrl+E genera el proyecto de Premiere; el manifest queda de respaldo."""
+"""Ctrl+E genera el proyecto de Premiere directamente."""
 from pathlib import Path
 from unittest.mock import patch
 
 import pytest
+from PySide6.QtCore import Qt
 
 from clasificador_video.manifest import Clip
 from clasificador_video.rooms import RoomSelection
@@ -33,7 +34,7 @@ def ventana_con_clips(qtbot, tmp_path):
     return ventana
 
 
-def test_ctrl_e_llama_a_generar_prproj_no_a_escribir_manifest(
+def test_ctrl_e_llama_a_generar_prproj(
         ventana_con_clips, tmp_path, monkeypatch):
     destino = tmp_path / "IAV-2609.10-A.prproj"
     monkeypatch.setattr(ventana_con_clips, "_ruta_sugerida_del_prproj",
@@ -43,6 +44,13 @@ def test_ctrl_e_llama_a_generar_prproj_no_a_escribir_manifest(
     with patch("clasificador_video.ui.main_window.prproj_generador.generar_prproj") as generar:
         ventana_con_clips._on_generar_prproj()
     generar.assert_called_once()
+
+
+def test_exportar_solo_ofrece_el_prproj(ventana_con_clips):
+    boton = ventana_con_clips.title_bar.export_button
+    assert boton.contextMenuPolicy() == Qt.ContextMenuPolicy.DefaultContextMenu
+    assert "plugin" not in boton.toolTip().lower()
+    assert not hasattr(ventana_con_clips.title_bar, "export_manifest_requested")
 
 
 def test_si_el_prproj_ya_existe_genera_la_siguiente_version(

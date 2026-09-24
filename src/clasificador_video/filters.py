@@ -39,8 +39,8 @@ class FilterState:
     estado: str = "todos"
     busqueda: str = ""
     # El bin es el unico filtro que NO se puede resolver mirando el clip:
-    # el bin vive fuera de `Clip` --`to_dict()` es el contrato con el plugin
-    # de Premiere-- asi que `pasa()` no lo conoce y lo aplica `cola()` con el
+    # el bin vive fuera de `Clip`, así que `pasa()` no lo conoce y
+    # lo aplica `cola()` con el
     # mapa que le pasan de afuera.
     bin: str = "todos"
 

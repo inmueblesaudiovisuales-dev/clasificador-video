@@ -84,7 +84,7 @@ def _vaciar_timeline_de_secuencia(raiz: ET.Element, secuencia: ET.Element) -> No
 
     Premiere dibuja la secuencia como ``ClipProjectItem``; su ``Sequence``
     tiene los tracks como objetos aparte. Se vacían para que las secuencias
-    de Clipify nazcan sin material, como las del plugin.
+    de Clipify nazcan sin material, listas para editar.
     """
     for grupo_ref in secuencia.findall(".//TrackGroup/Second"):
         grupo = next((e for e in raiz if e.get("ObjectID") == grupo_ref.get("ObjectRef")), None)
@@ -386,35 +386,34 @@ def generar_prproj(manifest, destino: Path, carpeta_luts_destino: Path, *,
                 f'.//ClipProjectItem[@ObjectUID="{clon.clip_project_item_uid}"]')
             _agregar_item_al_bin(padre, item)
 
-    if manifest.crear_secuencias or manifest.formato_secuencia:
-        nombre_base = (manifest.proyecto or "Proyecto").strip() or "Proyecto"
-        sufijos = {
-            "4k_9x16": "4K 9:16", "2_7k_9x16": "2.7K 9:16",
-            "4k_16x9": "4K 16:9", "9x16_1080p": "9:16 1080p",
-            "16x9_1080p": "16:9 1080p",
-        }
-        carpeta_secuencia = bins_fijos["01. Secuencia"]
-        carpeta_original = crear_bin_hijo(
-            raiz, arquetipo_bin, carpeta_secuencia, asignador,
-            nombre=CARPETA_RESOLUCION_ORIGINAL)
-        for clave in ("4k_9x16", "2_7k_9x16", "4k_16x9"):
-            ancho, alto, _fps = FORMATOS_DE_SECUENCIA[clave]
-            item = clonar_secuencia_con_medidas(
-                raiz, arquetipo_secuencia, asignador,
-                nombre=f"{nombre_base} {sufijos[clave]}", ancho=ancho,
-                alto=alto)
-            _agregar_item_al_bin(carpeta_original, item)
+    nombre_base = (manifest.proyecto or "Proyecto").strip() or "Proyecto"
+    sufijos = {
+        "4k_9x16": "4K 9:16", "2_7k_9x16": "2.7K 9:16",
+        "4k_16x9": "4K 16:9", "9x16_1080p": "9:16 1080p",
+        "16x9_1080p": "16:9 1080p",
+    }
+    carpeta_secuencia = bins_fijos["01. Secuencia"]
+    carpeta_original = crear_bin_hijo(
+        raiz, arquetipo_bin, carpeta_secuencia, asignador,
+        nombre=CARPETA_RESOLUCION_ORIGINAL)
+    for clave in ("4k_9x16", "2_7k_9x16", "4k_16x9"):
+        ancho, alto, _fps = FORMATOS_DE_SECUENCIA[clave]
+        item = clonar_secuencia_con_medidas(
+            raiz, arquetipo_secuencia, asignador,
+            nombre=f"{nombre_base} {sufijos[clave]}", ancho=ancho,
+            alto=alto)
+        _agregar_item_al_bin(carpeta_original, item)
 
-        carpeta_1080p = crear_bin_hijo(
-            raiz, arquetipo_bin, carpeta_secuencia, asignador,
-            nombre=CARPETA_1080P)
-        for clave in ("9x16_1080p", "16x9_1080p"):
-            ancho, alto, _fps = FORMATOS_DE_SECUENCIA[clave]
-            item = clonar_secuencia_con_medidas(
-                raiz, arquetipo_secuencia, asignador,
-                nombre=f"{nombre_base} {sufijos[clave]}", ancho=ancho,
-                alto=alto)
-            _agregar_item_al_bin(carpeta_1080p, item)
+    carpeta_1080p = crear_bin_hijo(
+        raiz, arquetipo_bin, carpeta_secuencia, asignador,
+        nombre=CARPETA_1080P)
+    for clave in ("9x16_1080p", "16x9_1080p"):
+        ancho, alto, _fps = FORMATOS_DE_SECUENCIA[clave]
+        item = clonar_secuencia_con_medidas(
+            raiz, arquetipo_secuencia, asignador,
+            nombre=f"{nombre_base} {sufijos[clave]}", ancho=ancho,
+            alto=alto)
+        _agregar_item_al_bin(carpeta_1080p, item)
 
     for camara in camaras_usadas:
         arquetipo = archetipos_clip[camara]

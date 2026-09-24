@@ -1,8 +1,7 @@
 # src/clasificador_video/manifest.py
 from __future__ import annotations
 
-import json
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, field
 from pathlib import Path
 
 
@@ -16,8 +15,8 @@ class Clip:
     out_frame: int | None = None
     flag: str = "none"  # "none" | "pick" | "reject"
     # De que camara salio. Decide su ETIQUETA DE COLOR en Premiere -- la
-    # traduccion camara→color vive del otro lado, en `label.js`, igual que
-    # la de flag→carpeta. Aqui viaja el dato, no la presentacion.
+    # traducción cámara→color vive en el generador de .prproj. Aquí se
+    # guarda el dato, no la presentación.
     camara: str = "sony"
     # Si el BIN de importacion del que salio este clip tenia "dron" en su
     # nombre. Señal aparte de `camara` (esa mira el nombre del archivo, esta
@@ -50,7 +49,7 @@ class Clip:
 
 @dataclass
 class Guia:
-    """La guía de edición, congelada. El plugin la LEE y nunca la pide.
+    """La guía de edición aceptada para ordenar el proyecto de Premiere.
 
     `orden` es el guion de un proyecto sin unidades (lista plana de nombres,
     con repetidos). `unidades` es el de un proyecto con unidades: el orden de
@@ -61,14 +60,6 @@ class Guia:
     orden: list[str] = field(default_factory=list)
     unidades: list[dict] = field(default_factory=list)
 
-    def to_dict(self) -> dict:
-        datos = {"orden": list(self.orden)}
-        if self.unidades:
-            datos["unidades"] = [
-                {"nombre": str(u.get("nombre", "")), "orden": list(u.get("orden", []))}
-                for u in self.unidades
-            ]
-        return datos
 
 
 @dataclass
@@ -79,23 +70,3 @@ class Manifest:
     # `None` es un proyecto sin guía, y es un caso normal: Bruno nunca
     # apretó el botón, o se cayó la red. Todo lo demás funciona igual.
     guia: Guia | None = None
-    formato_secuencia: str | None = None
-    # Solo los JSON exportados desde este flujo piden el nuevo conjunto de
-    # cinco secuencias. Un JSON anterior conserva su comportamiento.
-    crear_secuencias: bool = False
-
-    def to_dict(self) -> dict:
-        datos = {
-            "proyecto": self.proyecto,
-            "orientacion": self.orientacion,
-            "clips": [c.to_dict() for c in self.clips],
-            "guia": self.guia.to_dict() if self.guia is not None else None,
-            "formato_secuencia": self.formato_secuencia,
-        }
-        if self.crear_secuencias:
-            datos.pop("formato_secuencia")
-            datos["crear_secuencias"] = True
-        return datos
-
-    def write_json(self, path: Path) -> None:
-        path.write_text(json.dumps(self.to_dict(), indent=2, ensure_ascii=False))

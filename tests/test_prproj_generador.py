@@ -89,8 +89,7 @@ def _generar_proyecto_de_prueba(tmp_path):
             Clip(orden=1, ruta=tmp_path / "dron1.mp4",
                  categoria_path=["Cocina"], fps=59.94, flag="none",
                  camara="dji", bin_dron=True),
-        ], guia=Guia(orden=["Cocina"]), formato_secuencia="4K 9:16",
-        crear_secuencias=True)
+        ], guia=Guia(orden=["Cocina"]))
     for clip in manifest.clips:
         clip.ruta.write_bytes(b"")
     destino = tmp_path / "salida" / "IAV-2609.10-A.prproj"
@@ -231,8 +230,7 @@ def test_generar_prproj_produce_un_archivo_que_se_puede_releer(tmp_path):
             Clip(orden=1, ruta=tmp_path / "dron1.mp4",
                  categoria_path=["Cocina"], fps=59.94, flag="none",
                  camara="dji", bin_dron=True),
-        ], guia=Guia(orden=["Cocina"]), formato_secuencia="4K 9:16",
-        crear_secuencias=True)
+        ], guia=Guia(orden=["Cocina"]))
     for clip in manifest.clips:
         clip.ruta.write_bytes(b"")
     destino = tmp_path / "salida" / "IAV-2609.10-A.prproj"

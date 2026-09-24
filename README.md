@@ -36,8 +36,8 @@ cualquier paso, no solo el último.
 **El proyecto es un archivo.** Un `.cvproj` que puedes mover, respaldar y
 abrir en otra computadora, reencontrando el material donde esté.
 
-**Exporta a Premiere.** Un plugin arma el proyecto solo: bins por cuarto,
-etiquetas de color, `in`/`out` y proxies enganchados.
+**Exporta a Premiere.** Clipify genera un `.prproj` con bins por cuarto,
+etiquetas de color y secuencias vacías, listo para abrir en Premiere.
 
 ---
 
@@ -50,10 +50,6 @@ Si el `.dmg` llegó por internet, la primera vez macOS lo bloquea por venir de
 fuera: se destraba en *Configuración → Privacidad y seguridad → Abrir de
 todos modos*. Pasa una sola vez.
 
-**El plugin de Premiere** (va aparte): cierra Premiere, doble clic al archivo
-`.ccx` y Creative Cloud lo instala solo. Al abrir Premiere aparece en
-`Ventana > Plugins UXP > Clipify`.
-
 La app **abre maximizada** y ocupando tu pantalla. Al abrir un proyecto verás
 una ventanita con su nombre y una barra mientras se preparan las portadas —
 con 205 clips son un par de segundos.
@@ -64,7 +60,7 @@ cualquier cosa.
 
 Qué trae cada versión: [docs/VERSIONES.md](docs/VERSIONES.md).
 
-Para armar los dos, ver [docs/DESARROLLO.md](docs/DESARROLLO.md).
+Para armar la app, ver [docs/DESARROLLO.md](docs/DESARROLLO.md).
 
 ---
 
@@ -187,13 +183,11 @@ seleccionar sus clips, quitarlo del proyecto.
 
 ### 5. Exportar
 
-`⌘E` guarda un archivo con **el nombre de tu proyecto** —`IAV-2608.17.json`—.
-En Premiere, abre el panel del
-plugin y dale a **Importar clasificación…**: arma los bins por cuarto, pone las
-etiquetas de color, aplica los in/out y engancha los proxies. También crea
-tres secuencias vacías en `01. Secuencia` (4K vertical, 2.7K vertical y 4K
-horizontal) y dos más en su subcarpeta `1080p` (vertical y horizontal).
-Ningún clip entra automáticamente al timeline.
+`⌘E` genera un `.prproj` con el nombre de tu proyecto. Ábrelo directamente
+en Premiere. Incluye los bins por cuarto, colores por cámara y cinco
+secuencias vacías: 4K vertical, 2.7K vertical y 4K horizontal en
+`Resolucion original`; vertical y horizontal en `1080p`. Los clips no se
+colocan automáticamente en la línea de tiempo.
 
 El proyecto se arma con estas siete carpetas, y todo tu material va dentro de
 la segunda:
@@ -209,7 +203,7 @@ la segunda:
 ```
 
 Las cinco que quedan vacías se crean igual: están para que tú metas cosas
-ahí. Si ya las tenías en tu proyecto, se reusan — no te llega una segunda.
+ahí. Cada proyecto generado trae una sola copia de esas carpetas.
 
 Dentro de `02. Clip` hay una carpeta por cuarto, y ahí van todos sus clips
 juntos. Cada uno dice lo que es con una marca al inicio del nombre:
@@ -228,9 +222,8 @@ con lo bueno y lo malo señalado — en vez de tener que entrar a tres carpetas
 para saber qué tienes.
 
 Las marcas solo cambian el nombre dentro de Premiere; **el archivo en tu
-disco no se toca**. Y si cambias de opinión y vuelves a importar, la marca se
-corrige sola: un clip que era reject y ahora es destacado pierde su ✕ y gana
-su ★. Si tú le pusiste otro nombre a un clip, ese no se toca.
+disco no se toca**. Si cambias de opinión, vuelve a generar el proyecto y
+Clipify guardará una versión nueva sin pisar la anterior.
 
 Los clips a los que nunca les pusiste cuarto siguen cayendo juntos en
 **Sin clasificar**.
@@ -271,38 +264,9 @@ Cuando ves la guía, **Usar este orden** acomoda tus cuartos en ese orden —en
 el rail, en la hoja y en Premiere, que es uno solo— y la guarda. Si no te
 convence, cambias lo que quieres lucir y la vuelves a pedir.
 
-De ahí en adelante **la guía viaja sola**: sale en el archivo que exportas y
-la ves en Premiere, en el panel **Guía de edición**, con una casilla por
-paso. La vas **palomeando según montas**, el encabezado te dice en qué paso
-vas y cuántos llevas del recorrido, y en cuanto un cuarto queda completo
-—todas las veces que sale en el guion, palomeadas— **su carpeta se pinta de
-verde**.
-
-Y tus carpetas de cuartos llegan numeradas en ese orden: `01. Fachada`,
-`02. Cocina`. Cada carpeta se numera por la **primera** vez que ese cuarto
-aparece en el recorrido, así vuelva a salir después. Si importas más clips
-del mismo rodaje y el orden cambió, se le cambia el número a la carpeta que
-ya tienes — no se crea una segunda.
-
-Cinco cosas que vale la pena que sepas:
-
-- **Es una guía para leer y para palomear. No mueve tus clips.** Lo único
-  que acomoda son tus cuartos, y solo si le das a «Usar este orden».
-- **Las palomitas viven en tu computadora, no en el proyecto de Premiere.**
-  Si le pasas el proyecto a alguien más, no lo acompañan — se quedan en tu
-  máquina. El verde de la carpeta sí viaja con el proyecto, porque vive
-  adentro de él: por eso puedes ver de un vistazo qué cuartos ya montaste
-  aunque abras el proyecto en otra computadora, aunque ahí ya no veas las
-  palomitas de cada paso.
-- **Si le falta un cuarto o se inventa uno, te lo dice** arriba de la lista.
-  Una guía a la que le falta la cocina hace que se te olvide la cocina al
-  editar, y eso no se nota hasta después de entregar.
-- **No vio tu material**, así que no sabe qué hay adentro de tus cuartos —solo
-  por qué uno va antes que otro en un recorrido—. Si algún día te describe una
-  cocina que nunca vio, eso es un error y vale la pena decirlo.
-- **Si armaste la guía y después agregaste un cuarto**, al exportar te avisa
-  —«tu guía es de antes de agregar la Terraza»— y tú decides si la exportas
-  así o la vuelves a armar.
+El orden que aceptas también organiza los cuartos en el `.prproj`.
+Puedes volver a la guía en Clipify cuando necesites consultar o cambiar
+el recorrido; el proyecto de Premiere se genera con el orden vigente.
 
 La guía se arma **sin llave y sin internet**. Clipify reconoce cada cuarto por
 su nombre —`cocina`, `recámara`, `alberca`, `aérea final`…— y lo pone en su
@@ -311,8 +275,7 @@ arrastres a mano: **nunca se inventa un cuarto** ni sale nada de tu
 computadora.
 
 Si un cuarto no cayó donde esperabas, arrástralo: la guía es un punto de
-partida, no una decisión cerrada. Y si abres la pestaña en Premiere con un
-proyecto que no trae una guía, te lo dice con esas palabras.
+partida, no una decisión cerrada.
 
 ---
 
@@ -388,6 +351,6 @@ como `sesion.migrada.json`.
 ## Más
 
 - **[docs/DESARROLLO.md](docs/DESARROLLO.md)** — correr desde el código,
-  tests, armar el `.dmg` y el plugin, cómo está organizado el repo.
+  tests, armar el `.dmg` y cómo está organizado el repo.
 - **[docs/superpowers/CONTEXTO-Y-METAS.md](docs/superpowers/CONTEXTO-Y-METAS.md)**
   — estado del proyecto, qué falta, y qué se descartó con su razón.

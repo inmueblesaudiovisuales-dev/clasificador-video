@@ -162,7 +162,7 @@ def a_dict(proyecto: str, rooms: list[str], clips: list, bins,
         "unidades_colapsadas": list(unidades_colapsadas) if unidades_colapsadas else [],
         "clips": [c.to_dict() for c in clips],
         # Todo esto va AL LADO de los clips y no adentro: `Clip.to_dict()`
-        # es el contrato con el plugin de Premiere y no se toca.
+        # es el formato persistido del proyecto y no se toca.
         "tamanos": {str(i): [a, h] for i, (a, h) in tamanos.items()},
         "duraciones": {str(i): s for i, s in duraciones.items()},
         "rotaciones": {str(i): r for i, r in rotaciones.items()},

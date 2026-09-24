@@ -1,7 +1,7 @@
 """Los bins: de que camara/tarjeta salio cada clip.
 
-Vive APARTE de `Clip` a proposito. `Clip.to_dict()` es el contrato con el
-plugin de Premiere y no se toca -- mismo criterio que ya se uso con los
+Vive APARTE de `Clip` a proposito. `Clip.to_dict()` conserva el formato del
+archivo de proyecto -- mismo criterio que ya se usó con los
 tamaños, las duraciones y las rotaciones, que viajan al lado en el autosave
 en vez de meterse dentro del clip.
 

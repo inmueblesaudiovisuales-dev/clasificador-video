@@ -39,34 +39,6 @@ sospechas que el fallo es nuevo, medir el commit anterior con el mismo número.
 repo: un test que pasaba igual con el arreglo puesto o quitado. Antes de
 confiar en uno nuevo, rómpelo a propósito y confirma que se pone rojo.
 
-### Las pruebas del plugin
-
-El plugin tiene las suyas, y son un comando aparte porque no son Python:
-
-```bash
-node uxp-plugin/pruebas/correr.js
-```
-
-Corren **sin abrir Premiere**: son la lógica pura del plugin —hoy, el prefijo
-numérico de las carpetas de cuartos (`numeroDeCuarto.js`) y el camino de un
-clip (`estructura.js`)—, que no le pregunta nada a Premiere ni a la red. Sin
-dependencias ni `npm install`: el corredor lee los archivos del plugin y los
-evalúa, que es lo mismo que hace el navegador con un `<script src>`.
-
-Aquí vivían también los casos del orden sugerido. Se mudaron a
-`tests/test_guia.py` el 2026-09-14, cuando la guía se mudó a Clipify.
-
-Lo que sí necesita Premiere —los bins, la red, el disco de UXP— vivía en el
-arnés de `uxp-plugin/js/autocheck-tests.js`, que corría **dentro** de Premiere.
-Se borró el 2026-09-15: estaba apagado desde que se terminó el plugin
-(`AUTOCHECK_ACTIVO = false` en `autocheck.js`) y además tronaba al cargar por
-una variable que nunca se definió. `autocheck.js` se queda como el arnés, pero
-hoy no registra ningún caso.
-
-Y ojo con la asimetría: **lo que necesita Premiere no corre solo**. Cualquier
-lógica que se pueda probar sin Premiere va en el corredor de Node, no en un
-arnés que hay que prender a mano.
-
 ## Empaquetar la app
 
 ```bash
@@ -95,16 +67,6 @@ eso se copia con `ditto` y no con `cp -R`).
 Lo que **no** está comprobado, y solo se puede comprobar allá: que abra en
 otra Mac.
 
-## Empaquetar el plugin de Premiere
-
-```bash
-./uxp-plugin/empaquetar.sh
-```
-
-Sale un `.ccx` que se manda y se instala con doble clic. El script hace los
-cinco pasos, **cuatro de los cuales fallan con un mensaje que no dice la
-verdad** — el detalle está en `uxp-plugin/README.md` y adentro del script.
-
 ## Cómo está organizado el repo
 
 ```
@@ -112,7 +74,6 @@ src/clasificador_video/     la app (Python + PySide6 + mpv)
   ui/                       los widgets
 tests/                      pytest, espeja src módulo a módulo
   ui/                       los widgets
-uxp-plugin/                 el plugin de Premiere (UXP) + su empaquetador
 empaque/                    receta de PyInstaller y armado del .dmg
 scripts/                    utilidades sueltas
 sample-media/               clips reales para pruebas a mano (no versionado)
@@ -124,30 +85,14 @@ docs/                       esto
 
 ### Los archivos de la guía de edición
 
-La guía se arma en Clipify y viaja congelada en el manifest como un guion de
-pasos —un cuarto puede salir en más de un paso—. El panel de Premiere la lee,
-y del lado del plugin también **guarda el avance**: qué pasos ya se
-palomearon. De este lado (Clipify) se reparte así, y el corte es a propósito
-—lo que piensa se prueba sin red y sin abrir la app—:
+La guía se arma y se guarda en Clipify. Al generar el `.prproj`, el orden
+de sus cuartos determina los nombres y la posición de los bins.
 
 | Archivo | De qué se encarga |
 |---|---|
-| `guia.py` | Lo que PIENSA: clasifica los cuartos por palabras clave y arma las piezas de la guía. Sin Qt, sin red, sin disco. |
-| `ui/pantalla_guia.py` | La pantalla: el tablero de siete columnas, la franja y «Usar este orden». |
-| `ui/pantalla_config.py` | La pantalla de configuración: modos de miniaturas y carpetas. |
-
-Del lado del plugin, el avance —qué pasos ya se montaron— está **partido en
-dos**, y el corte es el mismo criterio de siempre: lo que se puede probar sin
-abrir Premiere, aparte de lo que no.
-
-| Archivo | De qué se encarga |
-|---|---|
-| `avance.js` | Lo que PIENSA: qué paso es el actual, si un cuarto ya quedó completo, qué palomitas siguen valiendo si la guía cambió. Lógica pura, sin disco — se prueba con `node uxp-plugin/pruebas/correr.js`. |
-| `avanceDisco.js` | Guardar y leer esas palomitas, un archivo por proyecto, en la carpeta del plugin. Toca el disco de UXP y por eso **no** se prueba con `node`. |
-
-Ese corte es lo que permite comprobar la parte importante —cuándo un cuarto
-cuenta como montado, qué palomitas se descartan si la guía cambió— sin
-depender del arnés que corre dentro de Premiere.
+| `guia.py` | Clasifica los cuartos por nombre y arma las piezas de la guía. |
+| `ui/pantalla_guia.py` | Muestra el tablero y permite aceptar el orden. |
+| `ui/pantalla_config.py` | Muestra las opciones de miniaturas y carpetas. |
 
 Las dos pantallas —la guía y la configuración— son **widgets hijos de la
 ventana, no `QDialog` modales**. El diálogo de configuración que abría con

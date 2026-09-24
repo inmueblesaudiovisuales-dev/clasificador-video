@@ -101,8 +101,8 @@ class StatusBar(QWidget):
             partes.append(f"{fps:.2f} fps")
         if tamano:
             ancho, alto = tamano
-            # la MISMA funcion que decide la orientacion del manifest: si
-            # la barra dice «vertical» y el manifest declara «horizontal»,
+            # la MISMA funcion que decide la orientación del proyecto de Premiere: si
+            # la barra dice «vertical» y el proyecto declara «horizontal»,
             # una de las dos miente y nadie se entera hasta Premiere.
             orientacion = orientacion_de(ancho, alto)
             partes.append(

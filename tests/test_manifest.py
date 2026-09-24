@@ -1,8 +1,7 @@
 # tests/test_manifest.py
-import json
 from pathlib import Path
 
-from clasificador_video.manifest import Clip, Manifest
+from clasificador_video.manifest import Clip
 
 
 def _clip(**overrides) -> Clip:
@@ -20,7 +19,7 @@ def _clip(**overrides) -> Clip:
     return Clip(**base)
 
 
-def test_clip_to_dict_usa_las_llaves_exactas_del_manifest():
+def test_clip_to_dict_usa_las_llaves_del_proyecto_guardado():
     clip = _clip(in_frame=30, out_frame=200, flag="pick", ruta_proxy=Path("/shooting/C0012S03.MP4"))
     assert clip.to_dict() == {
         "orden": 1,
@@ -68,53 +67,8 @@ def test_to_dict_incluye_bin_sony_y_bin_pocket():
     assert d["bin_pocket"] is False
 
 
-def test_manifest_to_dict_incluye_proyecto_orientacion_y_clips_en_orden():
-    m = Manifest(
-        proyecto="Casa Jardin",
-        orientacion="vertical",
-        clips=[_clip(orden=2), _clip(orden=1)],
-    )
-    d = m.to_dict()
-    assert d["proyecto"] == "Casa Jardin"
-    assert d["orientacion"] == "vertical"
-    assert [c["orden"] for c in d["clips"]] == [2, 1]  # respeta el orden de la lista, no reordena
-
-
-def test_manifest_nuevo_lleva_el_formato_de_secuencia_elegido():
-    d = Manifest(
-        proyecto="Casa Jardin",
-        orientacion="vertical",
-        formato_secuencia="2.7K 9:16",
-    ).to_dict()
-    assert d["formato_secuencia"] == "2.7K 9:16"
-
-
-def test_manifest_sin_formato_conserva_compatibilidad():
-    d = Manifest(proyecto="Casa Jardin", orientacion="vertical").to_dict()
-    assert d["formato_secuencia"] is None
-
-
-def test_manifest_nuevo_pide_cinco_secuencias_sin_elegir_formato():
-    d = Manifest(
-        proyecto="Casa Jardin", orientacion="vertical", crear_secuencias=True,
-    ).to_dict()
-    assert d["crear_secuencias"] is True
-    assert "formato_secuencia" not in d
-
-
-def test_manifest_write_json_escribe_archivo_legible(tmp_path):
-    m = Manifest(proyecto="Casa Jardin", orientacion="vertical", clips=[_clip()])
-    out = tmp_path / "manifest.json"
-    m.write_json(out)
-    loaded = json.loads(out.read_text())
-    assert loaded["proyecto"] == "Casa Jardin"
-    assert loaded["clips"][0]["ruta"] == "/shooting/C0012.MP4"
-
-
-def test_destacado_viaja_en_el_manifest_sin_cambiar_el_contrato():
-    """El plugin de Premiere mapea pick→FOREST, reject→ROSE e IGNORA lo que no
-    conoce: `destacado` es aditivo y no obliga a tocar `to_dict()` ni el
-    formato del manifest."""
+def test_destacado_se_guarda_en_los_datos_del_clip():
+    """El destacado conserva su estado en los datos del clip."""
     clip = Clip(orden=1, ruta=Path("/a.MP4"), categoria_path=["Cocina"], fps=30.0)
     clip.flag = "destacado"
     assert clip.to_dict()["flag"] == "destacado"
@@ -127,7 +81,7 @@ def test_destacado_viaja_en_el_manifest_sin_cambiar_el_contrato():
 # marcar» dentro de cada cuarto. Se fue entero el 2026-09-08: el estado lo
 # dicen ahora las marcas del nombre en Premiere (★ destacado, ✓ pick, ✕
 # reject, nada = sin ver), y una carpeta que dice lo mismo que una marca solo
-# esconde el clip. Ver `nombre.js` y el §9 del spec de ese día.
+# esconde el clip. Ver `nombre_de_clip.py`.
 
 
 def test_el_camino_del_clip_es_su_cuarto_y_nada_mas():
@@ -140,7 +94,7 @@ def test_el_camino_del_clip_es_su_cuarto_y_nada_mas():
 
 
 def test_un_clip_sin_cuarto_viaja_con_el_camino_vacio():
-    """Su camino vacío es lo que hace que el plugin lo mande a «Sin
+    """Su camino vacío es lo que hace que el generador lo mande a «Sin
     clasificar», y esa cadena vive allá: escribirla también aquí serían dos
     lugares diciendo el nombre del mismo bin."""
     clip = Clip(orden=1, ruta=Path("/c/A.MP4"), categoria_path=[], fps=30.0,
@@ -149,7 +103,7 @@ def test_un_clip_sin_cuarto_viaja_con_el_camino_vacio():
     assert clip.to_dict()["categoria_path"] == []
 
 
-def test_el_clip_lleva_su_camara_al_manifiesto():
+def test_el_clip_guarda_su_camara():
     clip = Clip(orden=1, ruta=Path("/x/DJI_0001.MP4"), categoria_path=["Cocina"],
                 fps=59.94, camara="dji")
 
@@ -165,41 +119,8 @@ def test_un_clip_sin_camara_dicha_sale_sony():
     assert clip.to_dict()["camara"] == "sony"
 
 
-from clasificador_video.manifest import Guia  # noqa: E402
-
-
-def test_manifest_sin_guia_sigue_siendo_valido():
-    # Si Bruno nunca apreto el boton, o si se cayo la red, todo lo demas
-    # funciona igual.
-    d = Manifest(proyecto="Casa Lomas", orientacion="horizontal").to_dict()
-    assert d["guia"] is None
-
-
-def test_guia_to_dict_es_solo_una_lista_de_nombres():
-    guia = Guia(orden=["Fachada", "Sala", "Fachada"])
-    assert guia.to_dict() == {"orden": ["Fachada", "Sala", "Fachada"]}
-
-
-def test_guia_sin_unidades_no_escribe_la_llave_unidades():
-    """Retro-compatible: un proyecto sin unidades manda exactamente lo de
-    siempre. La llave `unidades` solo aparece cuando hay guías por unidad."""
-    guia = Guia(orden=["Cocina"])
-    assert "unidades" not in guia.to_dict()
-
-
-def test_guia_con_unidades_las_lleva_en_orden():
-    guia = Guia(unidades=[
-        {"nombre": "CASA A", "orden": ["Cocina", "Baño"]},
-        {"nombre": "CASA B", "orden": ["Fachada"]},
-    ])
-    assert guia.to_dict()["unidades"] == [
-        {"nombre": "CASA A", "orden": ["Cocina", "Baño"]},
-        {"nombre": "CASA B", "orden": ["Fachada"]},
-    ]
-
-
 def test_categoria_path_sigue_sin_numero():
-    # El numero es presentacion y lo pone el plugin. Meterlo aqui lo
+    # El número es presentación y lo pone el generador. Meterlo aquí lo
     # volveria parte del NOMBRE del cuarto.
     from pathlib import Path
 

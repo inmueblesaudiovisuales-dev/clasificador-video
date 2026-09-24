@@ -133,13 +133,6 @@ comentarios del código, que es donde sirve. En el chat, no.
   como proxy no calzan cuadro a cuadro (contenido corrido 0–5 cuadros,
   variable por toma). Los proxies del dron se generan del original con
   `proxy_gen.py`.
-- **En el plugin de UXP, no confíes en la documentación de Adobe sobre qué
-  métodos existen.** Ya falló tres veces en el mismo día: la fábrica de
-  efectos devuelve un objeto sin métodos, `getParam` necesita `await` aunque
-  la referencia diga que no, y el nombre de un parámetro es `displayName`
-  como propiedad y no `getDisplayName()`. Antes de llamar a algo, imprimir
-  `Object.getOwnPropertyNames(Object.getPrototypeOf(obj))` y ver qué hay de
-  verdad. La misma trampa está documentada al tope de `importClip.js`.
 - **Dos preguntas distintas: asignar avanza por RODAJE, las flechas por lo
   que VES.** Teclear un cuarto avanza «al siguiente que no he tocado», que es
   tiempo — el siguiente que grabaste. `←`/`→` recorren el orden de la hoja,
@@ -243,8 +236,7 @@ comentarios del código, que es donde sirve. En el chat, no.
 
   Un clip **sin marca ya no significa «pick»**: significa que no lo has
   visto. Por eso el pick estrenó `✓` — sin él, quitar las carpetas dejaba
-  al pick indistinguible de lo que nunca miraste, y perder un dato al cruzar
-  a Premiere es justo lo que este plugin existe para evitar.
+  al pick indistinguible de lo que nunca miraste en Premiere.
 
   **La marca CAMBIA con el estado, no se acumula.** Se quita la marca propia
   del inicio antes de poner la nueva, y solo la propia: un `✕` que Bruno
@@ -253,8 +245,6 @@ comentarios del código, que es donde sirve. En el chat, no.
   al llegar la segunda esa regla se volvió el bug: el clip terminaba con
   `★ ✕` diciendo dos cosas contrarias.
 
-  Los once casos viven en `uxp-plugin/js/autocheck-tests.js`, que es donde
-  esa lógica puede correr.
 
 - **En Premiere, el color de un clip dice su CÁMARA, no su estado**
   (Sony azul, dron amarillo, otra morado). Un item de Premiere tiene una
@@ -273,24 +263,15 @@ comentarios del código, que es donde sirve. En el chat, no.
   En Premiere también van a salirlo. Ver
   `specs/2026-09-08-color-por-camara-y-carpetas-design.md`.
 
-- **La estructura del proyecto de Premiere vive en el PLUGIN**
-  (`uxp-plugin/js/estructura.js`), no en el manifiesto: son las siete
-  carpetas de Bruno y el material cuelga de `02. Clip`. Si la app las
-  escribiera en `categoria_path`, esos nombres quedarían repartidos en dos
-  repos y se desincronizarían en el primer cambio de opinión — mismo criterio
-  por el que `con_subcarpeta_de_estado` no vive en la sesión.
+- **La estructura del proyecto de Premiere vive en `prproj_generador.py`.**
+  Son las siete carpetas de Bruno y el material cuelga de `02. Clip`.
+  `categoria_path` solo guarda el cuarto del clip.
 
 - **El orden sugerido se decide por lo que ES cada cuarto, no por el pixel.**
   Bruno pensaba analizar el video con IA y le preocupaba el costo. No hace
   falta: el orden de un recorrido sale de los nombres que él teclea, y esos ya
   están escritos. Viaja texto, no video — y de paso el costo deja de ser un
   tema. No reabrir la idea de mirar fotogramas sin una razón nueva.
-
-- **La pestaña «Orden sugerido» NO escribe en el proyecto de Premiere.** Ni
-  una carpeta, ni un clip, ni el timeline: solo lee los nombres de los bins de
-  `02. Clip`. Por eso busca la carpeta a mano en vez de usar `resolveBinChain`,
-  que la crearía. Es de lectura entera, y esa es la razón por la que puede
-  vivir dentro del mismo plugin que sí escribe sin dar miedo.
 
 - **La lista del modelo se revisa contra los bins ANTES de enseñarse**, y se
   compara por igualdad exacta de cadena: nada de `trim`, minúsculas ni quitar
@@ -301,23 +282,9 @@ comentarios del código, que es donde sirve. En el chat, no.
   hace que se te olvide la cocina al editar, y eso no se nota hasta después de
   entregar. Misma familia que los ocho bugs del 2026-08-22.
 
-- **La lógica pura del plugin se prueba con `node`, no con el arnés.**
-  `node uxp-plugin/pruebas/correr.js` corre sin abrir Premiere. El arnés de
-  `autocheck-tests.js` corre DENTRO de Premiere y está apagado
-  (`AUTOCHECK_ACTIVO = false`), así que sus casos solo se comprueban cuando
-  alguien se acuerda de prenderlo — una comprobación que solo corre cuando te
-  acuerdas no es una comprobación. Allá se queda únicamente lo que de verdad
-  necesita a Premiere: la red, los bins y el disco de UXP.
-
-- **La guía de edición se arma en Clipify, no en Premiere.** Los cuartos
-  nacen ahí, así que preguntar del otro lado obligaba a leer el reflejo en
-  vez del original. La guía viaja congelada en el manifest y el panel solo
-  la lee: sin llave, sin red, sin esperas. **Las carpetas de cuartos llegan
-  numeradas** y al importar se reconoce el cuarto **sin su número** — sin
-  eso, una segunda pasada con otro orden parte un cuarto en dos carpetas sin
-  avisar. El número es presentación y lo pone el plugin: no viaja en
-  `categoria_path`, mismo corte que `camara`→color. Ver
-  `specs/2026-09-14-guia-de-edicion-en-clipify-design.md`.
+- **La guía de edición se arma en Clipify.** Su orden se guarda en el
+  `.cvproj` y determina el orden y nombre de los bins al generar el `.prproj`.
+  El número es presentación: no viaja en `categoria_path`.
 
 - **El patrón de recorrido vive en `docs/patron-de-recorrido/MI-PATRON.md` y
   ése es su único dueño.** Entra al prompt de la guía como punto de partida,
@@ -336,17 +303,10 @@ comentarios del código, que es donde sirve. En el chat, no.
   justo lo que esconde que sale dos veces. Ver
   `specs/2026-09-15-el-guion-y-las-carpetas-design.md`.
 
-- **El avance —qué pasos ya montaste— vive en el plugin, y el color del bin
-  es su reflejo.** Se recalcula entero al palomear, nunca se lleva por
-  separado. Y el verde del bin NO entra en la paleta de cámaras: en un
-  **clip** el color dice la cámara, en un **bin** dice si está montado, y
-  son dos canales distintos sobre dos tipos de item distintos.
-
-- **El enfoque `xmeml` (Final Cut Pro 7 XML) está descartado**, no solo
-  "obsoleto" — Premiere nunca abre el archivo de video real al importar un
-  xmeml, y ese formato no puede declarar rotación. La vía real de entrega es
-  el plugin UXP en `uxp-plugin/` vía `project.importFiles()`. No reintentar
-  el camino xmeml sin una razón nueva y explícita de Bruno.
+- **Premiere se entrega mediante `.prproj` generado directamente por Clipify.**
+  `xmeml` no conserva la rotación del material vertical, y el panel UXP ya
+  no forma parte del producto. La generación se prueba en
+  `tests/test_prproj_generador.py`.
 
 ## Higiene de archivos — prioridad, no un paso opcional al final
 
@@ -389,7 +349,7 @@ tarea aparte — es un criterio a aplicar **cada vez que se crea algo nuevo**:
   entrada y está escrita para quien la usa, no para quien la programa: los
   detalles de desarrollo NO van ahí.
 - `docs/DESARROLLO.md` — correr desde el código, tests, empaquetar el `.dmg`
-  y el plugin, y cómo está organizado el repo.
+  y cómo está organizado el repo.
 - `docs/superpowers/CONTEXTO-Y-METAS.md` — estado del proyecto, qué falta y
   qué se descartó con su razón.
 

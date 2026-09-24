@@ -1,7 +1,7 @@
 """Empaqueta un arquetipo de secuencia dentro de la plantilla de Clipify.
 
 Operación de una sola vez, documentada aquí para que se pueda repetir: toma
-un proyecto generado por el plugin de UXP que ya tenga una secuencia VACÍA
+un proyecto de Premiere que ya tenga una secuencia VACÍA
 (creada por Premiere, no inventada), extrae su cierre completo de referencias
 --``ClipProjectItem`` -> ``MasterClip`` -> ``VideoClip``/``AudioClip`` ->
 ``AudioSequenceSource``/``VideoSequenceSource`` -> ``Sequence``-- y lo agrega
@@ -15,7 +15,7 @@ correcciones de ``progress.md``.
 Uso:
 
     .venv/bin/python scripts/empacar_arquetipo_de_secuencia.py \
-        "<proyecto generado por el plugin>.prproj" \
+        "<proyecto de Premiere>.prproj" \
         "recursos/premiere/TemplateColorLuts.prproj"
 
 El segundo archivo se reescribe en su lugar. No toca los clips de referencia

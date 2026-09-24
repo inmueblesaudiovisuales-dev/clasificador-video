@@ -1,4 +1,4 @@
-"""Puerto de uxp-plugin/js/nombre.js."""
+"""Nombres de clips en el proyecto de Premiere."""
 from clasificador_video.nombre_de_clip import nombre_de_clip, numeros_de_clip
 
 

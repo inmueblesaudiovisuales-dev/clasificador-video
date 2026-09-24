@@ -1,5 +1,4 @@
 """La cámara, de punta a punta: se adivina al importar y llega al manifiesto."""
-import json
 from pathlib import Path
 
 import pytest
@@ -51,10 +50,9 @@ def test_la_camara_del_bin_llega_al_manifiesto(ventana, tmp_path):
                          rutas=[c.ruta for c in ventana.clips])
     ventana.clips[0].categoria_path = ["Cocina"]
 
-    destino = tmp_path / "m.json"
-    ventana.escribir_manifest(destino)
+    exportado = ventana._armar_manifest().clips[0]
 
-    assert json.loads(destino.read_text())["clips"][0]["camara"] == "dji"
+    assert exportado.camara == "dji"
 
 
 def test_un_clip_sin_bin_sale_sony(ventana, tmp_path):
@@ -63,10 +61,9 @@ def test_un_clip_sin_bin_sale_sony(ventana, tmp_path):
     ventana.load_clips([_clip(0, "/cam/C0001.MP4")])
     ventana.clips[0].categoria_path = ["Cocina"]
 
-    destino = tmp_path / "m.json"
-    ventana.escribir_manifest(destino)
+    exportado = ventana._armar_manifest().clips[0]
 
-    assert json.loads(destino.read_text())["clips"][0]["camara"] == "sony"
+    assert exportado.camara == "sony"
 
 
 def test_la_correccion_a_mano_es_la_que_viaja(ventana, tmp_path):
@@ -78,7 +75,6 @@ def test_la_correccion_a_mano_es_la_que_viaja(ventana, tmp_path):
     ventana.bins.fijar_camara("Dron", OTRA)
     ventana.clips[0].categoria_path = ["Cocina"]
 
-    destino = tmp_path / "m.json"
-    ventana.escribir_manifest(destino)
+    exportado = ventana._armar_manifest().clips[0]
 
-    assert json.loads(destino.read_text())["clips"][0]["camara"] == "otra"
+    assert exportado.camara == "otra"

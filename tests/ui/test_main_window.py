@@ -814,33 +814,6 @@ def test_doble_clic_y_cancelar_el_dialogo_no_cambia_nada(qtbot, monkeypatch):
     assert window.project_name == original
 
 
-def test_exportar_pide_cinco_secuencias_sin_elegir_formato(qtbot, monkeypatch, tmp_path):
-    from PySide6.QtWidgets import QMessageBox
-    window = _window_with_video(qtbot)
-    out = tmp_path / "manifest.json"
-    window.load_clips([
-        Clip(orden=1, ruta=Path("/a.MP4"), categoria_path=["Sala"], fps=59.94,
-             in_frame=30, out_frame=200, flag="pick"),
-        Clip(orden=2, ruta=Path("/b.MP4"), categoria_path=[], fps=29.97, flag="none"),
-    ])
-    monkeypatch.setattr("clasificador_video.ui.main_window.QFileDialog.getSaveFileName",
-                        lambda *a, **k: (str(out), ""))
-    monkeypatch.setattr("clasificador_video.ui.main_window.QMessageBox.warning",
-                        lambda *a, **k: QMessageBox.Ok)
-    window._on_export_manifest()
-    import json
-    saved = json.loads(out.read_text())
-    assert saved["proyecto"] == "Casa Jardin"
-    assert saved["clips"][0]["ruta"] == "/a.MP4"
-    assert saved["clips"][1]["categoria_path"] == []
-    assert saved["clips"][0]["flag"] == "pick"
-    assert saved["clips"][0]["in_frame"] == 30
-    assert saved["crear_secuencias"] is True
-    assert "formato_secuencia" not in saved
-    # el camino es el CUARTO Y NADA MAS: en Premiere el bin «Sala» tiene los
-    # clips sueltos adentro. El estado no cuelga de una subcarpeta -- lo dice
-    # la marca del nombre (★/✓/✕), ver `nombre.js`.
-    assert saved["clips"][0]["categoria_path"] == ["Sala"]
 
 
 def test_exportar_no_le_toca_nada_a_los_clips_de_la_sesion(
@@ -854,44 +827,21 @@ def test_exportar_no_le_toca_nada_a_los_clips_de_la_sesion(
     autoguardado van todos por `categoria_path[0]`. Y exportar dos veces
     aplicaría la transformación dos veces.
     """
-    from PySide6.QtWidgets import QMessageBox
     window = _window_with_video(qtbot)
-    out = tmp_path / "manifest.json"
     window.load_clips([
         Clip(orden=1, ruta=Path("/a.MP4"), categoria_path=["Sala"], fps=30.0,
              flag="pick"),
     ])
-    monkeypatch.setattr("clasificador_video.ui.main_window.QFileDialog.getSaveFileName",
-                        lambda *a, **k: (str(out), ""))
-    monkeypatch.setattr("clasificador_video.ui.main_window.QMessageBox.warning",
-                        lambda *a, **k: QMessageBox.Ok)
-
-    window._on_export_manifest()
-    window._on_export_manifest()      # y otra vez
+    window._armar_manifest()
+    window._armar_manifest()      # y otra vez
 
     assert window.clips[0].categoria_path == ["Sala"]
     assert window.clips[0].camara == "sony"     # el default, no lo que se exportó
-    import json
-    exportado = json.loads(out.read_text())["clips"][0]
-    assert exportado["categoria_path"] == ["Sala"]
-    assert exportado["flag"] == "pick"
+    exportado = window._armar_manifest().clips[0]
+    assert exportado.categoria_path == ["Sala"]
+    assert exportado.flag == "pick"
 
 
-def test_exportar_avisa_si_hay_clips_sin_clasificar_sin_bloquear(qtbot, monkeypatch, tmp_path):
-    from PySide6.QtWidgets import QMessageBox
-    window = _window_with_video(qtbot)
-    out = tmp_path / "m.json"
-    window.load_clips([
-        Clip(orden=1, ruta=Path("/a.MP4"), categoria_path=[], fps=30.0),
-    ])
-    warns = []
-    monkeypatch.setattr("clasificador_video.ui.main_window.QFileDialog.getSaveFileName",
-                        lambda *a, **k: (str(out), ""))
-    monkeypatch.setattr("clasificador_video.ui.main_window.QMessageBox.warning",
-                        lambda *a, **k: warns.append(1) or QMessageBox.Ok)
-    window._on_export_manifest()
-    assert warns == [1]
-    assert out.exists()
 
 
 def test_widgets_clave_tienen_objectname_para_el_tema(qtbot):
@@ -960,7 +910,7 @@ def test_scrub_bar_seek_requested_mueve_el_player_y_la_barra(qtbot):
 # F2 Task 1: el tamaño real del clip. El ancho del video lo dicta la relacion
 # de aspecto, asi que la F2 depende de este dato -- que hoy se calcula en
 # probe_clip y se tira. Se guarda en memoria y NO en Clip: agregarle campos
-# cambiaria to_dict() y con eso el contrato del manifest con el plugin.
+# cambiaria to_dict() y con eso el formato persistido del proyecto.
 # ---------------------------------------------------------------------------
 
 
@@ -1127,8 +1077,7 @@ def test_una_tecla_clasifica_un_cuarto_numerado_de_inmediato(qtbot):
 
 
 def test_categoria_path_sigue_siendo_una_lista(qtbot):
-    """El contrato con el plugin de Premiere no se toca aunque el cuarto sea
-    plano: el plugin ya maneja la lista de un elemento."""
+    """El formato de cuartos se conserva como lista aunque el cuarto sea plano."""
     window = _window(qtbot, rooms=("Cocina",))
     window.load_clips([_clip()])
     window.handle_key_press("1")
@@ -2945,15 +2894,8 @@ def test_todas_las_teclas_de_la_barra_de_seleccion_existen(qtbot):
 # --- la orientacion del manifest sale del material (F9) -----------------
 
 
-def _exportar(window, monkeypatch, out):
-    from PySide6.QtWidgets import QMessageBox
-    monkeypatch.setattr("clasificador_video.ui.main_window.QFileDialog.getSaveFileName",
-                        lambda *a, **k: (str(out), ""))
-    monkeypatch.setattr("clasificador_video.ui.main_window.QMessageBox.warning",
-                        lambda *a, **k: QMessageBox.Ok)
-    window._on_export_manifest()
-    import json
-    return json.loads(out.read_text())
+def _datos_para_prproj(window):
+    return window._armar_manifest()
 
 
 def test_el_manifest_declara_vertical_si_el_material_es_vertical(qtbot, monkeypatch, tmp_path):
@@ -2968,7 +2910,7 @@ def test_el_manifest_declara_vertical_si_el_material_es_vertical(qtbot, monkeypa
     ])
     window._clip_sizes = {0: (2160, 3840), 1: (2160, 3840)}
 
-    assert _exportar(window, monkeypatch, tmp_path / "m.json")["orientacion"] == "vertical"
+    assert _datos_para_prproj(window).orientacion == "vertical"
 
 
 def test_el_manifest_declara_horizontal_si_el_material_es_horizontal(qtbot, monkeypatch, tmp_path):
@@ -2976,7 +2918,7 @@ def test_el_manifest_declara_horizontal_si_el_material_es_horizontal(qtbot, monk
     window.load_clips([Clip(orden=1, ruta=Path("/a.MP4"), categoria_path=["Sala"], fps=59.94)])
     window._clip_sizes = {0: (3840, 2160)}
 
-    assert _exportar(window, monkeypatch, tmp_path / "m.json")["orientacion"] == "horizontal"
+    assert _datos_para_prproj(window).orientacion == "horizontal"
 
 
 def test_sin_tamanos_el_manifest_conserva_el_default_de_siempre(qtbot, monkeypatch, tmp_path):
@@ -2985,7 +2927,7 @@ def test_sin_tamanos_el_manifest_conserva_el_default_de_siempre(qtbot, monkeypat
     window.load_clips([Clip(orden=1, ruta=Path("/a.MP4"), categoria_path=["Sala"], fps=59.94)])
     window._clip_sizes = {}
 
-    assert _exportar(window, monkeypatch, tmp_path / "m.json")["orientacion"] == "horizontal"
+    assert _datos_para_prproj(window).orientacion == "horizontal"
 
 
 # --- proxies: emparejar, validar y usar (F9) ---------------------------
@@ -3060,7 +3002,7 @@ def _esperar_a_los_proxies(window):
 def test_importar_engancha_el_proxy_de_la_carpeta_hermana(qtbot, monkeypatch, tmp_path):
     """De punta a punta: buscar, emparejar, sondear y validar. Hasta la F9
     `ruta_proxy` salia SIEMPRE en null y Premiere nunca recibia un proxy,
-    aunque el plugin ya sabia engancharlo."""
+    aunque ya existían proxies para navegarlo."""
     window = _window_with_video(qtbot, cache_root=tmp_path / "cache")
     monkeypatch.setattr(window, "_probe_clip", _ProbeConProxy())
     _importar_con_proxy(window, monkeypatch, tmp_path)
@@ -3209,10 +3151,10 @@ def test_el_manifest_no_cruza_el_original_con_el_proxy(qtbot, monkeypatch, tmp_p
     _esperar_a_los_proxies(window)
     window._asignar_cuarto(["Sala"])
 
-    saved = _exportar(window, monkeypatch, tmp_path / "m.json")
+    saved = _datos_para_prproj(window)
 
-    assert saved["clips"][0]["ruta"].endswith("C0001.MP4")
-    assert saved["clips"][0]["ruta_proxy"].endswith("C0001S03.MP4")
+    assert saved.clips[0].ruta.name.endswith("C0001.MP4")
+    assert saved.clips[0].ruta_proxy.name.endswith("C0001S03.MP4")
 
 
 def test_el_badge_de_proxy_aparece_cuando_se_esta_viendo_el_proxy(qtbot, monkeypatch, tmp_path):
@@ -3487,7 +3429,7 @@ def test_cargar_material_nuevo_no_arrastra_los_proxies_del_anterior(qtbot, monke
 def test_el_manifest_no_exporta_un_rango_invertido(qtbot, monkeypatch, tmp_path):
     """Marcar `O` y despues `I` mas adelante deja out < in. La app ya lo
     MUESTRA en orden --se arreglo en la auditoria de la F1-F5, con `abs`--
-    pero lo exportaba tal cual, y el plugin aplica in/out siempre que
+    pero lo exportaba tal cual, y Premiere recibe el rango siempre que
     vengan los dos. Premiere recibia un rango al reves.
     """
     window = _window_with_video(qtbot)
@@ -3496,10 +3438,10 @@ def test_el_manifest_no_exporta_un_rango_invertido(qtbot, monkeypatch, tmp_path)
              in_frame=90, out_frame=10),
     ])
 
-    saved = _exportar(window, monkeypatch, tmp_path / "m.json")
+    saved = _datos_para_prproj(window)
 
-    assert saved["clips"][0]["in_frame"] == 10
-    assert saved["clips"][0]["out_frame"] == 90
+    assert saved.clips[0].in_frame == 10
+    assert saved.clips[0].out_frame == 90
 
 
 def test_exportar_no_toca_lo_que_esta_en_pantalla(qtbot, monkeypatch, tmp_path):
@@ -3511,7 +3453,7 @@ def test_exportar_no_toca_lo_que_esta_en_pantalla(qtbot, monkeypatch, tmp_path):
              in_frame=90, out_frame=10),
     ])
 
-    _exportar(window, monkeypatch, tmp_path / "m.json")
+    _datos_para_prproj(window)
 
     assert window.clips[0].in_frame == 90
     assert window.clips[0].out_frame == 10
@@ -5862,94 +5804,14 @@ def test_la_ventana_abre_maximizada(qtbot):
     assert window.isMaximized()
 
 
-def test_exportar_sugiere_el_nombre_del_proyecto(qtbot, monkeypatch):
-    """Antes proponía siempre «manifest.json». Con varios shootings en la
-    misma carpeta de descargas, eso son cinco archivos que se llaman igual y
-    ninguno dice de qué proyecto salió."""
-    from PySide6.QtWidgets import QFileDialog
-
-    window = _window(qtbot)
-    window.project_name = "IAV-2608.17"
-    window.load_clips([Clip(orden=1, ruta=Path("/tmp/a.mp4"),
-                            categoria_path=["Cocina"], fps=30.0)])
-    sugeridos = []
-    monkeypatch.setattr(QFileDialog, "getSaveFileName",
-                        lambda *a, **k: sugeridos.append(a[2]) or ("", ""))
-
-    window._on_export_manifest()
-
-    assert sugeridos == ["IAV-2608.17.json"]
 
 
-def test_exportar_no_deja_que_el_nombre_arme_una_ruta(qtbot, monkeypatch):
-    """El nombre del proyecto lo escribe Bruno, y una diagonal ahí haría que
-    el diálogo abriera en otra carpeta -- o guardara donde nadie espera."""
-    from PySide6.QtWidgets import QFileDialog
-
-    window = _window(qtbot)
-    window.project_name = "Casa/Lomas"
-    window.load_clips([Clip(orden=1, ruta=Path("/tmp/a.mp4"),
-                            categoria_path=["Cocina"], fps=30.0)])
-    sugeridos = []
-    monkeypatch.setattr(QFileDialog, "getSaveFileName",
-                        lambda *a, **k: sugeridos.append(a[2]) or ("", ""))
-
-    window._on_export_manifest()
-
-    assert "/" not in sugeridos[0]
-    assert sugeridos[0].endswith(".json")
 
 
-def test_exportar_sin_nombre_de_proyecto_cae_en_manifest(qtbot, monkeypatch):
-    from PySide6.QtWidgets import QFileDialog
-
-    window = _window(qtbot)
-    window.project_name = "   "
-    window.load_clips([Clip(orden=1, ruta=Path("/tmp/a.mp4"),
-                            categoria_path=["Cocina"], fps=30.0)])
-    sugeridos = []
-    monkeypatch.setattr(QFileDialog, "getSaveFileName",
-                        lambda *a, **k: sugeridos.append(a[2]) or ("", ""))
-
-    window._on_export_manifest()
-
-    assert sugeridos == ["manifest.json"]
 
 
-def test_exportar_propone_el_json_junto_al_cvproj(qtbot, monkeypatch, tmp_path):
-    """El manifest viaja con el material: proponerlo en la carpeta del
-    proyecto es lo que uno espera, y no en la ultima carpeta usada."""
-    from PySide6.QtWidgets import QFileDialog
-
-    window = _window(qtbot)
-    window.project_name = "IAV-2609.14"
-    window.session_path = tmp_path / "08. CLIPIFY" / "IAV-2609.14.cvproj"
-    window.load_clips([Clip(orden=1, ruta=Path("/tmp/a.mp4"),
-                            categoria_path=["Cocina"], fps=30.0)])
-    sugeridos = []
-    monkeypatch.setattr(QFileDialog, "getSaveFileName",
-                        lambda *a, **k: sugeridos.append(a[2]) or ("", ""))
-
-    window._on_export_manifest()
-
-    assert sugeridos == [str(tmp_path / "08. CLIPIFY" / "IAV-2609.14.json")]
 
 
-def test_exportar_sin_proyecto_guardado_solo_propone_el_nombre(qtbot, monkeypatch):
-    from PySide6.QtWidgets import QFileDialog
-
-    window = _window(qtbot)
-    window.project_name = "IAV-2609.14"
-    window.session_path = None
-    window.load_clips([Clip(orden=1, ruta=Path("/tmp/a.mp4"),
-                            categoria_path=["Cocina"], fps=30.0)])
-    sugeridos = []
-    monkeypatch.setattr(QFileDialog, "getSaveFileName",
-                        lambda *a, **k: sugeridos.append(a[2]) or ("", ""))
-
-    window._on_export_manifest()
-
-    assert sugeridos == ["IAV-2609.14.json"]
 
 
 def test_el_primer_clip_de_la_sesion_se_carga_a_ciegas(qtbot, tmp_path):

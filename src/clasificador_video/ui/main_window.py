@@ -439,8 +439,7 @@ def _con_el_rango_en_orden(clip: Clip) -> Clip:
 
     Marcar `O` y despues `I` mas adelante deja out < in. La app ya lo
     MUESTRA en orden --con `abs`, desde la auditoria de la F1-F5-- pero lo
-    exportaba tal cual, y el plugin aplica in/out siempre que vengan los
-    dos: Premiere recibia un rango al reves.
+    preparaba tal cual para la exportación, con un rango al revés.
 
     Se ordena SOLO al exportar. La sesion guarda lo que el editor marco,
     para que deshacer pueda volver a eso.
@@ -704,7 +703,7 @@ class MainWindow(QWidget):
         self._clip_durations: dict[int, float] = {}  # indice -> segundos; solo en memoria
         # indice -> (ancho, alto) ya corregidos por rotacion en probe.py.
         # Solo en memoria, igual que las duraciones: meterlo en Clip cambiaria
-        # to_dict() y con eso el contrato del manifest con el plugin de Premiere.
+        # to_dict() y con eso el formato persistido del proyecto.
         self._clip_sizes: dict[int, tuple[int, int]] = {}
         self._clip_rotations: dict[int, int] = {}
         # Lo que hace falta para reencontrar el material si el proyecto se
@@ -853,7 +852,6 @@ class MainWindow(QWidget):
         self.title_bar = TitleBar()
         self.title_bar.set_project(project_name, 0)
         self.title_bar.export_requested.connect(self._on_generar_prproj)
-        self.title_bar.export_manifest_requested.connect(self._on_export_manifest)
         self.title_bar.rename_requested.connect(self._pedir_renombrar_proyecto)
         self.title_bar.guia_requested.connect(self._abrir_pantalla_de_guia)
         self.title_bar.config_requested.connect(self._abrir_configuracion)
@@ -1381,7 +1379,7 @@ class MainWindow(QWidget):
         me llevo a un clip que no estoy viendo».
         """
         # el bin va aparte y no dentro del clip: `Clip.to_dict()` es el
-        # contrato con el plugin de Premiere y no se toca.
+        # formato persistido del proyecto y no se toca.
         pasan = cola(self.clips, self.filters, bin_de=self.bins.mapa_por_clip())
         # Y EN EL ORDEN EN QUE SE DIBUJAN. `cola()` los devuelve en orden de
         # rodaje, que es lo correcto para ella --de ahi vive la nocion de «el
@@ -4321,9 +4319,8 @@ class MainWindow(QWidget):
         """Un proxy que no calza cuadro a cuadro NO es un proxy.
 
         Si tiene otro fps u otra cantidad de cuadros, el in/out que marques
-        cae corrido -- y el plugin lo engancharia igual, sin avisar. Por eso
-        el que no valida se descarta en los tres lados: no se reproduce, no
-        entra al manifest y no cuenta en el contador.
+        cae corrido. Por eso, el que no valida se descarta: no se reproduce,
+        no entra en los datos del proyecto y no cuenta en el contador.
         """
         clip = self.clips[index]
         if abs(float(info.get("fps") or 0) - clip.fps) >= 0.01:
@@ -5593,7 +5590,7 @@ class MainWindow(QWidget):
 
         Sin unidades, la lista plana de siempre en `orden`. Con unidades, el
         orden de las unidades y el de sus cuartos en `unidades`, para que el
-        plugin numere la carpeta de la unidad y la del cuarto.
+        generador numere la carpeta de la unidad y la del cuarto.
         """
         sin_unidad = self._guia_de_unidad_para_la_sesion("")
         orden = sin_unidad["orden"] if sin_unidad else []
@@ -5614,10 +5611,8 @@ class MainWindow(QWidget):
             self.renombrar_proyecto(nuevo)
 
     def renombrar_proyecto(self, nuevo: str) -> None:
-        """Corrige el nombre ANTES de que el plugin arme las secuencias en
-        Premiere con el (spec 2026-09-20): `secuencia.js` las nombra con
-        `manifest.proyecto`, y un error de dedo ahi se arrastraba hasta
-        Premiere sin forma de corregirlo.
+        """Corrige el nombre antes de generar las secuencias de Premiere.
+        Un error aquí también llegaría al nombre del proyecto exportado.
 
         No toca ninguna carpeta ni archivo: solo el dato, en los tres
         lugares que lo muestran."""
@@ -5629,33 +5624,6 @@ class MainWindow(QWidget):
         self.title_bar.set_project(nuevo, len(self.clips), bins=len(self.bins.nombres()))
         self._autosave()
         self.proyecto_renombrado.emit(nuevo)
-
-    def _on_export_manifest(self) -> None:
-        # Se AVISA, no se decide solo: misma regla que el dialogo de
-        # proxies, la app propone y nunca adivina en silencio.
-        aviso = self.aviso_de_guia_vieja()
-        if aviso:
-            respuesta = QMessageBox.question(
-                self, "Tu guía quedó vieja",
-                aviso + "\n\n¿La exportas así, o la vuelves a armar?",
-                QMessageBox.Yes | QMessageBox.No,
-            )
-            if respuesta == QMessageBox.No:
-                self._abrir_pantalla_de_guia()
-                return
-        unclassified = [c for c in self.clips if not c.categoria_path]
-        if unclassified:
-            QMessageBox.warning(
-                self, "Clips sin clasificar",
-                f"{len(unclassified)} clip(s) no tienen cuarto y entrarán en 'Sin clasificar'. "
-                "Puedes seguir y corregir después.",
-            )
-        path, _ = QFileDialog.getSaveFileName(
-            self, "Guardar manifest", self._ruta_sugerida_del_manifest(),
-            "JSON (*.json)")
-        if not path:
-            return
-        self.escribir_manifest(Path(path))
 
     def _on_generar_prproj(self) -> None:
         """Ctrl+E genera el proyecto de Premiere directamente.
@@ -5674,10 +5642,10 @@ class MainWindow(QWidget):
         self._avisar_prproj_generado(destino)
 
     def _ruta_sugerida_del_prproj(self) -> str:
-        nombre = self._nombre_sugerido_del_manifest().replace(".json", ".prproj")
+        nombre = self._nombre_sugerido_del_prproj()
         if self._carpeta_de_icloud is not None:
             return str(self._carpeta_de_icloud / proyecto_colaborativo.CARPETA_PREMIERE / nombre)
-        return str(Path(self._ruta_sugerida_del_manifest()).with_suffix(".prproj"))
+        return self._ruta_sugerida_del_prproj_base()
 
     def _mostrar_error_generando_prproj(self, detalle: str) -> None:
         QMessageBox.critical(self, "No se pudo generar el proyecto", detalle)
@@ -5686,24 +5654,8 @@ class MainWindow(QWidget):
         QMessageBox.information(
             self, "Proyecto generado", f"Se generó {destino.name}.")
 
-    def escribir_manifest(self, destino: Path) -> None:
-        """Arma el manifiesto y lo escribe. Sin dialogos: es la parte
-        probable, y `_on_export_manifest` es la que pregunta.
-
-        Aqui van las tres transformaciones de exportacion, en fila: el rango
-        en orden, la camara del bin y si el bin dice "dron". Las tres viven
-        en la exportacion y no en la sesion, que guarda lo que el editor
-        marco.
-
-        Hubo una cuarta --la subcarpeta del estado, «Picks»/«Rejects»/«Sin
-        marcar» dentro de cada cuarto-- y se fue el 2026-09-08: el estado lo
-        dicen las marcas del nombre en Premiere, y una carpeta que dice lo
-        mismo que una marca solo esconde el clip.
-        """
-        self._armar_manifest().write_json(destino)
-
     def _armar_manifest(self) -> Manifest:
-        """Construye el manifiesto común del export de respaldo y Premiere."""
+        """Prepara los datos necesarios para generar el proyecto de Premiere."""
         camaras = self._camaras_por_clip()
         dron = self._bin_dron_por_clip()
         sony = self._bin_sony_por_clip()
@@ -5718,7 +5670,6 @@ class MainWindow(QWidget):
                         bin_pocket=pocket.get(i, False)))
                 for i, c in enumerate(self.clips)],
             guia=self._guia_para_el_manifest(),
-            crear_secuencias=True,
         )
         return manifest
 
@@ -5752,31 +5703,13 @@ class MainWindow(QWidget):
         return {i: bin_dice_pocket(nombre)
                 for i, nombre in self.bins.mapa_por_clip().items()}
 
-    def _nombre_sugerido_del_manifest(self) -> str:
-        """`IAV-2608.17.json`, no `manifest.json`.
-
-        Antes proponia siempre el mismo nombre, y con varios shootings en la
-        carpeta de descargas eso son cinco archivos identicos que no dicen de
-        que proyecto salieron.
-
-        Se limpian las diagonales: el nombre del proyecto lo escribe Bruno, y
-        una diagonal ahi haria que el dialogo abriera en otra carpeta -- o
-        guardara donde nadie espera. Un nombre en blanco cae en
-        `manifest.json`, que es mejor que un archivo llamado `.json`.
-        """
+    def _nombre_sugerido_del_prproj(self) -> str:
+        """Nombre seguro del proyecto de Premiere."""
         limpio = self.project_name.replace("/", "-").replace("\\", "-").strip()
-        return f"{limpio}.json" if limpio else "manifest.json"
+        return f"{limpio}.prproj" if limpio else "Proyecto.prproj"
 
-    def _ruta_sugerida_del_manifest(self) -> str:
-        """La ruta completa donde proponer el JSON: junto al `.cvproj`.
-
-        El manifest viaja con el material, asi que proponerlo en la carpeta
-        del proyecto es lo que uno espera. Sin esto el dialogo abria en la
-        ultima carpeta usada, que con varios shootings puede ser la de otro.
-        Si el proyecto nunca se guardo no hay carpeta del proyecto, y se
-        queda como antes: solo el nombre.
-        """
-        nombre = self._nombre_sugerido_del_manifest()
+    def _ruta_sugerida_del_prproj_base(self) -> str:
+        nombre = self._nombre_sugerido_del_prproj()
         if self.session_path is None:
             return nombre
         return str(self.session_path.with_name(nombre))
