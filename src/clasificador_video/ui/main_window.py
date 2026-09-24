@@ -31,6 +31,7 @@ from clasificador_video import (
     ia,
     llave,
     preferencias,
+    prproj_generador,
     proxy_gen,
     proyecto,
     proyecto_colaborativo,
@@ -973,7 +974,8 @@ class MainWindow(QWidget):
         # ---------------- las tres filas ----------------
         self.title_bar = TitleBar()
         self.title_bar.set_project(project_name, 0)
-        self.title_bar.export_requested.connect(self._on_export_manifest)
+        self.title_bar.export_requested.connect(self._on_generar_prproj)
+        self.title_bar.export_manifest_requested.connect(self._on_export_manifest)
         self.title_bar.rename_requested.connect(self._pedir_renombrar_proyecto)
         self.title_bar.guia_requested.connect(self._abrir_pantalla_de_guia)
         self.title_bar.config_requested.connect(self._abrir_configuracion)
@@ -1276,7 +1278,7 @@ class MainWindow(QWidget):
             (QKeySequence.StandardKey.Undo, self.undo),
             # la barra de titulo anuncia `⌘E` en el boton de exportar desde la
             # F2 y el atajo no existia
-            ("Ctrl+E", self._on_export_manifest),
+            ("Ctrl+E", self._on_generar_prproj),
             ("Ctrl+R", self.room_rail.focus_rooms),
             ("Ctrl+U", self._abrir_paleta_de_unidades),
         ]
@@ -6028,6 +6030,39 @@ class MainWindow(QWidget):
             return
         self.escribir_manifest(Path(path))
 
+    def _on_generar_prproj(self) -> None:
+        """Ctrl+E genera el proyecto de Premiere directamente."""
+        destino = Path(self._ruta_sugerida_del_prproj())
+        if destino.is_file() and not self._confirmar_reemplazar_prproj(destino):
+            return
+        try:
+            prproj_generador.generar_prproj(
+                self._armar_manifest(), destino, destino.parent / "LUTs")
+        except Exception as exc:
+            self._mostrar_error_generando_prproj(str(exc))
+            return
+        self._avisar_prproj_generado(destino)
+
+    def _ruta_sugerida_del_prproj(self) -> str:
+        nombre = self._nombre_sugerido_del_manifest().replace(".json", ".prproj")
+        if self._carpeta_de_icloud is not None:
+            return str(self._carpeta_de_icloud / proyecto_colaborativo.CARPETA_PREMIERE / nombre)
+        return str(Path(self._ruta_sugerida_del_manifest()).with_suffix(".prproj"))
+
+    def _confirmar_reemplazar_prproj(self, destino: Path) -> bool:
+        respuesta = QMessageBox.question(
+            self, "El proyecto ya existe",
+            f"Ya existe {destino.name}. ¿Reemplazarlo?",
+            QMessageBox.Yes | QMessageBox.No)
+        return respuesta == QMessageBox.Yes
+
+    def _mostrar_error_generando_prproj(self, detalle: str) -> None:
+        QMessageBox.critical(self, "No se pudo generar el proyecto", detalle)
+
+    def _avisar_prproj_generado(self, destino: Path) -> None:
+        QMessageBox.information(
+            self, "Proyecto generado", f"Se generó {destino.name}.")
+
     def escribir_manifest(self, destino: Path) -> None:
         """Arma el manifiesto y lo escribe. Sin dialogos: es la parte
         probable, y `_on_export_manifest` es la que pregunta.
@@ -6042,6 +6077,10 @@ class MainWindow(QWidget):
         dicen las marcas del nombre en Premiere, y una carpeta que dice lo
         mismo que una marca solo esconde el clip.
         """
+        self._armar_manifest().write_json(destino)
+
+    def _armar_manifest(self) -> Manifest:
+        """Construye el manifiesto común del export de respaldo y Premiere."""
         camaras = self._camaras_por_clip()
         dron = self._bin_dron_por_clip()
         sony = self._bin_sony_por_clip()
@@ -6058,7 +6097,7 @@ class MainWindow(QWidget):
             guia=self._guia_para_el_manifest(),
             crear_secuencias=True,
         )
-        manifest.write_json(destino)
+        return manifest
 
     def _camaras_por_clip(self) -> dict[int, str]:
         """De indice de clip a camara, de una sola pasada por los bins.

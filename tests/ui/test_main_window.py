@@ -827,7 +827,7 @@ def test_exportar_pide_cinco_secuencias_sin_elegir_formato(qtbot, monkeypatch, t
                         lambda *a, **k: (str(out), ""))
     monkeypatch.setattr("clasificador_video.ui.main_window.QMessageBox.warning",
                         lambda *a, **k: QMessageBox.Ok)
-    window.title_bar.export_button.click()
+    window._on_export_manifest()
     import json
     saved = json.loads(out.read_text())
     assert saved["proyecto"] == "Casa Jardin"
@@ -866,8 +866,8 @@ def test_exportar_no_le_toca_nada_a_los_clips_de_la_sesion(
     monkeypatch.setattr("clasificador_video.ui.main_window.QMessageBox.warning",
                         lambda *a, **k: QMessageBox.Ok)
 
-    window.title_bar.export_button.click()
-    window.title_bar.export_button.click()      # y otra vez
+    window._on_export_manifest()
+    window._on_export_manifest()      # y otra vez
 
     assert window.clips[0].categoria_path == ["Sala"]
     assert window.clips[0].camara == "sony"     # el default, no lo que se exportó
@@ -889,7 +889,7 @@ def test_exportar_avisa_si_hay_clips_sin_clasificar_sin_bloquear(qtbot, monkeypa
                         lambda *a, **k: (str(out), ""))
     monkeypatch.setattr("clasificador_video.ui.main_window.QMessageBox.warning",
                         lambda *a, **k: warns.append(1) or QMessageBox.Ok)
-    window.title_bar.export_button.click()
+    window._on_export_manifest()
     assert warns == [1]
     assert out.exists()
 
@@ -2951,7 +2951,7 @@ def _exportar(window, monkeypatch, out):
                         lambda *a, **k: (str(out), ""))
     monkeypatch.setattr("clasificador_video.ui.main_window.QMessageBox.warning",
                         lambda *a, **k: QMessageBox.Ok)
-    window.title_bar.export_button.click()
+    window._on_export_manifest()
     import json
     return json.loads(out.read_text())
 

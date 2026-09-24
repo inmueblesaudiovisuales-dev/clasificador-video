@@ -2,7 +2,9 @@
 from __future__ import annotations
 
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtWidgets import QHBoxLayout, QLabel, QPushButton, QWidget
+from PySide6.QtWidgets import (
+    QHBoxLayout, QLabel, QMenu, QPushButton, QWidget,
+)
 
 from clasificador_video.ui import marca, theme
 from clasificador_video.ui.segmented import SegmentedControl
@@ -49,6 +51,7 @@ class TitleBar(QWidget):
     """
 
     export_requested = Signal()
+    export_manifest_requested = Signal()
     rename_requested = Signal()
     guia_requested = Signal()
     config_requested = Signal()
@@ -139,6 +142,18 @@ class TitleBar(QWidget):
         # A la izquierda de exportar: la guia se arma ANTES de exportar.
         self.guia_button = _boton("Guía de edición", "", "railButton")
         self.export_button = _boton("Exportar a Premiere", "⌘E", "exportButton")
+        self.export_menu = QMenu(self)
+        accion_manifest = self.export_menu.addAction(
+            "Exportar manifest para el plugin (respaldo)")
+        accion_manifest.triggered.connect(self.export_manifest_requested.emit)
+        self.export_button.setToolTip(
+            "Generar el proyecto de Premiere. Clic derecho: exportar el "
+            "manifest de respaldo para el plugin.")
+        self.export_button.setContextMenuPolicy(
+            Qt.ContextMenuPolicy.CustomContextMenu)
+        self.export_button.customContextMenuRequested.connect(
+            lambda posicion: self.export_menu.exec(
+                self.export_button.mapToGlobal(posicion)))
         # Al aparecer «Abrir en Finder», el layout puede repartir el ancho
         # faltante sobre este botón primario y cortar su texto. Su acción
         # debe conservar el ancho mínimo que Qt calcula para el rótulo.
