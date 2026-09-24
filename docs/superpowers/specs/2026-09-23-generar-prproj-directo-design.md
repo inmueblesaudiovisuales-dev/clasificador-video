@@ -79,9 +79,19 @@ ahí mismo. Si Bruno no confirma, no se toca el archivo existente.
 de Sony aplicado a un clip y el de DJI a otro -- confirmado leyendo su XML:
 ambas rutas completas de los `.cube` viajan dentro de sendos bloques
 `ArbVideoComponentParam` bajo `AE.ADBE Lumetri`) se copia al repo como
-recurso de Clipify, junto a `TemplatePremiere.prproj`. Nombre sugerido:
-`TemplateColorLuts.prproj`, en la misma carpeta de recursos donde ya vive
-`TemplatePremiere.prproj`.
+recurso versionado de Clipify, con el nombre `TemplateColorLuts.prproj`.
+
+**Corrección sobre el borrador hablado con Bruno:** `TemplatePremiere.prproj`
+NO vive en el repo -- es un archivo propio de Bruno, guardado en su carpeta
+de iCloud (`03. Templates`, junto a `TemplateAE.aep`), leído por
+`proyecto_colaborativo.py` con una ruta que el propio Bruno configura. La
+plantilla nueva con los LUT es un caso distinto: como los `.cube`, tiene que
+venir empacada DENTRO de Clipify para no depender de una carpeta externa.
+Vive en `recursos/premiere/` (carpeta nueva en la raíz del repo, mismo
+nivel que `docs/`, `empaque/`, `uxp-plugin/`), siguiendo el patrón ya usado
+por `patron.py`/`docs/patron-de-recorrido/MI-PATRON.md`: una ruta relativa
+que se busca en `sys._MEIPASS` cuando la app está empacada, o relativa al
+repo cuando corre desde el código.
 
 De esa plantilla, el generador clona el `VideoComponentChain` completo del
 clip que tiene el LUT de Sony, o el del clip que tiene el LUT de DJI, según
@@ -98,10 +108,10 @@ Los dos archivos:
 /Users/brunogutierrez/Library/Application Support/Adobe/Common/LUTs/Technical/DJI-DLOGM.cube
 ```
 
-se copian una sola vez, ahora, como parte de este trabajo, a un recurso
-propio de Clipify (mismo criterio que `TemplatePremiere.prproj`: vive en
-el repo, no se vuelve a leer de la carpeta personal de Adobe en cada
-generación).
+se copian una sola vez, ahora, como parte de este trabajo, a
+`recursos/premiere/` dentro del repo (mismo lugar que
+`TemplateColorLuts.prproj`, ver arriba): de ahí en adelante Clipify no
+vuelve a leer la carpeta personal de Adobe de esta Mac.
 
 ### Mapa cámara → LUT
 
