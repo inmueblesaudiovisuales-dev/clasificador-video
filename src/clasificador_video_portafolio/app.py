@@ -8,7 +8,12 @@ from __future__ import annotations
 
 import sys
 
-from PySide6.QtWidgets import QApplication, QLabel, QVBoxLayout, QWidget
+from pathlib import Path
+
+from PySide6.QtWidgets import QApplication, QFileDialog, QVBoxLayout, QWidget
+
+from clasificador_video_portafolio.portafolio import Portafolio
+from clasificador_video_portafolio.ui.pantalla_importar import PantallaImportar
 
 
 class VentanaPortafolio(QWidget):
@@ -19,7 +24,25 @@ class VentanaPortafolio(QWidget):
         self.setWindowTitle("Clipify Portafolio")
         self.modulo_actual = "importar"
         layout = QVBoxLayout(self)
-        layout.addWidget(QLabel("Clipify Portafolio — módulo Importar"))
+        layout.setContentsMargins(0, 0, 0, 0)
+        self.pantalla_importar = PantallaImportar(
+            Portafolio(), elegir_ruta=self._elegir_ruta_portafolio
+        )
+        layout.addWidget(self.pantalla_importar)
+
+    def _elegir_ruta_portafolio(self) -> Path | None:
+        ruta, _ = QFileDialog.getSaveFileName(
+            self,
+            "Crear portafolio",
+            "Mi Portafolio.cvportafolio",
+            "Portafolio de Clipify (*.cvportafolio)",
+        )
+        if not ruta:
+            return None
+        ruta_portafolio = Path(ruta)
+        if ruta_portafolio.suffix != ".cvportafolio":
+            ruta_portafolio = ruta_portafolio.with_suffix(".cvportafolio")
+        return ruta_portafolio
 
 
 def main() -> None:
