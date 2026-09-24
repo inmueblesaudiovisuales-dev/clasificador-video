@@ -56,6 +56,44 @@ def test_portafolio_nuevo_empieza_vacio():
     assert p.proyectos == []
 
 
+def test_categorias_conocidas_por_defecto():
+    p = pf.Portafolio()
+
+    assert "Casa" in p.categorias_conocidas
+    assert "Depto" in p.categorias_conocidas
+
+
+def test_asignar_categoria_nueva_la_agrega_a_las_conocidas(tmp_path):
+    p = pf.Portafolio()
+    proyecto = p.agregar_proyecto("Rancho", tmp_path / "r.prproj", [])
+
+    p.asignar_categoria(proyecto, "Rancho")
+
+    assert proyecto.categoria == "Rancho"
+    assert "Rancho" in p.categorias_conocidas
+
+
+def test_guardar_y_cargar_conserva_categorias_conocidas(tmp_path):
+    portafolio = pf.Portafolio()
+    proyecto = portafolio.agregar_proyecto("Rancho", tmp_path / "r.prproj", [])
+    portafolio.asignar_categoria(proyecto, "Rancho")
+    destino = tmp_path / "Mi Portafolio.cvportafolio"
+
+    portafolio.guardar(destino)
+    cargado = pf.Portafolio.cargar(destino)
+
+    assert cargado.categorias_conocidas == ["Casa", "Depto", "Terreno", "Oficina", "Rancho"]
+
+
+def test_cargar_archivo_anterior_usa_categorias_por_defecto(tmp_path):
+    destino = tmp_path / "Portafolio anterior.cvportafolio"
+    destino.write_text('{"proyectos": []}', encoding="utf-8")
+
+    cargado = pf.Portafolio.cargar(destino)
+
+    assert cargado.categorias_conocidas == ["Casa", "Depto", "Terreno", "Oficina"]
+
+
 def test_agregar_proyecto_lo_registra_con_su_prproj_de_origen(tmp_path):
     p = pf.Portafolio()
     ruta_prproj = tmp_path / "Casa Reforma — entrega final.prproj"

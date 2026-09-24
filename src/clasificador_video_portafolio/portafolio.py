@@ -14,6 +14,7 @@ from clasificador_video_portafolio.lector_de_entregas import ClipUsado, RangoUsa
 
 
 ESTADOS = ("descartada", "sin_decidir", "elegida")
+CATEGORIAS_POR_DEFECTO = ["Casa", "Depto", "Terreno", "Oficina"]
 
 
 @dataclass
@@ -49,6 +50,14 @@ class ProyectoImportado:
 class Portafolio:
     def __init__(self) -> None:
         self.proyectos: list[ProyectoImportado] = []
+        self.categorias_conocidas: list[str] = list(CATEGORIAS_POR_DEFECTO)
+
+    def asignar_categoria(
+        self, proyecto: ProyectoImportado, categoria: str
+    ) -> None:
+        proyecto.categoria = categoria
+        if categoria not in self.categorias_conocidas:
+            self.categorias_conocidas.append(categoria)
 
     def agregar_proyecto(
         self, nombre: str, ruta_prproj: Path, clips_usados: list[ClipUsado]
@@ -97,6 +106,7 @@ class Portafolio:
 
     def guardar(self, destino: Path) -> None:
         datos = {
+            "categorias_conocidas": self.categorias_conocidas,
             "proyectos": [
                 {
                     "nombre": proyecto.nombre,
@@ -132,6 +142,9 @@ class Portafolio:
         if not ruta.exists():
             return portafolio
         datos = json.loads(ruta.read_text(encoding="utf-8"))
+        portafolio.categorias_conocidas = datos.get(
+            "categorias_conocidas", list(CATEGORIAS_POR_DEFECTO)
+        )
         for datos_proyecto in datos.get("proyectos", []):
             proyecto = ProyectoImportado(
                 nombre=datos_proyecto["nombre"],
