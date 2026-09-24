@@ -1079,10 +1079,11 @@ def test_archetipo_de_bin_existe(raiz):
     assert prproj_plantilla.archetipo_de_bin(raiz) is not None
 
 
-def test_archetipos_de_secuencia_completos(raiz):
+def test_archetipos_de_secuencia_encuentra_las_2_reales(raiz):
     archetipos = prproj_plantilla.archetipos_de_secuencia(raiz)
-    assert set(archetipos.keys()) == {
-        "4k_9x16", "2_7k_9x16", "4k_16x9", "9x16_1080p", "16x9_1080p"}
+    # Solo 2: "4k_16x9" y las dos de 1080p se derivan en la Tarea 11, no
+    # son secuencias reales de la plantilla -- ver esa tarea.
+    assert set(archetipos.keys()) == {"4k_9x16", "2_7k_9x16"}
 
 
 def test_plantilla_incompleta_avisa_en_vez_de_adivinar(tmp_path):
@@ -1229,17 +1230,18 @@ def archetipos_de_secuencia(raiz: ET.Element) -> dict[str, ET.Element]:
     raise NotImplementedError("se implementa en la Tarea 11")
 ```
 
-**Nota para quien ejecute esta tarea:** las pruebas
-`test_archetipos_de_secuencia_completos` de este archivo van a fallar
-hasta la Tarea 11 -- márquenla con `@pytest.mark.skip(reason="Tarea 11")`
-por ahora y quítenle el skip cuando lleguen a esa tarea. El resto de
-pruebas de este archivo (clips y bin) sí deben pasar aquí.
+**Nota para quien ejecute esta tarea:** la prueba
+`test_archetipos_de_secuencia_encuentra_las_2_reales` de este archivo va a
+fallar hasta la Tarea 11 (con `NotImplementedError`) -- márquenla con
+`@pytest.mark.skip(reason="Tarea 11")` por ahora y quítenle el skip cuando
+lleguen a esa tarea. El resto de pruebas de este archivo (clips y bin) sí
+deben pasar aquí.
 
 - [ ] **Paso 4: marcar el test de secuencias como skip temporal**
 
 ```python
 @pytest.mark.skip(reason="se implementa en la Tarea 11")
-def test_archetipos_de_secuencia_completos(raiz):
+def test_archetipos_de_secuencia_encuentra_las_2_reales(raiz):
     ...
 ```
 
@@ -1688,14 +1690,14 @@ git commit -m "Clonar un clip real: tiempo, nombre, color y LUT compartido"
 
 ---
 
-## Tarea 11: Las 5 secuencias de referencia
+## Tarea 11: Las 5 secuencias -- 2 reales de la plantilla, 3 derivadas
 
 **Files:**
 - Modify: `src/clasificador_video/prproj_plantilla.py` (completar
   `archetipos_de_secuencia`)
 - Modify: `src/clasificador_video/prproj_generador.py` (agregar
-  `clonar_secuencia`)
-- Modify: `tests/test_prproj_plantilla.py` (quitar el skip)
+  `clonar_secuencia_con_medidas`)
+- Modify: `tests/test_prproj_plantilla.py`
 - Modify: `tests/test_prproj_generador.py`
 
 **Confirmado leyendo el XML real de la plantilla el 2026-09-23** (no hace
