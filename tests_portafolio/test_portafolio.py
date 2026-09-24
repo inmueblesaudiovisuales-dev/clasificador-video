@@ -45,6 +45,26 @@ def test_cargar_archivo_que_no_existe_da_portafolio_vacio(tmp_path):
     assert cargado.proyectos == []
 
 
+def test_reimportar_actualiza_rangos_sin_perder_estado_ni_etiquetas(tmp_path):
+    portafolio = pf.Portafolio()
+    ruta = tmp_path / "Casa Reforma.prproj"
+    proyecto = portafolio.agregar_proyecto(
+        "Casa Reforma", ruta,
+        [ClipUsado(tmp_path / "clip_014.mov", [RangoUsado(0, 100, "Corte 1")])],
+    )
+    proyecto.clips[0].estado = "elegida"
+    proyecto.clips[0].etiquetas = ["cocina"]
+
+    portafolio.agregar_proyecto(
+        "Casa Reforma", ruta,
+        [ClipUsado(tmp_path / "clip_014.mov", [RangoUsado(50, 200, "Corte 2")])],
+    )
+
+    assert proyecto.clips[0].rangos == [RangoUsado(50, 200, "Corte 2")]
+    assert proyecto.clips[0].estado == "elegida"
+    assert proyecto.clips[0].etiquetas == ["cocina"]
+
+
 def test_medios_faltantes_de_un_proyecto(tmp_path):
     portafolio = pf.Portafolio()
     clips = [

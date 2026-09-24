@@ -60,8 +60,15 @@ class Portafolio:
     def _fusionar_clips(
         proyecto: ProyectoImportado, nuevos: list[ClipDelPortafolio]
     ) -> None:
-        rutas_ya = {clip.ruta_origen for clip in proyecto.clips}
-        proyecto.clips.extend(clip for clip in nuevos if clip.ruta_origen not in rutas_ya)
+        clips_por_ruta = {clip.ruta_origen: clip for clip in proyecto.clips}
+        for nuevo in nuevos:
+            existente = clips_por_ruta.get(nuevo.ruta_origen)
+            if existente is None:
+                proyecto.clips.append(nuevo)
+                continue
+            # La entrega pudo cambiar su edición; se actualizan sus rangos
+            # sin borrar la decisión ni las etiquetas ya hechas en Portafolio.
+            existente.rangos = nuevo.rangos
 
     @staticmethod
     def medios_faltantes_de(proyecto: ProyectoImportado) -> list[ClipDelPortafolio]:
