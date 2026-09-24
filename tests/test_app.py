@@ -934,7 +934,7 @@ def test_con_folio_crea_la_carpeta_completa_y_abre_el_proyecto(
     coord.inicio.nuevo_pedido.emit()
 
     carpeta = raiz / "01. IAV" / "2026" / "09. Septiembre" / "IAV-2609.10-A"
-    assert (carpeta / "01. Proyecto premiere" / "IAV-2609.10-A.prproj").exists()
+    assert not (carpeta / "01. Proyecto premiere" / "IAV-2609.10-A.prproj").exists()
     assert (carpeta / "02. Proyecto AE" / "IAV-2609.10-A.aep").exists()
     assert (carpeta / "08. Clipify" / "IAV-2609.10-A.cvproj").exists()
     ventana = coord.ventanas[0]

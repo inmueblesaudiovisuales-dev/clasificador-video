@@ -67,7 +67,6 @@ def test_ruta_del_proyecto_folio_invalido_da_none(tmp_path):
 def _con_templates(tmp_path):
     templates = tmp_path / "03. Templates"
     templates.mkdir()
-    (templates / colab.TEMPLATE_PREMIERE_NOMBRE).write_text("premiere vacio")
     (templates / colab.TEMPLATE_AE_NOMBRE).write_text("ae vacio")
     return templates
 
@@ -93,11 +92,9 @@ def test_crear_carpeta_de_proyecto_copia_y_renombra_los_templates(tmp_path):
     resultado = colab.crear_carpeta_de_proyecto(
         carpeta_proyecto, templates, "IAV-2609.10-A")
 
-    ruta_prproj = carpeta_proyecto / "01. Proyecto premiere" / "IAV-2609.10-A.prproj"
     ruta_aep = carpeta_proyecto / "02. Proyecto AE" / "IAV-2609.10-A.aep"
-    assert ruta_prproj.read_text() == "premiere vacio"
     assert ruta_aep.read_text() == "ae vacio"
-    assert resultado.ruta_prproj == ruta_prproj
+    assert not (carpeta_proyecto / "01. Proyecto premiere" / "IAV-2609.10-A.prproj").exists()
     assert resultado.ruta_aep == ruta_aep
     assert resultado.ruta_cvproj == (
         carpeta_proyecto / "08. Clipify" / "IAV-2609.10-A.cvproj"
@@ -131,28 +128,12 @@ def test_crear_carpeta_de_proyecto_sin_carpeta_de_mes_no_la_inventa(tmp_path):
     assert not carpeta_proyecto.exists()
 
 
-def test_crear_carpeta_de_proyecto_sin_template_premiere_no_crea_nada(tmp_path):
-    padre = tmp_path / "09. Septiembre"
-    padre.mkdir()
-    carpeta_proyecto = padre / "IAV-2609.10-A"
-    templates = tmp_path / "03. Templates"
-    templates.mkdir()
-    (templates / colab.TEMPLATE_AE_NOMBRE).write_text("ae vacio")
-
-    with pytest.raises(FileNotFoundError):
-        colab.crear_carpeta_de_proyecto(carpeta_proyecto, templates, "IAV-2609.10-A")
-
-    assert not carpeta_proyecto.exists()
-
-
 def test_crear_carpeta_de_proyecto_sin_template_ae_no_crea_nada(tmp_path):
     padre = tmp_path / "09. Septiembre"
     padre.mkdir()
     carpeta_proyecto = padre / "IAV-2609.10-A"
     templates = tmp_path / "03. Templates"
     templates.mkdir()
-    (templates / colab.TEMPLATE_PREMIERE_NOMBRE).write_text("premiere vacio")
-
     with pytest.raises(FileNotFoundError):
         colab.crear_carpeta_de_proyecto(carpeta_proyecto, templates, "IAV-2609.10-A")
 

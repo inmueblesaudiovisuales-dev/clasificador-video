@@ -39,7 +39,6 @@ MESES = (
 
 # Hermana de las carpetas de negocio, dentro de la raíz de iCloud.
 CARPETA_TEMPLATES = "03. Templates"
-TEMPLATE_PREMIERE_NOMBRE = "TemplatePremiere.prproj"
 TEMPLATE_AE_NOMBRE = "TemplateAE.aep"
 
 # Las 8 subcarpetas de todo proyecto colaborativo, en este orden. Los
@@ -112,7 +111,6 @@ def ruta_del_proyecto(raiz: Path, folio: str) -> Path | None:
 class ResultadoDeCreacion:
     carpeta_proyecto: Path
     ruta_cvproj: Path
-    ruta_prproj: Path
     ruta_aep: Path
 
 
@@ -136,10 +134,7 @@ def crear_carpeta_de_proyecto(carpeta_proyecto: Path, carpeta_templates: Path,
         raise FileNotFoundError(str(carpeta_proyecto.parent))
     if carpeta_proyecto.exists():
         raise FileExistsError(str(carpeta_proyecto))
-    template_premiere = carpeta_templates / TEMPLATE_PREMIERE_NOMBRE
     template_ae = carpeta_templates / TEMPLATE_AE_NOMBRE
-    if not template_premiere.is_file():
-        raise FileNotFoundError(str(template_premiere))
     if not template_ae.is_file():
         raise FileNotFoundError(str(template_ae))
 
@@ -148,9 +143,7 @@ def crear_carpeta_de_proyecto(carpeta_proyecto: Path, carpeta_templates: Path,
         for nombre in SUBCARPETAS:
             (carpeta_proyecto / nombre).mkdir()
 
-        ruta_prproj = carpeta_proyecto / CARPETA_PREMIERE / f"{folio}.prproj"
         ruta_aep = carpeta_proyecto / CARPETA_AE / f"{folio}.aep"
-        shutil.copyfile(template_premiere, ruta_prproj)
         shutil.copyfile(template_ae, ruta_aep)
     except OSError:
         shutil.rmtree(carpeta_proyecto, ignore_errors=True)
@@ -160,6 +153,5 @@ def crear_carpeta_de_proyecto(carpeta_proyecto: Path, carpeta_templates: Path,
     return ResultadoDeCreacion(
         carpeta_proyecto=carpeta_proyecto,
         ruta_cvproj=ruta_cvproj,
-        ruta_prproj=ruta_prproj,
         ruta_aep=ruta_aep,
     )
