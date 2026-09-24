@@ -29,15 +29,39 @@ def test_archetipo_de_bin_existe(raiz):
     assert prproj_plantilla.archetipo_de_bin(raiz) is not None
 
 
-def test_archetipos_de_secuencia_encuentra_las_2_reales(raiz):
-    assert set(prproj_plantilla.archetipos_de_secuencia(raiz)) == {"4k_9x16", "2_7k_9x16"}
+def test_archetipo_de_secuencia_es_un_clip_project_item_completo(raiz):
+    arquetipo = prproj_plantilla.archetipo_de_secuencia(raiz)
+    item = next(i for i in raiz.findall("ClipProjectItem")
+                if i.get("ObjectUID") == arquetipo.clip_project_item_uid)
+    master_ref = item.find("MasterClip")
+    master = next(m for m in raiz.findall("MasterClip")
+                  if m.get("ObjectUID") == master_ref.get("ObjectURef"))
+    fuentes = []
+    for clip_ref in master.findall("Clips/Clip"):
+        clip = next(c for c in raiz if c.get("ObjectID") == clip_ref.get("ObjectRef"))
+        fuente_ref = clip.find("Clip/Source")
+        fuente = next(c for c in raiz if c.get("ObjectID") == fuente_ref.get("ObjectRef"))
+        fuentes.append(fuente)
+    assert {f.tag for f in fuentes} == {"VideoSequenceSource", "AudioSequenceSource"}
+    assert arquetipo.sequence_uid in {
+        f.find("SequenceSource/Sequence").get("ObjectURef") for f in fuentes}
 
 
-def test_archetipo_2_7k_tiene_su_medida_real_no_la_de_4k(raiz):
-    archetipos = prproj_plantilla.archetipos_de_secuencia(raiz)
-    ancho, alto = prproj_plantilla._ancho_alto_de_secuencia(
-        raiz, archetipos["2_7k_9x16"])
-    assert (ancho, alto) == (1512, 2688)
+def test_archetipo_de_secuencia_esta_vacio(raiz):
+    arquetipo = prproj_plantilla.archetipo_de_secuencia(raiz)
+    secuencia = next(s for s in raiz.findall("Sequence")
+                     if s.get("ObjectUID") == arquetipo.sequence_uid)
+    for grupo_ref in secuencia.findall(".//TrackGroup/Second"):
+        grupo = next(c for c in raiz if c.get("ObjectID") == grupo_ref.get("ObjectRef"))
+        for track_ref in grupo.findall(".//Track"):
+            track = next(c for c in raiz if c.get("ObjectUID") == track_ref.get("ObjectURef"))
+            assert track.findall(".//TrackItem") == []
+
+
+def test_archetipo_de_secuencia_no_es_el_clip_otra(raiz):
+    arquetipo = prproj_plantilla.archetipo_de_secuencia(raiz)
+    por_camara = prproj_plantilla.archetipos_de_clip(raiz)
+    assert por_camara["otra"].master_clip_uid != arquetipo.clip_project_item_uid
 
 
 def test_plantilla_incompleta_avisa_en_vez_de_adivinar():

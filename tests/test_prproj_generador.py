@@ -138,30 +138,48 @@ def test_clonar_clip_otra_no_tiene_video_component_chain(raiz,tmp_path):
     assert raiz.find(f'.//MasterClip[@ObjectUID="{c.master_clip_uid}"]').find('VideoComponentChain') is None
 
 
+def _secuencia_de_item(raiz, item):
+    master = next(m for m in raiz.findall("MasterClip")
+                  if m.get("ObjectUID") == item.find("MasterClip").get("ObjectURef"))
+    for clip_ref in master.findall("Clips/Clip"):
+        clip = next(c for c in raiz if c.get("ObjectID") == clip_ref.get("ObjectRef"))
+        if clip.tag != "VideoClip":
+            continue
+        fuente_ref = clip.find("Clip/Source")
+        fuente = next(c for c in raiz if c.get("ObjectID") == fuente_ref.get("ObjectRef"))
+        return next(s for s in raiz.findall("Sequence")
+                    if s.get("ObjectUID")
+                    == fuente.find("SequenceSource/Sequence").get("ObjectURef"))
+
+
 def test_clonar_secuencia_con_medidas_le_pone_el_nombre(raiz):
-    archetipos = prproj_plantilla.archetipos_de_secuencia(raiz)
-    clon = prproj_generador.clonar_secuencia_con_medidas(
-        raiz, archetipos["4k_9x16"], prproj_xml.AsignadorDeIds(raiz),
+    arquetipo = prproj_plantilla.archetipo_de_secuencia(raiz)
+    item = prproj_generador.clonar_secuencia_con_medidas(
+        raiz, arquetipo, prproj_xml.AsignadorDeIds(raiz),
         nombre="IAV-2609.10-A 4K 9:16")
-    assert clon.find(".//Name").text == "IAV-2609.10-A 4K 9:16"
+    assert item.tag == "ClipProjectItem"
+    assert item.find(".//Name").text == "IAV-2609.10-A 4K 9:16"
+    assert _secuencia_de_item(raiz, item).find("Name").text == "IAV-2609.10-A 4K 9:16"
 
 
 def test_clonar_secuencia_con_medidas_voltea_para_16x9(raiz):
-    archetipos = prproj_plantilla.archetipos_de_secuencia(raiz)
-    clon = prproj_generador.clonar_secuencia_con_medidas(
-        raiz, archetipos["4k_9x16"], prproj_xml.AsignadorDeIds(raiz),
+    arquetipo = prproj_plantilla.archetipo_de_secuencia(raiz)
+    item = prproj_generador.clonar_secuencia_con_medidas(
+        raiz, arquetipo, prproj_xml.AsignadorDeIds(raiz),
         nombre="x 4K 16:9", ancho=3840, alto=2160)
-    grupo = prproj_plantilla._video_track_group_de_secuencia(raiz, clon)
+    grupo = prproj_plantilla._video_track_group_de_secuencia(
+        raiz, _secuencia_de_item(raiz, item))
     assert grupo.find("FrameRect").text == "0,0,3840,2160"
 
 
 def test_clonar_secuencia_con_medidas_no_toca_la_original(raiz):
-    archetipos = prproj_plantilla.archetipos_de_secuencia(raiz)
-    grupo_original = prproj_plantilla._video_track_group_de_secuencia(
-        raiz, archetipos["4k_9x16"])
+    arquetipo = prproj_plantilla.archetipo_de_secuencia(raiz)
+    original = next(s for s in raiz.findall("Sequence")
+                    if s.get("ObjectUID") == arquetipo.sequence_uid)
+    grupo_original = prproj_plantilla._video_track_group_de_secuencia(raiz, original)
     rect_original = grupo_original.find("FrameRect").text
     prproj_generador.clonar_secuencia_con_medidas(
-        raiz, archetipos["4k_9x16"], prproj_xml.AsignadorDeIds(raiz),
+        raiz, arquetipo, prproj_xml.AsignadorDeIds(raiz),
         nombre="otro", ancho=1080, alto=1920)
     assert grupo_original.find("FrameRect").text == rect_original
 
@@ -280,6 +298,57 @@ def test_02_clip_solo_tiene_los_clips_del_manifest(tmp_path):
     clips = [rama for rama in visibles if rama["tag"] == "ClipProjectItem"]
     assert sorted(rama["nombre"] for rama in clips) == sorted([
         "✓ Cocina 01 [SONY]", "Cocina 02 [DRONE]"])
+
+
+def test_01_secuencia_tiene_las_cinco_secuencias_en_su_lugar(tmp_path):
+    destino, _luts, _manifest = _generar_proyecto_de_prueba(tmp_path)
+    raiz = prproj_xml.leer_prproj(destino)
+    arbol = _arbol_visible(raiz)
+    sec = next(rama for rama in arbol if rama["nombre"] == "01. Secuencia")
+    hijos = sec["hijos"]
+    assert [h["nombre"] for h in hijos] == [
+        "IAV-2609.10-A 4K 9:16", "IAV-2609.10-A 2.7K 9:16",
+        "IAV-2609.10-A 4K 16:9", "1080p"]
+    assert all(h["tag"] == "ClipProjectItem" for h in hijos[:3])
+    assert hijos[3]["tag"] == "BinProjectItem"
+    assert [h["nombre"] for h in hijos[3]["hijos"]] == [
+        "IAV-2609.10-A 9:16 1080p", "IAV-2609.10-A 16:9 1080p"]
+
+
+def test_secuencias_tienen_sus_medidas_y_fps(tmp_path):
+    destino, _luts, _manifest = _generar_proyecto_de_prueba(tmp_path)
+    raiz = prproj_xml.leer_prproj(destino)
+    arbol = _arbol_visible(raiz)
+    esperado = {
+        "IAV-2609.10-A 4K 9:16": (2160, 3840),
+        "IAV-2609.10-A 2.7K 9:16": (1512, 2688),
+        "IAV-2609.10-A 4K 16:9": (3840, 2160),
+        "IAV-2609.10-A 9:16 1080p": (1080, 1920),
+        "IAV-2609.10-A 16:9 1080p": (1920, 1080),
+    }
+    items = [rama for rama in _aplanar(arbol)
+             if rama["nombre"] in esperado]
+    assert len(items) == 5
+    for rama in items:
+        secuencia = _secuencia_de_item(raiz, rama["objeto"])
+        grupo = prproj_plantilla._video_track_group_de_secuencia(raiz, secuencia)
+        ancho, alto = esperado[rama["nombre"]]
+        assert grupo.find("FrameRect").text == f"0,0,{ancho},{alto}"
+        fps = TICKS_POR_SEGUNDO / int(grupo.find(".//FrameRate").text)
+        assert abs(fps - 59.94) < 0.01
+
+
+def test_secuencias_generadas_estan_vacias(tmp_path):
+    destino, _luts, _manifest = _generar_proyecto_de_prueba(tmp_path)
+    raiz = prproj_xml.leer_prproj(destino)
+    arbol = _arbol_visible(raiz)
+    sec = next(rama for rama in arbol if rama["nombre"] == "01. Secuencia")
+    for rama in _aplanar(sec["hijos"]):
+        if rama["tag"] != "ClipProjectItem":
+            continue
+        secuencia = _secuencia_de_item(raiz, rama["objeto"])
+        for track in _tracks_de_secuencia(raiz, secuencia):
+            assert track.findall(".//TrackItem") == []
 
 
 def test_generar_prproj_copia_solo_los_cube_que_hacen_falta(tmp_path):

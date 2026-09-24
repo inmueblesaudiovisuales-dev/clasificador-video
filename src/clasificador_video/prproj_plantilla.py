@@ -42,11 +42,57 @@ def _lut_del_video_component_chain(raiz: ET.Element, chain_id: str) -> str | Non
     return None
 
 
+@dataclass(frozen=True)
+class ArchetipoDeSecuencia:
+    """El ``ClipProjectItem`` de una secuencia y la ``Sequence`` que alcanza."""
+    clip_project_item_uid: str
+    sequence_uid: str
+    ancho: int
+    alto: int
+
+
+def _indice_por_uid(raiz: ET.Element) -> dict:
+    return {e.get("ObjectUID"): e for e in raiz if e.get("ObjectUID")}
+
+
+def _fuentes_del_master(raiz: ET.Element, master: ET.Element):
+    """Las fuentes directas (``Clip/Source``) de cada clip del ``MasterClip``.
+
+    A propósito NO baja a un ``SubClip``: un clip de medios puede llevar un
+    subclip y seguir siendo un clip, mientras que un item de secuencia tiene
+    la ``VideoSequenceSource`` como fuente directa.
+    """
+    indice = {e.get("ObjectID"): e for e in raiz if e.get("ObjectID")}
+    for clip_ref in master.findall("Clips/Clip"):
+        clip = indice.get(clip_ref.get("ObjectRef"))
+        if clip is None:
+            continue
+        fuente_ref = clip.find("Clip/Source")
+        fuente = indice.get(fuente_ref.get("ObjectRef")) if fuente_ref is not None else None
+        if fuente is not None:
+            yield fuente
+
+
+def _es_master_de_clip(raiz: ET.Element, master: ET.Element) -> bool:
+    return any(f.tag in ("VideoMediaSource", "AudioMediaSource")
+               for f in _fuentes_del_master(raiz, master))
+
+
+def _secuencia_del_master(raiz: ET.Element, master: ET.Element) -> str | None:
+    for fuente in _fuentes_del_master(raiz, master):
+        if fuente.tag != "VideoSequenceSource":
+            continue
+        ref = fuente.find("SequenceSource/Sequence")
+        if ref is not None:
+            return ref.get("ObjectURef")
+    return None
+
+
 def archetipos_de_clip(raiz: ET.Element) -> dict[str, ArchetipoDeClip]:
     encontrados = {}
     for master in raiz.findall("MasterClip"):
         uid = master.get("ObjectUID")
-        if not uid:
+        if not uid or not _es_master_de_clip(raiz, master):
             continue
         ref = master.find("VideoComponentChain")
         chain = ref.get("ObjectRef") if ref is not None else None
@@ -103,27 +149,57 @@ def _ancho_alto_de_secuencia(
     return int(ancho), int(alto)
 
 
-_CLAVES_REALES_EN_PLANTILLA = ("4k_9x16", "2_7k_9x16")
+def _tracks_de_secuencia(
+        raiz: ET.Element, secuencia: ET.Element) -> list[ET.Element]:
+    tracks = []
+    for ref in secuencia.findall(".//TrackGroup/Second"):
+        grupo = next((e for e in raiz if e.get("ObjectID") == ref.get("ObjectRef")), None)
+        if grupo is None:
+            continue
+        for track_ref in grupo.findall(".//Track"):
+            track = next((e for e in raiz if e.get("ObjectUID") == track_ref.get("ObjectURef")), None)
+            if track is not None:
+                tracks.append(track)
+    return tracks
 
 
-def archetipos_de_secuencia(raiz: ET.Element) -> dict[str, ET.Element]:
-    """Localiza las dos secuencias reales por su ``VideoTrackGroup``."""
-    encontrados: dict[str, ET.Element] = {}
-    for secuencia in raiz.findall("Sequence"):
-        medidas = _ancho_alto_de_secuencia(raiz, secuencia)
+def _secuencia_esta_vacia(raiz: ET.Element, secuencia: ET.Element) -> bool:
+    return all(not track.findall(".//TrackItem")
+               for track in _tracks_de_secuencia(raiz, secuencia))
+
+
+def archetipo_de_secuencia(raiz: ET.Element) -> ArchetipoDeSecuencia:
+    """El ``ClipProjectItem`` que Premiere dibuja dentro de un bin para una
+    secuencia, con su cierre completo.
+
+    No alcanza con clonar la ``Sequence``: el item visible es un
+    ``ClipProjectItem`` que cuelga de ``MasterClip`` y llega a la secuencia
+    por ``VideoSequenceSource``/``AudioSequenceSource``. Se prefiere un item
+    cuya secuencia esté VACÍA: los items de secuencia de la plantilla de
+    LUTs traen un clip de referencia dentro. El arquetipo limpio se empaca
+    con ``scripts/empacar_arquetipo_de_secuencia.py``.
+    """
+    indice = _indice_por_uid(raiz)
+    candidatos = []
+    for item in raiz.findall("ClipProjectItem"):
+        master_ref = item.find("MasterClip")
+        master = indice.get(master_ref.get("ObjectURef")) if master_ref is not None else None
+        if master is None:
+            continue
+        secuencia_uid = _secuencia_del_master(raiz, master)
+        if secuencia_uid is None:
+            continue
+        secuencia = indice.get(secuencia_uid)
+        medidas = _ancho_alto_de_secuencia(raiz, secuencia) if secuencia is not None else None
         if medidas is None:
             continue
-        for clave in _CLAVES_REALES_EN_PLANTILLA:
-            if clave in encontrados:
-                continue
-            ancho, alto, _fps = FORMATOS_DE_SECUENCIA[clave]
-            if medidas == (ancho, alto):
-                encontrados[clave] = secuencia
-                break
-
-    faltan = set(_CLAVES_REALES_EN_PLANTILLA) - encontrados.keys()
-    if faltan:
+        ancho, alto = medidas
+        candidatos.append(ArchetipoDeSecuencia(
+            item.get("ObjectUID"), secuencia_uid, ancho, alto))
+    vacios = [c for c in candidatos if _secuencia_esta_vacia(
+        raiz, indice[c.sequence_uid])]
+    if not vacios:
         raise PlantillaIncompleta(
-            "La plantilla no tiene secuencia de referencia para: "
-            + ", ".join(sorted(faltan)) + ". Revisar la Tarea 0 del plan.")
-    return encontrados
+            "La plantilla no tiene un ClipProjectItem de secuencia con la "
+            "secuencia vacía. Revisar scripts/empacar_arquetipo_de_secuencia.py.")
+    return vacios[0]

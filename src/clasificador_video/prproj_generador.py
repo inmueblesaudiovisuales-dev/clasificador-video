@@ -11,8 +11,8 @@ from clasificador_video import recursos
 from clasificador_video.nombre_de_clip import nombre_de_clip, numeros_de_clip
 from clasificador_video.prproj_plantilla import ArchetipoDeClip
 from clasificador_video.prproj_plantilla import (
-    FORMATOS_DE_SECUENCIA, archetipo_de_bin, archetipos_de_clip,
-    archetipos_de_secuencia,
+    FORMATOS_DE_SECUENCIA, archetipo_de_bin, archetipo_de_secuencia,
+    archetipos_de_clip, _video_track_group_de_secuencia,
 )
 from clasificador_video.prproj_xml import (
     AsignadorDeIds, clonar_por_cierre, escribir_prproj, leer_prproj,
@@ -75,35 +75,60 @@ def clonar_clip(raiz: ET.Element, arquetipo: ArchetipoDeClip, asignador: Asignad
     return ClipClonado(item_clon.get('ObjectUID'), master_uid, medias[0].get('ObjectUID'))
 
 
-def clonar_secuencia_con_medidas(
-        raiz: ET.Element, arquetipo_secuencia: ET.Element,
-        asignador: AsignadorDeIds, *, nombre: str,
-        ancho: int | None = None, alto: int | None = None) -> ET.Element:
-    """Clona una secuencia y opcionalmente cambia su tamaño de cuadro."""
-    tipo_ancla = (
-        "ObjectUID" if arquetipo_secuencia.get("ObjectUID") else "ObjectID")
-    valor_ancla = arquetipo_secuencia.get(tipo_ancla)
-    mapa = clonar_por_cierre(raiz, tipo_ancla, valor_ancla, asignador)
-    clon = mapa[(tipo_ancla, valor_ancla)]
+def _vaciar_timeline_de_secuencia(raiz: ET.Element, secuencia: ET.Element) -> None:
+    """Quita los clips colocados de una secuencia clonada.
 
-    nombre_nodo = clon.find(".//Name")
-    if nombre_nodo is not None:
+    Premiere dibuja la secuencia como ``ClipProjectItem``; su ``Sequence``
+    tiene los tracks como objetos aparte. Se vacían para que las secuencias
+    de Clipify nazcan sin material, como las del plugin.
+    """
+    for grupo_ref in secuencia.findall(".//TrackGroup/Second"):
+        grupo = next((e for e in raiz if e.get("ObjectID") == grupo_ref.get("ObjectRef")), None)
+        if grupo is None:
+            continue
+        for track_ref in grupo.findall(".//Track"):
+            track = next((e for e in raiz if e.get("ObjectUID") == track_ref.get("ObjectURef")), None)
+            if track is None:
+                continue
+            for contenedor in track.iter():
+                if contenedor.tag not in ("ClipItems", "TransitionItems"):
+                    continue
+                for hijo in list(contenedor):
+                    if hijo.tag == "TrackItems":
+                        contenedor.remove(hijo)
+
+
+def clonar_secuencia_con_medidas(
+        raiz: ET.Element, arquetipo, asignador: AsignadorDeIds, *,
+        nombre: str, ancho: int | None = None,
+        alto: int | None = None) -> ET.Element:
+    """Clona el item de secuencia completo y devuelve su ``ClipProjectItem``.
+
+    El item devuelto es el que va en los ``Items`` del bin; la ``Sequence``
+    queda enlazada por su cierre, igual que en un proyecto de Premiere.
+    """
+    mapa = clonar_por_cierre(
+        raiz, "ObjectUID", arquetipo.clip_project_item_uid, asignador)
+    item = mapa[("ObjectUID", arquetipo.clip_project_item_uid)]
+    secuencia = mapa[("ObjectUID", arquetipo.sequence_uid)]
+
+    item.find(".//Name").text = nombre
+    secuencia.find("Name").text = nombre
+    master_ref = item.find("MasterClip")
+    master = next(
+        (e for e in raiz if e.tag == "MasterClip"
+         and e.get("ObjectUID") == master_ref.get("ObjectURef")), None)
+    if master is not None and (nombre_nodo := master.find("Name")) is not None:
         nombre_nodo.text = nombre
 
     if ancho is not None and alto is not None:
-        from clasificador_video.prproj_plantilla import _video_track_group_de_secuencia
+        grupo = _video_track_group_de_secuencia(raiz, secuencia)
+        rect = grupo.find("FrameRect") if grupo is not None else None
+        if rect is not None:
+            rect.text = f"0,0,{ancho},{alto}"
 
-        grupo_original = _video_track_group_de_secuencia(raiz, arquetipo_secuencia)
-        if grupo_original is not None:
-            tipo_grupo = (
-                "ObjectUID" if grupo_original.get("ObjectUID") else "ObjectID")
-            grupo_clonado = mapa.get(
-                (tipo_grupo, grupo_original.get(tipo_grupo)))
-            if grupo_clonado is not None:
-                rect = grupo_clonado.find("FrameRect")
-                if rect is not None:
-                    rect.text = f"0,0,{ancho},{alto}"
-    return clon
+    _vaciar_timeline_de_secuencia(raiz, secuencia)
+    return item
 
 
 def limpiar_items_visibles_de_plantilla(raiz: ET.Element) -> None:
@@ -264,7 +289,7 @@ def generar_prproj(manifest, destino: Path, carpeta_luts_destino: Path, *,
     asignador = AsignadorDeIds(raiz)
     arquetipo_bin = archetipo_de_bin(raiz)
     archetipos_clip = archetipos_de_clip(raiz)
-    archetipos_seq = archetipos_de_secuencia(raiz)
+    arquetipo_secuencia = archetipo_de_secuencia(raiz)
     labels = _label_de_camara(raiz, archetipos_clip)
     limpiar_items_visibles_de_plantilla(raiz)
     bins_fijos = crear_esqueleto(
@@ -319,23 +344,29 @@ def generar_prproj(manifest, destino: Path, carpeta_luts_destino: Path, *,
 
     if manifest.crear_secuencias or manifest.formato_secuencia:
         nombre_base = (manifest.proyecto or "Proyecto").strip() or "Proyecto"
-        bases = {
-            "4k_9x16": archetipos_seq["4k_9x16"],
-            "2_7k_9x16": archetipos_seq["2_7k_9x16"],
-            "4k_16x9": archetipos_seq["4k_9x16"],
-            "9x16_1080p": archetipos_seq["4k_9x16"],
-            "16x9_1080p": archetipos_seq["4k_9x16"],
-        }
         sufijos = {
             "4k_9x16": "4K 9:16", "2_7k_9x16": "2.7K 9:16",
             "4k_16x9": "4K 16:9", "9x16_1080p": "9:16 1080p",
             "16x9_1080p": "16:9 1080p",
         }
-        for clave, (ancho, alto, _fps) in FORMATOS_DE_SECUENCIA.items():
-            clonar_secuencia_con_medidas(
-                raiz, bases[clave], asignador,
+        carpeta_secuencia = bins_fijos["01. Secuencia"]
+        for clave in ("4k_9x16", "2_7k_9x16", "4k_16x9"):
+            ancho, alto, _fps = FORMATOS_DE_SECUENCIA[clave]
+            item = clonar_secuencia_con_medidas(
+                raiz, arquetipo_secuencia, asignador,
                 nombre=f"{nombre_base} {sufijos[clave]}", ancho=ancho,
                 alto=alto)
+            _agregar_item_al_bin(carpeta_secuencia, item)
+
+        carpeta_1080p = crear_bin_hijo(
+            raiz, arquetipo_bin, carpeta_secuencia, asignador, nombre="1080p")
+        for clave in ("9x16_1080p", "16x9_1080p"):
+            ancho, alto, _fps = FORMATOS_DE_SECUENCIA[clave]
+            item = clonar_secuencia_con_medidas(
+                raiz, arquetipo_secuencia, asignador,
+                nombre=f"{nombre_base} {sufijos[clave]}", ancho=ancho,
+                alto=alto)
+            _agregar_item_al_bin(carpeta_1080p, item)
 
     for camara in camaras_usadas:
         arquetipo = archetipos_clip[camara]
