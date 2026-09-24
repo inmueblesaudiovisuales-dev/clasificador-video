@@ -28,7 +28,7 @@ CARPETAS_DEL_PROYECTO = (
 )
 # Sub-bins de "01. Secuencia": las tres resoluciones nativas en un bin y las
 # dos 1080p en otro, igual que los agrupa Clipify.
-CARPETA_RESOLUCION_ORIGINAL = "Resolución original"
+CARPETA_RESOLUCION_ORIGINAL = "Resolucion original"
 CARPETA_1080P = "1080p"
 
 

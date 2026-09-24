@@ -18,9 +18,9 @@ function datosDeSecuencias(manifest) {
     // Las tres resoluciones nativas van juntas en su bin; las 1080p en el
     // suyo. Mismo arreglo que arma el generador directo del .prproj.
     return [
-      { nombre: nombre + " 4K 9:16", ancho: 2160, alto: 3840, fps: 59.94, carpeta: "Resolución original" },
-      { nombre: nombre + " 2.7K 9:16", ancho: 2160, alto: 3840, fps: 59.94, carpeta: "Resolución original" },
-      { nombre: nombre + " 4K 16:9", ancho: 3840, alto: 2160, fps: 59.94, carpeta: "Resolución original" },
+      { nombre: nombre + " 4K 9:16", ancho: 2160, alto: 3840, fps: 59.94, carpeta: "Resolucion original" },
+      { nombre: nombre + " 2.7K 9:16", ancho: 2160, alto: 3840, fps: 59.94, carpeta: "Resolucion original" },
+      { nombre: nombre + " 4K 16:9", ancho: 3840, alto: 2160, fps: 59.94, carpeta: "Resolucion original" },
       { nombre: nombre + " 9:16 1080p", ancho: 1080, alto: 1920, fps: 59.94, carpeta: "1080p" },
       { nombre: nombre + " 16:9 1080p", ancho: 1920, alto: 1080, fps: 59.94, carpeta: "1080p" },
     ];

@@ -58,9 +58,9 @@ module.exports = function pruebasDeSecuencia(ctx) {
       fn: () => {
         const reales = ctx.datosDeSecuencias({ proyecto: "Casa", crear_secuencias: true });
         const esperados = [
-          ["Casa 4K 9:16", 2160, 3840, "Resolución original"],
-          ["Casa 2.7K 9:16", 2160, 3840, "Resolución original"],
-          ["Casa 4K 16:9", 3840, 2160, "Resolución original"],
+          ["Casa 4K 9:16", 2160, 3840, "Resolucion original"],
+          ["Casa 2.7K 9:16", 2160, 3840, "Resolucion original"],
+          ["Casa 4K 16:9", 3840, 2160, "Resolucion original"],
           ["Casa 9:16 1080p", 1080, 1920, "1080p"],
           ["Casa 16:9 1080p", 1920, 1080, "1080p"],
         ];
