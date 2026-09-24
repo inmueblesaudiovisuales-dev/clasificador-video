@@ -125,16 +125,20 @@ def clonar_clip(raiz: ET.Element, arquetipo: ArchetipoDeClip, asignador: Asignad
 def _datos_de_proxy_son_compatibles(original: dict, proxy: dict) -> bool:
     """Evita enlazar un proxy que Premiere reproduciría fuera de sincronía."""
     try:
-        misma_geometria = (original["width"], original["height"]) == (
-            proxy["width"], proxy["height"])
+        # Premiere permite proxies de menor resolución. Lo importante es que
+        # su cuadro de despliegue conserve orientación y proporción; ffmpeg
+        # puede materializar una rotación en píxeles y limpiar el metadata.
+        ancho_original, alto_original = original["width"], original["height"]
+        ancho_proxy, alto_proxy = proxy["width"], proxy["height"]
+        misma_geometria = ((ancho_original >= alto_original) == (ancho_proxy >= alto_proxy)
+                            and abs(ancho_original / alto_original
+                                    - ancho_proxy / alto_proxy) < 0.01)
         mismo_fps = abs(float(original["fps"]) - float(proxy["fps"])) < 0.01
         mismos_cuadros = round(original["duration_seconds"] * original["fps"]) == round(
             proxy["duration_seconds"] * proxy["fps"])
-        misma_orientacion = int(original.get("rotation", 0)) % 360 == int(
-            proxy.get("rotation", 0)) % 360
     except (KeyError, TypeError, ValueError):
         return False
-    return misma_geometria and mismo_fps and mismos_cuadros and misma_orientacion
+    return misma_geometria and mismo_fps and mismos_cuadros
 
 
 def adjuntar_proxy(raiz: ET.Element, clip: ClipClonado,

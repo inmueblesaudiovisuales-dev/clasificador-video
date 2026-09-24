@@ -140,7 +140,7 @@ def _generar_proyecto_de_prueba(tmp_path):
     return destino, carpeta_luts, manifest
 
 
-def _generar_proyecto_con_proxy(tmp_path, ruta_proxy):
+def _generar_proyecto_con_proxy(tmp_path, ruta_proxy, datos_proxy=None):
     from clasificador_video.manifest import Clip, Guia, Manifest
 
     original_con_proxy = tmp_path / "con_proxy.mp4"
@@ -158,7 +158,8 @@ def _generar_proyecto_con_proxy(tmp_path, ruta_proxy):
     datos = {"width": 2160, "height": 3840, "fps": 59.94,
              "duration_seconds": 6.0, "rotation": 90}
     prproj_generador.generar_prproj(
-        manifest, destino, tmp_path / "luts", probe=lambda _ruta: datos)
+        manifest, destino, tmp_path / "luts",
+        probe=lambda ruta: datos_proxy if ruta == ruta_proxy and datos_proxy else datos)
     return prproj_xml.leer_prproj(destino)
 
 
@@ -180,6 +181,18 @@ def test_generar_prproj_omite_proxy_cuya_ruta_no_existe(tmp_path):
     raiz = _generar_proyecto_con_proxy(tmp_path, tmp_path / "no-existe_proxy.mp4")
 
     assert _proxy_de_video(raiz, _clip_items_visibles(raiz)[0]) is None
+
+
+def test_generar_prproj_acepta_proxy_s03_de_menor_resolucion(tmp_path):
+    proxy = tmp_path / "con_proxyS03.mp4"
+    proxy.write_bytes(b"")
+
+    raiz = _generar_proyecto_con_proxy(
+        tmp_path, proxy,
+        {"width": 1080, "height": 1920, "fps": 59.94,
+         "duration_seconds": 6.0, "rotation": 0})
+
+    assert _proxy_de_video(raiz, _clip_items_visibles(raiz)[0]) is not None
 
 
 def test_reescribir_rutas_de_media_reemplaza_todas_las_copias():
