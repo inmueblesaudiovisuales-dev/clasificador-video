@@ -140,7 +140,12 @@ class PantallaRevisar(QWidget):
         cabecera.addWidget(self.titulo_proyecto)
         self.selector_categoria = QComboBox()
         self.selector_categoria.setEditable(True)
-        self.selector_categoria.currentTextChanged.connect(self.asignar_categoria_actual)
+        # `currentTextChanged` se dispara por cada letra y guardaba prefijos.
+        # La categoría nueva solo entra al confirmar la edición o elegirla.
+        self.selector_categoria.lineEdit().editingFinished.connect(
+            lambda: self.asignar_categoria_actual(self.selector_categoria.currentText())
+        )
+        self.selector_categoria.textActivated.connect(self.asignar_categoria_actual)
         cabecera.addWidget(self.selector_categoria)
         cabecera.addStretch()
         self.boton_rodaje = QPushButton("Ver el rodaje completo")
@@ -273,7 +278,7 @@ class PantallaRevisar(QWidget):
         if self.proyecto_actual is None:
             return
         carpeta = rodaje_completo.deducir_carpeta([clip.ruta_origen for clip in self.proyecto_actual.clips])
-        if carpeta is None:
+        if carpeta is None or not carpeta.is_dir():
             carpeta = self._elegir_carpeta()
             if carpeta is None:
                 return

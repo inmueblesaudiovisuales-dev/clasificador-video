@@ -94,6 +94,22 @@ def test_rodaje_sin_carpeta_deducible_pide_la_carpeta(qtbot, tmp_path):
     assert any(clip.ruta_origen == extra for clip in proyecto.clips)
 
 
+def test_rodaje_con_carpeta_deducida_en_ssd_desconectado_pide_carpeta(qtbot, tmp_path):
+    p, proyecto = _con_un_proyecto(tmp_path)
+    proyecto.clips[0].ruta_origen = tmp_path / "ssd_desconectado" / "clip.mov"
+    carpeta = tmp_path / "rodaje"
+    carpeta.mkdir()
+    extra = carpeta / "extra.mov"
+    extra.touch()
+    pantalla = PantallaRevisar(p, elegir_carpeta=lambda: carpeta)
+    qtbot.addWidget(pantalla)
+    pantalla.mostrar_proyecto(proyecto)
+
+    pantalla.ver_rodaje_completo()
+
+    assert any(clip.ruta_origen == extra for clip in proyecto.clips)
+
+
 def test_categoria_es_editable_desde_revisar(qtbot, tmp_path):
     p, proyecto = _con_un_proyecto(tmp_path)
     pantalla = PantallaRevisar(p)
@@ -104,6 +120,21 @@ def test_categoria_es_editable_desde_revisar(qtbot, tmp_path):
 
     assert proyecto.categoria == "Rancho"
     assert "Rancho" in p.categorias_conocidas
+
+
+def test_categoria_nueva_se_guarda_solo_al_confirmar_el_texto_completo(qtbot, tmp_path):
+    p, proyecto = _con_un_proyecto(tmp_path)
+    pantalla = PantallaRevisar(p)
+    qtbot.addWidget(pantalla)
+    pantalla.mostrar_proyecto(proyecto)
+
+    pantalla.selector_categoria.setEditText("Ran")
+
+    assert "Ran" not in p.categorias_conocidas
+    pantalla.selector_categoria.lineEdit().editingFinished.emit()
+
+    assert proyecto.categoria == "Ran"
+    assert "Ran" in p.categorias_conocidas
 
 
 def test_color_del_proyecto_en_rail_es_estable(qtbot, tmp_path):

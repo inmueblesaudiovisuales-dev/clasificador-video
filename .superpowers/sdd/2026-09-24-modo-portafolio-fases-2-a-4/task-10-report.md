@@ -57,3 +57,21 @@ tarjetas que intersectan el viewport. Se reutiliza su cache estable; no se
 duplica criterio de extracción ni extensiones. También se capturó e inspeccionó
 otra vez la pantalla offscreen, confirmando el selector de categoría oscuro,
 el color estable del rail y el borde ámbar de la tarjeta actual.
+
+## Fix round 2 — RED/GREEN
+
+Se agregaron dos regresiones: una carpeta deducida pero inexistente (SSD
+desconectado) debe abrir el selector manual antes de listar, y una categoría
+nueva no se guarda letra por letra. La corrida RED tuvo las dos fallas
+esperadas: `FileNotFoundError` al listar el SSD ausente y el prefijo `Ran`
+persistido de inmediato.
+
+Ahora se valida `is_dir()` antes de listar y el selector confirma la edición
+con `editingFinished` (o una opción con `textActivated`), nunca con cambios de
+cada tecla.
+
+```sh
+QT_QPA_PLATFORM=offscreen .venv/bin/pytest tests_portafolio/ -q
+```
+
+Resultado: **43 passed in 1.79s**.
