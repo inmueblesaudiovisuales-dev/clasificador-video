@@ -32,3 +32,26 @@ def ruta_de_proxy(carpeta_raiz: Path, proyecto: str, clip: Path) -> Path:
     """El proxy vive junto al alias, con el sufijo `_proxy` del Clipify
     normal para no chocar con el alias (que conserva el nombre original)."""
     return proxy_gen.ruta_de_proxy(clip, carpeta_raiz / proyecto)
+
+
+def asegurar_proxy(carpeta_raiz: Path, proyecto: str, clip: Path) -> Path:
+    """El proxy a usar para un clip Elegido, sin generar de más.
+
+    Orden (spec 2026-09-24, "proxies faltantes"):
+    1. Si `proxy_gen` ya encuentra un proxy en alguno de los lugares que
+       conoce junto al material, se reusa tal cual -- es el reuso "entre
+       entregas" que pide la spec.
+    2. Si ya hay uno en la carpeta de portafolio, se reusa.
+    3. Si no, se genera uno nuevo dentro de la subcarpeta del proyecto.
+
+    Devuelve la ruta del proxy, o `None` si `proxy_gen.generar` no devuelve
+    nada (caso de las pruebas con un generador falso).
+    """
+    existente = proxy_gen.ruta_de_proxy_existente(clip, clip.parent)
+    if existente is not None:
+        return existente
+    en_portafolio = ruta_de_proxy(carpeta_raiz, proyecto, clip)
+    if en_portafolio.exists():
+        return en_portafolio
+    subcarpeta = asegurar_subcarpeta_de_proyecto(carpeta_raiz, proyecto)
+    return proxy_gen.generar(clip, subcarpeta)
