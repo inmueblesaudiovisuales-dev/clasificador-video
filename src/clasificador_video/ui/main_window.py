@@ -905,6 +905,9 @@ class MainWindow(QWidget):
         self.room_rail.room_removed_en_unidad.connect(self._on_room_removed_en_unidad)
         self.room_rail.unit_created.connect(self._on_unit_created_en_rail)
         self.room_rail.rooms_movidos_a_unidad.connect(self._on_rooms_movidos_a_unidad)
+        # Sin @_bloqueada_durante_exportacion: colapsar una banda del rail
+        # es una preferencia de como se VE el rail, no un dato que el
+        # .prproj lea -- mismo criterio que handle_arrow/select_clip.
         self.room_rail.unidad_colapso_cambiado.connect(lambda *_: self._autosave())
         self.room_rail.revert_requested.connect(self.revert)
         # el boton «Cuartos ⌘R» estuvo muerto desde la F2: emitia una señal
@@ -1516,6 +1519,7 @@ class MainWindow(QWidget):
         self.unit_selection.add(nombre)
         self._activar_unidad(nombre)
 
+    @_bloqueada_durante_exportacion
     def _on_unit_created_en_rail(self, nombre: str) -> None:
         """El boton "+" del rail: crea SIN activar. A diferencia de la
         paleta (que crea Y activa, porque uno la abrio para seguir
@@ -1564,6 +1568,7 @@ class MainWindow(QWidget):
         # de mas
         self._avanzar_en_la_cola()
 
+    @_bloqueada_durante_exportacion
     def _asignar_unidad(self, unidad: str) -> None:
         """Mueve los clips del alcance actual a `unidad`, SIN tocar su
         cuarto. Es el camino de migracion: crear las unidades y, con la
@@ -1595,6 +1600,7 @@ class MainWindow(QWidget):
         self._refresh_sheet()
         self._autosave()
 
+    @_bloqueada_durante_exportacion
     def _mover_cuarto_a_unidad(self, nombre: str, unidad_origen: str, unidad_destino: str,
                                 nombre_destino: str, fue_fusion: bool) -> None:
         """Mueve un cuarto COMPLETO -- con sus clips ya clasificados -- de
@@ -1690,6 +1696,7 @@ class MainWindow(QWidget):
             return "renombrar"
         return "cancelar"
 
+    @_bloqueada_durante_exportacion
     def _on_rooms_movidos_a_unidad(self, nombres: list[str], unidad_origen: str,
                                     unidad_destino: str) -> None:
         """El rail solto un grupo de cuartos sobre la banda de OTRA unidad.
@@ -1914,6 +1921,7 @@ class MainWindow(QWidget):
             return   # el boton ya esta apagado; esta es la red de abajo
         self._aplicar_entrada(self.history.revert(entry_id))
 
+    @_bloqueada_durante_exportacion
     def _aplicar_entrada(self, entrada: HistoryEntry | None) -> None:
         if entrada is None:
             return
@@ -2106,6 +2114,7 @@ class MainWindow(QWidget):
     # el rail edita los cuartos en el lugar
     # ------------------------------------------------------------------
 
+    @_bloqueada_durante_exportacion
     def _sync_rooms(self) -> None:
         """Vuelve a pasarle al router la lista de cuartos.
 
@@ -2179,6 +2188,7 @@ class MainWindow(QWidget):
         self.room_selection.mover_a(nombre, posicion)
         self._sync_rooms()
 
+    @_bloqueada_durante_exportacion
     def _on_room_moved_en_unidad(self, nombre: str, delta: int, unidad: str) -> None:
         """Gemela de `_on_room_moved`, para cuando el rail muestra bandas.
 
@@ -2199,6 +2209,7 @@ class MainWindow(QWidget):
             self._refresh_rail()
             self._autosave()
 
+    @_bloqueada_durante_exportacion
     def _on_room_reordered_en_unidad(self, nombre: str, posicion: int, unidad: str) -> None:
         """Gemela de `_on_room_reordered`: mismo criterio que
         `_on_room_moved_en_unidad`, para el arrastre."""
@@ -2212,6 +2223,7 @@ class MainWindow(QWidget):
             self._refresh_rail()
             self._autosave()
 
+    @_bloqueada_durante_exportacion
     def _on_room_renamed_en_unidad(self, viejo: str, nuevo: str, unidad: str) -> None:
         """Gemela de `_on_room_renamed`, para cuando el rail muestra bandas.
 
@@ -2274,6 +2286,7 @@ class MainWindow(QWidget):
             self.clips[indice].categoria_path = []
         self._sync_rooms()
 
+    @_bloqueada_durante_exportacion
     def _on_room_removed_en_unidad(self, nombre: str, unidad: str) -> None:
         """Gemela de `_on_room_removed`, para cuando el rail muestra bandas.
 
@@ -2488,6 +2501,7 @@ class MainWindow(QWidget):
         self._resize_video_stage()
         self._autosave()
 
+    @_bloqueada_durante_exportacion
     def agregar_clips(self, nuevos: list[Clip], nombre_de_bin: str | None,
                       origen: Path, auto_proxies: bool = False) -> None:
         """Suma material SIN reiniciar el proyecto.
@@ -2800,6 +2814,7 @@ class MainWindow(QWidget):
              if isinstance(t, int) and not isinstance(t, bool)}
         )
 
+    @_bloqueada_durante_exportacion
     def reconectar_bin(self, nombre: str, carpeta: Path) -> None:
         """Busca bajo `carpeta` los clips que le faltan al bin y los engancha.
 
@@ -3434,6 +3449,7 @@ class MainWindow(QWidget):
         """Donde van los proxies NUEVOS, o `None` si nunca se pregunto."""
         return self._carpeta_de_proxies
 
+    @_bloqueada_durante_exportacion
     def set_carpeta_de_proxies(self, carpeta: Path | None) -> None:
         """La elige Bruno y se guarda con el proyecto.
 
@@ -3450,6 +3466,7 @@ class MainWindow(QWidget):
         se creó con el flujo de "Con folio…"."""
         return self._carpeta_de_icloud
 
+    @_bloqueada_durante_exportacion
     def set_carpeta_de_icloud(self, carpeta: Path | None) -> None:
         self._carpeta_de_icloud = Path(carpeta) if carpeta is not None else None
         self.title_bar.set_carpeta_de_icloud_disponible(
@@ -3979,6 +3996,7 @@ class MainWindow(QWidget):
         # nace sin saber que su bin esta generando proxies.
         self._pintar_avance_de_proxies()
 
+    @_bloqueada_durante_exportacion
     def _on_camara_de_bin_cambiada(self, nombre: str, camara: str) -> None:
         """Bruno corrigio la camara de un bin.
 
@@ -3991,6 +4009,7 @@ class MainWindow(QWidget):
         self._refresh_sheet()
         self._autosave()
 
+    @_bloqueada_durante_exportacion
     def _on_bin_renombrado(self, viejo: str, nuevo: str) -> None:
         """Le pusiste otro nombre al bin desde su encabezado.
 
@@ -4018,6 +4037,7 @@ class MainWindow(QWidget):
         self._refresh_history()
         self._autosave()
 
+    @_bloqueada_durante_exportacion
     def _on_bin_nuevo_pedido(self) -> None:
         """Un bin vacio, listo para que le arrastres clips.
 
@@ -4057,6 +4077,7 @@ class MainWindow(QWidget):
         self._agrupar_por_cuarto = bool(por_cuarto)
         self.clip_sheet.set_agrupar_por_cuarto(self._agrupar_por_cuarto)
 
+    @_bloqueada_durante_exportacion
     def _on_agrupado_cambiado(self, por_cuarto: bool) -> None:
         """Cambiaste el interruptor de la hoja.
 
@@ -4068,6 +4089,7 @@ class MainWindow(QWidget):
         self._agrupar_por_cuarto = bool(por_cuarto)
         self._autosave()
 
+    @_bloqueada_durante_exportacion
     def _on_clips_movidos(self, indices: list[int], destino: str | None) -> None:
         """Soltaste clips en otro bin.
 
@@ -4141,6 +4163,7 @@ class MainWindow(QWidget):
                    else set(self.bins.clips_de(nombre)))
         self.clip_sheet.set_selected(indices)
 
+    @_bloqueada_durante_exportacion
     def _on_bin_quitado(self, nombre: str) -> None:
         """Saca los clips del proyecto. NO borra nada del disco.
 
@@ -4297,6 +4320,11 @@ class MainWindow(QWidget):
             # tiene. Peor que no decir nada.
             self.clip_sheet.set_proxy_de_clip(i, False)
         if se_limpio_algo:
+            # SIN @_bloqueada_durante_exportacion en esta funcion: la llama
+            # tambien _on_proxy_generado, que es un resultado asincrono de
+            # fondo (un proxy que termino de generarse) -- mismo motivo que
+            # _on_proxy_sondeado. Bloquearla ahi perderia esa validacion.
+            #
             # `ruta_proxy` viaja en `Clip.to_dict()`, o sea que se persiste:
             # sin guardar aqui, los proxies que quitaste vuelven al reabrir
             # la app. Y sin refrescar, la barra sigue contando unos que ya
@@ -4337,6 +4365,12 @@ class MainWindow(QWidget):
             self._schedule_thumbnails(alcance)
 
     def _on_proxy_sondeado(self, generation: int, index: int, info: dict | None) -> None:
+        # SIN @_bloqueada_durante_exportacion a proposito: esto llega de un
+        # hilo de fondo (un ffprobe que ya termino), no de una accion de
+        # Bruno. Bloquearlo tiraria el resultado del sondeo para siempre --
+        # nadie lo vuelve a pedir -- que es peor que el riesgo que el
+        # bloqueo evita en las demas acciones.
+        #
         # contra la generacion de ESTE clip, no contra el contador global:
         # el global sube en cada tanda y con bins las tandas son por bin,
         # asi que enganchar el dron descartaba los resultados de la Sony
@@ -4720,6 +4754,7 @@ class MainWindow(QWidget):
         # cambia el orden -- con eso empeoraba el trinquete que ya tienen.
         self._resize_video_stage()
 
+    @_bloqueada_durante_exportacion
     def _on_modo_horizontal_cambiado(self, activo: bool) -> None:
         self.set_modo_horizontal(activo)
         self._autosave()
@@ -4837,6 +4872,7 @@ class MainWindow(QWidget):
             indice, self._pincel[1], self.room_selection.active_rooms()
         )
 
+    @_bloqueada_durante_exportacion
     def terminar_pincelada(self) -> None:
         """Se solto la tecla: entra UNA entrada al historial y recien ahora se
         reagrupa.
@@ -5027,6 +5063,8 @@ class MainWindow(QWidget):
         if self.current_clip is None:
             return
         if key in ("i", "o", "u"):
+            if self._exportando:
+                return
             campos = {"i": ("in_frame",), "o": ("out_frame",)}.get(
                 key, ("in_frame", "out_frame")
             )
@@ -5072,6 +5110,8 @@ class MainWindow(QWidget):
             return
         action = self._router.resolve_action_key(key)
         if action is not None:
+            if self._exportando:
+                return
             # repetir la tecla sobre el estado que ya tiene lo apaga: sin esto
             # no habria forma de volver a neutral con el teclado. `⇧P` sobre un
             # destacado tambien apaga; `P` sobre un destacado lo BAJA a pick,
@@ -5109,6 +5149,7 @@ class MainWindow(QWidget):
             self._refresh_overlays()
             self._autosave()
 
+    @_bloqueada_durante_exportacion
     def _mover_en_la_escalera(self, paso: int) -> None:
         """`↑` sube un escalon y `↓` baja uno, sobre toda la seleccion.
 
@@ -5146,6 +5187,13 @@ class MainWindow(QWidget):
         El clip actual puede no estar en la cola --pasa cada vez que resuelves
         uno y sale de ella--, asi que no alcanza con buscar su posicion: se
         busca el siguiente (o el anterior) que si este.
+
+        SIN @_bloqueada_durante_exportacion a proposito: mover el clip
+        actual no cambia ningun dato del documento, solo cual mira Bruno --
+        decision explicita del 2026-09-25 de que navegar la hoja siga
+        andando mientras exporta. Llama self._autosave() igual que las
+        acciones que si cambian algo, pero guardar el mismo contenido de
+        nuevo no le hace daño a nadie.
         """
         if not self.clips:
             return
@@ -5237,6 +5285,9 @@ class MainWindow(QWidget):
         self.video_stage.badges.set_auto(True)
 
     def select_clip(self, index: int) -> None:
+        # SIN @_bloqueada_durante_exportacion, mismo criterio que
+        # handle_arrow: hacer click en una tarjeta es navegacion (cual clip
+        # ves), no una edicion del documento.
         if not (0 <= index < len(self.clips)):
             return
         self.current_index = index
@@ -5404,6 +5455,7 @@ class MainWindow(QWidget):
         clasificacion = logica_guia.clasificar_por_palabras(cuartos)
         self._mostrar_guia(clasificacion)
 
+    @_bloqueada_durante_exportacion
     def _mostrar_guia(self, clasificacion) -> None:
         if self._pantalla_guia is None:
             return
@@ -5609,6 +5661,7 @@ class MainWindow(QWidget):
         if ok:
             self.renombrar_proyecto(nuevo)
 
+    @_bloqueada_durante_exportacion
     def renombrar_proyecto(self, nuevo: str) -> None:
         """Corrige el nombre antes de generar las secuencias de Premiere.
         Un error aquí también llegaría al nombre del proyecto exportado.

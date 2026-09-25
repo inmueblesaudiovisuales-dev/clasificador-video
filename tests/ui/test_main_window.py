@@ -6084,3 +6084,110 @@ def test_error_al_exportar_no_deja_la_ventana_trabada(qtbot, monkeypatch, tmp_pa
     QApplication.processEvents()
 
     assert window._exportando is False
+
+
+# Los nombres de metodo que DEBEN quedar bloqueados durante una exportacion
+# -- cambian el documento -- y los que a proposito NO se bloquean, porque
+# son navegacion (no cambian ningun dato) o llegan de un hilo de fondo
+# (bloquearlos perderia el resultado para siempre). Ver los comentarios
+# junto a cada uno en main_window.py.
+_METODOS_QUE_DEBEN_BLOQUEARSE = [
+    "_asignar_cuarto",
+    "_on_unit_created_en_rail",
+    "_asignar_unidad",
+    "_mover_cuarto_a_unidad",
+    "_on_rooms_movidos_a_unidad",
+    "_aplicar_entrada",
+    "_sync_rooms",
+    "_on_room_moved_en_unidad",
+    "_on_room_reordered_en_unidad",
+    "_on_room_renamed_en_unidad",
+    "_on_room_removed_en_unidad",
+    "agregar_clips",
+    "reconectar_bin",
+    "set_carpeta_de_proxies",
+    "set_carpeta_de_icloud",
+    "_on_camara_de_bin_cambiada",
+    "_on_bin_renombrado",
+    "_on_bin_nuevo_pedido",
+    "_on_agrupado_cambiado",
+    "_on_clips_movidos",
+    "_on_bin_quitado",
+    "_on_modo_horizontal_cambiado",
+    "terminar_pincelada",
+    "_mover_en_la_escalera",
+    "_mostrar_guia",
+    "renombrar_proyecto",
+]
+
+_METODOS_QUE_NO_SE_BLOQUEAN_A_PROPOSITO = [
+    "handle_arrow",       # navegacion: no cambia ningun clip
+    "select_clip",        # navegacion: no cambia ningun clip
+    "_on_proxy_sondeado",  # resultado asincrono de un hilo de fondo
+    "_sondear_proxies",   # tambien la llama _on_proxy_generado (asincrono)
+    "load_clips",         # abre un proyecto distinto, fuera de alcance
+]
+
+
+def test_las_acciones_que_cambian_el_documento_tienen_el_decorador():
+    """Estructural, no de comportamiento: confirma que cada metodo de la
+    lista de arriba sigue envuelto por @_bloqueada_durante_exportacion --
+    protege contra que alguien quite el decorador sin querer al tocar uno
+    de estos metodos despues."""
+    for nombre in _METODOS_QUE_DEBEN_BLOQUEARSE:
+        metodo = getattr(MainWindow, nombre)
+        assert hasattr(metodo, "__wrapped__"), (
+            f"{nombre} deberia tener @_bloqueada_durante_exportacion "
+            "y no lo tiene"
+        )
+
+
+def test_las_acciones_de_navegacion_y_asincronas_no_tienen_el_decorador():
+    """El reverso del test de arriba: estos NO deben bloquearse, y si
+    alguien les pega el decorador sin darse cuenta de por que estan aqui,
+    este test avisa."""
+    for nombre in _METODOS_QUE_NO_SE_BLOQUEAN_A_PROPOSITO:
+        metodo = getattr(MainWindow, nombre)
+        assert not hasattr(metodo, "__wrapped__"), (
+            f"{nombre} NO deberia tener @_bloqueada_durante_exportacion "
+            "(ver el comentario junto a su definicion en main_window.py "
+            "sobre por que se deja sin bloquear)"
+        )
+
+
+def test_exportar_bloquea_renombrar_proyecto(qtbot, tmp_path):
+    """Spot-check de comportamiento sobre un metodo distinto a
+    _asignar_cuarto, con una firma distinta (un solo argumento simple) --
+    confirma que el decorador funciona igual sin importar la firma."""
+    window = _window_with_video(qtbot, cache_root=tmp_path / "cache")
+    window.load_clips([Clip(orden=1, ruta=tmp_path / "a.MP4", categoria_path=[], fps=30.0)])
+    nombre_original = window.project_name
+
+    window._exportando = True
+    window.renombrar_proyecto("Otro nombre")
+
+    assert window.project_name == nombre_original  # no se aplico
+
+    window._exportando = False
+    window.renombrar_proyecto("Otro nombre")
+
+    assert window.project_name == "Otro nombre"
+
+
+def test_exportar_no_bloquea_navegar_con_flechas_ni_seleccionar(qtbot, tmp_path):
+    """handle_arrow y select_clip son navegacion, no edicion -- deben
+    seguir funcionando mientras self._exportando es verdadero (decision
+    explicita de Bruno del 2026-09-25: la app no se siente trabada al
+    exportar)."""
+    window = _window_with_video(qtbot, cache_root=tmp_path / "cache")
+    window.load_clips([
+        Clip(orden=1, ruta=tmp_path / "a.MP4", categoria_path=[], fps=30.0),
+        Clip(orden=2, ruta=tmp_path / "b.MP4", categoria_path=[], fps=30.0),
+    ])
+    window._exportando = True
+
+    window.select_clip(1)
+    assert window.current_index == 1
+
+    window.handle_arrow("next")  # no debe levantar ninguna excepcion
+
