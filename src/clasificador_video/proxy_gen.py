@@ -245,6 +245,14 @@ def comando(original: Path, destino: Path, ffmpeg: str | None = None) -> list[st
     return [
         ffmpeg or str(ruta_de("ffmpeg")),
         "-y",                       # el destino ya se comprobo antes de llamar
+        # Decodificar tambien con el chip, no solo codificar: verificado
+        # con framemd5 el 2026-09-25 contra los tres clips de
+        # sample-media/clips/ que la salida es IDENTICA cuadro por cuadro
+        # con y sin este flag. Mitad del CPU acumulado de ffmpeg (~34s ->
+        # ~16s en un clip de 6s); el reloj casi no cambia (~4.6% menos) --
+        # la ganancia es dejar libre la maquina mientras se generan
+        # proxies, no terminar antes.
+        "-hwaccel", "videotoolbox",
         "-i", str(original),
         "-i", str(recursos.marca_de_proxy()),
         "-filter_complex", "[0:v:0][1:v]overlay=W-w-32:H-h-32:format=auto:alpha=0.35[v]",

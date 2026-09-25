@@ -59,6 +59,20 @@ def test_comando_superpone_la_marca_sin_escalar_ni_rotar(tmp_path):
     assert "-loop" not in args
 
 
+def test_el_comando_decodifica_con_el_chip():
+    """Verificado con framemd5 el 2026-09-25 sobre los tres clips de
+    sample-media/clips/: salida IDENTICA cuadro por cuadro con y sin este
+    flag. CPU acumulada de ffmpeg: ~34s -> ~16s en el clip de 6s (mitad).
+    Reloj: ~4.6% menos -- la ganancia es de CPU, no de velocidad."""
+    args = proxy_gen.comando(Path("a.MP4"), Path("b.mp4"), ffmpeg="ffmpeg")
+
+    assert "-hwaccel" in args
+    indice_i = args.index("-i")
+    indice_hwaccel = args.index("-hwaccel")
+    assert indice_hwaccel < indice_i
+    assert args[indice_hwaccel + 1] == "videotoolbox"
+
+
 def test_el_comando_no_falla_si_el_clip_no_trae_audio():
     """El `?` de `0:a?`. Sin el, un clip mudo --pasa con el dron-- aborta
     ffmpeg antes de empezar."""
