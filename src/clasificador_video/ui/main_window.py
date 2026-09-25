@@ -268,10 +268,8 @@ class _ExportarPrprojJob(QRunnable):
 # se aplana: con 40 clips reales de la FX30, en serie 1.06 s, con 4 en
 # paralelo 0.26 s y con 8 en paralelo 0.14 s. Son procesos aparte esperando
 # al disco, no CPU nuestra -- pero "no CPU nuestra" seguia siendo 8 procesos
-# de golpe, y en una Mac con menos nucleos eso compite mas. En modo economico
-# baja a 3: mas lento, menos carga.
+# de golpe, y en una Mac con menos nucleos eso compite mas.
 SONDEOS_EN_PARALELO = 8
-SONDEOS_EN_PARALELO_ECONOMICO = 3
 
 # --- registro TEMPORAL para cazar el bug de la fila de proxies -----------
 # Bruno lo reporto en vivo el 2026-09-20: con Sony-1 generando y Sony-2 en
@@ -302,31 +300,12 @@ def _preparar_log_de_fila_de_proxies() -> None:
     _log_fila_de_proxies.propagate = False
 
 
-# Miniaturas en paralelo: normal, y en modo economico (ver preferencias.py).
-# Uno a la vez en modo economico porque es el minimo que sigue siendo
-# paralelo con nada -- ya no hay con que competir por CPU/memoria.
+# Miniaturas en paralelo (ver el comentario junto a setMaxThreadCount).
 HILOS_DE_MINIATURAS_NORMAL = 3
-HILOS_DE_MINIATURAS_ECONOMICO = 1
 
 # Cuantas tarjetas conservan su tira completa en memoria a la vez (ver
-# `ClipSheet.set_limite_de_tiras_vivas`). El default de la hoja ya es
-# prudente; en modo economico baja mas para una Mac con menos RAM.
+# `ClipSheet.set_limite_de_tiras_vivas`).
 LIMITE_DE_TIRAS_VIVAS_NORMAL = clip_sheet_module.LIMITE_DE_TIRAS_VIVAS
-LIMITE_DE_TIRAS_VIVAS_ECONOMICO = 8
-
-
-def _miniaturas_chicas() -> bool:
-    """Miniaturas chicas y con menos fotos por tira: modo economico O modo
-    rapido activan esto -- cualquiera de los dos alcanza. Ver el spec
-    2026-09-20-modo-rapido-de-miniaturas-design.md."""
-    return preferencias.modo_economico() or preferencias.modo_rapido()
-
-
-def _hilos_limitados() -> bool:
-    """El freno de "procesar de una en una": solo si modo economico esta
-    prendido Y modo rapido no -- rapido siempre gana, porque frenar
-    contradice justo lo que rapido pide."""
-    return preferencias.modo_economico() and not preferencias.modo_rapido()
 
 
 class SeñalesDeTrabajos(QObject):
@@ -415,13 +394,9 @@ class _ThumbnailJob(QRunnable):
     fuera del hilo de la UI."""
 
     STRIP_COUNT = 12
-    # La mitad en modo economico: sigue alcanzando para el escrubeo --se
-    # nota menos fino, no roto-- y son seis seek+captura de menos por clip.
-    STRIP_COUNT_ECONOMICO = 6
 
     def __init__(self, generation: int, index: int, video: Path, outdir: Path,
-                 duration_seconds: float | None, signals: SeñalesDeTrabajos,
-                 economico: bool = False):
+                 duration_seconds: float | None, signals: SeñalesDeTrabajos):
         super().__init__()
         self._generation = generation
         self.index = index
@@ -429,7 +404,6 @@ class _ThumbnailJob(QRunnable):
         self.outdir = outdir
         self.duration_seconds = duration_seconds
         self.signals = signals
-        self.economico = economico
 
     def run(self) -> None:
         try:
@@ -438,16 +412,13 @@ class _ThumbnailJob(QRunnable):
                 # proceso de mpv con varios seek+captura por IPC -- medido
                 # en vivo el 2026-08-06 con clips reales de la FX30:
                 # ~1.8s para 12 frames (ver thumbnails.extract_thumbnail_strip)
-                count = self.STRIP_COUNT_ECONOMICO if self.economico else self.STRIP_COUNT
                 frames = extract_thumbnail_strip(
-                    self.video, self.duration_seconds, count, self.outdir,
-                    economico=self.economico,
+                    self.video, self.duration_seconds, self.STRIP_COUNT, self.outdir,
                 )
             else:
                 # sin duracion conocida (ej. sesion restaurada sin volver
                 # a correr ffprobe): un solo frame, como antes.
-                frames = [extract_thumbnail(self.video, 0.5, self.outdir,
-                                            economico=self.economico)]
+                frames = [extract_thumbnail(self.video, 0.5, self.outdir)]
         except Exception:
             frames = None
         # Con la ventana viva esto no falla nunca: el portador vive mientras
@@ -739,17 +710,13 @@ class MainWindow(QWidget):
         # Lo que llevan TODAS las tandas de esta fila, para el cartel unico
         # del final. Se vacia cuando la fila arranca desde cero.
         self._resumen_de_la_fila: dict = {"creados": 0, "fallidos": []}
-        # las miniaturas se extraen en software (--hwdec=no, ver
-        # thumbnails.py) -- no tocan VideoToolbox, asi que un par en
-        # paralelo no compite con el reproductor embebido. El 3 es para una
-        # Mac con recursos de sobra; en modo economico baja a 1 -- pedido
-        # de Bruno para una MacBook Air M1 de 8GB, donde 3 en paralelo
-        # decodificando HEVC empuja a la maquina a usar swap.
-        self._thread_pool.setMaxThreadCount(
-            HILOS_DE_MINIATURAS_ECONOMICO
-            if _hilos_limitados()
-            else HILOS_DE_MINIATURAS_NORMAL
-        )
+        # 3 hilos de miniaturas en paralelo: confirmado el 2026-09-25 que
+        # es el techo real de VideoToolbox en esta maquina -- subirlo a 4+
+        # satura el decodificador de hardware y el tiempo TOTAL empeora en
+        # vez de mejorar (medido: 4.40s -> 6.31s -> 25.97s subiendo de 3 a
+        # 4 a 5 hilos con 12 clips reales). No es un compromiso de
+        # velocidad que dependa de la Mac -- es el limite del chip.
+        self._thread_pool.setMaxThreadCount(HILOS_DE_MINIATURAS_NORMAL)
         self._thumb_generation = 0
         # Se levanta en `closeEvent` y ya no baja: a partir de ahi la ventana
         # no pide trabajo nuevo en segundo plano.
@@ -955,10 +922,7 @@ class MainWindow(QWidget):
         self.tool_column.undo_requested.connect(self.undo)
 
         self.clip_sheet = ClipSheet()
-        self.clip_sheet.set_limite_de_tiras_vivas(
-            LIMITE_DE_TIRAS_VIVAS_ECONOMICO if _hilos_limitados()
-            else LIMITE_DE_TIRAS_VIVAS_NORMAL
-        )
+        self.clip_sheet.set_limite_de_tiras_vivas(LIMITE_DE_TIRAS_VIVAS_NORMAL)
         self.clip_sheet.clip_clicked.connect(self.select_clip)
         self.clip_sheet.clip_activated.connect(self._on_clip_activado)
         self.clip_sheet.brocha_paso_por.connect(self.pintar)
@@ -3188,8 +3152,7 @@ class MainWindow(QWidget):
         # El resultado se recoge EN ORDEN (`map` lo garantiza) porque el
         # orden de los clips es el orden en que se ven y el que viaja al
         # manifest.
-        paralelo = (SONDEOS_EN_PARALELO_ECONOMICO if _hilos_limitados()
-                   else SONDEOS_EN_PARALELO)
+        paralelo = SONDEOS_EN_PARALELO
         with ThreadPoolExecutor(paralelo) as sondeadores:
             infos = list(sondeadores.map(self._sondear_sin_reventar, archivos))
         for video, info in zip(archivos, infos):
@@ -4497,7 +4460,6 @@ class MainWindow(QWidget):
             self._miniaturas_totales = len(self.clips)
         generation = self._thumb_generation
         cache_root = self._thumbnail_cache_root
-        economico = _miniaturas_chicas()
         for index in alcance:
             if index in self._faltantes:
                 # el archivo no está: extraerle una portada es lanzar mpv
@@ -4539,7 +4501,7 @@ class MainWindow(QWidget):
             # quedaba pegada al original aunque hubiera proxy. Como
             # `cache_dir_for` mete la ruta en el hash, el original y el
             # proxy caen solos en carpetas distintas sin tocar la clave.
-            cache_dir = cache_dir_for(fuente, cache_root, economico)
+            cache_dir = cache_dir_for(fuente, cache_root)
             cached_frames = sorted(cache_dir.glob("strip_*.jpg")) if cache_dir.exists() else []
             # Cache hit solo si la extraccion TERMINO. Contar fotos no
             # alcanza: no distingue una tira corta de una tira CORTADA, y con
@@ -4551,11 +4513,7 @@ class MainWindow(QWidget):
             #
             # `>= CUADROS_DE_LA_TIRA` es por los caches de antes de que la
             # marca existiera: una tira ya completa no hay por que rehacerla.
-            # El numero depende del modo -- economico saca la mitad -- pero
-            # como `cache_dir` ya distingue economico de normal, cada cache
-            # solo se compara contra el conteo que le corresponde.
-            cuadros_de_la_tira = (_ThumbnailJob.STRIP_COUNT_ECONOMICO if economico
-                                  else _ThumbnailJob.STRIP_COUNT)
+            cuadros_de_la_tira = _ThumbnailJob.STRIP_COUNT
             completa = (cache_dir / MARCA_DE_COMPLETA).exists() if cache_dir.exists() else False
             if cached_frames and (completa or len(cached_frames) >= cuadros_de_la_tira):
                 # cache hit: mismo clip ya procesado en una sesion anterior.
@@ -4625,7 +4583,7 @@ class MainWindow(QWidget):
                 self._miniaturas_pendientes += 1
             self._thread_pool.start(
                 _ThumbnailJob(generation, index, fuente, cache_dir, duration_seconds,
-                              self._señales_de_trabajos, economico)
+                              self._señales_de_trabajos)
             )
         self._refrescar_progreso()
 
@@ -5309,12 +5267,6 @@ class MainWindow(QWidget):
         """
         if self._pantalla_config is None:
             self._pantalla_config = PantallaConfig(self)
-            self._pantalla_config.modo_economico_cambiado.connect(
-                self._cambiar_modo_economico
-            )
-            self._pantalla_config.modo_rapido_cambiado.connect(
-                self._cambiar_modo_rapido
-            )
             self._pantalla_config.miniaturas_borrar_pedido.connect(
                 self._al_pedir_borrar_miniaturas
             )
@@ -5323,7 +5275,6 @@ class MainWindow(QWidget):
             )
             self._pantalla_config.cerrada.connect(self._pantalla_config.hide)
         self._pantalla_config.cargar(
-            preferencias.modo_economico(), preferencias.modo_rapido(),
             preferencias.importacion_rapida_pregunta_antes(),
         )
         self._pantalla_config.mostrar_peso_de_miniaturas(
@@ -5357,39 +5308,6 @@ class MainWindow(QWidget):
         self._miniaturas_a_rehacer = set()
         self._miniaturas_entregadas = set()
         self._schedule_thumbnails()
-
-    def _cambiar_modo_economico(self, activo: bool) -> None:
-        """Se aplica de inmediato: no hace falta reabrir la app.
-
-        Los trabajos ya en vuelo en el pool no se tocan -- `setMaxThreadCount`
-        solo limita cuantos arrancan de aqui en adelante-- asi que no hay
-        riesgo de cortar una miniatura a medias.
-        """
-        preferencias.guardar_modo_economico(activo)
-        self._aplicar_freno_de_paralelismo(economico=activo, rapido=preferencias.modo_rapido())
-
-    def _cambiar_modo_rapido(self, activo: bool) -> None:
-        """Mismo criterio que `_cambiar_modo_economico`: se aplica de
-        inmediato. Rapido no toca el tamaño/cantidad de miniatura aqui --
-        eso lo lee `_schedule_thumbnails` en cada tanda nueva -- solo el
-        freno de paralelismo, que es lo unico de lo que rapido manda."""
-        preferencias.guardar_modo_rapido(activo)
-        self._aplicar_freno_de_paralelismo(economico=preferencias.modo_economico(), rapido=activo)
-
-    def _aplicar_freno_de_paralelismo(self, economico: bool, rapido: bool) -> None:
-        """Ajusta el pool y el limite de tiras vivas segun la combinacion
-        de los dos checkboxes -- lo unico que el freno controla (ver
-        `_hilos_limitados`). Recibe los dos valores en vez de releerlos los
-        dos de `preferencias`: el que acaba de cambiar puede no haberse
-        persistido todavia (o para nada, en pruebas), asi que se usa el
-        valor que de verdad se acaba de aplicar."""
-        limitado = economico and not rapido
-        self._thread_pool.setMaxThreadCount(
-            HILOS_DE_MINIATURAS_ECONOMICO if limitado else HILOS_DE_MINIATURAS_NORMAL
-        )
-        self.clip_sheet.set_limite_de_tiras_vivas(
-            LIMITE_DE_TIRAS_VIVAS_ECONOMICO if limitado else LIMITE_DE_TIRAS_VIVAS_NORMAL
-        )
 
     # ------------------------------------------------------------------
     # la guia de edicion, por unidad (spec 2026-09-21)
