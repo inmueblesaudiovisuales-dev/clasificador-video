@@ -1,6 +1,7 @@
 # src/clasificador_video/ui/main_window.py
 from __future__ import annotations
 
+import functools
 import json
 import logging
 import shutil
@@ -238,6 +239,31 @@ class _AutosaveWriteJob(QRunnable):
         self._señales.guardado_listo.emit()
 
 
+class _ExportarPrprojJob(QRunnable):
+    """Genera el .prproj fuera del hilo de la UI -- antes _on_generar_prproj
+    llamaba a generar_prproj directo, y con 200 clips y proxies eso congela
+    la interfaz por completo ~16s (medido el 2026-09-25: cero respuesta a
+    teclas o clics durante ese rato). El manifest se arma en el hilo
+    principal ANTES de lanzar este trabajo -- es la "foto" congelada del
+    proyecto en ese instante, y es lo unico que este trabajo recibe."""
+
+    def __init__(self, manifest: Manifest, destino: Path, luts_dir: Path,
+                 señales: "SeñalesDeTrabajos"):
+        super().__init__()
+        self.manifest = manifest
+        self.destino = destino
+        self.luts_dir = luts_dir
+        self._señales = señales
+
+    def run(self) -> None:
+        try:
+            prproj_generador.generar_prproj(self.manifest, self.destino, self.luts_dir)
+        except Exception as exc:
+            self._señales.exportacion_fallo.emit(str(exc))
+            return
+        self._señales.exportacion_lista.emit(str(self.destino))
+
+
 # Cuantos `ffprobe` a la vez al importar. Ocho porque es donde la medicion
 # se aplana: con 40 clips reales de la FX30, en serie 1.06 s, con 4 en
 # paralelo 0.26 s y con 8 en paralelo 0.14 s. Son procesos aparte esperando
@@ -348,6 +374,8 @@ class SeñalesDeTrabajos(QObject):
     media_revisada = Signal(int, object, object)  # generacion, faltantes, proxies
     # generacion, indice, ruta del proxy generado (o None), motivo del fallo
     proxy_generado = Signal(int, int, object, str)
+    exportacion_lista = Signal(str)
+    exportacion_fallo = Signal(str)
 
 
 class _RevisionDeMediaJob(QRunnable):
@@ -570,6 +598,20 @@ class _GeneracionDeProxyJob(QRunnable):
         self.signals.proxy_generado.emit(self._generacion, self.index, destino, "")
 
 
+def _bloqueada_durante_exportacion(metodo):
+    """Decorador para las acciones que cambian el documento (las que
+    terminan en self._autosave()): mientras self._exportando es verdadero,
+    no hacen nada. Evita que el .prproj mezcle datos de antes y despues de
+    un cambio a medias -- decision de Bruno del 2026-09-25 despues de ver
+    el trade-off contra dejar editar libremente."""
+    @functools.wraps(metodo)
+    def envoltura(self, *args, **kwargs):
+        if self._exportando:
+            return None
+        return metodo(self, *args, **kwargs)
+    return envoltura
+
+
 class MainWindow(QWidget):
     """Ventana del clasificador, con la estructura del mockup.
 
@@ -644,6 +686,8 @@ class MainWindow(QWidget):
         self._señales_de_trabajos.pesos_medidos.connect(self._on_pesos_medidos)
         self._señales_de_trabajos.media_revisada.connect(self._on_media_revisada)
         self._señales_de_trabajos.proxy_generado.connect(self._on_proxy_generado)
+        self._señales_de_trabajos.exportacion_lista.connect(self._on_exportacion_lista)
+        self._señales_de_trabajos.exportacion_fallo.connect(self._on_exportacion_fallo)
         # hijo de la ventana A PROPOSITO: su destructor espera a los trabajos
         # en vuelo, y esa espera es lo que impide que una señal llegue
         # cuando la ventana ya no puede atenderla.
@@ -665,6 +709,17 @@ class MainWindow(QWidget):
         # mientras corre.
         self._generacion_pool = QThreadPool(self)
         self._generacion_pool.setMaxThreadCount(1)
+        # Uno solo: no tiene sentido exportar dos veces a la vez, y un solo
+        # hilo alcanza para no competir con proxies/miniaturas por CPU
+        # mientras arma el XML.
+        self._exportacion_pool = QThreadPool(self)
+        self._exportacion_pool.setMaxThreadCount(1)
+        # Bandera que bloquea las acciones que cambian el documento
+        # mientras hay una exportacion en vuelo (ver _asignar_cuarto y las
+        # demas acciones que llaman self._autosave() -- se revisan al
+        # entrar). Navegar la hoja, ver el visor y moverse con las flechas
+        # NO estan bloqueados: no cambian el documento.
+        self._exportando = False
         # Estado de la tanda que corre, o None. Lleva su propia generación
         # por la misma razón que los proxies: quitar el bin a media tanda
         # deja trabajos en vuelo cuyos resultados ya no aplican a nada.
@@ -1514,6 +1569,7 @@ class MainWindow(QWidget):
         self._sync_rooms()
         self._asignar_cuarto([nombre])
 
+    @_bloqueada_durante_exportacion
     def _asignar_cuarto(self, room_path: list[str]) -> None:
         """Un solo camino para asignar cuarto, lo pida un digito o la `S`.
 
@@ -5651,20 +5707,34 @@ class MainWindow(QWidget):
         self.proyecto_renombrado.emit(nuevo)
 
     def _on_generar_prproj(self) -> None:
-        """Ctrl+E genera el proyecto de Premiere directamente.
+        """Ctrl+E genera el proyecto de Premiere en segundo plano.
 
         Si ya hay un proyecto con ese nombre, no lo pisa: escribe la
         siguiente versión («... v2», «... v3») para no perder trabajo.
+
+        El manifest se arma AQUI, en el hilo principal, con los datos del
+        momento exacto en que se aprieta Ctrl+E -- es la foto que recibe
+        el trabajo de fondo. Mientras corre, self._exportando bloquea las
+        acciones que cambiarian el documento (ver _ExportarPrprojJob).
         """
+        if self._exportando:
+            return  # ya hay una exportacion en vuelo, Ctrl+E de mas no hace nada
         destino = prproj_generador.ruta_libre_con_version(
             Path(self._ruta_sugerida_del_prproj()))
-        try:
-            prproj_generador.generar_prproj(
-                self._armar_manifest(), destino, destino.parent / "LUTs")
-        except Exception as exc:
-            self._mostrar_error_generando_prproj(str(exc))
-            return
-        self._avisar_prproj_generado(destino)
+        manifest = self._armar_manifest()
+        self._exportando = True
+        self._exportacion_pool.start(
+            _ExportarPrprojJob(manifest, destino, destino.parent / "LUTs",
+                               self._señales_de_trabajos)
+        )
+
+    def _on_exportacion_lista(self, destino: str) -> None:
+        self._exportando = False
+        self._avisar_prproj_generado(Path(destino))
+
+    def _on_exportacion_fallo(self, detalle: str) -> None:
+        self._exportando = False
+        self._mostrar_error_generando_prproj(detalle)
 
     def _ruta_sugerida_del_prproj(self) -> str:
         nombre = self._nombre_sugerido_del_prproj()

@@ -1,9 +1,10 @@
-"""Ctrl+E genera el proyecto de Premiere directamente."""
+"""Ctrl+E genera el proyecto de Premiere en segundo plano."""
 from pathlib import Path
 from unittest.mock import patch
 
 import pytest
 from PySide6.QtCore import Qt
+from PySide6.QtWidgets import QApplication
 
 from clasificador_video.manifest import Clip
 from clasificador_video.rooms import RoomSelection
@@ -43,7 +44,12 @@ def test_ctrl_e_llama_a_generar_prproj(
                         lambda _destino: None)
     with patch("clasificador_video.ui.main_window.prproj_generador.generar_prproj") as generar:
         ventana_con_clips._on_generar_prproj()
-    generar.assert_called_once()
+        # la generacion corre en segundo plano (ver _ExportarPrprojJob) --
+        # hay que esperar a que el pool termine ANTES de salir del `with`,
+        # o el trabajo en vuelo llama a la funcion real ya destapada.
+        ventana_con_clips._exportacion_pool.waitForDone(3000)
+        QApplication.processEvents()
+        generar.assert_called_once()
 
 
 def test_exportar_solo_ofrece_el_prproj(ventana_con_clips):
@@ -64,7 +70,9 @@ def test_si_el_prproj_ya_existe_genera_la_siguiente_version(
                         lambda ruta: avisos.append(ruta))
     with patch("clasificador_video.ui.main_window.prproj_generador.generar_prproj") as generar:
         ventana_con_clips._on_generar_prproj()
-    generar.assert_called_once()
-    assert generar.call_args.args[1] == tmp_path / "IAV-2609.10-A v2.prproj"
+        ventana_con_clips._exportacion_pool.waitForDone(3000)
+        QApplication.processEvents()
+        generar.assert_called_once()
+        assert generar.call_args.args[1] == tmp_path / "IAV-2609.10-A v2.prproj"
     assert avisos == [tmp_path / "IAV-2609.10-A v2.prproj"]
     assert destino.read_bytes() == b"trabajo de ayer"

@@ -6153,3 +6153,75 @@ def test_marcar_in_con_el_video_parado_si_repinta(qtbot, monkeypatch):
     window._tick_playhead()
 
     assert pintadas != []
+
+
+# --- exportar a Premiere sin bloquear la interfaz (2026-09-25) ----------
+
+
+def test_generar_prproj_corre_en_segundo_plano(qtbot, monkeypatch, tmp_path):
+    """El trabajo de generar_prproj no debe correr sincronicamente en el
+    metodo que atiende Ctrl+E / el boton de exportar -- eso es lo que
+    trababa la interfaz 16s con 200 clips y proxies (medido el
+    2026-09-25)."""
+    window = _window_with_video(qtbot, cache_root=tmp_path / "cache")
+    window.load_clips([Clip(orden=1, ruta=tmp_path / "a.MP4", categoria_path=[], fps=30.0)])
+
+    llamado_desde_hilo_principal = []
+
+    def fake_generar_prproj(manifest, destino, luts_dir):
+        llamado_desde_hilo_principal.append(
+            threading.current_thread() is threading.main_thread()
+        )
+
+    monkeypatch.setattr(
+        "clasificador_video.ui.main_window.prproj_generador.generar_prproj",
+        fake_generar_prproj,
+    )
+    monkeypatch.setattr(window, "_ruta_sugerida_del_prproj", lambda: str(tmp_path / "P.prproj"))
+
+    window._on_generar_prproj()
+    window._exportacion_pool.waitForDone(3000)
+    QApplication.processEvents()
+
+    assert llamado_desde_hilo_principal == [False]
+
+
+def test_exportar_bloquea_asignar_cuarto_hasta_terminar(qtbot, monkeypatch, tmp_path):
+    """Mientras self._exportando es verdadero, las acciones que cambian el
+    documento no se aplican -- decision de Bruno del 2026-09-25 para que
+    el .prproj nunca mezcle datos de antes/despues de un cambio a medias."""
+    window = _window_with_video(qtbot, cache_root=tmp_path / "cache")
+    window.load_clips([
+        Clip(orden=1, ruta=tmp_path / "a.MP4", categoria_path=[], fps=30.0, flag="none"),
+    ])
+
+    window._exportando = True
+    window._asignar_cuarto(["Recamara 1"])
+
+    assert window.clips[0].categoria_path == []  # no se aplico
+
+    window._exportando = False
+    window._asignar_cuarto(["Recamara 1"])
+
+    assert window.clips[0].categoria_path == ["Recamara 1"]  # ahora si
+
+
+def test_error_al_exportar_no_deja_la_ventana_trabada(qtbot, monkeypatch, tmp_path):
+    window = _window_with_video(qtbot, cache_root=tmp_path / "cache")
+    window.load_clips([Clip(orden=1, ruta=tmp_path / "a.MP4", categoria_path=[], fps=30.0)])
+
+    def fake_generar_prproj(manifest, destino, luts_dir):
+        raise RuntimeError("disco lleno")
+
+    monkeypatch.setattr(
+        "clasificador_video.ui.main_window.prproj_generador.generar_prproj",
+        fake_generar_prproj,
+    )
+    monkeypatch.setattr(window, "_ruta_sugerida_del_prproj", lambda: str(tmp_path / "P.prproj"))
+    monkeypatch.setattr(window, "_mostrar_error_generando_prproj", lambda *a: None)
+
+    window._on_generar_prproj()
+    window._exportacion_pool.waitForDone(3000)
+    QApplication.processEvents()
+
+    assert window._exportando is False
