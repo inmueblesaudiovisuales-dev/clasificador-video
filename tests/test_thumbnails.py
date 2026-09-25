@@ -394,3 +394,57 @@ def test_borrar_cache_deja_la_carpeta_vacia(tmp_path):
 
 def test_borrar_cache_sin_carpeta_no_truena(tmp_path):
     borrar_cache(tmp_path / "no-existe")  # no debe lanzar
+
+
+def test_extract_thumbnail_strip_pide_seek_por_keyframe(tmp_path):
+    """mpv trae --hr-seek=absolute por default: un seek "absolute" decodifica
+    toda la cadena de cuadros desde el keyframe hasta el segundo pedido.
+    "absolute+keyframes" salta directo al keyframe mas cercano -- para una
+    miniatura la diferencia de exactitud es invisible, y medido el 2026-09-25
+    contra clips reales de la FX30 esto solo ya baja una tira de 12 cuadros
+    de 4.07s a 2.39s."""
+    seeks = []
+
+    def on_command(command):
+        if command[0] == "seek":
+            seeks.append(command)
+        elif command[0] == "screenshot-to-file":
+            Path(command[1]).write_bytes(b"fake-jpeg")
+
+    extract_thumbnail_strip(
+        video=tmp_path / "C0012.MP4",
+        duration_seconds=6.0,
+        count=2,
+        outdir=tmp_path / "strip",
+        popen=lambda cmd: _FakeProc(),
+        connect=lambda socket_path: _FakeConnection(on_command),
+    )
+
+    assert seeks[0] == ["seek", 0.0, "absolute+keyframes"]
+
+
+def test_build_strip_ipc_args_salta_frames_no_clave_y_no_lleva_audio():
+    """Como la tira ya acepta la imprecision del keyframe mas cercano, no
+    hace falta reconstruir nada ENTRE keyframes -- decirle al decodificador
+    que se los salte de plano baja la tira de 2.39s a 1.45s (medido el
+    2026-09-25, mismo clip de 6s). Y --no-audio: la tira no traia el flag
+    que la portada suelta si tiene, otros 1.45s -> 0.83s medidos en la
+    misma sesion (con --vf=scale=480:-2, el modo economico) sumando lo de
+    arriba."""
+    cmd = build_strip_ipc_args(video=Path("/shooting/C0012.MP4"), socket_path=Path("/tmp/x/mpv.sock"))
+    assert "--vd-lavc-skipframe=nonkey" in cmd
+    assert "--no-audio" in cmd
+
+
+def test_build_thumbnail_command_no_pide_seek_exacto():
+    """Mismo problema que la tira (mpv trae --hr-seek=absolute por
+    default): --start=X en un solo frame tambien decodifica de mas si no
+    se le avisa. Camino de respaldo -- solo corre cuando no se conoce la
+    duracion del clip -- pero mismo criterio."""
+    cmd = build_thumbnail_command(
+        video=Path("/shooting/C0012.MP4"),
+        at_seconds=3.0,
+        outdir=Path("/tmp/thumbs/xyz"),
+    )
+    assert "--hr-seek=no" in cmd
+    assert "--vd-lavc-skipframe=nonkey" in cmd

@@ -203,6 +203,10 @@ def build_thumbnail_command(video: Path, at_seconds: float, outdir: Path,
         "--vo=image",
         f"--vo-image-outdir={outdir}",
         f"--start={at_seconds}",
+        # Mismo criterio que la tira (ver build_strip_ipc_args): sin
+        # avisarle, mpv reconstruye exacto desde el keyframe anterior.
+        "--hr-seek=no",
+        "--vd-lavc-skipframe=nonkey",
         "--frames=1",
         str(video),
     ]
@@ -300,8 +304,17 @@ def build_strip_ipc_args(video: Path, socket_path: Path,
         # trabarse ni un cuadro. Si algun dia no estuviera disponible, mpv se
         # cae a software solo, que es exactamente el comportamiento de antes.
         "--hwdec=videotoolbox-copy",
+        # Sin decodificar los cuadros que no son keyframe: con el seek de
+        # arriba ya no hace falta reconstruirlos, y decodificarlos de todas
+        # formas era trabajo tirado. Medido el 2026-09-25: 2.39s -> 1.45s
+        # para la misma tira de 12 cuadros.
+        "--vd-lavc-skipframe=nonkey",
         *_filtro_de_escala(economico),
         "--vo=null",
+        # La tira no traia esto a diferencia de la portada suelta (mas
+        # abajo) -- doce mpv abriendo el archivo sin necesitar audio.
+        # Medido el 2026-09-25: 1.45s -> 0.83s.
+        "--no-audio",
         f"--input-ipc-server={socket_path}",
         str(video),
     ]
@@ -415,7 +428,15 @@ def extract_thumbnail_strip(
             step = duration_seconds / count if count > 0 else 0.0
             for i in range(count):
                 at_seconds = min(i * step, max(duration_seconds - 0.05, 0.0))
-                conn.command(["seek", at_seconds, "absolute"])
+                # "absolute+keyframes" salta al keyframe mas cercano en vez
+                # de decodificar toda la cadena de cuadros hasta el segundo
+                # exacto -- mpv trae --hr-seek=absolute por default, que
+                # pedia el camino caro sin querer. Para una miniatura la
+                # diferencia de exactitud es invisible (hasta ~1s en
+                # material con GOP de 1s, como la FX30). Medido el
+                # 2026-09-25: una tira de 12 cuadros en un clip de 6s baja
+                # de 4.07s a 2.39s solo con este cambio.
+                conn.command(["seek", at_seconds, "absolute+keyframes"])
                 conn.wait_for_event("playback-restart")
                 frame_path = outdir / f"strip_{i:02d}.jpg"
                 conn.command(["screenshot-to-file", str(frame_path), "video"])
