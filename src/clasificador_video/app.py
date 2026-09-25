@@ -483,6 +483,7 @@ class Coordinador(QObject):
         self.inicio.abrir_pedido.connect(self._abrir)
         self.inicio.nuevo_pedido.connect(self._nuevo)
         self.inicio.abrir_otro_pedido.connect(self._abrir_otro)
+        self.inicio.import_rapido_pedido.connect(self._importar_rapido)
         self.inicio.quitar_pedido.connect(self._quitar)
         self.inicio.configuracion_pedida.connect(self._abrir_configuracion)
         self._pantalla_config: PantallaConfig | None = None
@@ -723,13 +724,106 @@ class Coordinador(QObject):
         if elegido:
             self._abrir(Path(elegido))
 
+    def _importar_rapido(self) -> None:
+        """El cuarto camino desde la pantalla de inicio: le das la carpeta
+        de material de un proyecto (la que trae `01. ASSETS VIDEO` adentro,
+        nombrada igual que su folio -- ej. `IAV-2609.10-A`) y adivina el
+        folio por ese nombre. Si ya existe un `.cvproj` para ese folio en
+        iCloud lo abre; si no, arma la carpeta del proyecto igual que
+        "Proyecto nuevo -> Con folio" y lo crea. En los dos casos, en cuanto
+        la ventana esta arriba corre la misma importación que
+        `RoomRail.import_rapido_requested` ya usa adentro de un proyecto
+        abierto (`MainWindow.importar_carpeta_de_proyecto`).
+        """
+        self.inicio.callar()
+        folder = QFileDialog.getExistingDirectory(
+            self.inicio, "Elegir carpeta del proyecto")
+        if not folder:
+            return
+        carpeta_local = Path(folder)
+        folio = carpeta_local.name
+        if proyecto_colaborativo.partir_folio(folio) is None:
+            self.inicio.avisar(
+                f"«{folio}» no se pudo leer como folio (ej. IAV-2609.10-A). "
+                "Importación rápida solo funciona si la carpeta se llama "
+                "igual que el folio del proyecto."
+            )
+            return
+        raiz = preferencias.carpeta_raiz_icloud()
+        if raiz is None:
+            self.inicio.avisar(
+                "Configura primero la carpeta de iCloud, en Configuración."
+            )
+            return
+        carpeta_proyecto = proyecto_colaborativo.ruta_del_proyecto(raiz, folio)
+        ruta_cvproj = (carpeta_proyecto / proyecto_colaborativo.CARPETA_CLIPIFY
+                       / f"{folio}{proyecto.EXTENSION}")
+
+        def despues(ventana: MainWindow) -> None:
+            ventana.importar_carpeta_de_proyecto(carpeta_local)
+
+        if ruta_cvproj.is_file():
+            ventana = abrir_proyecto(ruta_cvproj, video_factory=self._video_factory,
+                                     recientes_path=self._recientes_path)
+            if ventana is None:
+                self.inicio.avisar(
+                    f"No se pudo abrir «{folio}». Puede que el archivo no sea "
+                    "un proyecto del clasificador, o que esté dañado."
+                )
+                self._refrescar()
+                return
+            self._tomar(ventana, despues=despues)
+            return
+
+        confirmar = QMessageBox(self.inicio)
+        confirmar.setWindowTitle("Importación rápida")
+        confirmar.setText(f"No existe un proyecto para «{folio}». ¿Crearlo aquí?")
+        confirmar.setInformativeText(str(carpeta_proyecto))
+        crear = confirmar.addButton("Crear aquí", QMessageBox.ButtonRole.AcceptRole)
+        confirmar.addButton("Cancelar", QMessageBox.ButtonRole.RejectRole)
+        confirmar.setDefaultButton(crear)
+        confirmar.exec()
+        if confirmar.clickedButton() is not crear:
+            return
+        carpeta_templates = raiz / proyecto_colaborativo.CARPETA_TEMPLATES
+        try:
+            resultado = proyecto_colaborativo.crear_carpeta_de_proyecto(
+                carpeta_proyecto, carpeta_templates, folio)
+        except FileExistsError:
+            self.inicio.avisar(
+                f"Ya existe una carpeta para «{folio}» en iCloud. Revísala "
+                "tú y decide qué hacer -- Clipify no la tocó."
+            )
+            return
+        except FileNotFoundError as exc:
+            self.inicio.avisar(f"No se encontró «{exc}». No se creó nada.")
+            return
+        except OSError:
+            self.inicio.avisar(
+                f"No se pudo crear «{folio}» en {carpeta_proyecto}. No se "
+                "creó nada."
+            )
+            return
+        ventana = crear_proyecto(
+            resultado.ruta_cvproj, folio, video_factory=self._video_factory,
+            recientes_path=self._recientes_path,
+            carpeta_de_icloud=resultado.carpeta_proyecto,
+        )
+        if ventana is None:
+            self.inicio.avisar(
+                f"No se pudo crear «{folio}» en {resultado.carpeta_proyecto}."
+            )
+            return
+        self._tomar(ventana, despues=despues)
+
     def _quitar(self, ruta: Path) -> None:
         Recientes(self._recientes_path).quitar(Path(ruta))
         self._refrescar()
 
     # --- el ciclo de vida de las ventanas ---------------------------------
 
-    def _tomar(self, ventana: MainWindow) -> None:
+    def _tomar(self, ventana: MainWindow,
+              despues: Callable[[MainWindow], None] | None = None) -> None:
         self.ventanas.append(ventana)
         ventana.cerrada.connect(lambda: self._al_cerrarse(ventana))
         ventana.proyecto_renombrado.connect(
@@ -751,6 +845,14 @@ class Coordinador(QObject):
         # cada vez que abres un proyecto a 530 ms por cuadro atras en vez de
         # 22. Era herencia del `main()` viejo, que armaba la ventana sin
         # pasar por aqui.
+        #
+        # `despues` corre con la ventana YA arriba y maximizada -- lo usa
+        # "Importación rápida" desde la pantalla de inicio para encadenar la
+        # importación justo despues de abrir o crear el proyecto, en vez de
+        # duplicar aqui lo que `MainWindow.importar_carpeta_de_proyecto` ya
+        # resuelve.
+        if despues is not None:
+            despues(ventana)
 
     def _al_renombrar(self, ventana: MainWindow, nuevo: str) -> None:
         # `registrar` es un upsert por ruta: no duplica el reciente, lo

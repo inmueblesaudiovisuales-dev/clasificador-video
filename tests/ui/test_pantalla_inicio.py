@@ -188,17 +188,27 @@ def test_el_tooltip_trae_la_ruta_entera_sin_cortar(qtbot):
 
 def test_una_ruta_larga_no_empuja_el_ancho(qtbot):
     """Una carpeta con nombre largo no puede decidir el ancho de la ventana:
-    se corta con puntos suspensivos, como en el rail de cuartos."""
+    se corta con puntos suspensivos, como en el rail de cuartos.
+
+    El limite se compara contra la pantalla SIN esa ruta larga -- no contra
+    un numero fijo -- para que agregar un boton nuevo a la fila de abajo
+    (que si le suma ancho minimo, legitimamente) no rompa este test: lo que
+    aqui importa es que la ruta larga en si no sume nada por su cuenta.
+    """
     larga = Path("/Volumes/" + "/".join(["CARPETA_CON_NOMBRE_LARGUISIMO"] * 6) + "/P.cvproj")
     pantalla = PantallaInicio()
     qtbot.addWidget(pantalla)
+    pantalla.set_recientes([])
+    pantalla.grab()
+    ancho_sin_ruta_larga = pantalla.minimumSizeHint().width()
+
     pantalla.set_recientes([Reciente(larga, "Proyecto", "2026-08-09 10:00")])
-    pantalla.resize(420, 320)
+    pantalla.resize(ancho_sin_ruta_larga, 320)
     pantalla.grab()   # obliga a Qt a acomodar el layout antes de medir
 
     detalle = pantalla.filas[0].detalle
     assert detalle.text() != detalle.full_text()
-    assert pantalla.minimumSizeHint().width() < 420
+    assert pantalla.minimumSizeHint().width() < ancho_sin_ruta_larga + 40
 
 
 # --- el aviso, en la pantalla y no en un modal ------------------------------

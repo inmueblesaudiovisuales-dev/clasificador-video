@@ -159,6 +159,7 @@ class PantallaInicio(QWidget):
     abrir_pedido = Signal(Path)
     nuevo_pedido = Signal()
     abrir_otro_pedido = Signal()
+    import_rapido_pedido = Signal()
     quitar_pedido = Signal(Path)
     configuracion_pedida = Signal()
 
@@ -234,10 +235,19 @@ class PantallaInicio(QWidget):
         self.boton_nuevo = QPushButton("Proyecto nuevo")
         self.boton_nuevo.setObjectName("inicioPrimario")
         self.boton_abrir_otro = QPushButton("Abrir otro…")
+        # Mismo camino que la «Importación rápida» que ya vive adentro de un
+        # proyecto (clic derecho sobre importar, en `RoomRail`): aquí evita
+        # el paso de abrir o crear el proyecto a mano antes de poder usarla
+        # -- Bruno da la carpeta de material y ella sola adivina el folio
+        # por su nombre, abre o crea el proyecto en iCloud, y arranca la
+        # importación.
+        self.boton_import_rapido = QPushButton("Importación rápida…")
         self.boton_nuevo.clicked.connect(self.nuevo_pedido.emit)
         self.boton_abrir_otro.clicked.connect(self.abrir_otro_pedido.emit)
+        self.boton_import_rapido.clicked.connect(self.import_rapido_pedido.emit)
         botones.addWidget(self.boton_nuevo)
         botones.addWidget(self.boton_abrir_otro)
+        botones.addWidget(self.boton_import_rapido)
         botones.addStretch(1)
         # La version, apagada y a la derecha del todo. Aqui y no en la barra
         # de titulo: esta pantalla esta vacia de sobra y no le compite el
