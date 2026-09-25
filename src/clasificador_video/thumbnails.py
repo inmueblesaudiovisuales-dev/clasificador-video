@@ -308,10 +308,29 @@ class MpvIpcConnection:
         self._sock = sock
         self._reader = sock.makefile("rb")
 
-    def command(self, command: list) -> dict:
+    def command(self, command: list, timeout: float = ESPERA_DE_EVENTO) -> dict:
+        """Manda el comando y espera su respuesta, con techo.
+
+        Antes este `readline()` no tenia limite -- a diferencia de
+        `wait_for_event`, que si lo tiene por la misma razon (tres
+        extracciones peleando el mismo chip de video). Si mpv se atoraba
+        respondiendo (medido en vivo el 2026-09-25: pasaba con
+        "screenshot-to-file", no solo con el seek), el trabajo se quedaba
+        esperando para siempre, con el mpv vivo y sin usar CPU -- un lugar
+        de los tres hilos ocupado sin avanzar y sin que nada lo soltara.
+        Mismo mecanismo de `select` que `wait_for_event`, por la misma
+        razon: un `settimeout` deja inservible el objeto de archivo del
+        socket para lecturas futuras.
+        """
         payload = json.dumps({"command": command}) + "\n"
         self._sock.sendall(payload.encode())
+        deadline = time.monotonic() + timeout
         while True:
+            restante = deadline - time.monotonic()
+            if restante <= 0:
+                raise TimeoutError(f"mpv no contesto a {command!r} en {timeout}s")
+            if not select.select([self._sock], [], [], restante)[0]:
+                raise TimeoutError(f"mpv no contesto a {command!r} en {timeout}s")
             line = self._reader.readline()
             if not line:
                 raise RuntimeError("el socket IPC de mpv se cerro antes de responder")

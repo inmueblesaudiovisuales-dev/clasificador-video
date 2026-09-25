@@ -1,4 +1,6 @@
 # tests/test_thumbnails.py
+import json
+import socket
 from pathlib import Path
 
 import pytest
@@ -6,6 +8,7 @@ import pytest
 from clasificador_video import thumbnails
 from clasificador_video.thumbnails import (
     MARCA_DE_COMPLETA,
+    MpvIpcConnection,
     borrar_cache,
     cache_dir_for,
     ruta_del_socket,
@@ -15,6 +18,34 @@ from clasificador_video.thumbnails import (
     extract_thumbnail_strip,
     tamano_del_cache,
 )
+
+
+def test_command_no_se_cuelga_si_mpv_no_contesta():
+    """Reportado en vivo el 2026-09-25: `command()` (a diferencia de
+    `wait_for_event`) no tenia limite de tiempo -- si mpv se atoraba
+    respondiendo el "screenshot-to-file", el trabajo se quedaba esperando
+    para siempre, con el mpv vivo y un lugar de los tres hilos ocupado sin
+    avanzar. `socketpair` real, no un doble: es justo el `select` sobre el
+    socket lo que hay que probar."""
+    mio, del_otro_lado = socket.socketpair()
+    conn = MpvIpcConnection(mio)
+    try:
+        with pytest.raises(TimeoutError):
+            conn.command(["seek", 1.0], timeout=0.1)
+    finally:
+        conn.close()
+        del_otro_lado.close()
+
+
+def test_command_contesta_normal_dentro_del_tiempo():
+    mio, del_otro_lado = socket.socketpair()
+    conn = MpvIpcConnection(mio)
+    try:
+        del_otro_lado.sendall((json.dumps({"error": "success"}) + "\n").encode())
+        assert conn.command(["seek", 1.0], timeout=1.0) == {"error": "success"}
+    finally:
+        conn.close()
+        del_otro_lado.close()
 
 
 def test_build_thumbnail_command_incluye_start_y_frames_1():

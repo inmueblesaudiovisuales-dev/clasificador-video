@@ -393,7 +393,14 @@ class _ThumbnailJob(QRunnable):
     """Extrae la miniatura (o la tira de frames para el scrub) de un clip
     fuera del hilo de la UI."""
 
-    STRIP_COUNT = 12
+    # 4, no 12: medido en vivo el 2026-09-25 sobre clips reales de Bruno
+    # (Sony FX30, sin proxy) -- el costo fuerte de la tira no es escribir el
+    # JPG sino el seek + la espera de confirmacion por cada foto, y eso se
+    # paga una vez por foto. Bajar de 12 a 4 bajo el tiempo por clip de
+    # 10.3s a 1.4s -- siete veces, no la mitad que se esperaba. El precio es
+    # un escrubeo mas brincado (4 pasos en vez de 12); decision de Bruno
+    # tras sentir el numero.
+    STRIP_COUNT = 4
 
     def __init__(self, generation: int, index: int, video: Path, outdir: Path,
                  duration_seconds: float | None, signals: SeñalesDeTrabajos):
@@ -795,6 +802,12 @@ class MainWindow(QWidget):
         # da frames. Sin tope, ese reintentaria para siempre y la barra de
         # progreso nunca terminaria de bajar.
         self._miniaturas_reintentadas: set[int] = set()
+        # Cuales de `_miniaturas_a_rehacer` son por una falla (este reintento)
+        # y no por un proxy nuevo enganchado a media extraccion (el otro
+        # camino que llena `_miniaturas_a_rehacer`). Un clip que ya se atoró
+        # una vez se manda con prioridad baja: que no vuelva a colarse antes
+        # que los que todavía no les ha tocado turno.
+        self._miniaturas_reintento_bajo: set[int] = set()
         # Los que YA entregaron una tira de verdad al menos una vez. Rehacer
         # una desde el proxy despues de que el original ya la entrego es un
         # ahorro de fondo, no trabajo nuevo que Bruno este esperando -- por
@@ -4454,8 +4467,16 @@ class MainWindow(QWidget):
             self._miniaturas_totales,
         )
 
-    def _schedule_thumbnails(self, indices: list[int] | None = None) -> None:
+    def _schedule_thumbnails(self, indices: list[int] | None = None, *,
+                             prioridad_baja: bool = False) -> None:
         """Pide las portadas que falten.
+
+        `prioridad_baja=True` es para un reintento (`_on_thumbnail_ready`):
+        un clip que ya se atoró una vez no debe volver a colarse antes que
+        los que todavia no le han tocado turno. `QThreadPool` reparte por
+        prioridad -- 0 para todo lo normal, -1 para esto -- asi que mientras
+        quede algo normal pendiente, el reintento espera su turno al final;
+        si ya no queda nada mas, corre de una vez, que es lo correcto.
 
         `indices` acota a los clips nuevos, que es lo que hace agregar
         material. Y acotar significa tambien NO subir la generacion: subirla
@@ -4617,7 +4638,8 @@ class MainWindow(QWidget):
                 self._miniaturas_pendientes += 1
             self._thread_pool.start(
                 _ThumbnailJob(generation, index, fuente, cache_dir, duration_seconds,
-                              self._señales_de_trabajos)
+                              self._señales_de_trabajos),
+                -1 if prioridad_baja else 0,
             )
         self._refrescar_progreso()
 
@@ -4643,11 +4665,14 @@ class MainWindow(QWidget):
             # sesion: nadie volvia a pedirla.
             self._miniaturas_reintentadas.add(index)
             self._miniaturas_a_rehacer.add(index)
+            self._miniaturas_reintento_bajo.add(index)
         if index in self._miniaturas_a_rehacer:
             self._miniaturas_a_rehacer.discard(index)
+            baja = index in self._miniaturas_reintento_bajo
+            self._miniaturas_reintento_bajo.discard(index)
             # ahora si: con la fuente nueva, o con la tanda nueva, y sin
             # nadie mas usando ese socket
-            self._schedule_thumbnails([index])
+            self._schedule_thumbnails([index], prioridad_baja=baja)
         if vencida:
             return  # senal de una importacion ya descartada
         if not ya_entregado:

@@ -4183,7 +4183,7 @@ def test_los_trabajos_que_lanza_la_ventana_usan_su_portador(qtbot, tmp_path):
     lanzados = []
 
     class PoolFalso:
-        def start(self, job):
+        def start(self, job, prioridad=0):
             lanzados.append(job)
 
         def waitForDone(self, ms):  # noqa: N802 -- lo llama el closeEvent
@@ -4748,7 +4748,7 @@ def test_si_aceptas_crear_proxies_las_portadas_esperan(qtbot, monkeypatch, tmp_p
     )
     pedidas = []
     monkeypatch.setattr(window, "_schedule_thumbnails",
-                        lambda indices=None: pedidas.append(indices))
+                        lambda indices=None, **_kw: pedidas.append(indices))
     monkeypatch.setattr(proxy_gen, "generar", lambda *a, **k: Path("/p/x.mp4"))
     _eligiendo(window, monkeypatch, "crear")
     clips, _ = _material_con_proxies(tmp_path, con_proxy=())
@@ -4768,7 +4768,7 @@ def test_si_dices_que_no_las_portadas_salen_como_siempre(qtbot, monkeypatch, tmp
     )
     pedidas = []
     monkeypatch.setattr(window, "_schedule_thumbnails",
-                        lambda indices=None: pedidas.append(indices))
+                        lambda indices=None, **_kw: pedidas.append(indices))
     clips, _ = _material_con_proxies(tmp_path, con_proxy=())
 
     window.importar_rutas([clips])
@@ -4787,7 +4787,7 @@ def test_al_terminar_los_proxies_se_piden_las_portadas_que_falten(qtbot, monkeyp
     pedidas = []
     window.generar_proxies_de_bin(nombre)
     monkeypatch.setattr(window, "_schedule_thumbnails",
-                        lambda indices=None: pedidas.append(indices))
+                        lambda indices=None, **_kw: pedidas.append(indices))
     window.cancelar_generacion_de_proxies()
     _esperar_generacion(window)
 
@@ -4830,7 +4830,7 @@ def test_si_cancelas_el_enlace_las_portadas_salen_del_original(qtbot, monkeypatc
     )
     pedidas = []
     monkeypatch.setattr(window, "_schedule_thumbnails",
-                        lambda indices=None: pedidas.append(indices))
+                        lambda indices=None, **_kw: pedidas.append(indices))
     monkeypatch.setattr(
         "clasificador_video.ui.main_window.QFileDialog.getOpenFileName",
         lambda *a, **k: ("", ""),        # le diste a Cancelar
@@ -5075,12 +5075,40 @@ def test_una_extraccion_fallida_se_reintenta_sola(qtbot, monkeypatch, tmp_path):
     reintentados = []
     monkeypatch.setattr(
         window, "_schedule_thumbnails",
-        lambda indices=None: reintentados.append(indices),
+        lambda indices=None, **_kw: reintentados.append(indices),
     )
 
     window._on_thumbnail_ready(window._thumb_generation, 0, None)
 
     assert reintentados == [[0]]
+
+
+def test_el_reintento_por_falla_va_con_prioridad_baja(qtbot, monkeypatch, tmp_path):
+    """Un clip que ya se atoró una vez (ver `test_command_no_se_cuelga_si_
+    mpv_no_contesta`, thumbnails.py) no debe volver a colarse antes que los
+    que todavia no les ha tocado turno -- se manda al final de la cola de
+    `QThreadPool`, con prioridad mas baja que lo normal."""
+    window = _window_with_video(qtbot, cache_root=tmp_path / "cache")
+    window.load_clips([Clip(orden=1, ruta=tmp_path / "a.MP4", categoria_path=[], fps=30.0)])
+    window._miniaturas_en_vuelo[0] = tmp_path / "a.MP4"
+
+    prioridades = []
+
+    class PoolFalso:
+        def start(self, job, prioridad=0):
+            prioridades.append(prioridad)
+
+        def waitForDone(self, ms):  # noqa: N802 -- lo llama el closeEvent
+            return True
+
+        def clear(self):  # el closeEvent tambien: tira lo que no arranco
+            pass
+
+    window._thread_pool = PoolFalso()
+
+    window._on_thumbnail_ready(window._thumb_generation, 0, None)
+
+    assert prioridades == [-1]
 
 
 def test_una_extraccion_que_sigue_fallando_no_reintenta_para_siempre(qtbot, monkeypatch, tmp_path):
