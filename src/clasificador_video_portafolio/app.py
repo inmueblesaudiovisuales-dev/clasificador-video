@@ -10,10 +10,10 @@ import sys
 
 from pathlib import Path
 
-from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QApplication, QFileDialog, QHBoxLayout, QLabel, QPushButton, QStackedWidget, QVBoxLayout, QWidget
 
 from clasificador_video_portafolio.portafolio import Portafolio
+from clasificador_video_portafolio.ui.pantalla_armar_y_entregar import PantallaArmarYEntregar
 from clasificador_video_portafolio.ui.pantalla_importar import PantallaImportar
 from clasificador_video_portafolio.ui.pantalla_revisar import PantallaRevisar
 
@@ -55,8 +55,8 @@ class VentanaPortafolio(QWidget):
         self.modulos = QStackedWidget()
         self.pantalla_importar = PantallaImportar(self.portafolio, elegir_ruta=self._elegir_ruta_portafolio)
         self.pantalla_revisar = PantallaRevisar(self.portafolio)
-        self.pantalla_armar = QLabel("Armar y entregar estará disponible en una siguiente fase.")
-        self.pantalla_armar.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.pantalla_armar = PantallaArmarYEntregar(
+            self.portafolio, elegir_carpeta=self._elegir_carpeta_portafolio)
         self.modulos.addWidget(self.pantalla_importar)
         self.modulos.addWidget(self.pantalla_revisar)
         self.modulos.addWidget(self.pantalla_armar)
@@ -73,6 +73,9 @@ class VentanaPortafolio(QWidget):
         if modulo == "revisar":
             self.pantalla_revisar.ruta_portafolio = self.pantalla_importar.ruta_portafolio
             self.pantalla_revisar.actualizar_rail()
+        elif modulo == "armar":
+            self.pantalla_armar.ruta_portafolio = self.pantalla_importar.ruta_portafolio
+            self.pantalla_armar.refrescar()
 
     def _elegir_ruta_portafolio(self) -> Path | None:
         ruta, _ = QFileDialog.getSaveFileName(
@@ -87,6 +90,11 @@ class VentanaPortafolio(QWidget):
         if ruta_portafolio.suffix != ".cvportafolio":
             ruta_portafolio = ruta_portafolio.with_suffix(".cvportafolio")
         return ruta_portafolio
+
+    def _elegir_carpeta_portafolio(self) -> Path | None:
+        ruta = QFileDialog.getExistingDirectory(
+            self, "Elegir carpeta de portafolio")
+        return Path(ruta) if ruta else None
 
 
 def main() -> None:
