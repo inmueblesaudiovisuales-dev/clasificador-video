@@ -19,23 +19,10 @@ def sin_log_de_fila_de_proxies(monkeypatch):
 @pytest.fixture(autouse=True)
 def preferencias_de_prueba(monkeypatch):
     """Ningun test depende de lo que haya guardado en la maquina real donde
-    corre la suite --`preferencias.modo_economico()` sin argumentos lee
-    `~/.clasificador_video/preferencias.json`-- y el default de la suite es
-    modo NORMAL: la mayoria de los tests de miniaturas datan de antes del
-    modo economico y esperan su tamaño de tira y paralelismo de siempre.
-    Los tests que SI quieren probar el modo economico lo prenden ellos
-    mismos, parchando `preferencias.modo_economico` encima de este.
-
-    `modo_rapido` es la misma trampa por el mismo motivo, y se le olvido
-    aislar cuando se agrego (spec 2026-09-20-modo-rapido-de-miniaturas):
-    con `modo_rapido` prendido de verdad en la maquina de quien corre la
-    suite, 5 tests de miniaturas que nunca lo mencionan fallaban --leian
-    su valor real del disco, no el default que asumen. Mismo criterio:
-    los tests que SI quieren probar modo rapido lo prenden ellos mismos.
+    corre la suite --`preferencias.importacion_rapida_pregunta_antes()` sin
+    argumentos lee `~/.clasificador_video/preferencias.json`.
     """
     from clasificador_video import preferencias
-    monkeypatch.setattr(preferencias, "modo_economico", lambda *a, **k: False)
-    monkeypatch.setattr(preferencias, "modo_rapido", lambda *a, **k: False)
     # Misma trampa: sin aislar esto, un test que de verdad dispara la señal
     # conectada de PantallaConfig dejaba `True` en el archivo real de la
     # maquina, y el siguiente test que llamara a `importar_carpeta_de_proyecto`
