@@ -511,12 +511,6 @@ class Coordinador(QObject):
         """
         if self._pantalla_config is None:
             self._pantalla_config = PantallaConfig(self.inicio)
-            self._pantalla_config.modo_economico_cambiado.connect(
-                preferencias.guardar_modo_economico
-            )
-            self._pantalla_config.modo_rapido_cambiado.connect(
-                preferencias.guardar_modo_rapido
-            )
             self._pantalla_config.carpeta_icloud_guardada.connect(
                 preferencias.guardar_carpeta_raiz_icloud
             )
@@ -528,7 +522,6 @@ class Coordinador(QObject):
             )
             self._pantalla_config.cerrada.connect(self._al_cerrar_configuracion)
         self._pantalla_config.cargar(
-            preferencias.modo_economico(), preferencias.modo_rapido(),
             preferencias.importacion_rapida_pregunta_antes(),
         )
         self._pantalla_config.mostrar_peso_de_miniaturas(

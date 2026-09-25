@@ -1284,27 +1284,6 @@ def test_configuracion_crece_la_ventana_de_inicio_si_hace_falta_y_la_devuelve(
     assert coord.inicio.height() == alto_original
 
 
-def test_configuracion_guarda_modo_economico_y_rapido_como_preferencia(
-        qtbot, tmp_path, monkeypatch):
-    from clasificador_video import preferencias
-
-    coord = _coordinador(tmp_path)
-    qtbot.addWidget(coord.inicio)
-    monkeypatch.setattr(preferencias, "modo_economico", lambda: False)
-    monkeypatch.setattr(preferencias, "modo_rapido", lambda: False)
-    guardado_economico = []
-    guardado_rapido = []
-    monkeypatch.setattr(preferencias, "guardar_modo_economico", guardado_economico.append)
-    monkeypatch.setattr(preferencias, "guardar_modo_rapido", guardado_rapido.append)
-
-    coord.inicio.configuracion_pedida.emit()
-    coord._pantalla_config.modo_economico_cambiado.emit(True)
-    coord._pantalla_config.modo_rapido_cambiado.emit(True)
-
-    assert guardado_economico == [True]
-    assert guardado_rapido == [True]
-
-
 def test_configuracion_guarda_la_carpeta_de_icloud(qtbot, tmp_path, monkeypatch):
     from clasificador_video import preferencias
 
