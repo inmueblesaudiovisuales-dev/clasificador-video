@@ -1,4 +1,4 @@
-# Modo Portafolio, fases 2-4: Importar, Revisar, Armar y entregar - Implementation Plan
+# Modo Portafolio, fases 2-4.5: Importar, Revisar, Armar y entregar - Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 >
@@ -9,11 +9,18 @@
 > numeración desde el Task 4.
 >
 > **Está pensado para construirse fase por fase, no de un jalón.** Cada
-> fase (② Importar, ③ Revisar, ④ Armar y entregar) es un bloque
-> independiente de Tasks que termina en un commit funcional y con su
-> propia suite en verde. Al arrancar una sesión de construcción, se le
-> puede pedir explícitamente "solo la fase 2" o "solo la fase 3" y las
+> fase (② Importar, ③ Revisar, ④ Armar y entregar, ④.5 el alias real) es
+> un bloque independiente de Tasks que termina en un commit funcional y
+> con su propia suite en verde. Al arrancar una sesión de construcción,
+> se le puede pedir explícitamente "solo la fase 2" (o 3, 4, 4.5) y las
 > demás quedan intactas como Tasks sin marcar.
+>
+> **La Fase 4.5 es la única que necesita macOS de verdad.** Las fases 2,
+> 3 y 4 son construibles y probables en un ambiente remoto (Linux) sin
+> ningún problema — la Fase 4 deja calculadas las rutas de dónde
+> debería vivir cada alias, pero no crea el archivo del alias en sí
+> (eso es una API propia de macOS). La 4.5 es ese último paso, y solo
+> tiene sentido correrla en una Mac.
 
 **Goal:** Completar los tres módulos que le faltan a Clipify Portafolio
 para ser usable de principio a fin: soltar `.prproj` y que se sumen al
@@ -905,39 +912,27 @@ EOF
 
 ---
 
-### Task 12: la carpeta de portafolio — alias por proyecto de origen
+### Task 12: la carpeta de portafolio — las RUTAS, sin crear el alias todavía
+
+**Puede construirse en un ambiente remoto** (Linux, sin macOS): esta
+Task es puro cálculo de `Path`, no toca ninguna API del sistema. La
+creación del alias de Finder DE VERDAD es aparte, en la Fase 4.5, que
+sí necesita macOS.
 
 **Files:**
 - Create: `src/clasificador_video_portafolio/carpeta_de_portafolio.py`
 - Test: `tests_portafolio/test_carpeta_de_portafolio.py`
 
-- [ ] **Step 1: Investigar antes de escribir código**
-
-Un alias de Finder **no es un symlink** (`os.symlink`): es un formato
-propio de macOS que guarda una referencia al volumen + inodo del
-archivo, y sigue funcionando si el archivo se renombra o se mueve
-dentro del mismo volumen. Python no lo crea nativo. Investigar, en este
-orden:
-
-1. `pyobjc` (`Foundation`/`AppKit`): `NSURL.bookmarkDataWithOptions_...`
-   más `NSURL.writeBookmarkData_toURL_options_error_` con
-   `NSURLBookmarkCreationSuitableForBookmarkFile` — es el camino
-   "correcto" pero depende de que `pyobjc-framework-Cocoa` esté
-   disponible como dependencia nueva.
-2. Si `pyobjc` no está ya en el proyecto y se prefiere no agregarlo,
-   alternativa vía `osascript` (`Finder` scripting, `make alias file to
-   ... at ...`), invocado con `subprocess` — más frágil, pero sin
-   dependencia nueva.
-
-Decidir cuál se usa ANTES de escribir las pruebas, y dejarlo anotado en
-el docstring del módulo con el porqué.
-
-- [ ] **Step 2: Escribir las pruebas que fallan**
+- [ ] **Step 1: Escribir las pruebas que fallan**
 
 ```python
-"""La carpeta de portafolio: un alias por clip Elegido, en una
-subcarpeta por proyecto de origen -- spec
-2026-09-24-modo-portafolio-design.md."""
+"""La carpeta de portafolio: dónde le tocaría vivir a cada clip Elegido,
+en una subcarpeta por proyecto de origen -- spec
+2026-09-24-modo-portafolio-design.md.
+
+Esta pieza SOLO calcula rutas. Crear el alias real (Finder, macOS) es
+la Fase 4.5 -- ver crear_alias_de_finder.py.
+"""
 from pathlib import Path
 
 from clasificador_video_portafolio import carpeta_de_portafolio as cp
@@ -953,38 +948,79 @@ def test_ruta_del_alias_usa_subcarpeta_del_proyecto(tmp_path):
     assert ruta == carpeta_raiz / "Casa Reforma" / "clip_014.mov"
 
 
-def test_crear_alias_hace_la_subcarpeta_si_falta(tmp_path):
-    original = tmp_path / "clip_014.mov"
-    original.write_text("contenido")
+def test_ruta_de_proxy_vive_junto_al_alias(tmp_path):
+    carpeta_raiz = tmp_path / "Mi Portafolio"
+    original = tmp_path / "material" / "clip_014.mov"
+
+    ruta = cp.ruta_de_proxy(carpeta_raiz, proyecto="Casa Reforma", clip=original)
+
+    assert ruta.parent == carpeta_raiz / "Casa Reforma"
+
+
+def test_asegurar_subcarpeta_de_proyecto_la_crea_si_falta(tmp_path):
     carpeta_raiz = tmp_path / "Mi Portafolio"
 
-    destino = cp.crear_alias(carpeta_raiz, proyecto="Casa Reforma", clip=original)
+    destino = cp.asegurar_subcarpeta_de_proyecto(carpeta_raiz, proyecto="Casa Reforma")
 
-    assert destino.parent.is_dir()
-    # verificar que destino ES un alias que resuelve a `original` --
-    # el aserto exacto depende de qué camino se eligió en el Step 1
-    # (pyobjc vs osascript); acá va la comprobación que corresponda.
+    assert destino.is_dir()
+    assert destino == carpeta_raiz / "Casa Reforma"
 ```
 
-- [ ] **Step 3: Correr las pruebas y comprobar que fallan**
+- [ ] **Step 2: Correr las pruebas y comprobar que fallan**
 
-- [ ] **Step 4: Escribir el módulo** (siguiendo lo decidido en el Step 1)
+Run: `QT_QPA_PLATFORM=offscreen .venv/bin/pytest tests_portafolio/test_carpeta_de_portafolio.py -q`
+Expected: FAIL con `ModuleNotFoundError`
 
-- [ ] **Step 5: Correr las pruebas y comprobar que pasan**
+- [ ] **Step 3: Escribir el módulo**
 
-Estas pruebas **solo pueden correr en macOS de verdad** (crear un alias
-real no es simulable bajo `offscreen` de forma significativa) — marcarlas
-con `@pytest.mark.skipif(sys.platform != "darwin", ...)`, siguiendo
-cualquier patrón similar que ya exista en la suite del Clipify normal
-para funciones atadas a macOS (revisar `scripts/hacer_icono.py` y sus
-pruebas, si las tiene, antes de inventar el patrón de cero).
+```python
+"""La carpeta de portafolio: dónde vive cada clip Elegido (como alias
+de Finder) y su proxy, organizados en una subcarpeta por proyecto de
+origen.
 
-- [ ] **Step 6: Commit**
+Solo calcula y prepara RUTAS -- no toca ninguna API de macOS. Crear el
+alias de Finder de verdad es carpeta_de_portafolio_finder.py (Fase 4.5,
+requiere macOS). Spec:
+docs/superpowers/specs/2026-09-24-modo-portafolio-design.md.
+"""
+from __future__ import annotations
+
+from pathlib import Path
+
+
+def asegurar_subcarpeta_de_proyecto(carpeta_raiz: Path, proyecto: str) -> Path:
+    """La subcarpeta de `proyecto` dentro de la carpeta de portafolio,
+    creándola si falta. Nombre EXACTO del proyecto, mismo criterio que
+    ya usa el Clipify normal con material y proxies."""
+    destino = carpeta_raiz / proyecto
+    destino.mkdir(parents=True, exist_ok=True)
+    return destino
+
+
+def ruta_del_alias(carpeta_raiz: Path, proyecto: str, clip: Path) -> Path:
+    return carpeta_raiz / proyecto / clip.name
+
+
+def ruta_de_proxy(carpeta_raiz: Path, proyecto: str, clip: Path) -> Path:
+    """Mismo nombre que el alias -- vive junto a él en la misma
+    subcarpeta, para que sea obvio a qué clip pertenece."""
+    return carpeta_raiz / proyecto / clip.name
+```
+
+- [ ] **Step 4: Correr las pruebas y comprobar que pasan**
+
+Run: `QT_QPA_PLATFORM=offscreen .venv/bin/pytest tests_portafolio/test_carpeta_de_portafolio.py -q`
+Expected: PASS (3 tests)
+
+- [ ] **Step 5: Commit**
 
 ```bash
 git add src/clasificador_video_portafolio/carpeta_de_portafolio.py tests_portafolio/test_carpeta_de_portafolio.py
 git commit -m "$(cat <<'EOF'
-carpeta_de_portafolio.py: alias de Finder por proyecto de origen
+carpeta_de_portafolio.py: las rutas de alias y proxy, sin crear nada de macOS
+
+Cálculo puro de Path -- construible y probable en cualquier
+sistema. La creación real del alias de Finder es la Fase 4.5.
 
 Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
 EOF
@@ -1134,7 +1170,17 @@ EOF
 
 ---
 
-### Task 15: pantalla Armar y entregar
+### Task 15: pantalla Armar y entregar (sin crear alias todavía)
+
+**Puede construirse en un ambiente remoto.** Esta pantalla queda
+completa y usable con TODO menos la creación real del alias de Finder:
+etiquetas, filtro, grid, generar el `.prproj`. Ese último paso todavía
+puede apuntar a las rutas que calcula `carpeta_de_portafolio.py` (Task
+12) aunque el archivo del alias no exista físicamente hasta la Fase
+4.5 — para las pruebas (con archivos de prueba en `tmp_path`) no hace
+falta que sea un alias real, y en un uso real sin Fase 4.5 construida
+todavía el `.prproj` generado apuntaría a una ruta que aún no tiene
+nada ahí, lo cual es un estado intermedio esperado, no un bug.
 
 **Files:**
 - Create: `src/clasificador_video_portafolio/ui/pantalla_armar_y_entregar.py`
@@ -1163,10 +1209,11 @@ Run: `QT_QPA_PLATFORM=offscreen .venv/bin/pytest tests_portafolio/ -q`
 ```bash
 git add src/clasificador_video_portafolio/ tests_portafolio/
 git commit -m "$(cat <<'EOF'
-Módulo Armar y entregar: etiquetas, carpeta con alias, generar .prproj
+Módulo Armar y entregar: etiquetas, rutas de portafolio, generar .prproj
 
-Cierra la fase 4. Con esto Clipify Portafolio queda usable de
-principio a fin: Importar, Revisar, Armar y entregar.
+Cierra la fase 4. Falta la Fase 4.5 (crear el alias de Finder de
+verdad, requiere macOS) para que la entrega generada apunte a
+archivos que de verdad existen.
 
 Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
 EOF
@@ -1175,7 +1222,149 @@ EOF
 
 ---
 
-## Después de las cuatro fases
+# FASE 4.5 — el alias de Finder de verdad (requiere macOS)
+
+**No se puede construir en un ambiente remoto.** Un alias de Finder es
+una API del sistema operativo de macOS — no hay forma de crearlo ni de
+probarlo de verdad en Linux. Todo lo demás del modo Portafolio (fases 1
+a 4) ya funciona sin esto; esta fase es la pieza final que hace que los
+clips Elegidos aparezcan de verdad en la carpeta de portafolio, en vez
+de solo tener calculada la ruta donde deberían estar.
+
+### Task 16: `crear_alias_de_finder` — el alias real
+
+**Files:**
+- Create: `src/clasificador_video_portafolio/crear_alias_de_finder.py`
+- Test: `tests_portafolio/test_crear_alias_de_finder.py`
+
+- [ ] **Step 1: Investigar antes de escribir código**
+
+Un alias de Finder **no es un symlink** (`os.symlink`): es un formato
+propio de macOS que guarda una referencia al volumen + inodo del
+archivo, y sigue funcionando si el archivo se renombra o se mueve
+dentro del mismo volumen. Python no lo crea nativo. Investigar, en este
+orden:
+
+1. `pyobjc` (`Foundation`/`AppKit`): `NSURL.bookmarkDataWithOptions_...`
+   más `NSURL.writeBookmarkData_toURL_options_error_` con
+   `NSURLBookmarkCreationSuitableForBookmarkFile` — es el camino
+   "correcto" pero depende de que `pyobjc-framework-Cocoa` esté
+   disponible como dependencia nueva.
+2. Si `pyobjc` no está ya en el proyecto y se prefiere no agregarlo,
+   alternativa vía `osascript` (`Finder` scripting, `make alias file to
+   ... at ...`), invocado con `subprocess` — más frágil, pero sin
+   dependencia nueva.
+
+Decidir cuál se usa ANTES de escribir las pruebas, y dejarlo anotado en
+el docstring del módulo con el porqué. **Esto es justo el tipo de
+decisión que hay que discutir con Bruno antes de seguir** (agrega una
+dependencia nueva, o depende de scripting de Finder) — no elegir en
+automático.
+
+- [ ] **Step 2: Escribir las pruebas que fallan**
+
+```python
+"""El alias de Finder de verdad -- spec
+2026-09-24-modo-portafolio-design.md. Solo corre en macOS."""
+from pathlib import Path
+
+from clasificador_video_portafolio import crear_alias_de_finder as caf
+
+
+def test_crear_alias_hace_la_subcarpeta_si_falta(tmp_path):
+    original = tmp_path / "clip_014.mov"
+    original.write_text("contenido")
+    destino = tmp_path / "Mi Portafolio" / "Casa Reforma" / "clip_014.mov"
+
+    caf.crear(original, destino)
+
+    assert destino.parent.is_dir()
+    # verificar que `destino` ES un alias que resuelve a `original` --
+    # el aserto exacto depende de qué camino se eligió en el Step 1
+    # (pyobjc vs osascript); acá va la comprobación que corresponda.
+```
+
+- [ ] **Step 3: Correr las pruebas y comprobar que fallan**
+
+- [ ] **Step 4: Escribir el módulo** (siguiendo lo decidido en el Step 1)
+
+- [ ] **Step 5: Correr las pruebas y comprobar que pasan**
+
+Estas pruebas **solo pueden correr en macOS de verdad** — marcarlas con
+`@pytest.mark.skipif(sys.platform != "darwin", ...)`, siguiendo
+cualquier patrón similar que ya exista en la suite del Clipify normal
+para funciones atadas a macOS (revisar `scripts/hacer_icono.py` y sus
+pruebas, si las tiene, antes de inventar el patrón de cero).
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add src/clasificador_video_portafolio/crear_alias_de_finder.py tests_portafolio/test_crear_alias_de_finder.py
+git commit -m "$(cat <<'EOF'
+crear_alias_de_finder.py: el alias real, con la API de macOS
+
+Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
+EOF
+)"
+```
+
+---
+
+### Task 17: conectar la creación del alias al flujo de Armar y entregar
+
+**Files:**
+- Modify: `src/clasificador_video_portafolio/ui/pantalla_armar_y_entregar.py`
+- Test: `tests_portafolio/ui/test_pantalla_armar_y_entregar.py`
+
+- [ ] **Step 1: Escribir la prueba que falla**
+
+Decidir en este Task, con Bruno si hace falta, EN QUÉ MOMENTO se llama
+`crear_alias_de_finder.crear`: ¿apenas un clip pasa a Elegida en
+Revisar, o hasta que se abre Armar y entregar? El spec no lo fija —
+revisarlo antes de escribir la prueba.
+
+```python
+def test_al_entrar_a_armar_se_crean_los_alias_de_las_elegidas(
+        qtbot, tmp_path, monkeypatch):
+    llamadas = []
+    monkeypatch.setattr(
+        "clasificador_video_portafolio.ui.pantalla_armar_y_entregar.caf.crear",
+        lambda origen, destino: llamadas.append((origen, destino)),
+    )
+    # ... armar un Portafolio con una elegida, como en el Task 15 ...
+
+    pantalla.refrescar()
+
+    assert len(llamadas) == 1
+```
+
+- [ ] **Step 2-4: fallar → implementar → pasar.**
+
+- [ ] **Step 5: Correr toda la suite de portafolio**
+
+Run: `QT_QPA_PLATFORM=offscreen .venv/bin/pytest tests_portafolio/ -q`
+(las pruebas de alias real se saltan fuera de macOS; el resto debe
+seguir en verde en cualquier sistema)
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add src/clasificador_video_portafolio/ tests_portafolio/
+git commit -m "$(cat <<'EOF'
+Conectar la creación real del alias al flujo de Armar y entregar
+
+Cierra la fase 4.5. Con esto el modo Portafolio queda completo de
+punta a punta: los clips Elegidos aparecen de verdad en la carpeta
+de portafolio.
+
+Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
+EOF
+)"
+```
+
+---
+
+## Después de las cinco fases (2, 3, 4 y 4.5)
 
 Con esto el modo Portafolio queda funcional de punta a punta, pero
 quedan afuera a propósito (spec, sección "Fuera de alcance"):
