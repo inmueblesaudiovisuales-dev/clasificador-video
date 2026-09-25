@@ -96,6 +96,13 @@ def con_pesos_medidos(data: dict, previos: dict | None = None) -> dict:
     pesos = _pesos_validos(previos)
     pesos.update(_pesos_validos(data.get("bytes")))
     for indice, clip in enumerate(data.get("clips") or []):
+        if indice in pesos:
+            # ya se sabia de una fuente anterior -- volver a medirlo en
+            # CADA autoguardado es trabajo tirado (en disco local, 0.27ms
+            # para 200 clips, ya gratis; el costo real es un volumen de
+            # red/iCloud lento donde un stat() de mas puede colgarse).
+            # Medido el 2026-09-25.
+            continue
         try:
             pesos[indice] = Path(str(clip["ruta"])).stat().st_size
         except (OSError, KeyError, TypeError):

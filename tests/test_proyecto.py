@@ -318,10 +318,14 @@ def test_los_bytes_conocidos_llegan_con_la_llave_en_texto(tmp_path):
     assert data["bytes"] == {"0": 700}
 
 
-def test_el_disco_manda_cuando_el_archivo_si_se_puede_medir(tmp_path):
-    """Conservar es para cuando no hay con que medir. Si el archivo esta
-    ahi, el peso de hoy es el bueno: pudo haberse reemplazado por otra
-    toma."""
+def test_lo_ya_conocido_se_conserva_aunque_el_archivo_se_pueda_medir(tmp_path):
+    """Hasta el 2026-09-25 el disco mandaba aqui: si el archivo se podia
+    medir, el peso de hoy ganaba, por si se habia reemplazado por otra
+    toma. Se cambio a proposito (riesgo aceptado explicitamente por Bruno,
+    ver el spec de esa fecha): volver a medir CADA clip en CADA
+    autoguardado es gratis en disco local pero puede colgarse en un
+    volumen de red/iCloud lento, y un peso que ya se conocia no vuelve a
+    tocarse aunque el archivo siga ahi."""
     archivo = tmp_path / "C0001.MP4"
     archivo.write_bytes(b"x" * 700)
     bins = BinTree()
@@ -333,7 +337,7 @@ def test_el_disco_manda_cuando_el_archivo_si_se_puede_medir(tmp_path):
                bytes_conocidos={0: 111})
     )
 
-    assert data["bytes"] == {"0": 700}
+    assert data["bytes"] == {"0": 111}
 
 
 def test_los_pesos_de_antes_se_arrastran_aunque_la_ventana_no_los_sepa(tmp_path):
@@ -363,6 +367,51 @@ def test_medir_no_ensucia_el_documento_original(tmp_path):
     con_pesos_medidos(documento, previos={"0": 700})
 
     assert documento["bytes"] == {}
+
+
+def test_con_pesos_medidos_no_vuelve_a_medir_lo_ya_conocido(tmp_path, monkeypatch):
+    """El .stat() de un Path normal no distingue instancias -- por eso el
+    espia va sobre Path.stat en si, comparando la ruta, y no sobre una
+    subclase (que se perderia en cuanto el codigo hiciera Path(str(ruta)))."""
+    ruta_sin_medir = tmp_path / "sin_medir.MP4"
+    ruta_sin_medir.write_bytes(b"1234567890")
+    ruta_ya_medida = tmp_path / "ya_medida.MP4"
+    ruta_ya_medida.write_bytes(b"no debe leerse otra vez")
+
+    original_stat = Path.stat
+
+    def stat_espia(self, *a, **k):
+        if self == ruta_ya_medida:
+            raise AssertionError(
+                "con_pesos_medidos volvio a medir un clip que ya tenia peso conocido")
+        return original_stat(self, *a, **k)
+
+    monkeypatch.setattr(Path, "stat", stat_espia)
+
+    data = {
+        "clips": [
+            {"ruta": str(ruta_ya_medida)},
+            {"ruta": str(ruta_sin_medir)},
+        ],
+    }
+    previos = {0: 999}  # el clip 0 ya tenia peso conocido de antes
+
+    resultado = con_pesos_medidos(data, previos)
+
+    assert resultado["bytes"]["0"] == 999          # conservado, no remedido
+    assert resultado["bytes"]["1"] == 10            # el nuevo si se midio
+
+
+def test_con_pesos_medidos_sigue_midiendo_lo_que_no_se_sabia(tmp_path):
+    """Caso normal: nada en previos, todo se mide -- no se rompe el
+    comportamiento de siempre."""
+    ruta = tmp_path / "a.MP4"
+    ruta.write_bytes(b"12345")
+    data = {"clips": [{"ruta": str(ruta)}]}
+
+    resultado = con_pesos_medidos(data, previos=None)
+
+    assert resultado["bytes"]["0"] == 5
 
 
 def test_el_documento_guarda_como_se_ve_la_hoja():
