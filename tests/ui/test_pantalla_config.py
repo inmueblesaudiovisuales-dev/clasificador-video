@@ -4,12 +4,11 @@ import pytest
 from clasificador_video.ui.pantalla_config import PantallaConfig
 
 
-def _pantalla(qtbot, modo_economico=False, modo_rapido=False,
-              importacion_rapida_pregunta_antes=False) -> PantallaConfig:
+def _pantalla(qtbot, importacion_rapida_pregunta_antes=False) -> PantallaConfig:
     p = PantallaConfig()
     qtbot.addWidget(p)
     p.resize(520, 300)
-    p.cargar(modo_economico, modo_rapido, importacion_rapida_pregunta_antes)
+    p.cargar(importacion_rapida_pregunta_antes)
     return p
 
 
@@ -44,91 +43,6 @@ def test_la_configuracion_ya_no_tiene_carpeta_de_proyectos_premiere(qtbot):
     assert not hasattr(p, "carpeta_premiere_guardada")
 
 
-def test_el_modo_economico_nace_apagado_por_default(qtbot):
-    p = _pantalla(qtbot)
-    assert not p.economico_check.isChecked()
-
-
-def test_cargar_refleja_el_modo_economico_guardado(qtbot):
-    p = _pantalla(qtbot, modo_economico=True)
-    assert p.economico_check.isChecked()
-
-
-def test_marcar_el_check_emite_true(qtbot):
-    p = _pantalla(qtbot)
-    with qtbot.waitSignal(p.modo_economico_cambiado) as blocker:
-        p.economico_check.setChecked(True)
-    assert blocker.args[0] is True
-
-
-def test_desmarcar_el_check_emite_false(qtbot):
-    p = _pantalla(qtbot, modo_economico=True)
-    with qtbot.waitSignal(p.modo_economico_cambiado) as blocker:
-        p.economico_check.setChecked(False)
-    assert blocker.args[0] is False
-
-
-def test_cargar_no_reemite_la_señal_al_solo_reflejar_lo_guardado(qtbot):
-    # `cargar` pone el check para mostrar lo que ya está guardado -- eso no
-    # es que Bruno haya tocado el checkbox, y no debe volver a escribir el
-    # mismo valor que se acaba de leer.
-    p = _pantalla(qtbot)
-    disparo = False
-
-    def _marcar(_valor):
-        nonlocal disparo
-        disparo = True
-
-    p.modo_economico_cambiado.connect(_marcar)
-    p.cargar(True)
-    assert not disparo
-    assert p.economico_check.isChecked()
-
-
-def test_el_modo_rapido_nace_apagado_por_default(qtbot):
-    p = _pantalla(qtbot)
-    assert not p.rapido_check.isChecked()
-
-
-def test_cargar_refleja_el_modo_rapido_guardado(qtbot):
-    p = _pantalla(qtbot, modo_rapido=True)
-    assert p.rapido_check.isChecked()
-
-
-def test_marcar_el_check_rapido_emite_true(qtbot):
-    p = _pantalla(qtbot)
-    with qtbot.waitSignal(p.modo_rapido_cambiado) as blocker:
-        p.rapido_check.setChecked(True)
-    assert blocker.args[0] is True
-
-
-def test_desmarcar_el_check_rapido_emite_false(qtbot):
-    p = _pantalla(qtbot, modo_rapido=True)
-    with qtbot.waitSignal(p.modo_rapido_cambiado) as blocker:
-        p.rapido_check.setChecked(False)
-    assert blocker.args[0] is False
-
-
-def test_cargar_no_reemite_la_señal_de_rapido_al_solo_reflejar_lo_guardado(qtbot):
-    p = _pantalla(qtbot)
-    disparo = False
-
-    def _marcar(_valor):
-        nonlocal disparo
-        disparo = True
-
-    p.modo_rapido_cambiado.connect(_marcar)
-    p.cargar(False, True)
-    assert not disparo
-    assert p.rapido_check.isChecked()
-
-
-def test_economico_y_rapido_son_independientes(qtbot):
-    p = _pantalla(qtbot, modo_economico=True, modo_rapido=False)
-    assert p.economico_check.isChecked()
-    assert not p.rapido_check.isChecked()
-
-
 def test_importacion_rapida_pregunta_antes_nace_apagado_por_default(qtbot):
     p = _pantalla(qtbot)
     assert not p.importacion_rapida_pregunta_check.isChecked()
@@ -155,7 +69,7 @@ def test_cargar_no_reemite_importacion_rapida_pregunta_antes(qtbot):
         disparo = True
 
     p.importacion_rapida_pregunta_antes_cambiado.connect(_marcar)
-    p.cargar(False, False, True)
+    p.cargar(True)
     assert not disparo
     assert p.importacion_rapida_pregunta_check.isChecked()
 

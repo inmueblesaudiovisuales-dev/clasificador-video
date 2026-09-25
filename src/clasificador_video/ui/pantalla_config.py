@@ -1,6 +1,6 @@
 """La pantalla de configuración.
 
-Tiene el modo económico, el modo rápido y las carpetas de trabajo. Vive
+Tiene las carpetas de trabajo y las miniaturas guardadas en disco. Vive
 aparte en vez de colgarse de un menú porque un ajuste escondido en un menú es
 un ajuste que no se encuentra; la app ya perdió una herramienta así antes.
 
@@ -37,11 +37,8 @@ def _formatear_bytes(bytes_: int) -> str:
 
 
 class PantallaConfig(QWidget):
-    """El modo económico, el modo rápido y las miniaturas guardadas en
-    disco."""
+    """Las carpetas de trabajo y las miniaturas guardadas en disco."""
 
-    modo_economico_cambiado = Signal(bool)
-    modo_rapido_cambiado = Signal(bool)
     importacion_rapida_pregunta_antes_cambiado = Signal(bool)
     carpeta_icloud_guardada = Signal(Path)
     miniaturas_borrar_pedido = Signal()
@@ -74,58 +71,6 @@ class PantallaConfig(QWidget):
         fila.addStretch(1)
         fila.addWidget(self.cerrar_button)
         raiz.addLayout(fila)
-
-        titulo_economico = QLabel("Modo económico")
-        titulo_economico.setObjectName("configTitulo")
-        raiz.addWidget(titulo_economico)
-
-        self.economico_check = QCheckBox(
-            "Generar menos miniaturas a la vez"
-        )
-        self.economico_check.setObjectName("configEconomico")
-        # `checkStateChanged` y no `stateChanged`: PySide6 >=6.7 (el mínimo
-        # del proyecto) lo tiene, y es el que no sale marcado como obsoleto.
-        self.economico_check.checkStateChanged.connect(
-            lambda estado: self.modo_economico_cambiado.emit(
-                estado == Qt.CheckState.Checked
-            )
-        )
-        raiz.addWidget(self.economico_check)
-
-        economico_label = QLabel(
-            "Prende esto en una computadora con menos memoria o menos "
-            "núcleos, como una MacBook Air: la app saca las miniaturas de "
-            "una en una en vez de varias a la vez. Tarda más en terminar, "
-            "pero no se traba."
-        )
-        economico_label.setObjectName("configDonde")
-        economico_label.setWordWrap(True)
-        raiz.addWidget(economico_label)
-
-        titulo_rapido = QLabel("Modo rápido")
-        titulo_rapido.setObjectName("configTitulo")
-        raiz.addWidget(titulo_rapido)
-
-        self.rapido_check = QCheckBox(
-            "Miniaturas chicas y pocas, todas a la vez"
-        )
-        self.rapido_check.setObjectName("configRapido")
-        self.rapido_check.checkStateChanged.connect(
-            lambda estado: self.modo_rapido_cambiado.emit(
-                estado == Qt.CheckState.Checked
-            )
-        )
-        raiz.addWidget(self.rapido_check)
-
-        rapido_label = QLabel(
-            "Mismas miniaturas chicas que el modo económico (menos fotos "
-            "por tira, menos resolución), pero sin el freno de \"una a la "
-            "vez\" -- para cuando tu computadora aguanta procesar varias al "
-            "mismo tiempo y solo quieres terminar rápido."
-        )
-        rapido_label.setObjectName("configDonde")
-        rapido_label.setWordWrap(True)
-        raiz.addWidget(rapido_label)
 
         titulo_importacion_rapida = QLabel("Importación rápida")
         titulo_importacion_rapida.setObjectName("configTitulo")
@@ -196,18 +141,10 @@ class PantallaConfig(QWidget):
         if elegida:
             self.carpeta_icloud_guardada.emit(Path(elegida))
 
-    def cargar(self, modo_economico: bool = False,
-              modo_rapido: bool = False,
-              importacion_rapida_pregunta_antes: bool = False) -> None:
+    def cargar(self, importacion_rapida_pregunta_antes: bool = False) -> None:
         """Enseña qué hay guardado, reflejando las preferencias en sus
         casillas. Se bloquean las señales para no reemitir nada al solo
         reflejar lo guardado."""
-        self.economico_check.blockSignals(True)
-        self.economico_check.setChecked(modo_economico)
-        self.economico_check.blockSignals(False)
-        self.rapido_check.blockSignals(True)
-        self.rapido_check.setChecked(modo_rapido)
-        self.rapido_check.blockSignals(False)
         self.importacion_rapida_pregunta_check.blockSignals(True)
         self.importacion_rapida_pregunta_check.setChecked(
             importacion_rapida_pregunta_antes)
