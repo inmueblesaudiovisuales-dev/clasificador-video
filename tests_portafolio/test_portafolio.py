@@ -173,3 +173,52 @@ def test_revincular_actualiza_solo_si_encuentra_el_mismo_archivo(tmp_path):
 
     assert resultado is True
     assert clip.ruta_origen == encontrada
+
+
+def test_alternar_etiqueta_la_agrega():
+    clip = pf.ClipDelPortafolio(ruta_origen=Path("x.mov"), proyecto="P")
+
+    pf.alternar_etiqueta(clip, "Dron")
+
+    assert clip.etiquetas == ["Dron"]
+
+
+def test_alternar_etiqueta_dos_veces_la_quita():
+    clip = pf.ClipDelPortafolio(ruta_origen=Path("x.mov"), proyecto="P")
+
+    pf.alternar_etiqueta(clip, "Dron")
+    pf.alternar_etiqueta(clip, "Dron")
+
+    assert clip.etiquetas == []
+
+
+def test_un_clip_puede_tener_varias_etiquetas():
+    clip = pf.ClipDelPortafolio(ruta_origen=Path("x.mov"), proyecto="P")
+
+    pf.alternar_etiqueta(clip, "Dron")
+    pf.alternar_etiqueta(clip, "Exteriores")
+
+    assert set(clip.etiquetas) == {"Dron", "Exteriores"}
+
+
+def test_elegidas_con_etiquetas_solo_devuelve_elegidas(tmp_path):
+    p = pf.Portafolio()
+    proyecto = p.agregar_proyecto("Casa", tmp_path / "c.prproj", [])
+    c1 = pf.ClipDelPortafolio(tmp_path / "a.mov", "Casa", estado="elegida", etiquetas=["Dron"])
+    c2 = pf.ClipDelPortafolio(tmp_path / "b.mov", "Casa", estado="elegida", etiquetas=["Cocina"])
+    c3 = pf.ClipDelPortafolio(tmp_path / "c.mov", "Casa", estado="sin_decidir", etiquetas=["Dron"])
+    proyecto.clips.extend([c1, c2, c3])
+
+    filtrados = p.elegidas_con_etiquetas({"Dron"})
+
+    assert filtrados == [c1]  # c3 no cuenta: no está Elegida
+
+
+def test_elegidas_con_etiquetas_vacio_devuelve_todas_las_elegidas(tmp_path):
+    p = pf.Portafolio()
+    proyecto = p.agregar_proyecto("Casa", tmp_path / "c.prproj", [])
+    c1 = pf.ClipDelPortafolio(tmp_path / "a.mov", "Casa", estado="elegida")
+    c2 = pf.ClipDelPortafolio(tmp_path / "b.mov", "Casa", estado="descartada")
+    proyecto.clips.extend([c1, c2])
+
+    assert p.elegidas_con_etiquetas(set()) == [c1]

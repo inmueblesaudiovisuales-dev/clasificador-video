@@ -39,6 +39,18 @@ def bajar(clip: ClipDelPortafolio) -> None:
     clip.estado = ESTADOS[indice]
 
 
+def alternar_etiqueta(clip: ClipDelPortafolio, etiqueta: str) -> None:
+    """La tecla de una etiqueta la SUMA o la QUITA, nunca la reemplaza.
+
+    A diferencia de los cuartos, donde el número reemplaza, un clip del
+    portafolio puede tener varias etiquetas a la vez (spec 2026-09-24).
+    """
+    if etiqueta in clip.etiquetas:
+        clip.etiquetas.remove(etiqueta)
+    else:
+        clip.etiquetas.append(etiqueta)
+
+
 @dataclass
 class ProyectoImportado:
     nombre: str
@@ -103,6 +115,29 @@ class Portafolio:
             return False
         clip.ruta_origen = candidata
         return True
+
+    def todas_las_elegidas(self) -> list[ClipDelPortafolio]:
+        return [
+            clip
+            for proyecto in self.proyectos
+            for clip in proyecto.clips
+            if clip.estado == "elegida"
+        ]
+
+    def elegidas_con_etiquetas(
+        self, etiquetas: set[str]
+    ) -> list[ClipDelPortafolio]:
+        """Elegidas que tienen AL MENOS una de las etiquetas pedidas.
+
+        Con `etiquetas` vacío no filtra nada extra: son todas las elegidas.
+        """
+        if not etiquetas:
+            return self.todas_las_elegidas()
+        return [
+            clip
+            for clip in self.todas_las_elegidas()
+            if etiquetas & set(clip.etiquetas)
+        ]
 
     def guardar(self, destino: Path) -> None:
         datos = {
