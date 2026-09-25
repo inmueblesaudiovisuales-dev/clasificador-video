@@ -149,3 +149,80 @@ def test_generar_sin_elegidas_no_hace_nada(qtbot, tmp_path):
     qtbot.addWidget(pantalla)
 
     assert pantalla.generar() is None
+
+
+def test_al_entrar_a_armar_se_crean_los_alias_de_las_elegidas(qtbot, tmp_path, monkeypatch):
+    llamadas = []
+    monkeypatch.setattr(
+        "clasificador_video_portafolio.ui.pantalla_armar_y_entregar.caf.crear",
+        lambda origen, destino: llamadas.append((origen, destino)),
+    )
+    p = pf.Portafolio()
+    casa = p.agregar_proyecto("Casa Reforma", tmp_path / "casa.prproj", [])
+    casa.clips.append(pf.ClipDelPortafolio(
+        tmp_path / "a.mov", "Casa Reforma", estado="elegida"))
+    carpeta_raiz = tmp_path / "Mi Portafolio"
+
+    pantalla = PantallaArmarYEntregar(p, carpeta_portafolio=carpeta_raiz)
+    qtbot.addWidget(pantalla)
+
+    assert llamadas == [
+        (tmp_path / "a.mov", carpeta_raiz / "Casa Reforma" / "a.mov"),
+    ]
+
+
+def test_sin_carpeta_elegida_no_intenta_crear_alias(qtbot, tmp_path, monkeypatch):
+    llamadas = []
+    monkeypatch.setattr(
+        "clasificador_video_portafolio.ui.pantalla_armar_y_entregar.caf.crear",
+        lambda origen, destino: llamadas.append((origen, destino)),
+    )
+
+    pantalla = PantallaArmarYEntregar(_portafolio(tmp_path))
+    qtbot.addWidget(pantalla)
+
+    assert llamadas == []
+
+
+def test_refrescar_no_repite_alias_ya_creados(qtbot, tmp_path, monkeypatch):
+    llamadas = []
+    monkeypatch.setattr(
+        "clasificador_video_portafolio.ui.pantalla_armar_y_entregar.caf.crear",
+        lambda origen, destino: llamadas.append((origen, destino)),
+    )
+    p = pf.Portafolio()
+    casa = p.agregar_proyecto("Casa Reforma", tmp_path / "casa.prproj", [])
+    casa.clips.append(pf.ClipDelPortafolio(
+        tmp_path / "a.mov", "Casa Reforma", estado="elegida"))
+    carpeta_raiz = tmp_path / "Mi Portafolio"
+    pantalla = PantallaArmarYEntregar(p, carpeta_portafolio=carpeta_raiz)
+    qtbot.addWidget(pantalla)
+
+    pantalla.alternar_filtro("cualquiera")
+
+    assert len(llamadas) == 2
+
+
+def test_falla_al_crear_un_alias_no_bloquea_los_demas(qtbot, tmp_path, monkeypatch):
+    llamadas = []
+
+    def crear_falso(origen, destino):
+        if origen.name == "a.mov":
+            raise OSError("disco desconectado")
+        llamadas.append((origen, destino))
+
+    monkeypatch.setattr(
+        "clasificador_video_portafolio.ui.pantalla_armar_y_entregar.caf.crear",
+        crear_falso,
+    )
+    p = pf.Portafolio()
+    casa = p.agregar_proyecto("Casa Reforma", tmp_path / "casa.prproj", [])
+    casa.clips.append(pf.ClipDelPortafolio(
+        tmp_path / "a.mov", "Casa Reforma", estado="elegida"))
+    casa.clips.append(pf.ClipDelPortafolio(
+        tmp_path / "b.mov", "Casa Reforma", estado="elegida"))
+
+    pantalla = PantallaArmarYEntregar(p, carpeta_portafolio=tmp_path / "Mi Portafolio")
+    qtbot.addWidget(pantalla)
+
+    assert [origen.name for origen, _ in llamadas] == ["b.mov"]

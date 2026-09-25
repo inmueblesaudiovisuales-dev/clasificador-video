@@ -1,7 +1,12 @@
 """Pantalla Armar y entregar: etiquetas de clip, filtro y generar el .prproj.
 
-Universo: solo las Elegidas de todo el portafolio. Hasta la Fase 4.5 NO
-crea alias de Finder -- usa las rutas que calcula `carpeta_de_portafolio`.
+Universo: solo las Elegidas de todo el portafolio. Con carpeta de
+portafolio elegida, cada `refrescar()` asegura el alias real de Finder
+de todas las Elegidas (Fase 4.5) -- así aparecen en la carpeta apenas se
+entra al módulo, no solo al generar el .prproj. `crear_alias_de_finder`
+no pisa un alias ya creado, así que repetir la llamada en cada refresco
+no hace nada de más. Un clip cuyo original no se puede leer (disco
+desconectado) no bloquea a los demás.
 Spec: docs/superpowers/specs/2026-09-24-modo-portafolio-design.md.
 """
 from __future__ import annotations
@@ -24,6 +29,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from clasificador_video_portafolio import carpeta_de_portafolio as cp
+from clasificador_video_portafolio import crear_alias_de_finder as caf
 from clasificador_video_portafolio import generar_entrega
 from clasificador_video_portafolio import portafolio as pf
 
@@ -192,7 +199,9 @@ class PantallaArmarYEntregar(QWidget):
     # -- interacción ------------------------------------------------------
 
     def refrescar(self) -> None:
-        """Reconstruye rail, hoja y barra. NO crea alias de Finder."""
+        """Reconstruye rail, hoja y barra, y asegura el alias de Finder
+        de cada Elegida si ya hay carpeta de portafolio elegida."""
+        self._asegurar_alias_de_elegidas()
         self._reconstruir_rail()
         self._reconstruir_hoja()
         self.resumen_arriba.setText(self.resumen())
@@ -237,6 +246,17 @@ class PantallaArmarYEntregar(QWidget):
         return generar_entrega.generar(
             clips, categorias, self.carpeta_portafolio,
             proyecto=self.nombre_proyecto)
+
+    def _asegurar_alias_de_elegidas(self) -> None:
+        if self.carpeta_portafolio is None:
+            return
+        for clip in self.portafolio.todas_las_elegidas():
+            destino = cp.ruta_del_alias(
+                self.carpeta_portafolio, clip.proyecto, clip.ruta_origen)
+            try:
+                caf.crear(clip.ruta_origen, destino)
+            except OSError:
+                continue
 
     # -- construcción -----------------------------------------------------
 
