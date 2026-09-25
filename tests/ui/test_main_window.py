@@ -580,6 +580,38 @@ def test_load_clips_arranca_el_primer_clip_en_el_reproductor(qtbot):
     assert window.video_stage.video.player._mpv.loaded_path == "/a.MP4"
 
 
+def test_load_clips_no_construye_la_hoja_si_se_pide_diferir(qtbot, monkeypatch, tmp_path):
+    """`load_clips(clips, construir_hoja=False)` hace todo lo que hace hoy
+    -- limpiar historial, proxies, bins, indices, abrir el clip actual --
+    EXCEPTO llamar a `_refresh_sheet`. Quien pide diferir es responsable de
+    llamar `_refresh_sheet(force_rebuild=True)` el mismo, una sola vez,
+    cuando ya tenga todos los datos (ver app.py::_poblar_ventana)."""
+    window = _window_with_video(qtbot, cache_root=tmp_path / "cache")
+    llamadas = []
+    monkeypatch.setattr(window, "_refresh_sheet", lambda *a, **k: llamadas.append(k))
+
+    window.load_clips(
+        [Clip(orden=1, ruta=tmp_path / "a.MP4", categoria_path=[], fps=30.0)],
+        construir_hoja=False,
+    )
+
+    assert llamadas == []
+
+
+def test_load_clips_construye_la_hoja_por_default(qtbot, monkeypatch, tmp_path):
+    """Sin el parametro, el comportamiento de siempre: construye al
+    final."""
+    window = _window_with_video(qtbot, cache_root=tmp_path / "cache")
+    llamadas = []
+    monkeypatch.setattr(window, "_refresh_sheet", lambda *a, **k: llamadas.append(k))
+
+    window.load_clips(
+        [Clip(orden=1, ruta=tmp_path / "a.MP4", categoria_path=[], fps=30.0)],
+    )
+
+    assert llamadas == [{"force_rebuild": True}]
+
+
 def test_flecha_derecha_avanza_al_siguiente_clip_y_lo_carga_en_el_player(qtbot):
     window = _window_with_video(qtbot)
     window.show()

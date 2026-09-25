@@ -26,6 +26,7 @@ from clasificador_video.app import (
 )
 from clasificador_video.proyecto import abrir, guardar
 from clasificador_video.ui import theme
+from clasificador_video.ui.main_window import MainWindow
 
 
 class _FakeMpv:
@@ -78,6 +79,25 @@ def _proyecto_en(tmp_path, extra=None, nombre="P.cvproj"):
     ruta = tmp_path / nombre
     guardar(ruta, _documento(extra))
     return ruta
+
+
+def test_poblar_ventana_construye_la_hoja_una_sola_vez(qtbot, monkeypatch, tmp_path):
+    """Antes: load_clips forzaba una construccion con datos a medias, y
+    _poblar_ventana forzaba una segunda cuando ya tenia tamaños/duraciones/
+    rotaciones reales. Con construir_hoja=False la primera se difiere y
+    solo queda la segunda."""
+    ruta = _proyecto_en(tmp_path)
+    llamadas = []
+    monkeypatch.setattr(
+        MainWindow, "_refresh_sheet",
+        lambda self, *a, **k: llamadas.append(k),
+    )
+
+    window = abrir_proyecto(ruta, video_factory=_FakeMpv,
+                            recientes_path=tmp_path / "r.json")
+    qtbot.addWidget(window)
+
+    assert llamadas.count({"force_rebuild": True}) == 1
 
 
 def test_abrir_proyecto_recupera_la_carpeta_de_icloud(qtbot, tmp_path):

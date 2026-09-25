@@ -203,7 +203,7 @@ def _poblar_ventana(window: MainWindow, data: dict, clips: list[Clip]) -> None:
     # `category_tree` de proyectos viejos se ignora a proposito: los
     # subcuartos murieron en la F3 y los paths se aplanan al cuarto padre.
     window._router = KeyboardRouter(active_rooms=window.room_selection.active_rooms())
-    window.load_clips(clips)
+    window.load_clips(clips, construir_hoja=False)
     # un proyecto sin la llave "bins" -- porque es de antes de que
     # existieran -- no se pierde: todo el material cae en un bin unico.
     window.bins = BinTree.desde_sesion(
@@ -241,6 +241,10 @@ def _poblar_ventana(window: MainWindow, data: dict, clips: list[Clip]) -> None:
     # igual y el boton sigue ahi para armarla. La llave vieja `guia` (una
     # sola, sin unidades) se lee como la de «sin unidad».
     window.restaurar_guias(_guias_por_unidad_de(data))
+    # Unica construccion de la hoja: load_clips (arriba) la difirio con
+    # construir_hoja=False porque todavia no teniamos tamaños/duraciones/
+    # rotaciones reales -- ya los tenemos, aqui se construye una vez con
+    # los datos correctos desde el principio.
     window._refresh_sheet(force_rebuild=True)
     # Que unidades quedaron colapsadas en el rail (spec 2026-09-21 S3).
     # Falta en todo proyecto de antes de hoy, y ahi el default es "ninguna"

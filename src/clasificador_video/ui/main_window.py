@@ -2408,7 +2408,7 @@ class MainWindow(QWidget):
     # carga de clips
     # ------------------------------------------------------------------
 
-    def load_clips(self, clips: list[Clip]) -> None:
+    def load_clips(self, clips: list[Clip], construir_hoja: bool = True) -> None:
         self.clips = clips
         self.current_index = 0
         # el historial guarda INDICES de clip: con material nuevo apuntarian
@@ -2456,7 +2456,14 @@ class MainWindow(QWidget):
         self.aviso_de_media.poner([])
         self._mostrar_aviso_si_toca()
         self._refresh_history()
-        self._refresh_sheet(force_rebuild=True)
+        # Diferible: quien llama con `construir_hoja=False` (hoy solo
+        # `app._poblar_ventana`) todavia no tiene tamaños/duraciones/
+        # rotaciones reales de este material -- construir aqui armaria
+        # todas las tarjetas con datos por default y las volveria a armar
+        # segundos despues con los de verdad. Medido el 2026-09-25 con 229
+        # clips sinteticos: se construian 458 tarjetas para acabar con 229.
+        if construir_hoja:
+            self._refresh_sheet(force_rebuild=True)
         self._abrir_clip_actual()
         self._resize_video_stage()
         self._autosave()
