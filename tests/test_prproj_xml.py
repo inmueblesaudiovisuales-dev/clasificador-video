@@ -32,6 +32,32 @@ def test_escribir_prproj_guarda_los_acentos_como_utf8(tmp_path):
     assert b"&#" not in crudo
 
 
+def test_escribir_prproj_produce_el_mismo_xml_que_tostring(tmp_path):
+    """El escritor por partes (gzip.open + ElementTree.write directo al
+    archivo) tiene que producir BYTE A BYTE el mismo XML descomprimido que
+    el camino anterior (armar la cadena completa en memoria y despues
+    comprimir) -- el cambio es solo COMO se escribe, no que se escribe.
+    Verificado el 2026-09-25 con un XML real de 500 clips (8.4MB
+    descomprimido): identico. Pico de memoria temporal de Python bajo de
+    ~46MB a ~3.3MB con este cambio."""
+    raiz = ET.Element("PremiereData")
+    for i in range(50):
+        clip = ET.SubElement(raiz, "Clip")
+        clip.set("Name", f"C{i:04d}.MP4")
+        clip.set("ObjectID", str(i))
+
+    esperado = (
+        '<?xml version="1.0" encoding="UTF-8" ?>\n'
+        + ET.tostring(raiz, encoding="unicode")
+    ).encode("utf-8")
+
+    destino = tmp_path / "salida.prproj"
+    prproj_xml.escribir_prproj(raiz, destino)
+    obtenido = gzip.decompress(destino.read_bytes())
+
+    assert obtenido == esperado
+
+
 def _premiere_data_de_prueba():
     return ET.fromstring("""
     <PremiereData Version="3">
