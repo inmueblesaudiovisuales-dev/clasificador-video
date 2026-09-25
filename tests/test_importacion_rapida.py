@@ -7,14 +7,20 @@ from clasificador_video import importacion_rapida
 def _armar_proyecto(tmp_path: Path, *, con_pocket: bool = True) -> Path:
     proyecto = tmp_path / "IAV-2609.10-A"
     assets = proyecto / "01. ASSETS VIDEO"
-    (assets / "01. VIDEOS SONY").mkdir(parents=True)
-    (assets / "02. VIDEO DRONE").mkdir(parents=True)
+    sony = assets / "01. VIDEOS SONY"
+    dron = assets / "02. VIDEO DRONE"
+    sony.mkdir(parents=True)
+    dron.mkdir(parents=True)
+    (sony / "C0001.MP4").touch()
+    (dron / "DJI_0001.MP4").touch()
     (assets / "04. VIDEOS OSMO ACTION").mkdir(parents=True)
     proxies = assets / "07. PROXIES"
     (proxies / "01. PROXY SONY").mkdir(parents=True)
     (proxies / "02. PROXY DRONE").mkdir(parents=True)
     if con_pocket:
-        (assets / "03. VIDEOS OSMO POCKET").mkdir(parents=True)
+        pocket = assets / "03. VIDEOS OSMO POCKET"
+        pocket.mkdir(parents=True)
+        (pocket / "C0001.MP4").touch()
     return proyecto
 
 
@@ -57,6 +63,27 @@ def test_no_confunde_la_carpeta_de_proxies_con_la_de_material(tmp_path):
     resultado = importacion_rapida.detectar_carpetas_de_material(proyecto)
     assert resultado.sony.name == "01. VIDEOS SONY"
     assert "PROXY" not in resultado.sony.name.upper()
+
+
+def test_pocket_vacia_se_trata_como_ausente(tmp_path):
+    """La plantilla de proyecto de Bruno ya trae la carpeta de Pocket creada
+    de antemano -- si ese rodaje no la usó, queda vacía. Antes eso se
+    contaba como "encontrada" aquí y como "nada que importar" un paso
+    después, en `importar_rutas`: un aviso de carpeta equivocada para una
+    carpeta que sí era la correcta, solo que sin material esta vez."""
+    proyecto = _armar_proyecto(tmp_path, con_pocket=True)
+    (proyecto / "01. ASSETS VIDEO" / "03. VIDEOS OSMO POCKET" / "C0001.MP4").unlink()
+    resultado = importacion_rapida.detectar_carpetas_de_material(proyecto)
+    assert resultado.pocket is None
+    assert "Pocket" not in resultado.faltantes
+
+
+def test_sony_vacia_se_avisa_igual_que_ausente(tmp_path):
+    proyecto = _armar_proyecto(tmp_path, con_pocket=False)
+    (proyecto / "01. ASSETS VIDEO" / "01. VIDEOS SONY" / "C0001.MP4").unlink()
+    resultado = importacion_rapida.detectar_carpetas_de_material(proyecto)
+    assert resultado.sony is None
+    assert "Sony" in resultado.faltantes
 
 
 def test_falta_sony_y_dron_se_avisa(tmp_path):

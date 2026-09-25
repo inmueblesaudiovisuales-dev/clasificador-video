@@ -13,9 +13,24 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from clasificador_video import proyecto_colaborativo
+from clasificador_video.ingest import archivos_de_video
 from clasificador_video.marca_camara import (
     bin_dice_dron, bin_dice_pocket, bin_dice_sony,
 )
+
+
+def _con_video(carpeta: Path | None) -> Path | None:
+    """`carpeta` si de verdad tiene algún video adentro, si no `None`.
+
+    Sin este filtro, una carpeta de cámara creada por la plantilla de Bruno
+    pero vacía -- no todos los rodajes usan las tres cámaras -- se contaba
+    como «encontrada» aquí y como «nada que importar» un paso después, en
+    `importar_rutas`: un aviso de "elegiste la carpeta equivocada" para una
+    carpeta que sí era la correcta, simplemente sin material esta vez.
+    """
+    if carpeta is None or not archivos_de_video([carpeta]):
+        return None
+    return carpeta
 
 
 def _primer_hijo_que_contiene(carpeta: Path, *, contiene: str) -> Path | None:
@@ -62,9 +77,9 @@ def detectar_carpetas_de_material(carpeta_del_proyecto: Path) -> CarpetasDeMater
         hijos = [p for p in assets_video.iterdir() if p.is_dir()]
     except OSError:
         hijos = []
-    sony = next((h for h in hijos if bin_dice_sony(h.name)), None)
-    dron = next((h for h in hijos if bin_dice_dron(h.name)), None)
-    pocket = next((h for h in hijos if bin_dice_pocket(h.name)), None)
+    sony = _con_video(next((h for h in hijos if bin_dice_sony(h.name)), None))
+    dron = _con_video(next((h for h in hijos if bin_dice_dron(h.name)), None))
+    pocket = _con_video(next((h for h in hijos if bin_dice_pocket(h.name)), None))
 
     faltantes = tuple(
         nombre for nombre, carpeta in (("Sony", sony), ("Drone", dron))
